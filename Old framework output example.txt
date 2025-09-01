@@ -1,0 +1,223 @@
+TOM KING POSITION ANALYSIS - Tuesday, August 26, 2025
+═══════════════════════════════════════════
+POSITION HEALTH DASHBOARD
+───────────────────────────────────
+Current Portfolio Status:
+
+Account Value: £40,000
+Positions: NONE (Fresh start opportunity)
+BP Used: 0%
+VIX Level: 16.5 (NORMAL regime)
+Day: Tuesday - STRANGLE ENTRY DAY
+
+IMMEDIATE ACTIONS REQUIRED:
+───────────────────────────────────
+🟢 DEPLOY: Up to 70% BP available for new positions
+🟢 ENTRY DAY: Tuesday strangle opportunities
+🟢 WEDNESDAY PREP: LT112 entry tomorrow
+
+PATTERN ANALYSIS & OPPORTUNITIES
+═══════════════════════════════════════════
+QUALIFIED TICKERS FOR £40K ACCOUNT:
+───────────────────────────────────
+Market Data Retrieved:
+
+ES Futures: 6,381-6,450 (Ready for Wednesday LT112)
+SPY: 635-642 (IPMCC candidate)
+VIX: 16.5 (NORMAL - Good for strangles)
+MCL: $63-64 (Micro crude)
+TLT: $86-87, IV Rank ~54 (Good setup)
+
+STRANGLE OPPORTUNITIES:
+🟢 TLT (Treasury ETF):
+
+Current Price: $86.75
+IV Rank: 54 (Above 30 threshold ✓)
+20-day IV: 20.9%
+Pattern: Rangebound, negative equity correlation
+Action: QUALIFIED FOR STRANGLE
+Estimated BP: 2.5%
+Target Credit: £200-250
+
+🟡 MCL (Micro Crude Oil):
+
+Current Price: $63-64
+Contract Size: 100 barrels (1/10th CL)
+Action: SEARCH REQUIRED for IV rank
+Required searches:
+
+MCL implied volatility IV rank
+MCL 90 DTE option chain 5 delta strikes
+
+
+Estimated BP: 2.5%
+
+Additional Qualified Tickers Requiring Data:
+
+MGC (Micro Gold): Full data search required
+GLD (Gold ETF): Full data search required
+SLV (Silver ETF): Full data search required
+XOP (Oil & Gas ETF): Full data search required
+
+
+TODAY'S EXECUTION PLAN - TUESDAY
+═══════════════════════════════════════════
+Available Strategies:
+
+✅ Strangles: 2 positions maximum (micros/ETFs)
+✅ Position management: Review any existing
+❌ 0DTE: Friday only
+❌ LT112: Wednesday entry
+❌ IPMCC rolls: Friday morning
+
+RECOMMENDED DEPLOYMENT:
+
+TLT Strangle (if IV holds): 2.5% BP
+MCL or MGC Strangle (pending data): 2.5% BP
+Hold 65% BP for Wednesday LT112 and Friday opportunities
+
+
+SUSTAINABILITY & PROJECTIONS
+═══════════════════════════════════════════
+MONTHLY PERFORMANCE TARGETS:
+
+Conservative: £2,500 (6.25%)
+Realistic: £3,200 (8%)
+Optimal: £4,000 (10%)
+
+Current Status:
+
+Month P&L: £0
+Days Remaining: 5
+Required Daily: £640 for 8% target
+Status: DEPLOYMENT REQUIRED
+
+⚠️ URGENCY: With only 5 days left in August, immediate deployment critical for monthly target
+
+BP ALLOCATION PLAN
+───────────────────────────────────
+
+Current Used: 0%
+VIX Regime Max: 70%
+Available: 70%
+
+Proposed Allocation:
+
+Tuesday Strangles: 5% (2 positions)
+Wednesday LT112: 6% (2 MES positions)
+Friday 0DTE: 7% (2 contracts)
+IPMCC: 8% (1 position)
+Total Planned: 26%
+Reserve: 44%
+
+
+RISK & CONCENTRATION CHECK
+═══════════════════════════════════════════
+Concentration Groups: All available (no positions)
+
+Energy (C1): Available for MCL
+Precious Metals (B1): Available for MGC/GLD
+Fixed Income (E): Available for TLT
+Currencies (F): Available for M6E/M6A
+
+
+7-DAY MANAGEMENT CALENDAR
+═══════════════════════════════════════════
+Wednesday (Aug 27):
+
+LT112 PRIMARY ENTRY
+Deploy 2 MES positions
+Search: MES 120 DTE option chains
+
+Thursday (Aug 28):
+
+Management day only
+Review Tuesday entries
+
+Friday (Aug 29):
+
+0DTE EXECUTION (10:30 AM)
+2 contracts ES
+IPMCC consideration
+
+Monday (Sept 1):
+
+Monthly review
+September planning
+
+Tuesday (Sept 2):
+
+Strangle management
+New month opportunities
+
+
+CRITICAL NEXT STEPS
+IMMEDIATE (Next 2 Hours):
+
+Search MCL IV rank and option chain
+Search MGC current data
+Enter 1-2 strangle positions
+Set alerts for Wednesday LT112
+
+DATA SEARCHES REQUIRED:
+
+MCL implied volatility and 90 DTE chains
+MGC complete market data
+MES 120 DTE option data (for Wednesday)
+
+Expected Returns This Week:
+
+2 Strangles: £100-150 (partial week)
+Wednesday LT112: Setup only
+Friday 0DTE: £400-500
+Week Total: £500-650
+
+Tom King Trading Dashboard - £40k AccountInteractive artifact Strategized trading framework for fresh £40,000 account deployment.13sI've completed the analysis according to the Tom King Framework v8.0 for a £40,000 account with no current positions. The analysis includes:
+
+Complete position health dashboard (none since no positions)
+Pattern analysis with available data
+Tuesday execution plan (strangle entry day)
+Sustainability check showing urgency with only 5 days left
+BP allocation plan
+Risk and concentration check
+7-day calendar
+HTML dashboard with all visualizations
+
+Key points:
+
+Account has 0% BP used, fresh start
+Tuesday is strangle entry day
+VIX at 16.5 (NORMAL regime) allows 60-70% BP
+Qualified for micro futures and ETFs
+TLT shows good setup with IV rank 54
+Need more data for other tickers before specific recommendations
+Only 5 days left in month, urgent deployment needed
+Can deploy 2 strangles, prepare for Wednesday LT112, Friday 0DTE
+
+The framework correctly enforces data-first rules by noting where searches are required before specific strike recommendations can be made.Your £40,000 account analysis is complete. With no current positions and 0% BP used, you're in an ideal position to deploy capital strategically.
+Key Findings:
+Today's Priority (Tuesday):
+
+Strangle Entry Day - Deploy 2 positions maximum
+TLT appears qualified with IV rank 54 (good for strangles)
+MCL needs IV rank verification before entry
+Target 5% total BP deployment today
+
+Critical Timing Issue:
+With only 5 days remaining in August and £0 P&L, you need £640 daily to reach your 8% monthly target (£3,200). Immediate deployment is essential.
+This Week's Plan:
+
+Today: 2 strangles (5% BP)
+Wednesday: 2 MES LT112 positions (6% BP)
+Friday: 2 ES 0DTE contracts (7% BP) + consider IPMCC (8% BP)
+Total deployment: 26% of available 70%
+
+Required Actions:
+
+Search MCL IV rank to confirm strangle viability
+Enter TLT strangle if comfortable with current setup
+Prepare for tomorrow's LT112 entry (search MES 120 DTE chains)
+Set Friday 10:30 AM alert for 0DTE execution
+
+The dashboard shows your complete position deployment schedule, BP allocation plan, and qualified ticker analysis. Your VIX regime (NORMAL at 16.5) allows up to 70% BP usage, giving you plenty of room to deploy the core strategies effectively.
+With disciplined execution this week, you can still achieve meaningful returns for August while setting up September for a full month of income generation.
