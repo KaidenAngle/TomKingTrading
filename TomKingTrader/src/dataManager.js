@@ -32,6 +32,10 @@ class DataManager {
             '6A': '/6A',
             'M6E': '/M6E',
             'M6A': '/M6A',
+            // Indices - no change needed (handled as 'index' in API)
+            'VIX': 'VIX',
+            'SPX': 'SPX',
+            'DJI': 'DJI',
             // Equities - no change needed
             'SPY': 'SPY',
             'QQQ': 'QQQ',
@@ -101,6 +105,11 @@ class DataManager {
         const apiSymbol = this.formatSymbolForAPI(ticker);
         const cacheKey = `${ticker}_${Date.now()}`;
         
+        // Special debug logging for VIX
+        if (ticker === 'VIX') {
+            logger.debug('DATA', `VIX data request - ticker: ${ticker}, apiSymbol: ${apiSymbol}, forceRefresh: ${forceRefresh}`);
+        }
+        
         // Check if it's a futures symbol
         const isFutures = apiSymbol.startsWith('/');
         const marketOpen = isFutures ? this.isFuturesMarketOpen() : this.isMarketOpen();
@@ -111,8 +120,18 @@ class DataManager {
                 logger.debug('DATA', `Fetching live data for ${ticker} (${apiSymbol})`);
                 const quotes = await this.api.getQuotes([apiSymbol]);
                 
+                // Special debug for VIX
+                if (ticker === 'VIX') {
+                    logger.debug('DATA', `VIX API response:`, { quotes, symbol: apiSymbol });
+                }
+                
                 if (quotes && quotes[apiSymbol]) {
                     const data = this.parseQuoteData(quotes[apiSymbol], ticker);
+                    
+                    // Special debug for VIX
+                    if (ticker === 'VIX') {
+                        logger.debug('DATA', `VIX parsed data:`, data);
+                    }
                     
                     // Cache the data
                     this.cache.set(ticker, {
@@ -148,7 +167,14 @@ class DataManager {
         
         // 4. Generate simulated data for testing
         logger.debug('DATA', `Generating simulated data for ${ticker}`);
-        return this.generateSimulatedData(ticker);
+        const simData = this.generateSimulatedData(ticker);
+        
+        // Special warning for VIX simulated data
+        if (ticker === 'VIX') {
+            logger.warn('DATA', `VIX using simulated data! This means API call failed or market closed.`, simData);
+        }
+        
+        return simData;
     }
 
     /**
@@ -250,6 +276,7 @@ class DataManager {
      */
     getBasePrice(ticker) {
         const basePrices = {
+            'VIX': 16, // VIX typically ranges 10-30, average around 16
             'ES': 5450,
             'MES': 5450,
             'SPY': 545,
