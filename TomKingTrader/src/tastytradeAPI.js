@@ -446,21 +446,59 @@ class TastyTradeAPI {
   async getQuotes(symbols) {
     try {
       const params = new URLSearchParams();
+      const results = {};
+      
+      // Group symbols by type
+      const futures = [];
+      const equities = [];
+      const indexes = [];
+      
       symbols.forEach(symbol => {
         if (symbol.startsWith('/')) {
-          params.append('future', symbol);
+          // Remove forward slash for TastyTrade API - it uses 'ES' not '/ES'
+          futures.push(symbol.substring(1));
+        } else if (symbol === 'VIX' || symbol === 'SPX' || symbol === 'DJI') {
+          indexes.push(symbol);
         } else if (symbol.includes(' ')) {
-          params.append('equity-option', symbol);
+          // Option symbols - skip for now
         } else {
-          params.append('equity', symbol);
+          equities.push(symbol);
         }
       });
       
-      const data = await this.request(`/market-data?${params}`);
-      return data;
+      // Build query string
+      if (futures.length > 0) {
+        params.append('future', futures.join(','));
+      }
+      if (equities.length > 0) {
+        params.append('equity', equities.join(','));
+      }
+      if (indexes.length > 0) {
+        params.append('index', indexes.join(','));
+      }
+      
+      const response = await this.request(`/market-data/by-type?${params}`);
+      
+      // Parse response and map to symbols
+      if (response && response.data && response.data.items) {
+        response.data.items.forEach(item => {
+          // Map back to original symbol format
+          let originalSymbol = item.symbol;
+          
+          // If this was a futures symbol, add back the forward slash
+          if (futures.includes(item.symbol)) {
+            originalSymbol = '/' + item.symbol;
+          }
+          
+          results[originalSymbol] = item;
+        });
+      }
+      
+      return results;
     } catch (error) {
       console.error(`Quote fetch failed for ${symbols}:`, error);
-      throw error;
+      // Return empty object instead of throwing
+      return {};
     }
   }
   
@@ -769,11 +807,11 @@ class MarketDataCollector {
   async getESData() {
     try {
       const quotes = await this.api.getQuotes(['/ES']);
-      if (!quotes.data.items[0]) {
+      if (!quotes['/ES']) {
         throw new Error('ES quote not available');
       }
       
-      const es = quotes.data.items[0];
+      const es = quotes['/ES'];
       
       // Get option chain for strikes
       const optionChain = await this.api.getOptionChain('ES');
@@ -782,9 +820,9 @@ class MarketDataCollector {
       return {
         currentPrice: parseFloat(es.last),
         openPrice: parseFloat(es.open),
-        previousClose: parseFloat(es['previous-close'] || es.close),
-        dayHigh: parseFloat(es.high),
-        dayLow: parseFloat(es.low),
+        previousClose: parseFloat(es['prev-close'] || es.close),
+        dayHigh: parseFloat(es['day-high-price'] || es.high),
+        dayLow: parseFloat(es['day-low-price'] || es.low),
         dayChange: parseFloat(es.last) - parseFloat(es.open),
         dayChangePercent: ((parseFloat(es.last) - parseFloat(es.open)) / parseFloat(es.open) * 100).toFixed(2),
         bid: parseFloat(es.bid),
@@ -813,17 +851,17 @@ class MarketDataCollector {
   async getSPYData() {
     try {
       const quotes = await this.api.getQuotes(['SPY']);
-      if (!quotes.data.items[0]) {
+      if (!quotes.SPY) {
         throw new Error('SPY quote not available');
       }
       
-      const spy = quotes.data.items[0];
+      const spy = quotes.SPY;
       
       return {
         currentPrice: parseFloat(spy.last),
         openPrice: parseFloat(spy.open),
-        dayHigh: parseFloat(spy.high),
-        dayLow: parseFloat(spy.low),
+        dayHigh: parseFloat(spy['day-high-price'] || spy.high),
+        dayLow: parseFloat(spy['day-low-price'] || spy.low),
         dayChange: parseFloat(spy.last) - parseFloat(spy.open),
         dayChangePercent: ((parseFloat(spy.last) - parseFloat(spy.open)) / parseFloat(spy.open) * 100).toFixed(2),
         bid: parseFloat(spy.bid),
@@ -848,21 +886,21 @@ class MarketDataCollector {
   async getVIXData() {
     try {
       const quotes = await this.api.getQuotes(['VIX']);
-      if (!quotes.data.items[0]) {
+      if (!quotes.VIX) {
         throw new Error('VIX quote not available');
       }
       
-      const vix = quotes.data.items[0];
+      const vix = quotes.VIX;
       const currentLevel = parseFloat(vix.last);
       
       return {
         currentLevel,
-        dayChange: parseFloat(vix.last) - parseFloat(vix['previous-close'] || vix.last),
-        dayChangePercent: ((parseFloat(vix.last) - parseFloat(vix['previous-close'] || vix.last)) / parseFloat(vix['previous-close'] || vix.last) * 100).toFixed(2),
-        dayHigh: parseFloat(vix.high),
-        dayLow: parseFloat(vix.low),
+        dayChange: parseFloat(vix.last) - parseFloat(vix['prev-close'] || vix.last),
+        dayChangePercent: ((parseFloat(vix.last) - parseFloat(vix['prev-close'] || vix.last)) / parseFloat(vix['prev-close'] || vix.last) * 100).toFixed(2),
+        dayHigh: parseFloat(vix['day-high-price']),
+        dayLow: parseFloat(vix['day-low-price']),
         avg20d: parseFloat(vix['20-day-average'] || currentLevel),
-        trend: currentLevel > parseFloat(vix['20-day-average'] || currentLevel) ? 'RISING' : 'FALLING',
+        trend: currentLevel > parseFloat(vix['prev-close'] || currentLevel) ? 'RISING' : 'FALLING',
         regime: this.getVIXRegime(currentLevel)
       };
     } catch (error) {
@@ -874,11 +912,11 @@ class MarketDataCollector {
   async getDXYData() {
     try {
       const quotes = await this.api.getQuotes(['DXY']);
-      if (!quotes.data.items[0]) {
+      if (!quotes.DXY) {
         return { currentLevel: 103, trend: 'UNKNOWN', error: 'Data unavailable' };
       }
       
-      const dxy = quotes.data.items[0];
+      const dxy = quotes.DXY;
       
       return {
         currentLevel: parseFloat(dxy.last),
@@ -960,8 +998,8 @@ class MarketDataCollector {
       // Add MCL and MGC (common Phase 1-2 tickers)
       const additionalQuotes = await this.api.getQuotes(['/MCL', '/MGC']);
       
-      additionalQuotes.data.items.forEach(item => {
-        const ticker = item.symbol.replace('/', '');
+      Object.entries(additionalQuotes).forEach(([symbol, item]) => {
+        const ticker = symbol.replace('/', '');
         tickers[ticker] = {
           currentPrice: parseFloat(item.last),
           dayChange: parseFloat(item.last) - parseFloat(item.open),
