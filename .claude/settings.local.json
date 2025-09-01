@@ -15,7 +15,8 @@
       "Bash(taskkill:*)",
       "Bash(wmic process where:*)",
       "Bash(npm run start:*)",
-      "Bash(start http://localhost:3000/testing.html)"
+      "Bash(start http://localhost:3000/testing.html)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []
