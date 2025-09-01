@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Real-time Market Data Demo - Tom King Trader</title>
+    <link rel="stylesheet" href="css/websocket-client.css">
+    <style>
+        body {
+            background: #0f0f0f;
+            color: #e0e0e0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #4CAF50;
+            margin: 0;
+            font-size: 2.5em;
+        }
+        
+        .header p {
+            color: #888;
+            margin: 10px 0;
+        }
+        
+        .demo-section {
+            margin: 30px 0;
+        }
+        
+        .demo-section h2 {
+            color: #2196F3;
+            border-bottom: 2px solid #2196F3;
+            padding-bottom: 10px;
+        }
+        
+        .control-panel {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .control-panel h3 {
+            margin-top: 0;
+            color: #ff9800;
+        }
+        
+        .control-row {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            align-items: center;
+        }
+        
+        .control-row input {
+            background: #333;
+            border: 1px solid #555;
+            color: #e0e0e0;
+            padding: 8px;
+            border-radius: 4px;
+            flex: 1;
+        }
+        
+        .control-row button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .control-row button:hover {
+            background: #1976D2;
+        }
+        
+        .log-panel {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 5px;
+        }
+        
+        .log-info { color: #4CAF50; }
+        .log-warn { color: #ff9800; }
+        .log-error { color: #f44336; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Tom King Trader</h1>
+            <h2>Real-time WebSocket Market Data Demo</h2>
+            <p>Live streaming market data with automatic fallback to polling</p>
+        </div>
+        
+        <div class="demo-section">
+            <h2>Connection Control</h2>
+            <div class="control-panel">
+                <h3>WebSocket Connection</h3>
+                <div class="control-row">
+                    <input type="text" id="ws-url" placeholder="WebSocket URL" value="ws://localhost:3001">
+                    <button onclick="connectToWebSocket()">Connect</button>
+                    <button onclick="disconnectFromWebSocket()">Disconnect</button>
+                </div>
+                
+                <h3>Symbol Subscriptions</h3>
+                <div class="control-row">
+                    <input type="text" id="symbols-input" placeholder="Enter symbols (comma-separated)" value="SPY,QQQ,VIX,IWM">
+                    <button onclick="subscribeToSymbols()">Subscribe</button>
+                    <button onclick="unsubscribeFromSymbols()">Unsubscribe</button>
+                </div>
+                
+                <div class="control-row">
+                    <button onclick="getStreamingStatus()">Get Status</button>
+                    <button onclick="clearLog()">Clear Log</button>
+                    <button onclick="subscribeToDefaultSymbols()">Default Symbols</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <h2>Real-time Market Data</h2>
+            <div id="market-data-container">
+                <!-- Market data display will be inserted here -->
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <h2>Event Log</h2>
+            <div id="log-panel" class="log-panel">
+                <div class="log-entry log-info">Demo initialized. Click Connect to start receiving market data.</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/websocket-client.js"></script>
+    <script>
+        // Global variables
+        let marketDataClient = null;
+        let marketDataDisplay = null;
+        
+        // Initialize demo
+        document.addEventListener('DOMContentLoaded', function() {
+            log('Demo page loaded. Ready to connect.', 'info');
+        });
+        
+        /**
+         * Connect to WebSocket server
+         */
+        function connectToWebSocket() {
+            const wsUrl = document.getElementById('ws-url').value;
+            
+            if (marketDataClient) {
+                marketDataClient.disconnect();
+            }
+            
+            log(`Connecting to ${wsUrl}...`, 'info');
+            
+            // Create new client
+            marketDataClient = new MarketDataClient({
+                wsUrl: wsUrl,
+                apiUrl: '/api'
+            });
+            
+            // Set up event listeners
+            setupEventListeners();
+            
+            // Create market data display
+            if (marketDataDisplay) {
+                marketDataDisplay.destroy();
+            }
+            marketDataDisplay = new MarketDataDisplay('market-data-container', marketDataClient);
+            
+            // Connect
+            marketDataClient.connect();
+        }
+        
+        /**
+         * Disconnect from WebSocket server
+         */
+        function disconnectFromWebSocket() {
+            if (marketDataClient) {
+                marketDataClient.disconnect();
+                log('Disconnected from WebSocket server', 'info');
+            }
+        }
+        
+        /**
+         * Set up event listeners for the client
+         */
+        function setupEventListeners() {
+            marketDataClient.on('connected', (data) => {
+                log('✅ Connected to WebSocket server', 'info');
+            });
+            
+            marketDataClient.on('disconnected', (data) => {
+                log(`🔌 Disconnected: ${data.reason || 'Unknown reason'}`, 'warn');
+            });
+            
+            marketDataClient.on('market_data', (data) => {
+                const symbolCount = Object.keys(data.updates).length;
+                log(`📊 Market data update: ${symbolCount} symbols from ${data.source}`, 'info');
+            });
+            
+            marketDataClient.on('streaming_status', (data) => {
+                log(`📡 Streaming status: ${data.connected ? 'Connected' : 'Disconnected'}`, 'info');
+            });
+            
+            marketDataClient.on('error', (data) => {
+                log(`🚨 Error: ${JSON.stringify(data)}`, 'error');
+            });
+        }
+        
+        /**
+         * Subscribe to symbols
+         */
+        async function subscribeToSymbols() {
+            if (!marketDataClient) {
+                log('❌ Not connected to WebSocket server', 'error');
+                return;
+            }
+            
+            const symbolsInput = document.getElementById('symbols-input').value;
+            const symbols = symbolsInput.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
+            
+            if (symbols.length === 0) {
+                log('❌ No symbols entered', 'error');
+                return;
+            }
+            
+            log(`📡 Subscribing to symbols: ${symbols.join(', ')}`, 'info');
+            
+            const result = await marketDataClient.subscribeToSymbols(symbols);
+            if (result) {
+                log(`✅ Subscribed successfully. Total subscriptions: ${result.totalSubscriptions}`, 'info');
+            } else {
+                log('❌ Failed to subscribe to symbols', 'error');
+            }
+        }
+        
+        /**
+         * Unsubscribe from symbols
+         */
+        async function unsubscribeFromSymbols() {
+            if (!marketDataClient) {
+                log('❌ Not connected to WebSocket server', 'error');
+                return;
+            }
+            
+            const symbolsInput = document.getElementById('symbols-input').value;
+            const symbols = symbolsInput.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
+            
+            if (symbols.length === 0) {
+                log('❌ No symbols entered', 'error');
+                return;
+            }
+            
+            log(`📡 Unsubscribing from symbols: ${symbols.join(', ')}`, 'info');
+            
+            const result = await marketDataClient.unsubscribeFromSymbols(symbols);
+            if (result) {
+                log(`✅ Unsubscribed successfully. Total subscriptions: ${result.totalSubscriptions}`, 'info');
+            } else {
+                log('❌ Failed to unsubscribe from symbols', 'error');
+            }
+        }
+        
+        /**
+         * Subscribe to default symbols
+         */
+        async function subscribeToDefaultSymbols() {
+            document.getElementById('symbols-input').value = 'SPY,QQQ,VIX,IWM,/ES,/NQ';
+            await subscribeToSymbols();
+        }
+        
+        /**
+         * Get streaming status
+         */
+        async function getStreamingStatus() {
+            if (!marketDataClient) {
+                log('❌ Not connected to WebSocket server', 'error');
+                return;
+            }
+            
+            const status = await marketDataClient.getStreamingStatus();
+            if (status) {
+                log(`📊 Status: Connected=${status.connected}, Subscriptions=${status.subscriptions}, Symbols=${status.subscribedSymbols?.join(',') || 'None'}`, 'info');
+            } else {
+                log('❌ Failed to get streaming status', 'error');
+            }
+        }
+        
+        /**
+         * Clear the log panel
+         */
+        function clearLog() {
+            const logPanel = document.getElementById('log-panel');
+            logPanel.innerHTML = '<div class="log-entry log-info">Log cleared.</div>';
+        }
+        
+        /**
+         * Add entry to log panel
+         */
+        function log(message, type = 'info') {
+            const logPanel = document.getElementById('log-panel');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            
+            logPanel.appendChild(entry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+            
+            // Keep only last 100 entries
+            while (logPanel.children.length > 100) {
+                logPanel.removeChild(logPanel.firstChild);
+            }
+        }
+        
+        // Auto-connect on load (optional)
+        setTimeout(() => {
+            // Uncomment to auto-connect
+            // connectToWebSocket();
+        }, 1000);
+    </script>
+</body>
+</html>

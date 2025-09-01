@@ -638,27 +638,47 @@ class TastyTradeAPI {
     try {
       // Use the working market-data/by-type endpoint directly
       const params = new URLSearchParams();
+      let mappedSymbol = symbol;
       
       if (symbol.startsWith('/')) {
         // For futures, remove slash and use futures contract mapping
         const futuresSymbol = this.mapFuturesSymbol(symbol);
+        mappedSymbol = futuresSymbol;
         params.append('future', futuresSymbol);
+        logger.debug('API', `Requesting futures quote`, { original: symbol, mapped: futuresSymbol });
       } else if (symbol === 'VIX' || symbol === 'SPX' || symbol === 'DJI') {
         params.append('index', symbol);
+        logger.debug('API', `Requesting index quote for ${symbol}`);
       } else {
         params.append('equity', symbol);
+        logger.debug('API', `Requesting equity quote for ${symbol}`);
       }
       
       const response = await this.request(`/market-data/by-type?${params}`);
       
       // Extract the item from the response
       if (response?.data?.items && response.data.items.length > 0) {
-        return response.data.items[0];
+        const quote = response.data.items[0];
+        logger.info('API', `✅ Quote received for ${symbol}`, { 
+          mapped: mappedSymbol, 
+          price: quote.last || quote.mark || quote.close,
+          symbol: quote.symbol 
+        });
+        return quote;
+      } else {
+        logger.warn('API', `⚠️ No quote data found for ${symbol}`, { 
+          mapped: mappedSymbol,
+          responseItems: response?.data?.items?.length || 0 
+        });
+        return null;
       }
       
-      return null;
     } catch (error) {
-      console.error(`Failed to get quote for ${symbol}:`, error.message);
+      logger.error('API', `❌ Failed to get quote for ${symbol}`, { 
+        mapped: mappedSymbol,
+        error: error.message,
+        status: error.status 
+      });
       return null;
     }
   }
@@ -2125,9 +2145,13 @@ class MarketDataCollector {
     const tickersToFetch = phaseTickerMap[phase] || phaseTickerMap[1];
     const tickers = {};
     
+    // Import MarketDataService for fallback
+    const marketDataService = require('./marketDataService');
+    
     try {
       const quotes = await this.api.getQuotes(tickersToFetch);
       
+      // Process successfully fetched quotes first
       Object.entries(quotes).forEach(([symbol, item]) => {
         if (!item) return;
         
@@ -2148,14 +2172,87 @@ class MarketDataCollector {
             low: parseFloat(item['day-low-price'] || item.low || currentPrice * 0.99),
             iv: parseFloat(item['implied-volatility'] || this.getDefaultIV(ticker)),
             ivRank: parseFloat(item['iv-rank'] || Math.random() * 100),
-            ivPercentile: parseFloat(item['iv-percentile'] || Math.random() * 100)
+            ivPercentile: parseFloat(item['iv-percentile'] || Math.random() * 100),
+            source: 'TastyTrade_API'
           };
           
-          logger.debug('API', `${ticker} data collected`, { price: currentPrice, iv: tickers[ticker].iv });
+          logger.info('API', `✅ ${ticker} real API data collected`, { price: currentPrice, iv: tickers[ticker].iv });
         }
       });
+      
+      // Check for missing tickers and use fallback data
+      for (const symbol of tickersToFetch) {
+        const ticker = symbol.replace('/', '');
+        
+        if (!tickers[ticker]) {
+          logger.warn('API', `⚠️ ${ticker} missing from API response, using fallback data`);
+          
+          try {
+            // Use MarketDataService fallback for missing tickers
+            const fallbackData = await marketDataService.getTickerData(ticker);
+            
+            if (fallbackData) {
+              tickers[ticker] = {
+                currentPrice: fallbackData.currentPrice,
+                openPrice: fallbackData.previousClose || fallbackData.currentPrice,
+                dayChange: fallbackData.change || 0,
+                dayChangePercent: fallbackData.changePercent || 0,
+                bid: fallbackData.currentPrice * 0.999,
+                ask: fallbackData.currentPrice * 1.001,
+                volume: fallbackData.volume || 0,
+                high: fallbackData.high || fallbackData.currentPrice * 1.01,
+                low: fallbackData.low || fallbackData.currentPrice * 0.99,
+                iv: fallbackData.iv || this.getDefaultIV(ticker),
+                ivRank: fallbackData.ivRank || Math.floor(Math.random() * 100),
+                ivPercentile: fallbackData.ivPercentile || Math.floor(Math.random() * 100),
+                source: 'MarketDataService_Fallback'
+              };
+              
+              logger.info('API', `🔄 ${ticker} fallback data used`, { price: tickers[ticker].currentPrice, source: 'fallback' });
+            }
+          } catch (fallbackError) {
+            logger.error('API', `Failed to get fallback data for ${ticker}`, fallbackError);
+            
+            // Last resort: generate basic data
+            tickers[ticker] = this.generateBasicTickerData(ticker);
+          }
+        }
+      }
+      
     } catch (error) {
-      console.warn('Additional tickers collection failed:', error);
+      console.warn('⚠️ Phase tickers API call failed, using all fallback data:', error.message);
+      
+      // If the entire API call fails, use fallback for all tickers
+      for (const symbol of tickersToFetch) {
+        const ticker = symbol.replace('/', '');
+        
+        try {
+          const fallbackData = await marketDataService.getTickerData(ticker);
+          
+          if (fallbackData) {
+            tickers[ticker] = {
+              currentPrice: fallbackData.currentPrice,
+              openPrice: fallbackData.previousClose || fallbackData.currentPrice,
+              dayChange: fallbackData.change || 0,
+              dayChangePercent: fallbackData.changePercent || 0,
+              bid: fallbackData.currentPrice * 0.999,
+              ask: fallbackData.currentPrice * 1.001,
+              volume: fallbackData.volume || 0,
+              high: fallbackData.high || fallbackData.currentPrice * 1.01,
+              low: fallbackData.low || fallbackData.currentPrice * 0.99,
+              iv: fallbackData.iv || this.getDefaultIV(ticker),
+              ivRank: fallbackData.ivRank || Math.floor(Math.random() * 100),
+              ivPercentile: fallbackData.ivPercentile || Math.floor(Math.random() * 100),
+              source: 'MarketDataService_Emergency'
+            };
+            
+            logger.info('API', `🆘 ${ticker} emergency fallback data used`, { price: tickers[ticker].currentPrice });
+          }
+        } catch (fallbackError) {
+          // Absolute fallback
+          tickers[ticker] = this.generateBasicTickerData(ticker);
+        }
+      }
     }
     
     return tickers;
@@ -2168,6 +2265,41 @@ class MarketDataCollector {
       'CL': 35, 'GC': 18, 'ZN': 8, 'ZB': 10, 'IWM': 22
     };
     return defaultIVs[ticker] || 20;
+  }
+  
+  generateBasicTickerData(ticker) {
+    // Basic prices for different asset classes
+    const basePrices = {
+      // Futures
+      'ES': 4520, 'MES': 4520, 'NQ': 15600, 'MNQ': 15600,
+      'CL': 75, 'MCL': 75, 'GC': 2000, 'MGC': 2000,
+      
+      // ETFs
+      'SPY': 450, 'QQQ': 380, 'IWM': 205,
+      'GLD': 180, 'TLT': 95, 'SLV': 22
+    };
+    
+    const basePrice = basePrices[ticker] || 100;
+    const variation = (Math.random() - 0.5) * 0.02; // +/- 1% variation
+    const currentPrice = parseFloat((basePrice * (1 + variation)).toFixed(2));
+    
+    logger.warn('API', `🔧 ${ticker} using generated basic data`, { price: currentPrice });
+    
+    return {
+      currentPrice,
+      openPrice: basePrice,
+      dayChange: parseFloat((currentPrice - basePrice).toFixed(2)),
+      dayChangePercent: parseFloat(((currentPrice - basePrice) / basePrice * 100).toFixed(2)),
+      bid: parseFloat((currentPrice * 0.999).toFixed(2)),
+      ask: parseFloat((currentPrice * 1.001).toFixed(2)),
+      volume: 0,
+      high: parseFloat((currentPrice * 1.005).toFixed(2)),
+      low: parseFloat((currentPrice * 0.995).toFixed(2)),
+      iv: this.getDefaultIV(ticker),
+      ivRank: Math.floor(Math.random() * 100),
+      ivPercentile: Math.floor(Math.random() * 100),
+      source: 'Generated_Basic_Data'
+    };
   }
   
   getDefaultESData() {
@@ -2288,6 +2420,416 @@ class OrderBuilder {
   // Get all prepared orders
   getPreparedOrders() {
     return this.orders.filter(order => order.status === 'PREPARED_NOT_SUBMITTED');
+  }
+
+  /**
+   * Real Greeks Methods - Fetch actual Greeks from TastyTrade option chains
+   */
+
+  /**
+   * Get real Greeks from option chain data
+   * Extracts actual Greeks values from TastyTrade API response
+   */
+  async getRealGreeks(symbol, strike, expiration, optionType) {
+    try {
+      logger.debug('API', `Fetching real Greeks for ${symbol}`, { strike, expiration, optionType });
+      
+      const optionChain = await this.getOptionChain(symbol, expiration);
+      
+      if (!optionChain || !optionChain.expirations) {
+        throw new Error(`No option chain data for ${symbol}`);
+      }
+      
+      // Find the specific expiration
+      const targetExpiration = optionChain.expirations.find(exp => 
+        exp.expiration === expiration
+      );
+      
+      if (!targetExpiration) {
+        throw new Error(`Expiration ${expiration} not found for ${symbol}`);
+      }
+      
+      // Find the specific strike
+      const targetStrike = targetExpiration.strikes.find(s => 
+        Math.abs(s.strike - strike) < 0.01
+      );
+      
+      if (!targetStrike) {
+        throw new Error(`Strike ${strike} not found for ${symbol} ${expiration}`);
+      }
+      
+      // Extract real Greeks from the option data
+      const option = optionType === 'call' ? targetStrike.call : targetStrike.put;
+      
+      if (!option) {
+        throw new Error(`No ${optionType} data for ${symbol} ${strike} ${expiration}`);
+      }
+      
+      const realGreeks = {
+        // Core Greeks from API
+        delta: option.delta || 0,
+        gamma: option.gamma || 0,
+        theta: option.theta || 0,
+        vega: option.vega || 0,
+        rho: option.rho || 0,
+        
+        // Pricing data
+        impliedVolatility: option.impliedVolatility || option.iv || 0,
+        theoreticalPrice: option.theoreticalValue || option.mark || 0,
+        bidPrice: option.bid || 0,
+        askPrice: option.ask || 0,
+        lastPrice: option.last || 0,
+        midPrice: option.mark || ((option.bid || 0) + (option.ask || 0)) / 2,
+        
+        // Volume and interest
+        volume: option.volume || 0,
+        openInterest: option.openInterest || 0,
+        
+        // Additional metrics
+        ivRank: option.ivRank || 0,
+        ivPercentile: option.ivPercentile || 0,
+        
+        // Position details
+        strike: targetStrike.strike,
+        expiration: expiration,
+        optionType: optionType,
+        symbol: symbol,
+        underlyingPrice: optionChain.underlyingPrice,
+        
+        // Calculated metrics
+        moneyness: ((targetStrike.strike - optionChain.underlyingPrice) / optionChain.underlyingPrice) * 100,
+        deltaPercent: (option.delta || 0) * 100,
+        extrinsicValue: (option.theoreticalValue || option.mark || 0) - Math.max(0, 
+          optionType === 'call' ? 
+            optionChain.underlyingPrice - targetStrike.strike : 
+            targetStrike.strike - optionChain.underlyingPrice
+        ),
+        
+        // Metadata
+        timestamp: new Date().toISOString(),
+        source: 'TastyTrade_API_Real'
+      };
+      
+      logger.debug('API', `Real Greeks extracted for ${symbol}`, {
+        strike, expiration, optionType,
+        delta: realGreeks.delta,
+        iv: realGreeks.impliedVolatility
+      });
+      
+      return realGreeks;
+      
+    } catch (error) {
+      logger.error('API', `Failed to get real Greeks for ${symbol}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get real Greeks for multiple options (batch operation)
+   */
+  async getBatchRealGreeks(optionRequests) {
+    try {
+      logger.info('API', `Fetching batch real Greeks for ${optionRequests.length} options`);
+      
+      // Group requests by symbol and expiration for efficiency
+      const groupedRequests = {};
+      
+      optionRequests.forEach((req, index) => {
+        const key = `${req.symbol}-${req.expiration}`;
+        if (!groupedRequests[key]) {
+          groupedRequests[key] = {
+            symbol: req.symbol,
+            expiration: req.expiration,
+            options: []
+          };
+        }
+        groupedRequests[key].options.push({
+          strike: req.strike,
+          optionType: req.optionType,
+          originalIndex: index
+        });
+      });
+      
+      // Fetch option chains for each group
+      const allResults = [];
+      
+      for (const [key, group] of Object.entries(groupedRequests)) {
+        try {
+          const optionChain = await this.getOptionChain(group.symbol, group.expiration);
+          
+          if (optionChain && optionChain.expirations) {
+            const targetExpiration = optionChain.expirations.find(exp => 
+              exp.expiration === group.expiration
+            );
+            
+            if (targetExpiration) {
+              // Process each option in this group
+              group.options.forEach(opt => {
+                const targetStrike = targetExpiration.strikes.find(s => 
+                  Math.abs(s.strike - opt.strike) < 0.01
+                );
+                
+                if (targetStrike) {
+                  const option = opt.optionType === 'call' ? targetStrike.call : targetStrike.put;
+                  
+                  if (option) {
+                    const realGreeks = {
+                      // Core Greeks
+                      delta: option.delta || 0,
+                      gamma: option.gamma || 0,
+                      theta: option.theta || 0,
+                      vega: option.vega || 0,
+                      rho: option.rho || 0,
+                      
+                      // Pricing
+                      impliedVolatility: option.impliedVolatility || option.iv || 0,
+                      theoreticalPrice: option.theoreticalValue || option.mark || 0,
+                      bidPrice: option.bid || 0,
+                      askPrice: option.ask || 0,
+                      lastPrice: option.last || 0,
+                      
+                      // Volume and OI
+                      volume: option.volume || 0,
+                      openInterest: option.openInterest || 0,
+                      
+                      // Position details
+                      strike: opt.strike,
+                      expiration: group.expiration,
+                      optionType: opt.optionType,
+                      symbol: group.symbol,
+                      underlyingPrice: optionChain.underlyingPrice,
+                      
+                      // Metadata
+                      originalIndex: opt.originalIndex,
+                      timestamp: new Date().toISOString(),
+                      source: 'TastyTrade_API_Batch'
+                    };
+                    
+                    allResults.push(realGreeks);
+                  }
+                }
+              });
+            }
+          }
+        } catch (error) {
+          logger.error('API', `Batch Greeks fetch failed for ${key}`, error);
+        }
+      }
+      
+      logger.info('API', `Batch Greeks completed`, {
+        requested: optionRequests.length,
+        retrieved: allResults.length
+      });
+      
+      return allResults;
+      
+    } catch (error) {
+      logger.error('API', 'Batch real Greeks fetch failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Subscribe to real-time Greeks updates via WebSocket
+   * Note: This depends on TastyTrade supporting Greeks streaming
+   */
+  async subscribeToGreeksUpdates(symbols) {
+    try {
+      if (!this.streamer) {
+        logger.warn('API', 'WebSocket streamer not available for Greeks updates');
+        return false;
+      }
+
+      // Enable streaming if not already enabled
+      if (!this.streamingEnabled) {
+        await this.enableStreaming();
+      }
+
+      // Subscribe to Greeks-specific channels
+      const subscriptionSuccess = await this.streamer.subscribe({
+        symbols: symbols,
+        channels: ['greeks', 'option_chain_updates'],
+        eventType: 'GREEKS_UPDATE'
+      });
+
+      if (subscriptionSuccess) {
+        logger.info('API', `Subscribed to Greeks updates for ${symbols.length} symbols`);
+        
+        // Set up Greeks-specific event handler
+        this.streamer.on('greeksUpdate', (data) => {
+          this.emit('greeksUpdate', data);
+        });
+
+        return true;
+      } else {
+        logger.warn('API', 'Failed to subscribe to Greeks updates');
+        return false;
+      }
+
+    } catch (error) {
+      logger.error('API', 'Greeks subscription failed', error);
+      return false;
+    }
+  }
+
+  /**
+   * Calculate 5-delta strikes using real option chain data
+   * Tom King's preferred methodology
+   */
+  async calculate5DeltaStrikes(symbol, expiration, targetDelta = 0.05) {
+    try {
+      logger.debug('API', `Calculating 5-delta strikes for ${symbol}`, { expiration, targetDelta });
+      
+      const optionChain = await this.getOptionChain(symbol, expiration);
+      
+      if (!optionChain || !optionChain.expirations) {
+        throw new Error(`No option chain data for ${symbol}`);
+      }
+      
+      const targetExpiration = optionChain.expirations.find(exp => 
+        exp.expiration === expiration
+      );
+      
+      if (!targetExpiration) {
+        throw new Error(`Expiration ${expiration} not found for ${symbol}`);
+      }
+      
+      // Find strikes closest to target delta
+      let bestPutStrike = null;
+      let bestCallStrike = null;
+      let minPutDiff = Infinity;
+      let minCallDiff = Infinity;
+      
+      targetExpiration.strikes.forEach(strike => {
+        // Check put options
+        if (strike.put && strike.put.delta) {
+          const putDeltaDiff = Math.abs(Math.abs(strike.put.delta) - targetDelta);
+          if (putDeltaDiff < minPutDiff) {
+            minPutDiff = putDeltaDiff;
+            bestPutStrike = {
+              strike: strike.strike,
+              delta: strike.put.delta,
+              greeks: {
+                delta: strike.put.delta || 0,
+                gamma: strike.put.gamma || 0,
+                theta: strike.put.theta || 0,
+                vega: strike.put.vega || 0,
+                impliedVolatility: strike.put.impliedVolatility || strike.put.iv || 0,
+                theoreticalPrice: strike.put.theoreticalValue || strike.put.mark || 0
+              },
+              pricing: {
+                bid: strike.put.bid || 0,
+                ask: strike.put.ask || 0,
+                mark: strike.put.mark || 0,
+                volume: strike.put.volume || 0
+              }
+            };
+          }
+        }
+        
+        // Check call options
+        if (strike.call && strike.call.delta) {
+          const callDeltaDiff = Math.abs(strike.call.delta - targetDelta);
+          if (callDeltaDiff < minCallDiff) {
+            minCallDiff = callDeltaDiff;
+            bestCallStrike = {
+              strike: strike.strike,
+              delta: strike.call.delta,
+              greeks: {
+                delta: strike.call.delta || 0,
+                gamma: strike.call.gamma || 0,
+                theta: strike.call.theta || 0,
+                vega: strike.call.vega || 0,
+                impliedVolatility: strike.call.impliedVolatility || strike.call.iv || 0,
+                theoreticalPrice: strike.call.theoreticalValue || strike.call.mark || 0
+              },
+              pricing: {
+                bid: strike.call.bid || 0,
+                ask: strike.call.ask || 0,
+                mark: strike.call.mark || 0,
+                volume: strike.call.volume || 0
+              }
+            };
+          }
+        }
+      });
+      
+      if (!bestPutStrike || !bestCallStrike) {
+        throw new Error(`Could not find strikes with target delta ${targetDelta} for ${symbol}`);
+      }
+      
+      const result = {
+        symbol: symbol,
+        expiration: expiration,
+        underlyingPrice: optionChain.underlyingPrice,
+        targetDelta: targetDelta,
+        
+        putStrike: bestPutStrike,
+        callStrike: bestCallStrike,
+        
+        strangleMetrics: {
+          width: bestCallStrike.strike - bestPutStrike.strike,
+          widthPercent: ((bestCallStrike.strike - bestPutStrike.strike) / optionChain.underlyingPrice) * 100,
+          netCredit: (bestPutStrike.pricing.mark + bestCallStrike.pricing.mark),
+          
+          // Combined Greeks
+          combinedDelta: bestPutStrike.greeks.delta + bestCallStrike.greeks.delta,
+          combinedGamma: bestPutStrike.greeks.gamma + bestCallStrike.greeks.gamma,
+          combinedTheta: bestPutStrike.greeks.theta + bestCallStrike.greeks.theta,
+          combinedVega: bestPutStrike.greeks.vega + bestCallStrike.greeks.vega,
+          
+          // Risk metrics
+          maxProfit: (bestPutStrike.pricing.mark + bestCallStrike.pricing.mark),
+          maxLoss: 'UNLIMITED',
+          profitProbability: this.calculateStrangleProfitProb(
+            optionChain.underlyingPrice,
+            bestPutStrike.strike,
+            bestCallStrike.strike,
+            bestPutStrike.pricing.mark + bestCallStrike.pricing.mark
+          )
+        },
+        
+        timestamp: new Date().toISOString(),
+        source: 'TastyTrade_5Delta_Real'
+      };
+      
+      logger.info('API', `5-delta strikes calculated for ${symbol}`, {
+        putStrike: bestPutStrike.strike,
+        callStrike: bestCallStrike.strike,
+        width: result.strangleMetrics.width.toFixed(2),
+        credit: result.strangleMetrics.netCredit.toFixed(2)
+      });
+      
+      return result;
+      
+    } catch (error) {
+      logger.error('API', `Failed to calculate 5-delta strikes for ${symbol}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Helper method to calculate strangle profit probability
+   */
+  calculateStrangleProfitProb(underlyingPrice, putStrike, callStrike, netCredit) {
+    try {
+      const lowerBreakeven = putStrike - netCredit;
+      const upperBreakeven = callStrike + netCredit;
+      
+      // Simplified probability calculation based on breakeven points
+      // In reality, this would use option pricing models and volatility
+      const rangeWidth = upperBreakeven - lowerBreakeven;
+      const priceRange = underlyingPrice * 2; // Approximate range consideration
+      
+      const profitRange = Math.max(0, priceRange - rangeWidth);
+      const profitProbability = Math.min(95, Math.max(5, (profitRange / priceRange) * 100));
+      
+      return Math.round(profitProbability);
+      
+    } catch (error) {
+      logger.error('API', 'Failed to calculate strangle profit probability', error);
+      return 50; // Default 50% if calculation fails
+    }
   }
 }
 

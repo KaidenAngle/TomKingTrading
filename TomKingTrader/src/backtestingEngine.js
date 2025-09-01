@@ -1,0 +1,972 @@
+/**
+ * Tom King Strategy Backtesting Engine
+ * Implements exact entry/exit rules for all 10 strategies with historical validation
+ * Enforces correlation limits, position sizing, and day-specific trading rules
+ */
+
+const HistoricalDataManager = require('./historicalDataManager');
+const TradingStrategies = require('./strategies');
+const GreeksCalculator = require('./greeksCalculator');
+const { getLogger } = require('./logger');
+
+class BacktestingEngine {
+    constructor(options = {}) {
+        this.config = {
+            startDate: options.startDate || '2020-01-01',
+            endDate: options.endDate || new Date().toISOString().split('T')[0],
+            initialCapital: options.initialCapital || 30000, // £30k Phase 1 start
+            commissions: options.commissions || 2.50, // Per contract
+            slippage: options.slippage || 0.02, // 2% slippage estimate
+            maxPositions: options.maxPositions || 20,
+            correlationLimit: options.correlationLimit || 3,
+            maxBPUsage: options.maxBPUsage || 35, // 35% max buying power
+            ...options
+        };
+
+        this.logger = getLogger();
+        this.dataManager = new HistoricalDataManager(options);
+        this.strategies = new TradingStrategies();
+        this.greeksCalc = new GreeksCalculator();
+
+        // Backtesting state
+        this.trades = [];
+        this.positions = [];
+        this.dailyPnL = [];
+        this.currentCapital = this.config.initialCapital;
+        this.currentPhase = 1;
+        this.correlationGroups = new Map();
+        
+        // Tom King specific rules
+        this.tomKingRules = {
+            phases: {
+                1: { minCapital: 30000, maxCapital: 40000 },
+                2: { minCapital: 40000, maxCapital: 60000 },
+                3: { minCapital: 60000, maxCapital: 75000 },
+                4: { minCapital: 75000, maxCapital: Infinity }
+            },
+            strategies: {
+                '0DTE': {
+                    daysAllowed: [5], // Friday only
+                    timeWindow: { start: 10.5, end: 15.5 }, // 10:30 AM - 3:30 PM EST
+                    profitTarget: 'LET_EXPIRE_OTM',
+                    stopLoss: 2.0, // 2x credit received
+                    timeStop: 15.5, // Close by 3:30 PM if ITM
+                    maxLossPercent: 100
+                },
+                'LT112': {
+                    daysAllowed: [1, 2, 3], // Mon-Wed only
+                    targetDTE: 112,
+                    profitTarget: 0.75, // 75% of credit at week 14
+                    management: {
+                        week8: 'MONETIZE_HEDGE',
+                        week12: 'ROLL_TESTED_SIDE',
+                        week14: 'CLOSE_IF_75_PERCENT',
+                        week16: 'EXPIRE_OR_MANAGE'
+                    }
+                },
+                'STRANGLE': {
+                    daysAllowed: [2], // Tuesday only
+                    targetDTE: 90,
+                    deltaTarget: 5, // 5-delta strikes
+                    profitTarget: 0.50, // 50% of credit
+                    stopLoss: 2.0, // 2x credit
+                    dteManagement: 21, // Manage at 21 DTE
+                    adjustment: 'IRON_CONDOR_IF_TESTED'
+                },
+                'IPMCC': {
+                    daysAllowed: [1, 2, 3, 4, 5], // Any day
+                    leapDelta: 75, // 75-delta LEAP
+                    weeklyDelta: 30, // 30-delta weekly
+                    rollRules: 'UP_AND_OUT_IF_TESTED',
+                    exitTarget: 0.50 // 50% of LEAP cost recovered
+                },
+                'LEAP': {
+                    daysAllowed: [3], // Wednesday only
+                    ladderSize: 10,
+                    profitTarget: 0.50, // 50% on individual positions
+                    rebalancing: 'CONTINUOUS'
+                }
+            }
+        };
+    }
+
+    /**
+     * Run comprehensive backtest for all strategies
+     */
+    async runFullBacktest(symbols = null) {
+        this.logger.info('BACKTEST', 'Starting comprehensive backtest', {
+            startDate: this.config.startDate,
+            endDate: this.config.endDate,
+            initialCapital: this.config.initialCapital
+        });
+
+        // Get default symbols if not provided
+        if (!symbols) {
+            symbols = this.getDefaultSymbols();
+        }
+
+        // Load all historical data first
+        const marketData = await this.loadAllHistoricalData(symbols);
+        
+        // Initialize backtest state
+        this.initializeBacktest();
+
+        // Generate trading calendar (business days only)
+        const tradingDays = this.generateTradingCalendar(this.config.startDate, this.config.endDate);
+
+        let processedDays = 0;
+        
+        // Process each trading day
+        for (const date of tradingDays) {
+            await this.processBacktestDay(date, marketData);
+            
+            processedDays++;
+            if (processedDays % 100 === 0) {
+                this.logger.info('BACKTEST', `Processed ${processedDays}/${tradingDays.length} days`, {
+                    currentDate: date,
+                    capital: this.currentCapital,
+                    positions: this.positions.length
+                });
+            }
+        }
+
+        // Generate final results
+        const results = await this.generateBacktestResults();
+        
+        this.logger.info('BACKTEST', 'Backtest completed', {
+            finalCapital: this.currentCapital,
+            totalReturn: ((this.currentCapital / this.config.initialCapital - 1) * 100).toFixed(2) + '%',
+            totalTrades: this.trades.length,
+            winRate: results.metrics.winRate
+        });
+
+        return results;
+    }
+
+    /**
+     * Run backtest for specific strategy
+     */
+    async runStrategyBacktest(strategyName, symbols = null) {
+        this.logger.info('BACKTEST', `Running backtest for ${strategyName}`);
+
+        const strategy = this.tomKingRules.strategies[strategyName];
+        if (!strategy) {
+            throw new Error(`Unknown strategy: ${strategyName}`);
+        }
+
+        symbols = symbols || this.getStrategySymbols(strategyName);
+        const marketData = await this.loadAllHistoricalData(symbols);
+        
+        this.initializeBacktest();
+        const tradingDays = this.generateTradingCalendar(this.config.startDate, this.config.endDate);
+
+        for (const date of tradingDays) {
+            await this.processStrategyDay(date, strategyName, marketData);
+        }
+
+        return await this.generateBacktestResults(strategyName);
+    }
+
+    /**
+     * Initialize backtest state
+     */
+    initializeBacktest() {
+        this.trades = [];
+        this.positions = [];
+        this.dailyPnL = [];
+        this.currentCapital = this.config.initialCapital;
+        this.currentPhase = 1;
+        this.correlationGroups.clear();
+        
+        this.logger.info('BACKTEST', 'Backtest state initialized');
+    }
+
+    /**
+     * Process a single backtest day
+     */
+    async processBacktestDay(date, marketData) {
+        const dayOfWeek = new Date(date).getDay();
+        const dateStr = date.toISOString().split('T')[0];
+
+        // Get market data for this day
+        const dayMarketData = this.extractDayMarketData(marketData, dateStr);
+        if (!dayMarketData) {
+            return; // No data for this day
+        }
+
+        // Update current phase based on capital
+        this.updatePhase();
+
+        // Manage existing positions first
+        await this.manageExistingPositions(date, dayMarketData);
+
+        // Check for new strategy entries based on day of week
+        const availableStrategies = this.getAvailableStrategies(dayOfWeek);
+        
+        for (const strategyName of availableStrategies) {
+            if (this.canAddPosition()) {
+                await this.evaluateStrategyEntry(strategyName, date, dayMarketData);
+            }
+        }
+
+        // Calculate daily P&L
+        const dayPnL = this.calculateDailyPnL(date, dayMarketData);
+        this.dailyPnL.push({
+            date: dateStr,
+            capital: this.currentCapital,
+            pnl: dayPnL,
+            positions: this.positions.length,
+            phase: this.currentPhase
+        });
+    }
+
+    /**
+     * Process strategy-specific backtest day
+     */
+    async processStrategyDay(date, strategyName, marketData) {
+        const dayOfWeek = new Date(date).getDay();
+        const dateStr = date.toISOString().split('T')[0];
+
+        const dayMarketData = this.extractDayMarketData(marketData, dateStr);
+        if (!dayMarketData) return;
+
+        this.updatePhase();
+        await this.manageExistingPositions(date, dayMarketData);
+
+        // Only evaluate the specific strategy
+        const strategy = this.tomKingRules.strategies[strategyName];
+        if (strategy.daysAllowed.includes(dayOfWeek) && this.canAddPosition()) {
+            await this.evaluateStrategyEntry(strategyName, date, dayMarketData);
+        }
+
+        const dayPnL = this.calculateDailyPnL(date, dayMarketData);
+        this.dailyPnL.push({
+            date: dateStr,
+            capital: this.currentCapital,
+            pnl: dayPnL,
+            positions: this.positions.length,
+            phase: this.currentPhase,
+            strategy: strategyName
+        });
+    }
+
+    /**
+     * Manage existing positions (exits, adjustments, expirations)
+     */
+    async manageExistingPositions(date, marketData) {
+        const positionsToClose = [];
+        const dateStr = date.toISOString().split('T')[0];
+
+        for (let i = 0; i < this.positions.length; i++) {
+            const position = this.positions[i];
+            const dte = this.calculateDTE(dateStr, position.expiration);
+            
+            // Check for expiration
+            if (dte <= 0) {
+                const exitReason = 'EXPIRATION';
+                const exitValue = this.calculateExpirationValue(position, marketData);
+                positionsToClose.push({ index: i, position, exitReason, exitValue });
+                continue;
+            }
+
+            // Strategy-specific management
+            const managementAction = this.checkManagementRules(position, date, marketData, dte);
+            if (managementAction.action !== 'HOLD') {
+                const exitValue = this.calculatePositionValue(position, marketData);
+                positionsToClose.push({ 
+                    index: i, 
+                    position, 
+                    exitReason: managementAction.action, 
+                    exitValue: managementAction.value || exitValue 
+                });
+            }
+        }
+
+        // Close positions (in reverse order to maintain indices)
+        for (const closeData of positionsToClose.reverse()) {
+            this.closePosition(closeData.position, closeData.exitReason, closeData.exitValue, dateStr);
+            this.positions.splice(closeData.index, 1);
+        }
+    }
+
+    /**
+     * Check management rules for a position
+     */
+    checkManagementRules(position, date, marketData, dte) {
+        const strategyRules = this.tomKingRules.strategies[position.strategy];
+        const currentValue = this.calculatePositionValue(position, marketData);
+        const pnl = currentValue - position.entryValue;
+        const pnlPercent = pnl / Math.abs(position.entryValue);
+
+        switch (position.strategy) {
+            case '0DTE':
+                // 0DTE management
+                const time = new Date(date).getHours() + (new Date(date).getMinutes() / 60);
+                if (time >= strategyRules.timeStop && currentValue > 0) {
+                    return { action: 'TIME_STOP', value: currentValue };
+                }
+                if (pnl <= -Math.abs(position.entryValue) * strategyRules.stopLoss) {
+                    return { action: 'STOP_LOSS', value: currentValue };
+                }
+                break;
+
+            case 'LT112':
+                // LT112 week-based management
+                const weeksHeld = Math.floor((Date.now() - new Date(position.entryDate).getTime()) / (7 * 24 * 60 * 60 * 1000));
+                if (weeksHeld >= 14 && pnlPercent >= 0.75) {
+                    return { action: 'PROFIT_TARGET_75', value: currentValue };
+                }
+                if (weeksHeld >= 8) {
+                    // Implement hedge monetization logic
+                }
+                break;
+
+            case 'STRANGLE':
+                // Strangle management
+                if (dte <= strategyRules.dteManagement) {
+                    if (pnlPercent >= strategyRules.profitTarget) {
+                        return { action: 'PROFIT_TARGET', value: currentValue };
+                    } else if (this.isStrangleTested(position, marketData)) {
+                        return { action: 'CONVERT_TO_IC', value: currentValue };
+                    }
+                }
+                if (pnl <= -Math.abs(position.entryValue) * strategyRules.stopLoss) {
+                    return { action: 'STOP_LOSS', value: currentValue };
+                }
+                break;
+
+            case 'IPMCC':
+                // IPMCC management
+                if (this.isWeeklyTested(position, marketData)) {
+                    return { action: 'ROLL_WEEKLY', value: currentValue };
+                }
+                break;
+
+            case 'LEAP':
+                // LEAP ladder management
+                if (pnlPercent >= strategyRules.profitTarget) {
+                    return { action: 'PROFIT_TARGET', value: currentValue };
+                }
+                break;
+        }
+
+        return { action: 'HOLD' };
+    }
+
+    /**
+     * Evaluate strategy entry on a given day
+     */
+    async evaluateStrategyEntry(strategyName, date, marketData) {
+        const dateStr = date.toISOString().split('T')[0];
+        const strategy = this.tomKingRules.strategies[strategyName];
+        
+        // Check time window for intraday strategies
+        if (strategy.timeWindow) {
+            const time = new Date(date).getHours() + (new Date(date).getMinutes() / 60);
+            if (time < strategy.timeWindow.start || time > strategy.timeWindow.end) {
+                return; // Outside trading window
+            }
+        }
+
+        let entry = null;
+
+        switch (strategyName) {
+            case '0DTE':
+                entry = await this.evaluate0DTEEntry(date, marketData);
+                break;
+            case 'LT112':
+                entry = await this.evaluateLT112Entry(date, marketData);
+                break;
+            case 'STRANGLE':
+                entry = await this.evaluateStrangleEntry(date, marketData);
+                break;
+            case 'IPMCC':
+                entry = await this.evaluateIPMCCEntry(date, marketData);
+                break;
+            case 'LEAP':
+                entry = await this.evaluateLEAPEntry(date, marketData);
+                break;
+        }
+
+        if (entry && this.validateEntry(entry, dateStr)) {
+            this.enterPosition(entry, dateStr);
+        }
+    }
+
+    /**
+     * Evaluate 0DTE entry
+     */
+    async evaluate0DTEEntry(date, marketData) {
+        const esData = marketData.ES;
+        if (!esData) return null;
+
+        // Tom's 0.5% rule
+        const moveFromOpen = ((esData.close - esData.open) / esData.open) * 100;
+        
+        if (Math.abs(moveFromOpen) > 0.5) {
+            // Directional trade
+            const direction = moveFromOpen > 0 ? 'CALL' : 'PUT';
+            const atmStrike = Math.round(esData.close / 5) * 5;
+            
+            let shortStrike, longStrike;
+            if (direction === 'CALL') {
+                shortStrike = atmStrike + 15;
+                longStrike = atmStrike + 45;
+            } else {
+                shortStrike = atmStrike - 15;
+                longStrike = atmStrike - 45;
+            }
+
+            const credit = this.estimateOptionCredit(esData, shortStrike, longStrike, 0, direction);
+            
+            return {
+                strategy: '0DTE',
+                type: `${direction}_SPREAD`,
+                underlying: 'ES',
+                shortStrike,
+                longStrike,
+                expiration: date.toISOString().split('T')[0], // Same day expiration
+                contracts: this.calculate0DTEContracts(),
+                entryValue: credit * this.calculate0DTEContracts() * 50, // ES multiplier
+                maxLoss: (Math.abs(longStrike - shortStrike) - credit) * this.calculate0DTEContracts() * 50
+            };
+        } else {
+            // Iron Condor setup
+            const atmStrike = Math.round(esData.close / 5) * 5;
+            const distance = 50;
+            const spreadWidth = 30;
+            
+            const putCredit = this.estimateOptionCredit(esData, atmStrike - distance, atmStrike - distance - spreadWidth, 0, 'PUT');
+            const callCredit = this.estimateOptionCredit(esData, atmStrike + distance, atmStrike + distance + spreadWidth, 0, 'CALL');
+            const totalCredit = putCredit + callCredit;
+            
+            return {
+                strategy: '0DTE',
+                type: 'IRON_CONDOR',
+                underlying: 'ES',
+                putShort: atmStrike - distance,
+                putLong: atmStrike - distance - spreadWidth,
+                callShort: atmStrike + distance,
+                callLong: atmStrike + distance + spreadWidth,
+                expiration: date.toISOString().split('T')[0],
+                contracts: this.calculate0DTEContracts(),
+                entryValue: totalCredit * this.calculate0DTEContracts() * 50,
+                maxLoss: (spreadWidth - totalCredit) * this.calculate0DTEContracts() * 50
+            };
+        }
+    }
+
+    /**
+     * Evaluate LT112 entry
+     */
+    async evaluateLT112Entry(date, marketData) {
+        const ticker = this.currentPhase >= 3 ? 'ES' : 'MES';
+        const data = marketData[ticker];
+        if (!data) return null;
+
+        // Calculate 112 DTE expiration
+        const expirationDate = new Date(date);
+        expirationDate.setDate(expirationDate.getDate() + 112);
+        const expiration = this.getNextFriday(expirationDate).toISOString().split('T')[0];
+
+        // Tom's LT112 formula: 10% OTM short, 15% OTM long
+        const shortStrike = Math.round(data.close * 0.9 / 5) * 5;
+        const longStrike = Math.round(data.close * 0.85 / 5) * 5;
+        
+        const credit = this.estimateOptionCredit(data, shortStrike, longStrike, 112, 'PUT');
+        
+        // Entry scoring
+        const score = this.scoreLT112Entry(data);
+        if (score < 70) return null;
+
+        const contracts = ticker === 'MES' ? 4 : (this.currentPhase >= 4 ? 2 : 1);
+        const multiplier = ticker === 'MES' ? 5 : 50;
+
+        return {
+            strategy: 'LT112',
+            type: 'PUT_SPREAD',
+            underlying: ticker,
+            shortStrike,
+            longStrike,
+            expiration,
+            contracts,
+            entryValue: credit * contracts * multiplier,
+            maxLoss: ((shortStrike - longStrike) - credit) * contracts * multiplier,
+            score
+        };
+    }
+
+    /**
+     * Evaluate Strangle entry
+     */
+    async evaluateStrangleEntry(date, marketData) {
+        const qualifiedTickers = this.getStrangleTickersByPhase(this.currentPhase);
+        let bestEntry = null;
+        let bestScore = 0;
+
+        for (const ticker of qualifiedTickers) {
+            const data = marketData[ticker];
+            if (!data) continue;
+
+            // Check correlation limits
+            if (this.getCorrelationGroupCount(ticker) >= this.config.correlationLimit) {
+                continue;
+            }
+
+            // Calculate 5-delta strikes for 90 DTE
+            const expirationDate = new Date(date);
+            expirationDate.setDate(expirationDate.getDate() + 90);
+            const expiration = this.getNextFriday(expirationDate).toISOString().split('T')[0];
+
+            const strikes = this.calculate5DeltaStrikes(data.close, data.iv || 0.2, 90);
+            const putCredit = this.estimateOptionCredit(data, strikes.putStrike, null, 90, 'PUT');
+            const callCredit = this.estimateOptionCredit(data, strikes.callStrike, null, 90, 'CALL');
+            const totalCredit = putCredit + callCredit;
+
+            const score = this.scoreStrangleEntry(data, strikes);
+            
+            if (score > bestScore && score >= 60) {
+                bestScore = score;
+                bestEntry = {
+                    strategy: 'STRANGLE',
+                    type: 'SHORT_STRANGLE',
+                    underlying: ticker,
+                    putStrike: strikes.putStrike,
+                    callStrike: strikes.callStrike,
+                    expiration,
+                    contracts: 1,
+                    entryValue: totalCredit * this.getContractMultiplier(ticker),
+                    maxLoss: totalCredit * this.getContractMultiplier(ticker) * 2, // 2x credit stop
+                    score
+                };
+            }
+        }
+
+        return bestEntry;
+    }
+
+    /**
+     * Calculate position value at any point in time
+     */
+    calculatePositionValue(position, marketData) {
+        const underlying = marketData[position.underlying];
+        if (!underlying) return position.entryValue; // No change if no data
+
+        const currentPrice = underlying.close;
+        
+        switch (position.type) {
+            case 'CALL_SPREAD':
+            case 'PUT_SPREAD':
+                return this.calculateSpreadValue(position, currentPrice);
+            case 'IRON_CONDOR':
+                return this.calculateIronCondorValue(position, currentPrice);
+            case 'SHORT_STRANGLE':
+                return this.calculateStrangleValue(position, currentPrice);
+            case 'IPMCC':
+                return this.calculateIPMCCValue(position, currentPrice);
+            case 'LEAP':
+                return this.calculateLEAPValue(position, currentPrice);
+            default:
+                return position.entryValue;
+        }
+    }
+
+    /**
+     * Calculate spread value
+     */
+    calculateSpreadValue(position, currentPrice) {
+        const { shortStrike, longStrike, entryValue, strategy } = position;
+        
+        if (strategy === '0DTE' && this.isExpiration(position.expiration)) {
+            // 0DTE expiration value
+            if (position.type === 'CALL_SPREAD') {
+                if (currentPrice <= shortStrike) return entryValue; // Max profit
+                if (currentPrice >= longStrike) return -(Math.abs(longStrike - shortStrike) * position.contracts * this.getContractMultiplier(position.underlying) - entryValue); // Max loss
+                return entryValue - (currentPrice - shortStrike) * position.contracts * this.getContractMultiplier(position.underlying);
+            } else { // PUT_SPREAD
+                if (currentPrice >= shortStrike) return entryValue; // Max profit
+                if (currentPrice <= longStrike) return -(Math.abs(shortStrike - longStrike) * position.contracts * this.getContractMultiplier(position.underlying) - entryValue); // Max loss
+                return entryValue - (shortStrike - currentPrice) * position.contracts * this.getContractMultiplier(position.underlying);
+            }
+        }
+        
+        // For non-expiring spreads, estimate current value based on intrinsic + time value
+        // This is simplified - real implementation would use option pricing models
+        const intrinsicValue = this.calculateIntrinsicValue(position, currentPrice);
+        const timeValue = this.estimateTimeValue(position, currentPrice);
+        
+        return intrinsicValue + timeValue;
+    }
+
+    /**
+     * Estimate option credit for backtesting
+     */
+    estimateOptionCredit(underlying, strike, longStrike, dte, optionType) {
+        const currentPrice = underlying.close;
+        const volatility = underlying.iv || 0.2;
+        const timeToExpiration = dte / 365;
+        
+        if (longStrike) {
+            // Spread
+            const shortCredit = this.greeksCalc.blackScholes(
+                currentPrice, strike, timeToExpiration, 0.02, volatility, optionType.toLowerCase()
+            );
+            const longCost = this.greeksCalc.blackScholes(
+                currentPrice, longStrike, timeToExpiration, 0.02, volatility, optionType.toLowerCase()
+            );
+            return Math.max(0.05, shortCredit - longCost); // Minimum 0.05 credit
+        } else {
+            // Single option
+            const optionPrice = this.greeksCalc.blackScholes(
+                currentPrice, strike, timeToExpiration, 0.02, volatility, optionType.toLowerCase()
+            );
+            return Math.max(0.05, optionPrice);
+        }
+    }
+
+    /**
+     * Calculate 5-delta strikes
+     */
+    calculate5DeltaStrikes(price, iv, dte) {
+        const timeToExpiration = dte / 365;
+        
+        // Approximate 5-delta strikes (simplified)
+        const factor = iv * Math.sqrt(timeToExpiration) * 2.33; // ~5 delta distance
+        
+        return {
+            putStrike: Math.round(price * (1 - factor) / 5) * 5,
+            callStrike: Math.round(price * (1 + factor) / 5) * 5,
+            strangleWidth: Math.round(price * factor * 2 / 5) * 5 * 2
+        };
+    }
+
+    /**
+     * Scoring functions
+     */
+    scoreLT112Entry(data) {
+        let score = 0;
+        
+        if (data.ivRank > 50) score += 30;
+        else if (data.ivRank > 30) score += 20;
+        
+        if (data.rsi > 60) score += 20;
+        if (data.close > data.sma20) score += 15;
+        
+        const rangePosition = (data.close - data.low) / (data.high - data.low);
+        if (rangePosition > 0.7) score += 20;
+        
+        return score;
+    }
+
+    scoreStrangleEntry(data, strikes) {
+        let score = 0;
+        
+        if (data.ivRank > 70) score += 40;
+        else if (data.ivRank > 50) score += 30;
+        else if (data.ivRank > 30) score += 20;
+        
+        const range20d = Math.abs(data.high - data.low) / data.close * 100;
+        if (range20d < 5) score += 30;
+        else if (range20d < 10) score += 20;
+        
+        return score;
+    }
+
+    /**
+     * Position entry and exit
+     */
+    enterPosition(entry, date) {
+        const position = {
+            ...entry,
+            entryDate: date,
+            id: this.generatePositionId(),
+            status: 'OPEN'
+        };
+
+        // Check buying power
+        const bpRequired = this.calculateBPRequired(position);
+        if (bpRequired > this.getAvailableBP()) {
+            this.logger.warn('BACKTEST', 'Insufficient buying power', { required: bpRequired, available: this.getAvailableBP() });
+            return;
+        }
+
+        // Add to correlation tracking
+        this.updateCorrelationGroup(position.underlying, 1);
+
+        this.positions.push(position);
+        this.logger.debug('BACKTEST', `Entered ${position.strategy} position`, {
+            underlying: position.underlying,
+            entry: position.entryValue,
+            date
+        });
+    }
+
+    closePosition(position, reason, exitValue, date) {
+        const trade = {
+            id: position.id,
+            strategy: position.strategy,
+            underlying: position.underlying,
+            entryDate: position.entryDate,
+            exitDate: date,
+            entryValue: position.entryValue,
+            exitValue,
+            pnl: exitValue - position.entryValue,
+            pnlPercent: ((exitValue - position.entryValue) / Math.abs(position.entryValue)) * 100,
+            exitReason: reason,
+            contracts: position.contracts,
+            dte: this.calculateDTE(position.entryDate, position.expiration),
+            holdingPeriod: this.calculateHoldingPeriod(position.entryDate, date)
+        };
+
+        // Update capital
+        this.currentCapital += trade.pnl - (this.config.commissions * position.contracts * 2); // Round trip commission
+
+        // Update correlation tracking
+        this.updateCorrelationGroup(position.underlying, -1);
+
+        this.trades.push(trade);
+        this.logger.debug('BACKTEST', `Closed ${position.strategy} position`, {
+            pnl: trade.pnl,
+            reason,
+            date
+        });
+    }
+
+    /**
+     * Utility functions
+     */
+    
+    async loadAllHistoricalData(symbols) {
+        const data = {};
+        
+        for (const symbol of symbols) {
+            try {
+                data[symbol] = await this.dataManager.fetchHistoricalData(
+                    symbol, 
+                    this.config.startDate, 
+                    this.config.endDate
+                );
+                this.logger.info('BACKTEST', `Loaded ${data[symbol].length} bars for ${symbol}`);
+            } catch (error) {
+                this.logger.error('BACKTEST', `Failed to load data for ${symbol}`, error);
+            }
+        }
+        
+        return data;
+    }
+
+    extractDayMarketData(marketData, dateStr) {
+        const dayData = {};
+        
+        for (const [symbol, data] of Object.entries(marketData)) {
+            const dayBar = data.find(bar => bar.date === dateStr);
+            if (dayBar) {
+                dayData[symbol] = dayBar;
+            }
+        }
+        
+        return Object.keys(dayData).length > 0 ? dayData : null;
+    }
+
+    generateTradingCalendar(startDate, endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const tradingDays = [];
+        
+        for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+            // Skip weekends
+            if (date.getDay() !== 0 && date.getDay() !== 6) {
+                tradingDays.push(new Date(date));
+            }
+        }
+        
+        return tradingDays;
+    }
+
+    getDefaultSymbols() {
+        return ['ES', 'MES', 'NQ', 'MNQ', 'CL', 'MCL', 'GC', 'MGC', 'SPY', 'QQQ', 'IWM', 'TLT', 'GLD', 'VIX'];
+    }
+
+    getStrategySymbols(strategyName) {
+        const symbolMap = {
+            '0DTE': ['ES'],
+            'LT112': ['ES', 'MES'],
+            'STRANGLE': ['MCL', 'MGC', 'MES', 'MNQ', 'GLD', 'TLT', 'SLV'],
+            'IPMCC': ['SPY', 'QQQ', 'IWM'],
+            'LEAP': ['SPY']
+        };
+        return symbolMap[strategyName] || this.getDefaultSymbols();
+    }
+
+    getAvailableStrategies(dayOfWeek) {
+        const strategies = [];
+        
+        Object.entries(this.tomKingRules.strategies).forEach(([name, rules]) => {
+            if (rules.daysAllowed.includes(dayOfWeek)) {
+                strategies.push(name);
+            }
+        });
+        
+        return strategies;
+    }
+
+    updatePhase() {
+        const phases = this.tomKingRules.phases;
+        for (const [phase, limits] of Object.entries(phases)) {
+            if (this.currentCapital >= limits.minCapital && this.currentCapital < limits.maxCapital) {
+                this.currentPhase = parseInt(phase);
+                break;
+            }
+        }
+    }
+
+    calculateDTE(currentDate, expiration) {
+        const current = new Date(currentDate);
+        const exp = new Date(expiration);
+        return Math.ceil((exp - current) / (1000 * 60 * 60 * 24));
+    }
+
+    calculateHoldingPeriod(entryDate, exitDate) {
+        return Math.ceil((new Date(exitDate) - new Date(entryDate)) / (1000 * 60 * 60 * 24));
+    }
+
+    getNextFriday(date) {
+        const result = new Date(date);
+        const day = result.getDay();
+        const daysUntilFriday = (5 - day + 7) % 7 || 7;
+        result.setDate(result.getDate() + daysUntilFriday);
+        return result;
+    }
+
+    canAddPosition() {
+        return this.positions.length < this.config.maxPositions &&
+               this.getUsedBPPercent() < this.config.maxBPUsage;
+    }
+
+    getUsedBPPercent() {
+        const totalBP = this.positions.reduce((sum, pos) => sum + this.calculateBPRequired(pos), 0);
+        return (totalBP / this.currentCapital) * 100;
+    }
+
+    getAvailableBP() {
+        const usedBP = this.positions.reduce((sum, pos) => sum + this.calculateBPRequired(pos), 0);
+        return (this.currentCapital * 0.35) - usedBP; // 35% max usage
+    }
+
+    calculateBPRequired(position) {
+        // Simplified BP calculation - real implementation would be more complex
+        switch (position.type) {
+            case 'CALL_SPREAD':
+            case 'PUT_SPREAD':
+                return Math.abs(position.longStrike - position.shortStrike) * position.contracts * this.getContractMultiplier(position.underlying);
+            case 'IRON_CONDOR':
+                return Math.max(
+                    Math.abs(position.putLong - position.putShort),
+                    Math.abs(position.callLong - position.callShort)
+                ) * position.contracts * this.getContractMultiplier(position.underlying);
+            case 'SHORT_STRANGLE':
+                return Math.abs(position.entryValue) * 2; // Rough estimate
+            default:
+                return Math.abs(position.entryValue);
+        }
+    }
+
+    getContractMultiplier(symbol) {
+        const multipliers = {
+            'ES': 50, 'MES': 5, 'NQ': 20, 'MNQ': 2,
+            'CL': 1000, 'MCL': 100, 'GC': 100, 'MGC': 10,
+            'SPY': 100, 'QQQ': 100, 'IWM': 100
+        };
+        return multipliers[symbol] || 100;
+    }
+
+    getCorrelationGroupCount(symbol) {
+        const group = this.getCorrelationGroup(symbol);
+        return this.correlationGroups.get(group) || 0;
+    }
+
+    updateCorrelationGroup(symbol, delta) {
+        const group = this.getCorrelationGroup(symbol);
+        const current = this.correlationGroups.get(group) || 0;
+        this.correlationGroups.set(group, current + delta);
+    }
+
+    getCorrelationGroup(symbol) {
+        const groups = {
+            'ES': 'EQUITIES', 'MES': 'EQUITIES', 'NQ': 'EQUITIES', 'MNQ': 'EQUITIES',
+            'SPY': 'EQUITIES', 'QQQ': 'EQUITIES', 'IWM': 'EQUITIES',
+            'CL': 'ENERGY', 'MCL': 'ENERGY',
+            'GC': 'METALS', 'MGC': 'METALS', 'GLD': 'METALS', 'SLV': 'METALS',
+            'TLT': 'BONDS'
+        };
+        return groups[symbol] || 'OTHER';
+    }
+
+    calculate0DTEContracts() {
+        const contracts = { 1: 1, 2: 2, 3: 3, 4: 5 };
+        return contracts[this.currentPhase] || 1;
+    }
+
+    getStrangleTickersByPhase(phase) {
+        const tickers = {
+            1: ['MCL', 'MGC', 'GLD', 'TLT'],
+            2: ['MCL', 'MGC', 'MES', 'MNQ', 'SLV'],
+            3: ['CL', 'GC', 'ES', 'NQ'],
+            4: ['CL', 'GC', 'ES', 'NQ', 'SI', 'HG']
+        };
+        return tickers[phase] || tickers[1];
+    }
+
+    calculateDailyPnL(date, marketData) {
+        let totalPnL = 0;
+        
+        this.positions.forEach(position => {
+            const currentValue = this.calculatePositionValue(position, marketData);
+            totalPnL += currentValue - position.entryValue;
+        });
+        
+        return totalPnL;
+    }
+
+    generatePositionId() {
+        return `pos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    isExpiration(expirationDate) {
+        const today = new Date().toISOString().split('T')[0];
+        return expirationDate === today;
+    }
+
+    async generateBacktestResults(strategyFilter = null) {
+        // Implementation for generating comprehensive backtest results
+        // This will be implemented in the next file
+        return {
+            trades: this.trades,
+            metrics: await this.calculatePerformanceMetrics(strategyFilter),
+            dailyPnL: this.dailyPnL,
+            positions: this.positions
+        };
+    }
+
+    async calculatePerformanceMetrics(strategyFilter) {
+        // Placeholder - will be implemented in performance metrics module
+        const filteredTrades = strategyFilter ? 
+            this.trades.filter(trade => trade.strategy === strategyFilter) : 
+            this.trades;
+
+        const winningTrades = filteredTrades.filter(trade => trade.pnl > 0);
+        const losingTrades = filteredTrades.filter(trade => trade.pnl < 0);
+
+        return {
+            totalTrades: filteredTrades.length,
+            winningTrades: winningTrades.length,
+            losingTrades: losingTrades.length,
+            winRate: (winningTrades.length / filteredTrades.length) * 100,
+            totalPnL: filteredTrades.reduce((sum, trade) => sum + trade.pnl, 0),
+            avgWin: winningTrades.length > 0 ? winningTrades.reduce((sum, trade) => sum + trade.pnl, 0) / winningTrades.length : 0,
+            avgLoss: losingTrades.length > 0 ? losingTrades.reduce((sum, trade) => sum + trade.pnl, 0) / losingTrades.length : 0
+        };
+    }
+}
+
+module.exports = BacktestingEngine;

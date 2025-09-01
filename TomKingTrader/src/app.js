@@ -15,8 +15,19 @@ const fs = require('fs').promises;
 // Import TomKingTrader modules
 const { TomKingTrader, TomKingUtils } = require('./index');
 const SignalGenerator = require('./signalGenerator');
+const GreeksIntegration = require('./greeksIntegration');
 const { getLogger } = require('./logger');
 const config = require('./config');
+
+// Import new unified trading system
+const { UnifiedTradingSystem } = require('./tradingSystemIntegration');
+
+// Import backtesting modules
+const BacktestingEngine = require('./backtestingEngine');
+const HistoricalDataManager = require('./historicalDataManager');
+const PerformanceMetrics = require('./performanceMetrics');
+const PatternValidationEngine = require('./patternValidation');
+const BacktestReportGenerator = require('./backtestReporting');
 
 const logger = getLogger();
 
@@ -41,10 +52,20 @@ class TomKingTraderApp {
         
         // Initialize core modules
         this.trader = null;
+        this.greeksIntegration = null;
         this.signalGenerator = new SignalGenerator({
             enableRealTime: true,
             signalCooldown: 300000, // 5 minutes
             maxSignalsPerHour: 20
+        });
+        
+        // Initialize unified trading system
+        this.unifiedSystem = new UnifiedTradingSystem({
+            startingBalance: 35000,
+            goalBalance: 80000,
+            targetBPUsage: 35,
+            enableRealTimeUpdates: true,
+            dashboardUpdateInterval: 30000
         });
         
         // Application state
@@ -65,6 +86,47 @@ class TomKingTraderApp {
         });
         
         logger.info('APP', 'TomKingTrader Application initialized');
+    }
+    
+    /**
+     * Setup Greeks integration event handlers
+     */
+    setupGreeksEventHandlers() {
+        if (!this.greeksIntegration) return;
+        
+        // Portfolio Greeks updates
+        this.greeksIntegration.on('greeksUpdated', (data) => {
+            this.broadcast({
+                type: 'greeks_updated',
+                data: data
+            });
+        });
+        
+        // Real-time Greeks updates
+        this.greeksIntegration.on('realTimeGreeksUpdate', (data) => {
+            this.broadcast({
+                type: 'real_time_greeks',
+                data: data
+            });
+        });
+        
+        // Greeks alerts
+        this.greeksIntegration.on('greeksAlerts', (data) => {
+            this.broadcast({
+                type: 'greeks_alerts',
+                data: data
+            });
+        });
+        
+        // Tom King specific Greeks analysis
+        this.greeksIntegration.on('tomKingGreeksAnalysis', (data) => {
+            this.broadcast({
+                type: 'tom_king_greeks_analysis',
+                data: data
+            });
+        });
+        
+        logger.debug('APP', 'Greeks event handlers setup complete');
     }
     
     /**
@@ -157,6 +219,25 @@ class TomKingTraderApp {
                 
                 const result = await this.trader.initialize();
                 this.isInitialized = true;
+                
+                // Initialize Greeks integration if API mode is enabled
+                if (useApiMode && this.trader.api) {
+                    try {
+                        this.greeksIntegration = new GreeksIntegration(this.trader, {
+                            enableRealTimeUpdates: true,
+                            updateInterval: 30000
+                        });
+                        await this.greeksIntegration.initialize();
+                        
+                        // Setup Greeks event handlers
+                        this.setupGreeksEventHandlers();
+                        
+                        logger.info('APP', 'Greeks integration enabled');
+                    } catch (error) {
+                        logger.error('APP', 'Greeks integration failed', error);
+                        // Continue without Greeks - not critical for basic operation
+                    }
+                }
                 
                 // Note: SignalGenerator will receive data when generateSignals is called
                 // No need to update separately as it accepts data as parameters
@@ -392,6 +473,243 @@ class TomKingTraderApp {
                 res.status(500).json({
                     success: false,
                     error: error.message
+                });
+            }
+        });
+
+        // GREEKS API ENDPOINTS
+        
+        // Get portfolio Greeks
+        this.app.get('/api/greeks/portfolio', async (req, res) => {
+            try {
+                if (!this.greeksIntegration) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Greeks integration not available. Ensure API mode is enabled.',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                const portfolioGreeks = this.greeksIntegration.getPortfolioGreeks();
+                
+                res.json({
+                    success: true,
+                    portfolioGreeks: portfolioGreeks,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Portfolio Greeks error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Get Greeks for specific option
+        this.app.post('/api/greeks/option', async (req, res) => {
+            try {
+                if (!this.greeksIntegration) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Greeks integration not available. Ensure API mode is enabled.',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                const { symbol, strike, expiration, optionType } = req.body;
+                
+                if (!symbol || !strike || !expiration || !optionType) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing required parameters: symbol, strike, expiration, optionType',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                const greeks = await this.greeksIntegration.getOptionGreeks(symbol, strike, expiration, optionType);
+                
+                res.json({
+                    success: true,
+                    greeks: greeks,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Option Greeks error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Calculate 5-delta strikes for Tom King strangles
+        this.app.post('/api/greeks/5-delta-strikes', async (req, res) => {
+            try {
+                if (!this.greeksIntegration) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Greeks integration not available. Ensure API mode is enabled.',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                const { symbol, expiration, targetDelta = 0.05 } = req.body;
+                
+                if (!symbol || !expiration) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing required parameters: symbol, expiration',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                const strikes = await this.greeksIntegration.get5DeltaStrikes(symbol, expiration);
+                
+                res.json({
+                    success: true,
+                    strikes: strikes,
+                    targetDelta: targetDelta,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 5-Delta strikes error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Force Greeks update
+        this.app.post('/api/greeks/update', async (req, res) => {
+            try {
+                if (!this.greeksIntegration) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Greeks integration not available. Ensure API mode is enabled.',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                const result = await this.greeksIntegration.forceGreeksUpdate();
+                
+                res.json({
+                    success: true,
+                    message: 'Greeks update completed',
+                    result: result,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Greeks update error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Get Greeks history
+        this.app.get('/api/greeks/history', async (req, res) => {
+            try {
+                if (!this.greeksIntegration) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Greeks integration not available. Ensure API mode is enabled.',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                const limit = parseInt(req.query.limit) || 50;
+                const history = this.greeksIntegration.getGreeksHistory(limit);
+                
+                res.json({
+                    success: true,
+                    history: history,
+                    count: history.length,
+                    limit: limit,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Greeks history error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Get current Greeks alerts
+        this.app.get('/api/greeks/alerts', async (req, res) => {
+            try {
+                if (!this.greeksIntegration) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Greeks integration not available. Ensure API mode is enabled.',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                const alerts = this.greeksIntegration.getCurrentAlerts();
+                
+                res.json({
+                    success: true,
+                    alerts: alerts,
+                    count: alerts.length,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Greeks alerts error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Get Greeks status and configuration
+        this.app.get('/api/greeks/status', async (req, res) => {
+            try {
+                const status = {
+                    available: !!this.greeksIntegration,
+                    initialized: !!this.greeksIntegration,
+                    realTimeEnabled: this.greeksIntegration ? this.greeksIntegration.config.enableRealTimeUpdates : false,
+                    lastUpdate: this.greeksIntegration ? this.greeksIntegration.lastGreeksUpdate : null,
+                    alertsCount: this.greeksIntegration ? this.greeksIntegration.getCurrentAlerts().length : 0,
+                    features: {
+                        portfolioGreeks: true,
+                        realTimeUpdates: !!this.greeksIntegration,
+                        fiveDeltaCalculation: !!this.greeksIntegration,
+                        zdteMonitoring: !!this.greeksIntegration,
+                        lt112Analysis: !!this.greeksIntegration,
+                        riskIntegration: !!this.greeksIntegration
+                    }
+                };
+                
+                res.json({
+                    success: true,
+                    status: status,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Greeks status error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
                 });
             }
         });
@@ -1813,6 +2131,347 @@ class TomKingTraderApp {
                 });
             }
         });
+
+        // BACKTESTING ENDPOINTS
+        
+        // Run comprehensive backtest
+        this.app.post('/api/backtest/run', async (req, res) => {
+            try {
+                const {
+                    symbols = ['ES', 'SPY', 'QQQ'],
+                    startDate = '2020-01-01',
+                    endDate = new Date().toISOString().split('T')[0],
+                    initialCapital = 30000,
+                    strategies = null // null means all strategies
+                } = req.body;
+                
+                this.logger.info('BACKTEST', 'Starting comprehensive backtest', {
+                    symbols: symbols.length,
+                    period: `${startDate} to ${endDate}`,
+                    initialCapital
+                });
+
+                const backtestEngine = new BacktestingEngine({
+                    startDate,
+                    endDate,
+                    initialCapital,
+                    apiClient: this.trader?.api
+                });
+
+                const results = await backtestEngine.runFullBacktest(symbols);
+                
+                res.json({
+                    success: true,
+                    results,
+                    summary: {
+                        totalReturn: results.metrics.basic.totalReturn,
+                        sharpeRatio: results.metrics.risk.sharpeRatio,
+                        maxDrawdown: results.metrics.drawdown.maxDrawdown,
+                        winRate: results.metrics.basic.winRate,
+                        totalTrades: results.metrics.basic.totalTrades
+                    },
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                this.logger.error('BACKTEST', 'Backtest execution failed', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Run strategy-specific backtest
+        this.app.post('/api/backtest/strategy/:strategyName', async (req, res) => {
+            try {
+                const { strategyName } = req.params;
+                const {
+                    symbols = null,
+                    startDate = '2020-01-01',
+                    endDate = new Date().toISOString().split('T')[0],
+                    initialCapital = 30000
+                } = req.body;
+
+                this.logger.info('BACKTEST', `Starting ${strategyName} backtest`);
+
+                const backtestEngine = new BacktestingEngine({
+                    startDate,
+                    endDate,
+                    initialCapital,
+                    apiClient: this.trader?.api
+                });
+
+                const results = await backtestEngine.runStrategyBacktest(strategyName, symbols);
+                
+                res.json({
+                    success: true,
+                    strategy: strategyName,
+                    results,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                this.logger.error('BACKTEST', `${req.params.strategyName} backtest failed`, error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Validate patterns with historical data
+        this.app.post('/api/backtest/validate-patterns', async (req, res) => {
+            try {
+                const {
+                    symbols = ['ES', 'SPY'],
+                    startDate = '2020-01-01',
+                    endDate = new Date().toISOString().split('T')[0],
+                    patterns = null // null means all patterns
+                } = req.body;
+
+                this.logger.info('BACKTEST', 'Starting pattern validation');
+
+                const patternEngine = new PatternValidationEngine({
+                    apiClient: this.trader?.api
+                });
+
+                const validation = await patternEngine.validateAllPatterns(symbols, startDate, endDate);
+                
+                res.json({
+                    success: true,
+                    validation,
+                    summary: validation.summary,
+                    recommendations: validation.recommendations,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                this.logger.error('BACKTEST', 'Pattern validation failed', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Optimize strategy parameters
+        this.app.post('/api/backtest/optimize/:strategyName', async (req, res) => {
+            try {
+                const { strategyName } = req.params;
+                const {
+                    symbols = null,
+                    startDate = '2020-01-01',
+                    endDate = new Date().toISOString().split('T')[0]
+                } = req.body;
+
+                this.logger.info('BACKTEST', `Starting ${strategyName} optimization`);
+
+                const patternEngine = new PatternValidationEngine({
+                    apiClient: this.trader?.api
+                });
+
+                const dataManager = new HistoricalDataManager({
+                    apiClient: this.trader?.api
+                });
+
+                // Load market data
+                const marketData = {};
+                const targetSymbols = symbols || ['ES', 'SPY'];
+                
+                for (const symbol of targetSymbols) {
+                    marketData[symbol] = await dataManager.fetchHistoricalData(symbol, startDate, endDate);
+                }
+
+                const optimization = await patternEngine.optimizePatternParameters(
+                    strategyName, 
+                    marketData, 
+                    { optimization: true }
+                );
+                
+                res.json({
+                    success: true,
+                    strategy: strategyName,
+                    optimization,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                this.logger.error('BACKTEST', `${req.params.strategyName} optimization failed`, error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Generate comprehensive backtest report
+        this.app.post('/api/backtest/report', async (req, res) => {
+            try {
+                const { backtestResults, includePatterns = true, includeOptimization = false } = req.body;
+                
+                if (!backtestResults) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing backtestResults parameter',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                this.logger.info('BACKTEST', 'Generating comprehensive report');
+
+                const reportGenerator = new BacktestReportGenerator({
+                    outputDir: path.join(__dirname, '..', 'reports')
+                });
+
+                let patternValidation = null;
+                let optimizationResults = null;
+
+                // Optionally include pattern validation
+                if (includePatterns) {
+                    const patternEngine = new PatternValidationEngine({
+                        apiClient: this.trader?.api
+                    });
+                    patternValidation = await patternEngine.validateAllPatterns(
+                        ['ES', 'SPY'], 
+                        backtestResults.startDate || '2020-01-01',
+                        backtestResults.endDate || new Date().toISOString().split('T')[0]
+                    );
+                }
+
+                const report = await reportGenerator.generateComprehensiveReport(
+                    backtestResults,
+                    patternValidation,
+                    optimizationResults
+                );
+                
+                res.json({
+                    success: true,
+                    report: {
+                        htmlPath: report.htmlPath,
+                        jsonPath: report.jsonPath
+                    },
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                this.logger.error('BACKTEST', 'Report generation failed', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Get historical data for specific symbol
+        this.app.get('/api/backtest/data/:symbol', async (req, res) => {
+            try {
+                const { symbol } = req.params;
+                const {
+                    startDate = '2020-01-01',
+                    endDate = new Date().toISOString().split('T')[0],
+                    interval = 'daily'
+                } = req.query;
+
+                this.logger.info('BACKTEST', `Fetching historical data for ${symbol}`);
+
+                const dataManager = new HistoricalDataManager({
+                    apiClient: this.trader?.api
+                });
+
+                const data = await dataManager.fetchHistoricalData(symbol, startDate, endDate, interval);
+                
+                res.json({
+                    success: true,
+                    symbol,
+                    data,
+                    count: data.length,
+                    period: { startDate, endDate },
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                this.logger.error('BACKTEST', `Data fetch failed for ${req.params.symbol}`, error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Calculate performance metrics for custom data
+        this.app.post('/api/backtest/metrics', async (req, res) => {
+            try {
+                const { trades, dailyPnL, initialCapital = 30000, benchmarkReturns = null } = req.body;
+                
+                if (!trades || !dailyPnL) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing required parameters: trades and dailyPnL',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                this.logger.info('BACKTEST', 'Calculating performance metrics');
+
+                const performanceCalc = new PerformanceMetrics();
+                const metrics = performanceCalc.calculateComprehensiveMetrics(
+                    trades, 
+                    dailyPnL, 
+                    initialCapital, 
+                    benchmarkReturns
+                );
+                
+                res.json({
+                    success: true,
+                    metrics,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                this.logger.error('BACKTEST', 'Metrics calculation failed', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Get backtest status and capabilities
+        this.app.get('/api/backtest/status', (req, res) => {
+            try {
+                const capabilities = {
+                    strategies: ['0DTE', 'LT112', 'STRANGLE', 'IPMCC', 'LEAP'],
+                    patterns: ['BREAKOUT', 'REVERSAL', 'TREND_CONTINUATION', 'VOLATILITY_EXPANSION', 'MEAN_REVERSION'],
+                    symbols: ['ES', 'MES', 'NQ', 'MNQ', 'SPY', 'QQQ', 'IWM', 'TLT', 'GLD'],
+                    dataSource: this.trader?.api ? 'TastyTrade API + Alternatives' : 'Alternative Sources Only',
+                    maxHistoryYears: 5,
+                    reportFormats: ['HTML', 'JSON', 'CSV']
+                };
+
+                res.json({
+                    success: true,
+                    available: true,
+                    capabilities,
+                    apiConnected: !!this.trader?.api,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
         
         // Serve main dashboard
         this.app.get('/', (req, res) => {
@@ -1856,12 +2515,294 @@ class TomKingTraderApp {
                     'POST /api/strategies/short-strangle',
                     'POST /api/strategies/0dte',
                     'POST /api/strategies/butterfly',
+                    'GET /api/greeks/portfolio',
+                    'POST /api/greeks/option',
+                    'POST /api/greeks/5-delta-strikes',
+                    'POST /api/greeks/update',
+                    'GET /api/greeks/history',
+                    'GET /api/greeks/alerts',
+                    'GET /api/greeks/status',
                     'GET /api/test/scenarios',
                     'POST /api/test/run',
                     'POST /api/test/run-all',
-                    'POST /api/test/manual-input'
+                    'POST /api/test/manual-input',
+                    'POST /api/backtest/run',
+                    'POST /api/backtest/strategy/:strategyName',
+                    'POST /api/backtest/validate-patterns',
+                    'POST /api/backtest/optimize/:strategyName',
+                    'POST /api/backtest/report',
+                    'GET /api/backtest/data/:symbol',
+                    'POST /api/backtest/metrics',
+                    'GET /api/backtest/status'
                 ]
             });
+        });
+        // === UNIFIED TRADING SYSTEM ROUTES ===
+        
+        // Get system status
+        this.app.get('/api/system/status', (req, res) => {
+            try {
+                const status = this.unifiedSystem.getSystemStatus();
+                res.json({
+                    success: true,
+                    ...status
+                });
+            } catch (error) {
+                console.error('🚨 System status error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Get comprehensive dashboard data
+        this.app.get('/api/dashboard', (req, res) => {
+            try {
+                const dashboardData = this.unifiedSystem.getDashboardData();
+                res.json({
+                    success: true,
+                    data: dashboardData,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('🚨 Dashboard error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Get HTML dashboard
+        this.app.get('/dashboard', (req, res) => {
+            try {
+                const html = this.unifiedSystem.generateHTMLDashboard();
+                res.type('html').send(html);
+            } catch (error) {
+                console.error('🚨 HTML dashboard error:', error);
+                res.status(500).send(`
+                    <html>
+                        <body>
+                            <h1>Dashboard Error</h1>
+                            <p>Failed to generate dashboard: ${error.message}</p>
+                            <p><a href="/dashboard">Refresh</a></p>
+                        </body>
+                    </html>
+                `);
+            }
+        });
+
+        // Position management routes
+        this.app.get('/api/positions', (req, res) => {
+            try {
+                const positions = this.unifiedSystem.getAllPositions();
+                res.json({
+                    success: true,
+                    positions,
+                    count: positions.length,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('🚨 Positions error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this.app.post('/api/positions', async (req, res) => {
+            try {
+                const positionId = await this.unifiedSystem.addPosition(req.body);
+                res.json({
+                    success: true,
+                    positionId,
+                    message: 'Position added successfully',
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('🚨 Add position error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this.app.put('/api/positions/:id', async (req, res) => {
+            try {
+                await this.unifiedSystem.updatePosition(req.params.id, req.body);
+                res.json({
+                    success: true,
+                    message: 'Position updated successfully',
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('🚨 Update position error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this.app.delete('/api/positions/:id', async (req, res) => {
+            try {
+                const closedPosition = await this.unifiedSystem.closePosition(req.params.id, req.body);
+                res.json({
+                    success: true,
+                    closedPosition,
+                    message: 'Position closed successfully',
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('🚨 Close position error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // P&L and performance routes
+        this.app.get('/api/pl/current', (req, res) => {
+            try {
+                const currentPL = this.unifiedSystem.getCurrentPL();
+                res.json({
+                    success: true,
+                    pl: currentPL,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('🚨 Current P&L error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this.app.get('/api/analytics', (req, res) => {
+            try {
+                const analytics = this.unifiedSystem.getTradeAnalytics(req.query);
+                res.json({
+                    success: true,
+                    analytics,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('🚨 Analytics error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Tom King specific routes
+        this.app.get('/api/tom-king/metrics', (req, res) => {
+            try {
+                const metrics = this.unifiedSystem.getTomKingMetrics();
+                res.json({
+                    success: true,
+                    metrics,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('🚨 Tom King metrics error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Export routes
+        this.app.post('/api/export/trades', async (req, res) => {
+            try {
+                const filePath = await this.unifiedSystem.exportTrades(req.body.filters, req.body.filename);
+                res.json({
+                    success: true,
+                    filePath,
+                    message: 'Trades exported successfully',
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('🚨 Export trades error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this.app.post('/api/export/analytics', async (req, res) => {
+            try {
+                const filePath = await this.unifiedSystem.exportAnalytics(req.body.filters, req.body.filename);
+                res.json({
+                    success: true,
+                    filePath,
+                    message: 'Analytics exported successfully',
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('🚨 Export analytics error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Comprehensive report
+        this.app.get('/api/reports/comprehensive', (req, res) => {
+            try {
+                const report = this.unifiedSystem.generateComprehensiveReport();
+                res.json({
+                    success: true,
+                    report,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('🚨 Comprehensive report error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Market data update endpoint
+        this.app.post('/api/market-data/update', async (req, res) => {
+            try {
+                const updatedCount = await this.unifiedSystem.updatePositionsWithMarketData(req.body);
+                res.json({
+                    success: true,
+                    updatedCount,
+                    message: `Updated ${updatedCount} positions with market data`,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('🚨 Market data update error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
         });
     }
     
