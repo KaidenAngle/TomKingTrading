@@ -3,7 +3,7 @@
 A comprehensive automated trading system implementing Tom King's proven methodology with real-time TastyTrade API integration, advanced pattern analysis, robust risk management, and professional web dashboard.
 
 ## 🎯 Project Goal
-Transform £35,000 ($46,000) into £76,000 ($100,000) within 7-8 months using Tom King's systematic options and futures strategies, achieving financial freedom with £8,750 monthly income through 11-13% monthly compounding while maintaining 52-65% buying power usage and strict risk protocols.
+Transform £35,000 into £80,000 within 8 months using Tom King's systematic options and futures strategies, achieving financial freedom with £10,000 monthly income through 12% monthly compounding while maintaining 52-65% buying power usage and strict risk protocols.
 
 ## ✨ Key Features
 

@@ -5,10 +5,25 @@ All notable changes to the Tom King Trading Framework will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [17.2.0] - 2025-09-01
+
+### 🎯 Final Project Goal Update
+- **FINAL TARGET**: Transform £35,000 into £80,000 within 8 months
+- **Monthly Target**: 12% compounding growth
+- **Income Goal**: £10,000 monthly income at target
+- **BP Usage**: 52-65% for accelerated growth  
+- **Timeline**: 8 months to financial freedom
+
+### ✅ API Integration Complete
+- TastyTrade API credentials configured
+- .env file created with production settings
+- OAuth2 authentication ready
+- Live market data access enabled
+
 ## [17.1.0] - 2025-09-01
 
-### 🎯 Updated Project Goal
-- **NEW TARGET**: Transform £35,000 ($46,000) into £76,000 ($100,000) within 7-8 months
+### 🎯 Previous Project Goal
+- **TARGET**: Transform £35,000 ($46,000) into £76,000 ($100,000) within 7-8 months
 - **Monthly Target**: 11-13% compounding growth
 - **Income Goal**: £8,750 monthly income at target
 - **BP Usage**: Increased to 52-65% for accelerated growth
