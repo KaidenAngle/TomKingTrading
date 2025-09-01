@@ -1,0 +1,193 @@
+# TOM KING TRADING FRAMEWORK v17 - MODULAR SYSTEM MASTER LOADER
+
+## SYSTEM OVERVIEW
+
+This is the Master Loader for the Tom King Trading Framework v17 modular system. When you receive these files, you are getting a complete trading framework that has been restructured from a single 6000+ line file into 6 manageable, interconnected modules.
+
+## REQUIRED FILES (Load in This Order)
+
+1. **MASTER_LOADER.txt** (This file) - System instructions and integration guide
+2. **CORE_FRAMEWORK.txt** - Main framework logic, pattern analysis, and execution engine
+3. **API_INTEGRATION.txt** - TastyTrade API authentication, data collection, and WebSocket streaming
+4. **SEARCH_PARSING.txt** - Manual mode search result parsing and Progressive Friday analysis
+5. **ADVANCED_STRATEGIES.txt** - Section 9B advanced strategies (Box spreads, butterflies, LEAP ladders)
+6. **HTML_DASHBOARD.txt** - Complete HTML dashboard template with real-time updates
+
+## INTEGRATION INSTRUCTIONS FOR CLAUDE
+
+### Step 1: Load All Files
+All 6 files must be provided together. Each file is self-contained but references the others. Do NOT attempt to execute until all files are loaded.
+
+### Step 2: Auto-Execute Protocol
+The framework maintains its auto-execute capability through the CORE_FRAMEWORK.txt file. When the user provides trading data or API credentials, the framework will automatically:
+
+1. Parse user input (Manual/API/Test mode)
+2. Load appropriate data collection method (API_INTEGRATION.txt or SEARCH_PARSING.txt)
+3. Execute pattern analysis from CORE_FRAMEWORK.txt
+4. Apply advanced strategies from ADVANCED_STRATEGIES.txt if Phase 3+
+5. Generate HTML dashboard from HTML_DASHBOARD.txt
+6. Return complete analysis and actionable recommendations
+
+### Step 3: Module Communication
+- **CORE_FRAMEWORK.txt** contains the main `executeFramework()` function
+- **API_INTEGRATION.txt** provides `TastyTradeAPI` class and authentication
+- **SEARCH_PARSING.txt** provides search result parsing functions
+- **ADVANCED_STRATEGIES.txt** provides `executeAdvancedStrategies()` function
+- **HTML_DASHBOARD.txt** provides `generateDashboardHTML()` function
+
+### Step 4: User Input Handling
+The system accepts three input modes:
+
+**Manual Mode:**
+```
+£75000 | ES LT112 (85 DTE, 6420, +5%) | 32% | Friday Jan 10 10:15 AM EST | VIX 15.2 | No | £2450
+```
+
+**API Mode:**
+```
+Mode: API
+Client Secret: [oauth2_secret]
+Refresh Token: [refresh_token]
+Environment: [sandbox/production]
+```
+
+**Test Mode:**
+```
+£40000 | none | 0% | Pretend it's Friday 01/10 9:15 AM EST | VIX 15.2 | No
+```
+
+## EXECUTION FLOW
+
+1. **Input Detection**: CORE_FRAMEWORK.txt detects mode (Manual/API/Test)
+2. **Data Collection**:
+   - API Mode: Uses API_INTEGRATION.txt classes
+   - Manual Mode: Uses SEARCH_PARSING.txt instructions
+   - Test Mode: Uses simulated data
+3. **Pattern Analysis**: CORE_FRAMEWORK.txt executes complete Tom King methodology
+4. **Advanced Strategies**: If Phase 3+, applies ADVANCED_STRATEGIES.txt
+5. **Dashboard Generation**: HTML_DASHBOARD.txt creates visual output
+6. **Results Display**: Complete analysis with actionable recommendations
+
+## CRITICAL REQUIREMENTS
+
+### JavaScript Execution Required
+The framework REQUIRES JavaScript execution capability (REPL/analysis tool). It cannot function as text-only responses.
+
+### PDF Reference Integration
+All modules reference the "Tom King Complete Trading System Documentation" PDF. Use the PDF page references provided in each module.
+
+### Pound Sterling (£) Pricing
+All monetary values use pound sterling (£) formatting throughout the system.
+
+### Error Handling
+Each module has error handling that cascades back to CORE_FRAMEWORK.txt. API failures automatically fall back to manual mode.
+
+## MODULE SPECIFICATIONS
+
+### CORE_FRAMEWORK.txt (~900 lines)
+- Framework purpose and execution modes
+- Main pattern analysis engine
+- Position health analysis
+- VIX regime management
+- Capital optimization
+- Results display formatting
+- Integration with all other modules
+
+### API_INTEGRATION.txt (~950 lines)
+- TastyTrade OAuth2 authentication
+- Market data collection classes
+- WebSocket streaming implementation
+- Order preparation (NO auto-submission)
+- Greeks monitoring
+- Error handling and fallbacks
+
+### SEARCH_PARSING.txt (~550 lines)
+- Complete search result parsing instructions
+- Progressive Friday pre-market analysis (3 phases)
+- Integration examples with BP requirements
+- Manual mode data structure building
+
+### ADVANCED_STRATEGIES.txt (~750 lines)
+- Section 9B PDF-specified strategies
+- Box spreads and risk-free rate calculations
+- Butterfly matrix optimization
+- LEAP ladder systems
+- Seasonal overlays
+- 0DTE variations and enhancements
+
+### HTML_DASHBOARD.txt (~450 lines)
+- Complete HTML5 dashboard template
+- Real-time data visualization with Chart.js
+- Phase-aware progress indicators
+- API mode Greeks display
+- Responsive design for mobile/desktop
+
+## INTEGRATION POINTS
+
+### Cross-Module Function Calls
+```javascript
+// From CORE_FRAMEWORK.txt
+const apiData = await new TastyTradeAPI(secret, token).buildSearchedData(); // API_INTEGRATION.txt
+const advancedResults = executeAdvancedStrategies(userData, searchedData, phase); // ADVANCED_STRATEGIES.txt
+const dashboardHTML = generateDashboardHTML(results); // HTML_DASHBOARD.txt
+```
+
+### Shared Data Structures
+All modules use the same `searchedData` structure defined in CORE_FRAMEWORK.txt:
+```javascript
+const searchedData = {
+  ES: { currentPrice, openPrice, high20d, low20d, atr, rsi, ema8, ema21, iv, ivRank },
+  SPY: { ... },
+  VIX: { currentLevel, trend, regime },
+  // ... other tickers
+};
+```
+
+### Error Cascade Pattern
+```javascript
+try {
+  // Attempt API mode (API_INTEGRATION.txt)
+} catch (error) {
+  console.log("API unavailable, switching to manual mode");
+  // Fall back to search parsing (SEARCH_PARSING.txt)
+}
+```
+
+## TESTING AND VALIDATION
+
+### Module Loading Test
+Each module includes validation functions to ensure proper integration:
+- `validateCoreFramework()` - CORE_FRAMEWORK.txt
+- `validateAPIIntegration()` - API_INTEGRATION.txt
+- `validateSearchParsing()` - SEARCH_PARSING.txt
+- `validateAdvancedStrategies()` - ADVANCED_STRATEGIES.txt
+- `validateHTMLDashboard()` - HTML_DASHBOARD.txt
+
+### End-to-End Testing
+Use the test scenarios provided in each module to validate complete functionality.
+
+## QUICK START
+
+1. **Load all 6 files** into Claude's context
+2. **Provide user input** in one of the three supported formats
+3. **Framework auto-executes** and returns complete analysis
+4. **Review results** including HTML dashboard, trade recommendations, and risk warnings
+
+## VERSION TRACKING
+
+- **v17.0**: Modular restructure from monolithic v16
+- **All v14 features restored**: Search parsing, Progressive Friday analysis, BP requirements
+- **Complete API integration**: All TastyTrade API classes implemented
+- **Section 9B included**: All advanced strategies fully integrated
+- **Comprehensive testing**: Full test suite across all modules
+
+## SUPPORT NOTES
+
+- Each module is self-documenting with extensive comments
+- PDF page references provided for all calculations
+- Error messages include guidance for resolution
+- Dashboard provides visual feedback on all analysis
+
+---
+
+**Ready to Execute:** Once all files are loaded, the system is ready to process trading analysis requests automatically.

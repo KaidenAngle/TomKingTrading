@@ -1,0 +1,75 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+log-*.txt
+
+# Test coverage
+coverage/
+*.lcov
+.nyc_output
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+out/
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+*.temp
+*.cache
+
+# Trading specific
+live-trades.json
+credentials.json
+api-keys.json
+*.bak
+positions-backup-*.json
+
+# Test results
+test-results.json
+test-report-*.html
+
+# Claude Code specific (keep settings)
+# .claude/ is kept for settings
+
+# System files
+.DS_Store
+desktop.ini
+
+# Debug files
+debug-*.txt
+error-*.log
+
+# Keep important docs
+!CLAUDE.md
+!README.md
+!CHANGELOG.md
+!TOM KING TRADING FRAMEWORK v*.txt
+!Tom King Complete Trading System Documentation 2.pdf
+!Tastytrade API Setup Reference.txt
