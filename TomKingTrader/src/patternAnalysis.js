@@ -573,17 +573,17 @@ class PatternAnalyzer {
     const factors = [];
     
     // High risk factors
-    if (qualityScore.ivAnalysis.ivRank < 20) {
+    if (qualityScore.ivAnalysis && qualityScore.ivAnalysis.ivRank < 20) {
       factors.push('Low IV - poor premium collection');
       riskLevel = 'HIGH';
     }
     
-    if (qualityScore.range5d.isNearHigh || qualityScore.range5d.isNearLow) {
+    if (qualityScore.range5d && (qualityScore.range5d.isNearHigh || qualityScore.range5d.isNearLow)) {
       factors.push('Price at range extreme');
       riskLevel = 'HIGH';
     }
     
-    if (qualityScore.trendAnalysis.strength === 'STRONG' && qualityScore.trendAnalysis.direction !== 'SIDEWAYS') {
+    if (qualityScore.trendAnalysis && qualityScore.trendAnalysis.strength === 'STRONG' && qualityScore.trendAnalysis.direction !== 'SIDEWAYS') {
       factors.push('Strong directional trend');
       riskLevel = riskLevel === 'HIGH' ? 'HIGH' : 'MEDIUM_HIGH';
     }
