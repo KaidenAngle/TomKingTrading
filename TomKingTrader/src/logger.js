@@ -271,14 +271,23 @@ let loggerInstance = null;
 
 function createLogger(options = {}) {
     if (!loggerInstance) {
-        loggerInstance = new TomKingLogger(options);
+        // Set production defaults
+        const defaultOptions = {
+            logLevel: process.env.NODE_ENV === 'production' ? 'warn' : 'debug',
+            ...options
+        };
+        loggerInstance = new TomKingLogger(defaultOptions);
     }
     return loggerInstance;
 }
 
 function getLogger() {
     if (!loggerInstance) {
-        loggerInstance = new TomKingLogger();
+        // Set production defaults
+        const defaultOptions = {
+            logLevel: process.env.NODE_ENV === 'production' ? 'warn' : 'debug'
+        };
+        loggerInstance = new TomKingLogger(defaultOptions);
     }
     return loggerInstance;
 }

@@ -28,7 +28,7 @@ This module provides a complete HTML5 dashboard template with real-time data vis
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tom King Trading Dashboard v17.0 - Complete Integration</title>
+<title>Tom King Trading Dashboard v17.2 - Production Ready</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <style>
   body { 
@@ -325,7 +325,7 @@ This module provides a complete HTML5 dashboard template with real-time data vis
 <body>
 
 <div class="header">
-  <h1>📈 Tom King Trading Dashboard v17.0
+  <h1>📈 Tom King Trading Dashboard v17.2
     <span class="phase-indicator" id="phaseIndicator">Loading...</span>
     <span class="api-indicator" id="apiIndicator" style="display:none;">API MODE</span>
     <span class="module-indicator">6 MODULES</span>
@@ -986,7 +986,7 @@ function validateHTMLDashboard() {
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('📊 Tom King Trading Dashboard v17.0 initialized');
+  console.log('📊 Tom King Trading Dashboard v17.2 initialized');
   console.log('🔗 Integration ready with all 6 framework modules');
   
   // Run validation

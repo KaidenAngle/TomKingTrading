@@ -4,6 +4,9 @@
  * Works 24/7 using live data when available, cached data otherwise
  */
 
+const { getLogger } = require('./logger');
+const logger = getLogger();
+
 class DataManager {
     constructor(api = null) {
         this.api = api;
@@ -43,9 +46,17 @@ class DataManager {
 
     /**
      * Convert internal symbol to API format
+     * For futures, this will map to proper contract months via the API's mapFuturesSymbol method
      */
     formatSymbolForAPI(symbol) {
-        return this.symbolMappings[symbol] || symbol;
+        const mapped = this.symbolMappings[symbol] || symbol;
+        
+        // If it's a futures symbol (starts with /), the API will handle contract month mapping
+        if (mapped.startsWith('/')) {
+            return mapped; // Let the API handle the specific contract month
+        }
+        
+        return mapped;
     }
 
     /**
@@ -97,7 +108,7 @@ class DataManager {
         // 1. Try to get fresh data from API if market is open
         if (this.api && (marketOpen || forceRefresh)) {
             try {
-                console.log(`📊 Fetching live data for ${ticker} (${apiSymbol})...`);
+                logger.debug('DATA', `Fetching live data for ${ticker} (${apiSymbol})`);
                 const quotes = await this.api.getQuotes([apiSymbol]);
                 
                 if (quotes && quotes[apiSymbol]) {
@@ -117,26 +128,26 @@ class DataManager {
                     return data;
                 }
             } catch (error) {
-                console.log(`⚠️ API error for ${ticker}: ${error.message}`);
+                logger.warn('DATA', `API error for ${ticker}`, { error: error.message });
             }
         }
         
         // 2. Check recent cache (within 5 minutes)
         const cached = this.cache.get(ticker);
         if (cached && (Date.now() - cached.timestamp < this.cacheExpiry)) {
-            console.log(`📦 Using cached data for ${ticker} (${Math.round((Date.now() - cached.timestamp) / 1000)}s old)`);
+            logger.debug('DATA', `Using cached data for ${ticker}`, { age: `${Math.round((Date.now() - cached.timestamp) / 1000)}s old` });
             return cached.data;
         }
         
         // 3. Use last close data
         const lastClose = this.lastCloseCache.get(ticker);
         if (lastClose) {
-            console.log(`📉 Using last close data for ${ticker}`);
+            logger.debug('DATA', `Using last close data for ${ticker}`);
             return lastClose;
         }
         
         // 4. Generate simulated data for testing
-        console.log(`🔧 Generating simulated data for ${ticker}`);
+        logger.debug('DATA', `Generating simulated data for ${ticker}`);
         return this.generateSimulatedData(ticker);
     }
 
@@ -268,14 +279,14 @@ class DataManager {
         
         if (this.api) {
             try {
-                console.log(`⚙️ Fetching option chain for ${ticker}...`);
+                logger.debug('DATA', `Fetching option chain for ${ticker}`);
                 const chain = await this.api.getOptionChain(apiSymbol, expiration);
                 
                 if (chain) {
                     return this.parseOptionChain(chain, ticker);
                 }
             } catch (error) {
-                console.log(`⚠️ Option chain error for ${ticker}: ${error.message}`);
+                logger.warn('DATA', `Option chain error for ${ticker}`, { error: error.message });
             }
         }
         
@@ -406,7 +417,7 @@ class DataManager {
                     positions: positions || []
                 };
             } catch (error) {
-                console.log('⚠️ Account data error:', error.message);
+                logger.error('DATA', 'Account data error', { error: error.message });
             }
         }
         
@@ -424,7 +435,7 @@ class DataManager {
      */
     clearCache() {
         this.cache.clear();
-        console.log('🗑️ Cache cleared');
+        logger.debug('DATA', 'Cache cleared');
     }
 
     /**

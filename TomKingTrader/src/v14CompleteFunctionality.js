@@ -6,6 +6,10 @@
  */
 
 const { TastyTradeAPI } = require('./tastytradeAPI');
+const { getLogger } = require('./logger');
+
+const logger = getLogger();
+const DEBUG_V14 = process.env.NODE_ENV !== 'production';
 
 class V14CompleteFunctionality {
     constructor() {
@@ -133,8 +137,11 @@ class V14CompleteFunctionality {
      * Implements the 3-phase analysis from v14 framework
      */
     async runFridayPreMarketAnalysis(marketData, currentTime) {
-        console.log('\n📊 FRIDAY PRE-MARKET 0DTE ANALYSIS');
-        console.log('================================================================================');
+        if (DEBUG_V14) {
+            console.log('\n📊 FRIDAY PRE-MARKET 0DTE ANALYSIS');
+            console.log('================================================================================');
+        }
+        logger.info('V14', 'Starting Friday Pre-Market 0DTE Analysis');
         
         const timeHour = this.extractHour(currentTime);
         const analysis = {
@@ -148,8 +155,11 @@ class V14CompleteFunctionality {
         // Phase 1: 9:00-9:30 AM - Overnight Assessment
         if (timeHour >= 9 && timeHour < 9.5) {
             analysis.phase = 'OVERNIGHT ASSESSMENT';
-            console.log('\n🌙 PHASE 1: OVERNIGHT ASSESSMENT (9:00-9:30 AM)');
-            console.log('─────────────────────────────────────────────────────────────');
+            if (DEBUG_V14) {
+                console.log('\n🌙 PHASE 1: OVERNIGHT ASSESSMENT (9:00-9:30 AM)');
+                console.log('─────────────────────────────────────────────────────────────');
+            }
+            logger.info('V14', 'Phase 1: Overnight Assessment (9:00-9:30 AM)');
             
             analysis.data.overnight = {
                 high: marketData.ES?.overnightHigh || 'SEARCH: ES overnight high',

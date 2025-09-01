@@ -412,11 +412,11 @@ const phase3Analysis = {
 
 This example demonstrates FULL framework execution for a Phase 2 account.
 
-### SCENARIO: £45,000 Account on Friday, January 12, 2024 at 10:15 AM EST
+### SCENARIO: £40,000 Account on Friday, January 12, 2024 at 10:15 AM EST
 
 **Step 1: Determine Phase & Available Strategies**
 ```javascript
-const accountValue = 45000;
+const accountValue = 40000;
 const phase = 2; // £40-60k range
 const availableStrategies = {
   '0DTE': { max: 2, current: 0, available: 2 },
@@ -538,7 +538,7 @@ const patterns = {
 ```
 +---------------------------------------------------------------+
 |      POSITION ALLOCATION & BP OPTIMIZATION TABLE              |
-|              Phase 2: £45,000 Account                         |
+|              Phase 2: £40,000 Account                         |
 +---------------------------------------------------------------+
 
 Strategy    | Max Pos | Current | Avail | BP/Pos | BP Used | Can Add | Priority
@@ -552,7 +552,7 @@ RATIO       | 2       | 0       | 2     | 2%     | 0%      | 4%      | LOW
 TOTAL       | -       | -       | -     | -      | 0%      | 39.5%   | -
 
 VIX REGIME (15.2): NORMAL - Target 55-65% BP usage
-Current: 0% | Gap to Min: 55% | Available: £45,000
+Current: 0% | Gap to Min: 55% | Available: £40,000
 ```
 
 **Step 6: BP Optimization Plan**

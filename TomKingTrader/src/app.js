@@ -15,7 +15,10 @@ const fs = require('fs').promises;
 // Import TomKingTrader modules
 const { TomKingTrader, TomKingUtils } = require('./index');
 const SignalGenerator = require('./signalGenerator');
+const { getLogger } = require('./logger');
 const config = require('./config');
+
+const logger = getLogger();
 
 class TomKingTraderApp {
     constructor(options = {}) {
@@ -61,7 +64,7 @@ class TomKingTraderApp {
             this.broadcastSignal(signal);
         });
         
-        console.log('🚀 TomKingTrader Application initialized');
+        logger.info('APP', 'TomKingTrader Application initialized');
     }
     
     /**
@@ -90,7 +93,10 @@ class TomKingTraderApp {
         // Request logging
         this.app.use((req, res, next) => {
             const timestamp = new Date().toISOString();
-            console.log(`${timestamp} ${req.method} ${req.url}`);
+            // Reduce HTTP request logging - only log non-static requests
+            if (!req.url.includes('/static/') && !req.url.includes('.css') && !req.url.includes('.js') && !req.url.includes('.png')) {
+                logger.debug('HTTP', `${req.method} ${req.url}`);
+            }
             next();
         });
         
@@ -131,10 +137,11 @@ class TomKingTraderApp {
                     refreshToken: process.env.TASTYTRADE_REFRESH_TOKEN || credentials?.refreshToken
                 };
                 
-                console.log('🔐 API Credentials check:');
-                console.log('   Client Secret:', apiCredentials.clientSecret ? 'Present' : 'Missing');
-                console.log('   Refresh Token:', apiCredentials.refreshToken ? 'Present' : 'Missing');
-                console.log('   API Mode:', apiMode || 'auto-detect');
+                logger.debug('API', 'Credentials check', {
+                    clientSecret: apiCredentials.clientSecret ? 'Present' : 'Missing',
+                    refreshToken: apiCredentials.refreshToken ? 'Present' : 'Missing',
+                    apiMode: apiMode || 'auto-detect'
+                });
                 
                 // Auto-enable API mode if credentials are present
                 const useApiMode = apiMode !== false && (apiCredentials.clientSecret && apiCredentials.refreshToken);
@@ -1426,7 +1433,7 @@ class TomKingTraderApp {
                 // Filter scenarios by requested phases
                 const filteredScenarios = framework.scenarios.filter(s => phases.includes(s.phase));
                 
-                console.log(`🧪 Running ${filteredScenarios.length} scenarios for phases: ${phases.join(', ')}`);
+                logger.info('TEST', `Running ${filteredScenarios.length} scenarios for phases: ${phases.join(', ')}`);
                 
                 const results = [];
                 for (const scenario of filteredScenarios) {
@@ -1863,7 +1870,7 @@ class TomKingTraderApp {
      */
     setupWebSocket() {
         this.wss.on('connection', (ws, req) => {
-            console.log(`📡 WebSocket connection established from ${req.socket.remoteAddress}`);
+            logger.debug('WEBSOCKET', `Connection established from ${req.socket.remoteAddress}`);
             
             // Add to connection set
             this.wsConnections.add(ws);
@@ -1919,7 +1926,7 @@ class TomKingTraderApp {
             
             // Handle disconnection
             ws.on('close', () => {
-                console.log('📡 WebSocket connection closed');
+                logger.debug('WEBSOCKET', 'Connection closed');
                 this.wsConnections.delete(ws);
             });
             
@@ -1930,7 +1937,7 @@ class TomKingTraderApp {
             });
         });
         
-        console.log(`📡 WebSocket server listening on port ${this.config.wsPort}`);
+        logger.info('WEBSOCKET', `WebSocket server listening on port ${this.config.wsPort}`);
     }
     
     /**
@@ -2018,7 +2025,7 @@ class TomKingTraderApp {
     setupScheduler() {
         if (!this.config.enableScheduler) return;
         
-        console.log('⏰ Setting up automated scheduler');
+        logger.info('SCHEDULER', 'Setting up automated scheduler');
         
         // Start scheduler after 30 seconds
         setTimeout(() => {
@@ -2031,16 +2038,16 @@ class TomKingTraderApp {
      */
     startScheduler() {
         if (this.schedulerInterval) {
-            console.log('⏰ Scheduler already running');
+            logger.debug('SCHEDULER', 'Scheduler already running');
             return;
         }
         
-        console.log('⏰ Starting automated scheduler - analysis every 15 minutes');
+        logger.info('SCHEDULER', 'Starting automated scheduler - analysis every 15 minutes');
         
         this.schedulerInterval = setInterval(async () => {
             try {
                 if (this.isInitialized) {
-                    console.log('⏰ Running scheduled analysis...');
+                    logger.info('SCHEDULER', 'Running scheduled analysis');
                     
                     // Collect fresh data if API mode
                     if (this.trader.api && !this.trader.fallbackMode) {
@@ -2074,7 +2081,7 @@ class TomKingTraderApp {
                         }
                     });
                     
-                    console.log('✅ Scheduled analysis complete');
+                    logger.info('SCHEDULER', 'Scheduled analysis complete');
                 }
             } catch (error) {
                 console.error('🚨 Scheduled analysis error:', error);
@@ -2097,7 +2104,7 @@ class TomKingTraderApp {
         if (this.schedulerInterval) {
             clearInterval(this.schedulerInterval);
             this.schedulerInterval = null;
-            console.log('⏰ Scheduler stopped');
+            logger.info('SCHEDULER', 'Scheduler stopped');
         }
     }
     
@@ -2107,10 +2114,12 @@ class TomKingTraderApp {
     async start() {
         return new Promise((resolve) => {
             this.server.listen(this.config.port, () => {
-                console.log(`🌐 TomKingTrader server listening on port ${this.config.port}`);
-                console.log(`📊 Dashboard: http://localhost:${this.config.port}`);
-                console.log(`📡 WebSocket: ws://localhost:${this.config.wsPort}`);
-                console.log(`🎯 Environment: ${this.config.environment}`);
+                logger.info('APP', 'TomKingTrader server started', {
+                    port: this.config.port,
+                    dashboard: `http://localhost:${this.config.port}`,
+                    webSocket: `ws://localhost:${this.config.wsPort}`,
+                    environment: this.config.environment
+                });
                 
                 resolve(this);
             });
@@ -2122,7 +2131,7 @@ class TomKingTraderApp {
      */
     async stop() {
         return new Promise((resolve) => {
-            console.log('🛑 Shutting down TomKingTrader application...');
+            logger.info('APP', 'Shutting down TomKingTrader application');
             
             // Stop scheduler
             this.stopScheduler();
@@ -2137,7 +2146,7 @@ class TomKingTraderApp {
             
             // Close HTTP server
             this.server.close(() => {
-                console.log('✅ TomKingTrader application stopped');
+                logger.info('APP', 'TomKingTrader application stopped');
                 resolve();
             });
         });
@@ -2189,12 +2198,12 @@ async function createApp(options = {}) {
 
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
-    console.log('\n🛑 Received SIGINT, shutting down gracefully...');
+    logger.warn('APP', 'Received SIGINT, shutting down gracefully');
     process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-    console.log('\n🛑 Received SIGTERM, shutting down gracefully...');
+    logger.warn('APP', 'Received SIGTERM, shutting down gracefully');
     process.exit(0);
 });
 

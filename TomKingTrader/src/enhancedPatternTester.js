@@ -10,6 +10,12 @@ const {
   TomKingPatternDetectors
 } = require('./enhancedPatternAnalysis');
 
+const { getLogger } = require('./logger');
+const logger = getLogger();
+
+// Test output control - set to false in production
+const VERBOSE_TESTING = process.env.NODE_ENV !== 'production';
+
 /**
  * Test Data Generator
  */
@@ -99,8 +105,11 @@ class EnhancedPatternTester {
   }
   
   runAllTests() {
-    console.log('🚀 Starting Enhanced Pattern Analysis Test Suite\n');
-    console.log('=' .repeat(60));
+    if (VERBOSE_TESTING) {
+        console.log('🚀 Starting Enhanced Pattern Analysis Test Suite\n');
+        console.log('=' .repeat(60));
+    }
+    logger.info('PATTERN_TEST', 'Starting Enhanced Pattern Analysis Test Suite');
     
     // Test 1: Technical Indicators
     this.testTechnicalIndicators();

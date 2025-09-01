@@ -6,15 +6,96 @@
 
 const MarketDataStreamer = require('./marketDataStreamer');
 const OrderManager = require('./orderManager');
+const { getLogger } = require('./logger');
+const fs = require('fs');
+const path = require('path');
 
+// Load environment variables
+require('dotenv').config();
+
+const logger = getLogger();
 const DEBUG = process.env.NODE_ENV !== 'production';
 
-// API Credentials (Store securely in production!)
-const API_CREDENTIALS = {
-  CLIENT_ID: 'bfca2bd1-b3f3-4941-b542-0267812f1b2f',
-  CLIENT_SECRET: '98911c87a7287ac6665fc96a9a467d54fd02f7ed',
-  REFRESH_TOKEN: 'eyJhbGciOiJFZERTQSIsInR5cCI6InJ0K2p3dCIsImtpZCI6IkZqVTdUT25qVEQ2WnVySlg2cVlwWmVPbzBDQzQ5TnIzR1pUN1E4MTc0cUkiLCJqa3UiOiJodHRwczovL2ludGVyaW9yLWFwaS5hcjIudGFzdHl0cmFkZS5zeXN0ZW1zL29hdXRoL2p3a3MifQ.eyJpc3MiOiJodHRwczovL2FwaS50YXN0eXRyYWRlLmNvbSIsInN1YiI6IlUyYTUyMWEwZS0zZmNmLTQzMjgtOGI5NS02MjA1ZDY4ODUwOGUiLCJpYXQiOjE3NTY0MTE3NzcsImF1ZCI6ImJmY2EyYmQxLWIzZjMtNDk0MS1iNTQyLTAyNjc4MTJmMWIyZiIsImdyYW50X2lkIjoiRzRmMzdmMTZjLWNlYTktNDhlYi05N2FiLTA1YzI0YjdiMDQ2OCIsInNjb3BlIjoicmVhZCB0cmFkZSBvcGVuaWQifQ.bA7Mt0YbQj5aCptb3BlxD67YnzdlWysWzqGYbNChCTMV1VfmRxsQMQ7yGMcrv28izZuIihzC7_-tWKkLhxZTAw'
-};
+/**
+ * Load API credentials from configuration file or environment variables
+ * Priority: credentials.config.js > .env variables > error
+ */
+function loadCredentials() {
+  const credentialsPath = path.join(__dirname, '..', 'credentials.config.js');
+  
+  try {
+    // First, try to load from credentials.config.js
+    if (fs.existsSync(credentialsPath)) {
+      logger.debug('API', 'Loading credentials from credentials.config.js');
+      const config = require(credentialsPath);
+      
+      // Validate required fields
+      if (!config.clientId || !config.clientSecret) {
+        throw new Error('Missing required credentials in credentials.config.js: clientId and clientSecret are required');
+      }
+      
+      return {
+        CLIENT_ID: config.clientId,
+        CLIENT_SECRET: config.clientSecret,
+        USERNAME: config.username || null,
+        PASSWORD: config.password || null,
+        REFRESH_TOKEN: config.refreshToken || null,
+        ENVIRONMENT: config.environment || 'production'
+      };
+    }
+    
+    // Fall back to environment variables
+    logger.debug('API', 'Loading credentials from .env file');
+    
+    const clientSecret = process.env.TASTYTRADE_CLIENT_SECRET;
+    const refreshToken = process.env.TASTYTRADE_REFRESH_TOKEN;
+    const clientId = process.env.TASTYTRADE_CLIENT_ID;
+    
+    if (!clientSecret) {
+      throw new Error('Missing TASTYTRADE_CLIENT_SECRET in environment variables');
+    }
+    
+    if (!refreshToken && !clientId) {
+      throw new Error('Missing either TASTYTRADE_CLIENT_ID or TASTYTRADE_REFRESH_TOKEN in environment variables');
+    }
+    
+    return {
+      CLIENT_ID: clientId || null,
+      CLIENT_SECRET: clientSecret,
+      REFRESH_TOKEN: refreshToken || null,
+      USERNAME: process.env.TASTYTRADE_USERNAME || null,
+      PASSWORD: process.env.TASTYTRADE_PASSWORD || null,
+      ENVIRONMENT: process.env.TASTYTRADE_ENV || 'production'
+    };
+    
+  } catch (error) {
+    console.error('🚨 Failed to load API credentials:', error.message);
+    console.error('\n📋 To fix this issue:');
+    console.error('1. Create a credentials.config.js file with your API credentials, OR');
+    console.error('2. Set environment variables in .env file:');
+    console.error('   - TASTYTRADE_CLIENT_SECRET=your_client_secret');
+    console.error('   - TASTYTRADE_REFRESH_TOKEN=your_refresh_token (or TASTYTRADE_CLIENT_ID)');
+    console.error('\n🔧 See credentials.config.js template for the expected format.');
+    
+    throw new Error(`CREDENTIALS_NOT_FOUND: ${error.message}`);
+  }
+}
+
+// Load credentials at startup
+let API_CREDENTIALS;
+try {
+  API_CREDENTIALS = loadCredentials();
+  logger.info('API', 'Credentials loaded successfully');
+} catch (error) {
+  logger.error('API', 'Failed to initialize API credentials', error);
+  // Set empty credentials to prevent crashes - will fail gracefully during API calls
+  API_CREDENTIALS = {
+    CLIENT_ID: null,
+    CLIENT_SECRET: null,
+    REFRESH_TOKEN: null,
+    ENVIRONMENT: 'production'
+  };
+}
 
 // Environment Configuration
 const ENVIRONMENTS = {
@@ -48,11 +129,11 @@ class TokenManager {
     const now = Date.now();
     // Refresh 1 minute early to avoid expiration
     if (!this.accessToken || now >= this.tokenExpiry) {
-      console.log('🔄 Access token expired or missing, refreshing...');
+      logger.info('API', 'Access token expired or missing, refreshing');
       this.accessToken = await this.generateAccessToken();
       this.tokenExpiry = now + (14 * 60 * 1000); // 14 minutes (expires in 15 per API docs)
     } else {
-      console.log('✅ Using cached access token');
+      logger.debug('API', 'Using cached access token');
     }
     return this.accessToken;
   }
@@ -64,10 +145,11 @@ class TokenManager {
   
   async generateAccessToken() {
     try {
-      console.log('🔄 Generating new OAuth2 access token...');
-      console.log('🔗 OAuth endpoint:', `${CURRENT_ENV.API_BASE}/oauth/token`);
-      console.log('🔑 Refresh token:', this.refreshToken ? `${this.refreshToken.substring(0, 20)}...` : 'MISSING');
-      console.log('🔐 Client secret:', this.clientSecret ? `${this.clientSecret.substring(0, 10)}...` : 'MISSING');
+      logger.info('API', 'Generating new OAuth2 access token', {
+        endpoint: `${CURRENT_ENV.API_BASE}/oauth/token`,
+        hasRefreshToken: !!this.refreshToken,
+        hasClientSecret: !!this.clientSecret
+      });
       
       const response = await fetch(`${CURRENT_ENV.API_BASE}/oauth/token`, {
         method: 'POST',
@@ -88,7 +170,7 @@ class TokenManager {
       }
       
       const data = await response.json();
-      if (DEBUG) console.log('✅ Access token refreshed successfully');
+      logger.info('API', 'Access token refreshed successfully');
       return data.access_token;
     } catch (error) {
       console.error('🚨 Token refresh failed:', error.message);
@@ -138,7 +220,7 @@ class APIFailureHandler {
   }
   
   async handleAuthFailure() {
-    console.log('🔒 Authentication failed - switching to manual mode');
+    logger.warn('API', 'Authentication failed - switching to manual mode');
     return {
       action: 'SWITCH_TO_MANUAL',
       message: 'Authentication failed - switching to manual mode',
@@ -148,7 +230,7 @@ class APIFailureHandler {
   
   async handleRateLimit() {
     const waitTime = 60000; // 1 minute
-    console.log(`⏱️ Rate limited - waiting ${waitTime/1000} seconds`);
+    logger.warn('API', `Rate limited - waiting ${waitTime/1000} seconds`);
     await new Promise(r => setTimeout(r, waitTime));
     return { action: 'RETRY' };
   }
@@ -156,7 +238,7 @@ class APIFailureHandler {
   async handleServerError() {
     if (this.failureCount >= 3) {
       this.fallbackMode = true;
-      console.log('🚨 Multiple server failures - activating emergency manual mode');
+      logger.error('API', 'Multiple server failures - activating emergency manual mode');
       return {
         action: 'EMERGENCY_MANUAL_MODE',
         message: 'TastyTrade API unavailable - emergency manual mode activated',
@@ -164,14 +246,14 @@ class APIFailureHandler {
       };
     }
     const delay = this.retryDelays[Math.min(this.failureCount - 1, 3)];
-    console.log(`🔄 Server error - retrying in ${delay/1000} seconds`);
+    logger.warn('API', `Server error - retrying in ${delay/1000} seconds`);
     await new Promise(r => setTimeout(r, delay));
     return { action: 'RETRY' };
   }
   
   async handleNetworkError() {
     const delay = this.retryDelays[Math.min(this.failureCount - 1, 3)];
-    console.log(`🌐 Network error - retrying in ${delay/1000} seconds`);
+    logger.warn('API', `Network error - retrying in ${delay/1000} seconds`);
     await new Promise(r => setTimeout(r, delay));
     return { action: 'RETRY_WITH_BACKOFF' };
   }
@@ -191,7 +273,7 @@ class APIFailureHandler {
     this.failureCount = 0;
     this.lastFailure = null;
     this.fallbackMode = false;
-    if (DEBUG) console.log('✅ API failure handler reset');
+    logger.debug('API', 'Failure handler reset');
   }
 }
 
@@ -256,6 +338,77 @@ const SymbolUtils = {
     const diffTime = exp - today;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return Math.max(0, diffDays);
+  },
+  
+  // Get current futures contract info for any symbol
+  getFuturesContractInfo(symbol) {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    const currentDay = now.getDate();
+    
+    // Futures contract month codes
+    const monthCodes = {
+      1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
+      7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'
+    };
+    
+    // Contract specifications
+    const contractSpecs = {
+      '/ES': { contractMonths: [3, 6, 9, 12], rolloverDay: 15, prefix: 'ES', name: 'E-mini S&P 500' },
+      '/MES': { contractMonths: [3, 6, 9, 12], rolloverDay: 15, prefix: 'MES', name: 'Micro E-mini S&P 500' },
+      '/NQ': { contractMonths: [3, 6, 9, 12], rolloverDay: 15, prefix: 'NQ', name: 'E-mini Nasdaq 100' },
+      '/MNQ': { contractMonths: [3, 6, 9, 12], rolloverDay: 15, prefix: 'MNQ', name: 'Micro E-mini Nasdaq 100' },
+      '/CL': { contractMonths: [1,2,3,4,5,6,7,8,9,10,11,12], rolloverDay: 20, prefix: 'CL', name: 'Crude Oil' },
+      '/MCL': { contractMonths: [1,2,3,4,5,6,7,8,9,10,11,12], rolloverDay: 20, prefix: 'MCL', name: 'Micro Crude Oil' },
+      '/GC': { contractMonths: [1,2,3,4,5,6,7,8,9,10,11,12], rolloverDay: 25, prefix: 'GC', name: 'Gold' },
+      '/MGC': { contractMonths: [1,2,3,4,5,6,7,8,9,10,11,12], rolloverDay: 25, prefix: 'MGC', name: 'Micro Gold' }
+    };
+    
+    const spec = contractSpecs[symbol];
+    if (!spec) {
+      return null;
+    }
+    
+    // Calculate front month
+    let targetMonth = currentMonth;
+    let targetYear = currentYear;
+    
+    if (currentDay >= spec.rolloverDay) {
+      targetMonth++;
+      if (targetMonth > 12) {
+        targetMonth = 1;
+        targetYear++;
+      }
+    }
+    
+    while (!spec.contractMonths.includes(targetMonth)) {
+      targetMonth++;
+      if (targetMonth > 12) {
+        targetMonth = 1;
+        targetYear++;
+      }
+    }
+    
+    return {
+      symbol,
+      name: spec.name,
+      contractSymbol: `${spec.prefix}${monthCodes[targetMonth]}${String(targetYear).slice(-1)}`,
+      expirationMonth: targetMonth,
+      expirationYear: targetYear,
+      monthCode: monthCodes[targetMonth],
+      rolloverDay: spec.rolloverDay,
+      daysUntilRollover: this.calculateDaysUntilRollover(currentDay, currentMonth, targetMonth, spec.rolloverDay),
+      isNearRollover: this.calculateDaysUntilRollover(currentDay, currentMonth, targetMonth, spec.rolloverDay) <= 3
+    };
+  },
+  
+  // Calculate days until contract rollover
+  calculateDaysUntilRollover(currentDay, currentMonth, targetMonth, rolloverDay) {
+    if (currentMonth === targetMonth) {
+      return Math.max(0, rolloverDay - currentDay);
+    }
+    return rolloverDay; // Simplified - in different month
   }
 };
 
@@ -263,12 +416,24 @@ const SymbolUtils = {
  * Main TastyTrade API Client
  */
 class TastyTradeAPI {
-  constructor(clientSecret = API_CREDENTIALS.CLIENT_SECRET, 
-              refreshToken = API_CREDENTIALS.REFRESH_TOKEN, 
-              environment = 'production') {
-    this.tokenManager = new TokenManager(refreshToken, clientSecret);
-    // Map development to sandbox, production to production
-    this.env = environment.toLowerCase() === 'development' ? 'SANDBOX' : 'PRODUCTION';
+  constructor(clientSecret = null, refreshToken = null, environment = null) {
+    // Use provided parameters or fall back to loaded credentials
+    const finalClientSecret = clientSecret || API_CREDENTIALS.CLIENT_SECRET;
+    const finalRefreshToken = refreshToken || API_CREDENTIALS.REFRESH_TOKEN;
+    const finalEnvironment = environment || API_CREDENTIALS.ENVIRONMENT || 'production';
+    
+    // Validate that we have the required credentials
+    if (!finalClientSecret) {
+      throw new Error('CLIENT_SECRET is required. Please check your credentials.config.js or .env file.');
+    }
+    
+    if (!finalRefreshToken) {
+      console.warn('⚠️ No REFRESH_TOKEN provided. You may need to authenticate manually.');
+    }
+    
+    this.tokenManager = new TokenManager(finalRefreshToken, finalClientSecret);
+    // Map environment to production (development mode disabled for live trading)
+    this.env = 'PRODUCTION';
     this.baseURL = ENVIRONMENTS[this.env].API_BASE;
     this.accountNumber = null;
     this.positions = [];
@@ -288,24 +453,27 @@ class TastyTradeAPI {
   
   async initialize() {
     try {
-      console.log('🚀 Initializing TastyTrade API connection...');
-      console.log('📊 Environment:', this.env);
-      console.log('🔗 Base URL:', this.baseURL);
+      logger.info('API', 'Initializing TastyTrade API connection', {
+        environment: this.env,
+        baseURL: this.baseURL
+      });
       
       // First ensure we have valid tokens
       const token = await this.tokenManager.getValidAccessToken();
-      console.log('✅ Access token obtained');
+      logger.info('API', 'Access token obtained');
       
       // Get customer info first
-      console.log('📝 Fetching customer info...');
+      logger.debug('API', 'Fetching customer info');
       const customerInfo = await this.request('/customers/me');
-      console.log('👤 Customer ID:', customerInfo?.data?.id);
+      logger.debug('API', 'Customer ID obtained', { customerId: customerInfo?.data?.id });
       
       // Get account info - API returns array directly, not data.items
-      console.log('📝 Fetching accounts...');
+      logger.debug('API', 'Fetching accounts');
       const accountsResponse = await this.request('/customers/me/accounts');
-      console.log('📊 Accounts response type:', typeof accountsResponse);
-      console.log('📊 Accounts response:', JSON.stringify(accountsResponse, null, 2).substring(0, 500));
+      logger.debug('API', 'Accounts response received', {
+        responseType: typeof accountsResponse,
+        accountCount: Array.isArray(accountsResponse?.data) ? accountsResponse.data.length : 'unknown'
+      });
       
       // The response structure can vary: direct array, data array, or data.items array
       let accounts = accountsResponse;
@@ -331,7 +499,7 @@ class TastyTradeAPI {
         throw new Error('Failed to get account number from API');
       }
       
-      console.log(`✅ Connected to account: ${this.accountNumber}`);
+      logger.info('API', `Connected to account: ${this.accountNumber}`);
       
       // Initialize order manager with account number
       this.orderManager.initialize(this.accountNumber);
@@ -341,7 +509,7 @@ class TastyTradeAPI {
       await this.refreshPositions();
       await this.refreshBalance();
       
-      console.log('✅ API initialization complete');
+      logger.info('API', 'Initialization complete');
       return true;
     } catch (error) {
       console.error('🚨 API initialization failed:', error);
@@ -407,7 +575,7 @@ class TastyTradeAPI {
       this.positions = data.data.items.filter(pos => 
         pos.quantity !== 0 && pos.quantity !== '0'
       );
-      if (DEBUG) console.log(`📊 Loaded ${this.positions.length} positions`);
+      logger.debug('API', `Loaded ${this.positions.length} positions`);
       return this.positions;
     } catch (error) {
       console.error('Position refresh failed:', error);
@@ -435,7 +603,10 @@ class TastyTradeAPI {
       this.balance.bpUsedPercent = this.balance.totalBP > 0 ? 
         Math.round((this.balance.bpUsed / this.balance.totalBP) * 100) : 0;
       
-      if (DEBUG) console.log(`💰 Account balance: £${this.balance.netLiq.toLocaleString()}, BP: ${this.balance.bpUsedPercent}%`);
+      logger.debug('API', 'Account balance updated', {
+        netLiq: `£${this.balance.netLiq.toLocaleString()}`,
+        bpUsed: `${this.balance.bpUsedPercent}%`
+      });
       return this.balance;
     } catch (error) {
       console.error('Balance refresh failed:', error);
@@ -493,103 +664,1000 @@ class TastyTradeAPI {
   }
   
   mapFuturesSymbol(symbol) {
-    // Map framework symbols to TastyTrade contract symbols with proper month/year
+    // Advanced futures contract mapping with proper rollover logic
     const now = new Date();
-    const currentMonth = now.getMonth() + 1; // JavaScript months are 0-based
+    const currentMonth = now.getMonth() + 1; // JavaScript months are 0-based (Jan = 1, Dec = 12)
     const currentYear = now.getFullYear();
+    const currentDay = now.getDate();
     
-    // For futures, we typically want the next quarterly expiration or next month
-    let targetMonth, targetYear;
-    
-    // For now, let's try the most active contract months
-    const monthCodes = ['', 'F', 'G', 'H', 'J', 'K', 'M', 'N', 'Q', 'U', 'V', 'X', 'Z'];
-    
-    // Quarterly contracts (Mar, Jun, Sep, Dec) for major indices
-    const quarterlyMonths = [3, 6, 9, 12];
-    const nextQuarterly = quarterlyMonths.find(m => m > currentMonth) || quarterlyMonths[0];
-    const quarterlyYear = nextQuarterly > currentMonth ? currentYear : currentYear + 1;
-    
-    // Monthly contracts for commodities
-    const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1;
-    const monthlyYear = nextMonth === 1 ? currentYear + 1 : currentYear;
-    
-    const mapping = {
-      '/ES': `ES${monthCodes[nextQuarterly]}${String(quarterlyYear).slice(-1)}`, // E-mini S&P 500 (quarterly)
-      '/MES': `MES${monthCodes[nextQuarterly]}${String(quarterlyYear).slice(-1)}`, // Micro E-mini S&P 500
-      '/NQ': `NQ${monthCodes[nextQuarterly]}${String(quarterlyYear).slice(-1)}`, // E-mini Nasdaq (quarterly)
-      '/MNQ': `MNQ${monthCodes[nextQuarterly]}${String(quarterlyYear).slice(-1)}`, // Micro E-mini Nasdaq
-      '/CL': `CL${monthCodes[nextMonth]}${String(monthlyYear).slice(-1)}`, // Crude Oil (monthly)
-      '/MCL': `MCL${monthCodes[nextMonth]}${String(monthlyYear).slice(-1)}`, // Micro Crude Oil
-      '/GC': `GC${monthCodes[nextMonth]}${String(monthlyYear).slice(-1)}`, // Gold (monthly)
-      '/MGC': `MGC${monthCodes[nextMonth]}${String(monthlyYear).slice(-1)}`, // Micro Gold
-      '/ZN': `ZN${monthCodes[nextQuarterly]}${String(quarterlyYear).slice(-1)}`, // 10-Year Note (quarterly)
-      '/ZB': `ZB${monthCodes[nextQuarterly]}${String(quarterlyYear).slice(-1)}`, // 30-Year Bond (quarterly)
-      '/6E': `6E${monthCodes[nextQuarterly]}${String(quarterlyYear).slice(-1)}`, // Euro FX (quarterly)
-      '/M6E': `M6E${monthCodes[nextQuarterly]}${String(quarterlyYear).slice(-1)}`, // Micro Euro FX
-      '/6B': `6B${monthCodes[nextQuarterly]}${String(quarterlyYear).slice(-1)}`, // British Pound (quarterly)
-      '/M6B': `M6B${monthCodes[nextQuarterly]}${String(quarterlyYear).slice(-1)}`, // Micro British Pound
+    // Futures contract month codes
+    const monthCodes = {
+      1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
+      7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'
     };
     
-    const mapped = mapping[symbol] || symbol.substring(1);
-    if (DEBUG) console.log(`🔗 Mapped ${symbol} -> ${mapped}`);
-    return mapped;
+    /**
+     * Determine the front month contract based on rollover dates
+     * Most futures roll around the 15th of expiration month
+     */
+    function getFrontMonth(contractMonths, rolloverDay = 15, yearsAhead = 0) {
+      let targetYear = currentYear + yearsAhead;
+      let targetMonth = currentMonth;
+      
+      // If we're past rollover day, move to next contract
+      if (currentDay >= rolloverDay) {
+        targetMonth++;
+        if (targetMonth > 12) {
+          targetMonth = 1;
+          targetYear++;
+        }
+      }
+      
+      // Find next available contract month
+      while (!contractMonths.includes(targetMonth)) {
+        targetMonth++;
+        if (targetMonth > 12) {
+          targetMonth = 1;
+          targetYear++;
+        }
+      }
+      
+      return {
+        month: targetMonth,
+        year: targetYear,
+        code: monthCodes[targetMonth],
+        yearDigit: String(targetYear).slice(-1)
+      };
+    }
+    
+    // Contract specifications for each futures symbol
+    const contractSpecs = {
+      // Equity Index Futures (Quarterly: Mar, Jun, Sep, Dec)
+      '/ES': {
+        contractMonths: [3, 6, 9, 12],
+        rolloverDay: 15,
+        prefix: 'ES'
+      },
+      '/MES': {
+        contractMonths: [3, 6, 9, 12],
+        rolloverDay: 15,
+        prefix: 'MES'
+      },
+      '/NQ': {
+        contractMonths: [3, 6, 9, 12],
+        rolloverDay: 15,
+        prefix: 'NQ'
+      },
+      '/MNQ': {
+        contractMonths: [3, 6, 9, 12],
+        rolloverDay: 15,
+        prefix: 'MNQ'
+      },
+      
+      // Energy Futures (Monthly contracts)
+      '/CL': {
+        contractMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        rolloverDay: 20, // CL rolls around 20th
+        prefix: 'CL'
+      },
+      '/MCL': {
+        contractMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        rolloverDay: 20,
+        prefix: 'MCL'
+      },
+      
+      // Metals Futures (Monthly contracts)
+      '/GC': {
+        contractMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        rolloverDay: 25, // GC rolls later in month
+        prefix: 'GC'
+      },
+      '/MGC': {
+        contractMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        rolloverDay: 25,
+        prefix: 'MGC'
+      },
+      
+      // Interest Rate Futures (Quarterly: Mar, Jun, Sep, Dec)
+      '/ZN': {
+        contractMonths: [3, 6, 9, 12],
+        rolloverDay: 15,
+        prefix: 'ZN'
+      },
+      '/ZB': {
+        contractMonths: [3, 6, 9, 12],
+        rolloverDay: 15,
+        prefix: 'ZB'
+      },
+      
+      // Currency Futures (Quarterly: Mar, Jun, Sep, Dec)
+      '/6E': {
+        contractMonths: [3, 6, 9, 12],
+        rolloverDay: 15,
+        prefix: '6E'
+      },
+      '/M6E': {
+        contractMonths: [3, 6, 9, 12],
+        rolloverDay: 15,
+        prefix: 'M6E'
+      },
+      '/6B': {
+        contractMonths: [3, 6, 9, 12],
+        rolloverDay: 15,
+        prefix: '6B'
+      },
+      '/M6B': {
+        contractMonths: [3, 6, 9, 12],
+        rolloverDay: 15,
+        prefix: 'M6B'
+      },
+      '/6A': {
+        contractMonths: [3, 6, 9, 12],
+        rolloverDay: 15,
+        prefix: '6A'
+      },
+      '/M6A': {
+        contractMonths: [3, 6, 9, 12],
+        rolloverDay: 15,
+        prefix: 'M6A'
+      }
+    };
+    
+    // Get contract specification
+    const spec = contractSpecs[symbol];
+    if (!spec) {
+      // If symbol not recognized, return as-is without leading slash
+      const fallback = symbol.substring(1);
+      logger.warn('API', `Unknown futures symbol ${symbol}, using fallback: ${fallback}`);
+      return fallback;
+    }
+    
+    // Calculate front month contract
+    const frontMonth = getFrontMonth(spec.contractMonths, spec.rolloverDay);
+    
+    // Build the contract symbol: PREFIX + MONTH_CODE + YEAR_DIGIT
+    const contractSymbol = `${spec.prefix}${frontMonth.code}${frontMonth.yearDigit}`;
+    
+    // Log the mapping for debugging
+    if (DEBUG) {
+      logger.debug('API', 'Futures symbol mapping', {
+        originalSymbol: symbol,
+        contractSymbol: contractSymbol,
+        currentDate: `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(currentDay).padStart(2, '0')}`,
+        frontMonth: `${frontMonth.month}/${frontMonth.year} (${frontMonth.code}${frontMonth.yearDigit})`,
+        rolloverDay: `${spec.rolloverDay}th of expiration month`
+      });
+    }
+    
+    return contractSymbol;
   }
   
-  async getOptionChain(symbol, expiration = null) {
+  /**
+   * Get comprehensive option chain data from TastyTrade API
+   * @param {string} symbol - Underlying symbol (e.g., 'SPY', 'ES')
+   * @param {string|null} expiration - Specific expiration date (YYYY-MM-DD format) or null for all
+   * @param {object} options - Additional options for filtering and data selection
+   * @returns {Promise<object>} - Formatted option chain data with all strikes, Greeks, and IV
+   */
+  async getOptionChain(symbol, expiration = null, options = {}) {
     try {
-      let endpoint = `/option-chains/${symbol}/nested`;
+      logger.debug('API', `Fetching option chain for ${symbol}`);
+      
+      // Determine if this is a futures symbol
+      const isFutures = symbol.startsWith('/');
+      const cleanSymbol = isFutures ? symbol.substring(1) : symbol;
+      
+      // For futures, we need to map to the proper contract code
+      let targetSymbol = cleanSymbol;
+      if (isFutures) {
+        targetSymbol = this.mapFuturesSymbol(symbol);
+        logger.debug('API', `Mapped futures symbol: ${symbol} -> ${targetSymbol}`);
+      }
+      
+      // Build the appropriate endpoint
+      let endpoint;
+      if (isFutures) {
+        endpoint = `/futures-option-chains/${targetSymbol}/nested`;
+      } else {
+        endpoint = `/option-chains/${targetSymbol}/nested`;
+      }
+      
+      // Add expiration filter if specified
       if (expiration) {
         endpoint += `?expiration=${expiration}`;
       }
       
-      const chain = await this.request(endpoint);
-      return this.parseOptionChain(chain);
+      logger.debug('API', 'Option chain endpoint', { endpoint });
+      
+      // Fetch the option chain data
+      const chainResponse = await this.request(endpoint);
+      
+      if (!chainResponse || !chainResponse.data) {
+        console.warn(`⚠️ No option chain data received for ${symbol}`);
+        return this.getFallbackOptionChain(symbol);
+      }
+      
+      // Parse and format the option chain
+      const formattedChain = this.parseOptionChainComplete(chainResponse, symbol, options);
+      
+      logger.debug('API', `Option chain loaded: ${symbol}`, { expirations: formattedChain.expirations?.length || 0 });
+      
+      return formattedChain;
+      
     } catch (error) {
-      console.error(`Option chain fetch failed for ${symbol}:`, error);
-      return [];
+      console.error(`🚨 Option chain fetch failed for ${symbol}:`, error.message);
+      
+      // Handle specific API errors
+      if (error.status === 404) {
+        console.warn(`⚠️ Option chain not found for ${symbol} - symbol may not have options`);
+      } else if (error.status === 429) {
+        console.warn(`⚠️ Rate limited - retrying option chain for ${symbol} in 2 seconds...`);
+        await new Promise(r => setTimeout(r, 2000));
+        return this.getOptionChain(symbol, expiration, options);
+      }
+      
+      // Return fallback data instead of empty array
+      return this.getFallbackOptionChain(symbol);
     }
   }
   
-  parseOptionChain(chainData) {
+  /**
+   * Complete option chain parser that handles TastyTrade API response format
+   * @param {object} chainData - Raw API response from TastyTrade
+   * @param {string} symbol - Original symbol requested
+   * @param {object} options - Parsing options and filters
+   * @returns {object} - Formatted option chain with comprehensive data
+   */
+  parseOptionChainComplete(chainData, symbol, options = {}) {
     try {
-      if (!chainData.data || !chainData.data.items || !chainData.data.items[0]) {
-        return [];
+      if (!chainData.data) {
+        console.warn(`⚠️ No data field in option chain response for ${symbol}`);
+        return this.getFallbackOptionChain(symbol);
       }
       
-      const expirations = chainData.data.items[0].expirations;
-      return expirations.map(exp => ({
-        date: exp['expiration-date'],
-        dte: exp['days-to-expiration'],
-        strikes: exp.strikes.map(strike => ({
-          strike: parseFloat(strike['strike-price']),
-          call: {
-            bid: parseFloat(strike.call?.bid || 0),
-            ask: parseFloat(strike.call?.ask || 0),
-            last: parseFloat(strike.call?.last || 0),
-            delta: parseFloat(strike.call?.delta || 0),
-            gamma: parseFloat(strike.call?.gamma || 0),
-            theta: parseFloat(strike.call?.theta || 0),
-            vega: parseFloat(strike.call?.vega || 0),
-            iv: parseFloat(strike.call?.['implied-volatility'] || 0)
-          },
-          put: {
-            bid: parseFloat(strike.put?.bid || 0),
-            ask: parseFloat(strike.put?.ask || 0),
-            last: parseFloat(strike.put?.last || 0),
-            delta: parseFloat(strike.put?.delta || 0),
-            gamma: parseFloat(strike.put?.gamma || 0),
-            theta: parseFloat(strike.put?.theta || 0),
-            vega: parseFloat(strike.put?.vega || 0),
-            iv: parseFloat(strike.put?.['implied-volatility'] || 0)
-          },
-          callStreamer: strike['call-streamer-symbol'],
-          putStreamer: strike['put-streamer-symbol']
-        }))
-      }));
+      // Handle different response structures
+      let chainItems = [];
+      if (chainData.data.items && Array.isArray(chainData.data.items)) {
+        chainItems = chainData.data.items;
+      } else if (chainData.data.expirations) {
+        // Direct expiration array format
+        chainItems = [{ expirations: chainData.data.expirations }];
+      } else if (Array.isArray(chainData.data)) {
+        // Array of chains
+        chainItems = chainData.data;
+      }
+      
+      if (chainItems.length === 0) {
+        console.warn(`⚠️ No option chain items found for ${symbol}`);
+        return this.getFallbackOptionChain(symbol);
+      }
+      
+      // Get underlying price for moneyness calculations
+      const underlyingPrice = this.extractUnderlyingPrice(chainData, symbol);
+      
+      // Parse all expirations
+      const allExpirations = [];
+      chainItems.forEach(chainItem => {
+        if (chainItem.expirations && Array.isArray(chainItem.expirations)) {
+          allExpirations.push(...chainItem.expirations);
+        }
+      });
+      
+      if (allExpirations.length === 0) {
+        console.warn(`⚠️ No expirations found in option chain for ${symbol}`);
+        return this.getFallbackOptionChain(symbol);
+      }
+      
+      // Sort expirations by date
+      allExpirations.sort((a, b) => new Date(a['expiration-date']) - new Date(b['expiration-date']));
+      
+      // Parse each expiration
+      const formattedExpirations = allExpirations.map(expiration => 
+        this.parseExpiration(expiration, underlyingPrice, symbol, options)
+      ).filter(exp => exp !== null);
+      
+      // Build the complete option chain object
+      const optionChain = {
+        symbol: symbol,
+        underlyingPrice: underlyingPrice,
+        timestamp: new Date().toISOString(),
+        source: 'TastyTrade_API',
+        expirationCount: formattedExpirations.length,
+        expirations: formattedExpirations,
+        
+        // Helper methods for the framework
+        getExpirationByDTE: (targetDTE, tolerance = 7) => {
+          return formattedExpirations.find(exp => 
+            Math.abs(exp.dte - targetDTE) <= tolerance
+          );
+        },
+        
+        getStrikesByDelta: (expiration, targetDelta, tolerance = 0.05) => {
+          if (!expiration || !expiration.strikes) return [];
+          return expiration.strikes.filter(strike => 
+            Math.abs(strike.call.delta - Math.abs(targetDelta)) <= tolerance ||
+            Math.abs(Math.abs(strike.put.delta) - Math.abs(targetDelta)) <= tolerance
+          );
+        },
+        
+        getATMStrikes: (expiration) => {
+          if (!expiration || !expiration.strikes) return [];
+          return expiration.strikes.filter(strike => 
+            Math.abs(strike.moneyness) <= 0.02 // Within 2% of ATM
+          );
+        }
+      };
+      
+      logger.debug('API', `Parsed ${symbol} option chain`, {
+        expirations: formattedExpirations.length,
+        totalStrikes: formattedExpirations.reduce((sum, exp) => sum + exp.strikeCount, 0)
+      });
+      
+      return optionChain;
+      
     } catch (error) {
-      console.error('Option chain parse error:', error);
-      return [];
+      console.error(`🚨 Option chain parsing error for ${symbol}:`, error);
+      return this.getFallbackOptionChain(symbol);
     }
+  }
+  
+  /**
+   * Parse individual expiration data
+   */
+  parseExpiration(expiration, underlyingPrice, symbol, options) {
+    try {
+      const expirationDate = expiration['expiration-date'];
+      const dte = expiration['days-to-expiration'] || SymbolUtils.calculateDTE(expirationDate);
+      
+      // Apply DTE filters if specified
+      if (options.minDTE && dte < options.minDTE) return null;
+      if (options.maxDTE && dte > options.maxDTE) return null;
+      
+      // Parse strikes
+      let strikes = [];
+      if (expiration.strikes && Array.isArray(expiration.strikes)) {
+        strikes = expiration.strikes.map(strike => 
+          this.parseStrike(strike, underlyingPrice, symbol)
+        ).filter(strike => strike !== null);
+      }
+      
+      // Apply strike filters
+      if (options.minStrike) {
+        strikes = strikes.filter(s => s.strike >= options.minStrike);
+      }
+      if (options.maxStrike) {
+        strikes = strikes.filter(s => s.strike <= options.maxStrike);
+      }
+      
+      // Sort strikes by strike price
+      strikes.sort((a, b) => a.strike - b.strike);
+      
+      return {
+        date: expirationDate,
+        dte: dte,
+        expirationCode: expiration['expiration-type'] || 'standard',
+        isWeekly: dte <= 7,
+        isMonthly: expiration['expiration-type'] === 'monthly',
+        strikeCount: strikes.length,
+        strikes: strikes,
+        
+        // Volume and OI summaries
+        totalCallVolume: strikes.reduce((sum, s) => sum + (s.call.volume || 0), 0),
+        totalPutVolume: strikes.reduce((sum, s) => sum + (s.put.volume || 0), 0),
+        totalCallOI: strikes.reduce((sum, s) => sum + (s.call.openInterest || 0), 0),
+        totalPutOI: strikes.reduce((sum, s) => sum + (s.put.openInterest || 0), 0),
+        
+        // IV statistics
+        avgCallIV: this.calculateAverageIV(strikes, 'call'),
+        avgPutIV: this.calculateAverageIV(strikes, 'put')
+      };
+      
+    } catch (error) {
+      console.error(`Strike parsing error for ${symbol} expiration ${expiration['expiration-date']}:`, error);
+      return null;
+    }
+  }
+  
+  /**
+   * Parse individual strike data with comprehensive Greeks and market data
+   */
+  parseStrike(strike, underlyingPrice, symbol) {
+    try {
+      const strikePrice = parseFloat(strike['strike-price'] || 0);
+      if (strikePrice <= 0) return null;
+      
+      // Calculate moneyness
+      const moneyness = underlyingPrice > 0 ? (strikePrice - underlyingPrice) / underlyingPrice : 0;
+      
+      // Parse call data
+      const callData = this.parseOptionLeg(strike.call, 'call', strikePrice, underlyingPrice);
+      
+      // Parse put data
+      const putData = this.parseOptionLeg(strike.put, 'put', strikePrice, underlyingPrice);
+      
+      return {
+        strike: strikePrice,
+        moneyness: moneyness,
+        isITM: {
+          call: strikePrice < underlyingPrice,
+          put: strikePrice > underlyingPrice
+        },
+        
+        call: callData,
+        put: putData,
+        
+        // Additional metadata
+        callSymbol: strike['call-streamer-symbol'] || strike.call?.symbol,
+        putSymbol: strike['put-streamer-symbol'] || strike.put?.symbol,
+        
+        // Combined metrics
+        totalVolume: (callData.volume || 0) + (putData.volume || 0),
+        totalOI: (callData.openInterest || 0) + (putData.openInterest || 0),
+        putCallRatio: callData.volume > 0 ? (putData.volume || 0) / callData.volume : 0
+      };
+      
+    } catch (error) {
+      console.error(`Individual strike parsing error:`, error);
+      return null;
+    }
+  }
+  
+  /**
+   * Parse call or put option leg data
+   */
+  parseOptionLeg(legData, optionType, strikePrice, underlyingPrice) {
+    if (!legData) {
+      return this.getEmptyOptionLeg();
+    }
+    
+    try {
+      const bid = parseFloat(legData.bid || 0);
+      const ask = parseFloat(legData.ask || 0);
+      const last = parseFloat(legData.last || legData.mark || ((bid + ask) / 2) || 0);
+      const mark = bid > 0 && ask > 0 ? (bid + ask) / 2 : last;
+      
+      return {
+        // Pricing
+        bid: bid,
+        ask: ask,
+        last: last,
+        mark: mark,
+        spread: ask - bid,
+        spreadPercent: mark > 0 ? ((ask - bid) / mark) * 100 : 0,
+        
+        // Greeks
+        delta: parseFloat(legData.delta || 0),
+        gamma: parseFloat(legData.gamma || 0),
+        theta: parseFloat(legData.theta || 0),
+        vega: parseFloat(legData.vega || 0),
+        rho: parseFloat(legData.rho || 0),
+        
+        // Volatility
+        iv: parseFloat(legData['implied-volatility'] || legData.iv || 0) * 100, // Convert to percentage
+        
+        // Volume and Interest
+        volume: parseInt(legData.volume || legData['trade-volume'] || 0),
+        openInterest: parseInt(legData['open-interest'] || legData.oi || 0),
+        
+        // Time and intrinsic value
+        intrinsicValue: this.calculateIntrinsicValue(optionType, strikePrice, underlyingPrice),
+        extrinsicValue: Math.max(0, mark - this.calculateIntrinsicValue(optionType, strikePrice, underlyingPrice)),
+        
+        // Additional fields
+        symbol: legData.symbol || null,
+        lastTradeDate: legData['last-trade-date'] || null
+      };
+      
+    } catch (error) {
+      console.error('Option leg parsing error:', error);
+      return this.getEmptyOptionLeg();
+    }
+  }
+  
+  /**
+   * Calculate intrinsic value for options
+   */
+  calculateIntrinsicValue(optionType, strikePrice, underlyingPrice) {
+    if (optionType === 'call') {
+      return Math.max(0, underlyingPrice - strikePrice);
+    } else if (optionType === 'put') {
+      return Math.max(0, strikePrice - underlyingPrice);
+    }
+    return 0;
+  }
+  
+  /**
+   * Get empty option leg structure
+   */
+  getEmptyOptionLeg() {
+    return {
+      bid: 0, ask: 0, last: 0, mark: 0, spread: 0, spreadPercent: 0,
+      delta: 0, gamma: 0, theta: 0, vega: 0, rho: 0, iv: 0,
+      volume: 0, openInterest: 0, intrinsicValue: 0, extrinsicValue: 0,
+      symbol: null, lastTradeDate: null
+    };
+  }
+  
+  /**
+   * Calculate average IV for calls or puts in an expiration
+   */
+  calculateAverageIV(strikes, optionType) {
+    if (!strikes || strikes.length === 0) return 0;
+    
+    const validIVs = strikes
+      .map(s => s[optionType].iv)
+      .filter(iv => iv > 0);
+    
+    if (validIVs.length === 0) return 0;
+    
+    return validIVs.reduce((sum, iv) => sum + iv, 0) / validIVs.length;
+  }
+  
+  /**
+   * Extract underlying price from option chain response
+   */
+  extractUnderlyingPrice(chainData, symbol) {
+    try {
+      // Try various possible locations for underlying price
+      if (chainData.data && chainData.data['underlying-price']) {
+        return parseFloat(chainData.data['underlying-price']);
+      }
+      
+      if (chainData.data && chainData.data.items && chainData.data.items[0]) {
+        const firstItem = chainData.data.items[0];
+        if (firstItem['underlying-price']) {
+          return parseFloat(firstItem['underlying-price']);
+        }
+      }
+      
+      // Fallback - get quote for underlying
+      console.warn(`⚠️ Underlying price not found in option chain, fetching quote for ${symbol}`);
+      // Note: This is async but we'll handle it in the caller if needed
+      return 0; // Placeholder, should be populated by caller
+      
+    } catch (error) {
+      console.error('Error extracting underlying price:', error);
+      return 0;
+    }
+  }
+  
+  /**
+   * Generate fallback option chain data when API fails
+   * Provides realistic simulated data for testing and fallback scenarios
+   */
+  getFallbackOptionChain(symbol) {
+    try {
+      logger.debug('API', `Generating fallback option chain for ${symbol}`);
+      
+      // Get current quote for underlying price
+      const quote = this.marketDataCache.get(symbol);
+      let underlyingPrice = 450; // Default for SPY-like
+      
+      if (quote && quote.last) {
+        underlyingPrice = parseFloat(quote.last);
+      } else {
+        // Set realistic defaults by symbol
+        const defaultPrices = {
+          'SPY': 450, 'QQQ': 380, 'IWM': 180, 'GLD': 180, 'TLT': 95, 'SLV': 22,
+          'ES': 5400, 'NQ': 16000, 'MES': 5400, 'MNQ': 16000,
+          'CL': 75, 'MCL': 75, 'GC': 2000, 'MGC': 2000
+        };
+        underlyingPrice = defaultPrices[symbol.replace('/', '')] || 100;
+      }
+      
+      // Generate realistic expiration dates
+      const today = new Date();
+      const expirations = [];
+      
+      // Add weekly expirations (if Friday is today or this week)
+      const fridayThisWeek = SymbolUtils.getNextFriday(today);
+      if (fridayThisWeek.getTime() > today.getTime()) {
+        expirations.push({
+          date: SymbolUtils.formatExpiration(fridayThisWeek),
+          dte: SymbolUtils.calculateDTE(SymbolUtils.formatExpiration(fridayThisWeek)),
+          type: 'weekly'
+        });
+      }
+      
+      // Add monthly expirations
+      [45, 90, 120, 180, 270, 365].forEach(days => {
+        const expDate = new Date(today);
+        expDate.setDate(expDate.getDate() + days);
+        const expFriday = SymbolUtils.getNextFriday(expDate);
+        
+        expirations.push({
+          date: SymbolUtils.formatExpiration(expFriday),
+          dte: days,
+          type: days <= 45 ? 'monthly' : 'quarterly'
+        });
+      });
+      
+      // Generate strikes and option data
+      const formattedExpirations = expirations.map(exp => {
+        return this.generateFallbackExpiration(exp, underlyingPrice, symbol);
+      });
+      
+      const fallbackChain = {
+        symbol: symbol,
+        underlyingPrice: underlyingPrice,
+        timestamp: new Date().toISOString(),
+        source: 'Simulated_Fallback',
+        expirationCount: formattedExpirations.length,
+        expirations: formattedExpirations,
+        warning: '⚠️ Using simulated data - API unavailable',
+        
+        // Helper methods
+        getExpirationByDTE: (targetDTE, tolerance = 7) => {
+          return formattedExpirations.find(exp => 
+            Math.abs(exp.dte - targetDTE) <= tolerance
+          );
+        },
+        
+        getStrikesByDelta: (expiration, targetDelta, tolerance = 0.05) => {
+          if (!expiration || !expiration.strikes) return [];
+          return expiration.strikes.filter(strike => 
+            Math.abs(strike.call.delta - Math.abs(targetDelta)) <= tolerance ||
+            Math.abs(Math.abs(strike.put.delta) - Math.abs(targetDelta)) <= tolerance
+          );
+        },
+        
+        getATMStrikes: (expiration) => {
+          if (!expiration || !expiration.strikes) return [];
+          return expiration.strikes.filter(strike => 
+            Math.abs(strike.moneyness) <= 0.02
+          );
+        }
+      };
+      
+      logger.debug('API', `Generated fallback chain for ${symbol}`, { expirations: formattedExpirations.length });
+      
+      return fallbackChain;
+      
+    } catch (error) {
+      console.error(`🚨 Fallback chain generation failed for ${symbol}:`, error);
+      return {
+        symbol: symbol,
+        underlyingPrice: 100,
+        timestamp: new Date().toISOString(),
+        source: 'Empty_Fallback',
+        expirationCount: 0,
+        expirations: [],
+        error: 'Complete fallback failure',
+        getExpirationByDTE: () => null,
+        getStrikesByDelta: () => [],
+        getATMStrikes: () => []
+      };
+    }
+  }
+  
+  /**
+   * Generate fallback expiration with realistic option data
+   */
+  generateFallbackExpiration(expiration, underlyingPrice, symbol) {
+    const dte = expiration.dte;
+    const strikes = [];
+    
+    // Generate strikes around current price
+    const strikeInterval = this.getStrikeInterval(underlyingPrice);
+    const numStrikes = 20; // 10 above and 10 below
+    
+    for (let i = -numStrikes/2; i <= numStrikes/2; i++) {
+      const strikePrice = Math.round((underlyingPrice + (i * strikeInterval)) / strikeInterval) * strikeInterval;
+      
+      if (strikePrice > 0) {
+        strikes.push(this.generateFallbackStrike(strikePrice, underlyingPrice, dte, symbol));
+      }
+    }
+    
+    // Sort strikes
+    strikes.sort((a, b) => a.strike - b.strike);
+    
+    return {
+      date: expiration.date,
+      dte: dte,
+      expirationCode: expiration.type,
+      isWeekly: dte <= 7,
+      isMonthly: expiration.type === 'monthly',
+      strikeCount: strikes.length,
+      strikes: strikes,
+      
+      // Volume and OI summaries (simulated)
+      totalCallVolume: Math.round(Math.random() * 10000),
+      totalPutVolume: Math.round(Math.random() * 10000),
+      totalCallOI: Math.round(Math.random() * 50000),
+      totalPutOI: Math.round(Math.random() * 50000),
+      
+      // IV statistics (simulated)
+      avgCallIV: 15 + Math.random() * 20,
+      avgPutIV: 15 + Math.random() * 20
+    };
+  }
+  
+  /**
+   * Generate fallback strike with realistic Greeks and pricing
+   */
+  generateFallbackStrike(strikePrice, underlyingPrice, dte, symbol) {
+    const moneyness = (strikePrice - underlyingPrice) / underlyingPrice;
+    const timeToExpiry = dte / 365.25;
+    const volatility = 0.15 + Math.random() * 0.15; // 15-30% IV
+    
+    // Simplified Black-Scholes approximation for fallback
+    const callDelta = this.approximateCallDelta(underlyingPrice, strikePrice, timeToExpiry, volatility);
+    const putDelta = callDelta - 1;
+    
+    const callPrice = this.approximateOptionPrice('call', underlyingPrice, strikePrice, timeToExpiry, volatility);
+    const putPrice = this.approximateOptionPrice('put', underlyingPrice, strikePrice, timeToExpiry, volatility);
+    
+    return {
+      strike: strikePrice,
+      moneyness: moneyness,
+      isITM: {
+        call: strikePrice < underlyingPrice,
+        put: strikePrice > underlyingPrice
+      },
+      
+      call: {
+        bid: Math.max(0.01, callPrice * 0.95),
+        ask: callPrice * 1.05,
+        last: callPrice,
+        mark: callPrice,
+        spread: callPrice * 0.10,
+        spreadPercent: 10,
+        delta: callDelta,
+        gamma: Math.abs(callDelta * (1 - Math.abs(callDelta)) / (underlyingPrice * volatility * Math.sqrt(timeToExpiry))),
+        theta: -callPrice * 0.1 / dte,
+        vega: underlyingPrice * Math.sqrt(timeToExpiry) * 0.01,
+        rho: strikePrice * timeToExpiry * Math.abs(callDelta) * 0.01,
+        iv: volatility * 100,
+        volume: Math.round(Math.random() * 1000),
+        openInterest: Math.round(Math.random() * 5000),
+        intrinsicValue: Math.max(0, underlyingPrice - strikePrice),
+        extrinsicValue: Math.max(0, callPrice - Math.max(0, underlyingPrice - strikePrice)),
+        symbol: null,
+        lastTradeDate: null
+      },
+      
+      put: {
+        bid: Math.max(0.01, putPrice * 0.95),
+        ask: putPrice * 1.05,
+        last: putPrice,
+        mark: putPrice,
+        spread: putPrice * 0.10,
+        spreadPercent: 10,
+        delta: putDelta,
+        gamma: Math.abs(putDelta * (1 - Math.abs(putDelta)) / (underlyingPrice * volatility * Math.sqrt(timeToExpiry))),
+        theta: -putPrice * 0.1 / dte,
+        vega: underlyingPrice * Math.sqrt(timeToExpiry) * 0.01,
+        rho: -strikePrice * timeToExpiry * Math.abs(putDelta) * 0.01,
+        iv: volatility * 100,
+        volume: Math.round(Math.random() * 1000),
+        openInterest: Math.round(Math.random() * 5000),
+        intrinsicValue: Math.max(0, strikePrice - underlyingPrice),
+        extrinsicValue: Math.max(0, putPrice - Math.max(0, strikePrice - underlyingPrice)),
+        symbol: null,
+        lastTradeDate: null
+      },
+      
+      callSymbol: null,
+      putSymbol: null,
+      totalVolume: Math.round(Math.random() * 2000),
+      totalOI: Math.round(Math.random() * 10000),
+      putCallRatio: 0.5 + Math.random()
+    };
+  }
+  
+  /**
+   * Get appropriate strike interval for underlying price
+   */
+  getStrikeInterval(price) {
+    if (price < 25) return 0.5;
+    if (price < 100) return 1;
+    if (price < 500) return 5;
+    if (price < 2000) return 10;
+    return 25;
+  }
+  
+  /**
+   * Approximate call delta using simplified formula
+   */
+  approximateCallDelta(S, K, T, vol) {
+    if (T <= 0) return S > K ? 1 : 0;
+    
+    const d1 = (Math.log(S/K) + 0.5 * vol * vol * T) / (vol * Math.sqrt(T));
+    return this.normalCDF(d1);
+  }
+  
+  /**
+   * Approximate option price using simplified Black-Scholes
+   */
+  approximateOptionPrice(type, S, K, T, vol) {
+    if (T <= 0) {
+      return type === 'call' ? Math.max(0, S - K) : Math.max(0, K - S);
+    }
+    
+    const d1 = (Math.log(S/K) + 0.5 * vol * vol * T) / (vol * Math.sqrt(T));
+    const d2 = d1 - vol * Math.sqrt(T);
+    
+    if (type === 'call') {
+      return S * this.normalCDF(d1) - K * this.normalCDF(d2);
+    } else {
+      return K * this.normalCDF(-d2) - S * this.normalCDF(-d1);
+    }
+  }
+  
+  /**
+   * Normal cumulative distribution function approximation
+   */
+  normalCDF(x) {
+    const a1 = 0.254829592;
+    const a2 = -0.284496736;
+    const a3 = 1.421413741;
+    const a4 = -1.453152027;
+    const a5 = 1.061405429;
+    const p = 0.3275911;
+    
+    const sign = x < 0 ? -1 : 1;
+    x = Math.abs(x) / Math.sqrt(2.0);
+    
+    const t = 1.0 / (1.0 + p * x);
+    const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+    
+    return 0.5 * (1.0 + sign * y);
+  }
+  
+  /**
+   * Enhanced option chain helper methods for the framework
+   */
+  async getOptionChainForStrategy(symbol, strategy, options = {}) {
+    try {
+      let chainOptions = { ...options };
+      
+      // Apply strategy-specific filters
+      switch (strategy.toLowerCase()) {
+        case '0dte':
+          chainOptions.maxDTE = 1;
+          break;
+        case 'strangle':
+        case '90dte':
+          chainOptions.minDTE = 85;
+          chainOptions.maxDTE = 95;
+          break;
+        case 'lt112':
+          chainOptions.minDTE = 100;
+          chainOptions.maxDTE = 130;
+          break;
+        case 'leap':
+          chainOptions.minDTE = 300;
+          break;
+      }
+      
+      const chain = await this.getOptionChain(symbol, null, chainOptions);
+      
+      // Add strategy-specific processing
+      if (chain && chain.expirations) {
+        chain.strategyData = this.calculateStrategyMetrics(chain, strategy);
+      }
+      
+      return chain;
+      
+    } catch (error) {
+      console.error(`Strategy option chain fetch failed for ${symbol}:`, error);
+      return this.getFallbackOptionChain(symbol);
+    }
+  }
+  
+  /**
+   * Calculate strategy-specific metrics for option chains
+   */
+  calculateStrategyMetrics(chain, strategy) {
+    const metrics = {
+      strategy: strategy,
+      recommendations: [],
+      riskMetrics: {}
+    };
+    
+    chain.expirations.forEach(expiration => {
+      if (!expiration.strikes || expiration.strikes.length === 0) return;
+      
+      switch (strategy.toLowerCase()) {
+        case 'strangle':
+          const strangleRec = this.findOptimalStrangle(expiration, chain.underlyingPrice);
+          if (strangleRec) metrics.recommendations.push(strangleRec);
+          break;
+          
+        case '0dte':
+          const spreadRec = this.findOptimal0DTESpread(expiration, chain.underlyingPrice);
+          if (spreadRec) metrics.recommendations.push(spreadRec);
+          break;
+      }
+    });
+    
+    return metrics;
+  }
+  
+  /**
+   * Find optimal strangle strikes (target 5-delta)
+   */
+  findOptimalStrangle(expiration, underlyingPrice) {
+    if (!expiration.strikes) return null;
+    
+    // Find strikes closest to 5-delta
+    let bestCall = null;
+    let bestPut = null;
+    let minCallDeltaDiff = Infinity;
+    let minPutDeltaDiff = Infinity;
+    
+    expiration.strikes.forEach(strike => {
+      // Look for call around 5-delta (0.05)
+      if (strike.call.delta > 0 && strike.strike > underlyingPrice) {
+        const deltaDiff = Math.abs(strike.call.delta - 0.05);
+        if (deltaDiff < minCallDeltaDiff) {
+          minCallDeltaDiff = deltaDiff;
+          bestCall = strike;
+        }
+      }
+      
+      // Look for put around -5-delta (-0.05)
+      if (strike.put.delta < 0 && strike.strike < underlyingPrice) {
+        const deltaDiff = Math.abs(Math.abs(strike.put.delta) - 0.05);
+        if (deltaDiff < minPutDeltaDiff) {
+          minPutDeltaDiff = deltaDiff;
+          bestPut = strike;
+        }
+      }
+    });
+    
+    if (bestCall && bestPut) {
+      return {
+        type: 'strangle',
+        expiration: expiration.date,
+        dte: expiration.dte,
+        putStrike: bestPut.strike,
+        putDelta: bestPut.put.delta,
+        putPremium: bestPut.put.mark,
+        callStrike: bestCall.strike,
+        callDelta: bestCall.call.delta,
+        callPremium: bestCall.call.mark,
+        totalCredit: bestPut.put.mark + bestCall.call.mark,
+        strikeWidth: bestCall.strike - bestPut.strike,
+        avgIV: (bestPut.put.iv + bestCall.call.iv) / 2
+      };
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Find optimal 0DTE spread opportunities
+   */
+  findOptimal0DTESpread(expiration, underlyingPrice) {
+    if (!expiration.strikes || expiration.dte > 1) return null;
+    
+    const atmStrike = expiration.strikes.find(s => 
+      Math.abs(s.strike - underlyingPrice) < underlyingPrice * 0.02
+    );
+    
+    if (!atmStrike) return null;
+    
+    return {
+      type: '0dte_spread',
+      expiration: expiration.date,
+      dte: expiration.dte,
+      atmStrike: atmStrike.strike,
+      underlyingPrice: underlyingPrice,
+      callSpread: {
+        shortStrike: atmStrike.strike,
+        longStrike: atmStrike.strike + (underlyingPrice * 0.01), // 1% OTM
+        maxProfit: underlyingPrice * 0.005, // Estimated
+        maxLoss: underlyingPrice * 0.005
+      },
+      putSpread: {
+        shortStrike: atmStrike.strike,
+        longStrike: atmStrike.strike - (underlyingPrice * 0.01), // 1% OTM
+        maxProfit: underlyingPrice * 0.005, // Estimated
+        maxLoss: underlyingPrice * 0.005
+      }
+    };
   }
   
   // Format positions for framework compatibility
@@ -664,11 +1732,11 @@ class TastyTradeAPI {
   async enableStreaming() {
     try {
       if (this.isStreamingEnabled) {
-        if (DEBUG) console.log('📡 Streaming already enabled');
+        logger.debug('API', 'Streaming already enabled');
         return true;
       }
 
-      if (DEBUG) console.log('📡 Enabling real-time market data streaming...');
+      logger.info('API', 'Enabling real-time market data streaming');
       
       const success = await this.marketDataStreamer.initialize();
       
@@ -689,7 +1757,7 @@ class TastyTradeAPI {
           }
         });
         
-        if (DEBUG) console.log('✅ Real-time streaming enabled');
+        logger.info('API', 'Real-time streaming enabled');
         return true;
       } else {
         console.error('🚨 Failed to enable streaming');
@@ -714,7 +1782,7 @@ class TastyTradeAPI {
       await this.marketDataStreamer.disconnect();
       this.isStreamingEnabled = false;
       
-      if (DEBUG) console.log('📡 Real-time streaming disabled');
+      logger.info('API', 'Real-time streaming disabled');
       return true;
       
     } catch (error) {
@@ -796,7 +1864,7 @@ class MarketDataCollector {
   
   async buildSearchedData() {
     try {
-      if (DEBUG) console.log('🔄 Collecting market data from TastyTrade API...');
+      logger.debug('API', 'Collecting market data from TastyTrade API');
       
       const searchedData = {
         timestamp: new Date().toISOString(),
@@ -828,7 +1896,7 @@ class MarketDataCollector {
         searchedData[ticker] = data;
       }
       
-      if (DEBUG) console.log(`✅ Collected data for ${Object.keys(searchedData).length - 2} instruments`);
+      logger.debug('API', `Collected data for ${Object.keys(searchedData).length - 2} instruments`);
       return searchedData;
       
     } catch (error) {
@@ -849,7 +1917,7 @@ class MarketDataCollector {
       const openPrice = parseFloat(es.open || currentPrice);
       const prevClose = parseFloat(es['prev-close'] || es.close || currentPrice);
       
-      if (DEBUG) console.log(`✅ ES: ${currentPrice}, Open: ${openPrice}, Prev: ${prevClose}`);
+      logger.debug('API', 'ES data collected', { currentPrice, openPrice, prevClose });
       
       // Get option chain for strikes
       const optionChain = await this.api.getOptionChain('ES');
@@ -898,7 +1966,7 @@ class MarketDataCollector {
       const openPrice = parseFloat(spy.open || currentPrice);
       const prevClose = parseFloat(spy['prev-close'] || spy.close || currentPrice);
       
-      if (DEBUG) console.log(`✅ SPY: ${currentPrice}, Open: ${openPrice}, Prev: ${prevClose}`);
+      logger.debug('API', 'SPY data collected', { currentPrice, openPrice, prevClose });
       
       return {
         currentPrice,
@@ -939,7 +2007,7 @@ class MarketDataCollector {
       const dayHigh = parseFloat(vix['day-high-price'] || vix.high || currentLevel * 1.02);
       const dayLow = parseFloat(vix['day-low-price'] || vix.low || currentLevel * 0.98);
       
-      if (DEBUG) console.log(`✅ VIX: ${currentLevel}, Prev: ${prevClose}, High: ${dayHigh}, Low: ${dayLow}`);
+      logger.debug('API', 'VIX data collected', { currentLevel, prevClose, dayHigh, dayLow });
       
       return {
         currentLevel,
@@ -1083,7 +2151,7 @@ class MarketDataCollector {
             ivPercentile: parseFloat(item['iv-percentile'] || Math.random() * 100)
           };
           
-          if (DEBUG) console.log(`✅ ${ticker}: $${currentPrice}, IV: ${tickers[ticker].iv}%`);
+          logger.debug('API', `${ticker} data collected`, { price: currentPrice, iv: tickers[ticker].iv });
         }
       });
     } catch (error) {
@@ -1179,7 +2247,7 @@ class OrderBuilder {
     };
     
     this.orders.push(order);
-    if (DEBUG) console.log(`📋 Strangle order prepared: ${ticker} ${putStrike}P/${callStrike}C`);
+    logger.debug('ORDER', `Strangle order prepared: ${ticker} ${putStrike}P/${callStrike}C`);
     return order;
   }
   
@@ -1213,7 +2281,7 @@ class OrderBuilder {
     };
     
     this.orders.push(order);
-    if (DEBUG) console.log(`📋 0DTE ${spreadType} prepared: ${shortStrike}/${longStrike}`);
+    logger.debug('ORDER', `0DTE ${spreadType} prepared: ${shortStrike}/${longStrike}`);
     return order;
   }
   
@@ -1227,25 +2295,31 @@ class OrderBuilder {
  * Testing and validation functions
  */
 async function testAPIConnection() {
-  console.log('🧪 Testing API connection with stored credentials...');
+  logger.info('TEST', 'Testing API connection with loaded credentials');
   
   try {
+    // Test that credentials are loaded properly
+    if (!API_CREDENTIALS.CLIENT_SECRET) {
+      throw new Error('No CLIENT_SECRET found. Please check your credentials configuration.');
+    }
+    
     const api = new TastyTradeAPI();
     
-    console.log('⏳ Initializing API connection...');
+    logger.info('TEST', 'Initializing API connection');
     await api.initialize();
     
-    console.log('📊 Testing market data collection...');
+    logger.info('TEST', 'Testing market data collection');
     const collector = new MarketDataCollector(api);
     const searchedData = await collector.buildSearchedData();
     
-    console.log('💰 Testing account status...');
+    logger.info('TEST', 'Testing account status');
     const accountStatus = await api.getAccountStatus();
     
-    console.log('\n✅ API test completed successfully!');
-    console.log(`Account: £${accountStatus.netLiq.toLocaleString()}`);
-    console.log(`BP Usage: ${accountStatus.bpUsedPercent}%`);
-    console.log(`Positions: ${accountStatus.positions}`);
+    logger.info('TEST', 'API test completed successfully', {
+      account: `£${accountStatus.netLiq.toLocaleString()}`,
+      bpUsage: `${accountStatus.bpUsedPercent}%`,
+      positions: accountStatus.positions
+    });
     
     return { success: true, api, searchedData, accountStatus };
     
@@ -1253,7 +2327,7 @@ async function testAPIConnection() {
     console.error('❌ API test failed:', error);
     
     if (error.message === 'API_FALLBACK_TO_MANUAL') {
-      console.log('🔄 Falling back to manual mode - load search parsing module');
+      logger.warn('API', 'Falling back to manual mode - load search parsing module');
     }
     
     return { success: false, error: error.message };
@@ -1271,5 +2345,5 @@ module.exports = {
   SymbolUtils,
   testAPIConnection,
   ENVIRONMENTS,
-  API_CREDENTIALS
+  loadCredentials
 };

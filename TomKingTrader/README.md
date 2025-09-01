@@ -561,7 +561,7 @@ Store credentials securely using environment variables:
 const trader = new TomKingTrader({
   clientSecret: process.env.TASTYTRADE_CLIENT_SECRET,
   refreshToken: process.env.TASTYTRADE_REFRESH_TOKEN,
-  environment: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox'
+  environment: 'production'
 });
 ```
 
@@ -590,7 +590,7 @@ DEBUG=false
 ## 🚨 Important Disclaimers
 
 1. **No Auto-Execution**: System prepares orders but requires manual submission for safety
-2. **Paper Trading**: Test thoroughly in sandbox environment before live trading
+2. **Paper Trading**: Test thoroughly in development environment before live trading
 3. **Risk Warning**: Options and futures trading involves substantial risk of loss
 4. **Education**: This system is for educational and systematic trading purposes
 5. **Compliance**: Ensure compliance with local regulations and broker requirements
@@ -674,7 +674,7 @@ curl -i -N \
 #### 2. API Authentication Failures  
 - Verify credentials in `.env` file
 - Check token expiration (auto-refresh should handle this)
-- Test connection with sandbox environment first
+- Test connection with production environment first
 - Review TastyTrade API documentation for changes
 
 #### 3. Memory or Performance Issues

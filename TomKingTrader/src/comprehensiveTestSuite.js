@@ -16,6 +16,9 @@
  */
 
 const TomKingTestingFramework = require('./testingFramework');
+const { getLogger } = require('./logger');
+
+const logger = getLogger();
 
 class ComprehensiveTestSuite extends TomKingTestingFramework {
     constructor() {
@@ -29,9 +32,9 @@ class ComprehensiveTestSuite extends TomKingTestingFramework {
             'edge_cases'
         ];
         
-        console.log('🧪 COMPREHENSIVE TOM KING TEST SUITE v17 initialized');
-        console.log('📊 Testing all scenarios, edge cases, and market conditions');
-        console.log('🎯 Complete framework validation with detailed reporting');
+        logger.info('TEST_SUITE', 'COMPREHENSIVE TOM KING TEST SUITE v17 initialized');
+        logger.info('TEST_SUITE', 'Testing all scenarios, edge cases, and market conditions');
+        logger.info('TEST_SUITE', 'Complete framework validation with detailed reporting');
     }
 
     /**
@@ -47,7 +50,7 @@ class ComprehensiveTestSuite extends TomKingTestingFramework {
             ...this.getEdgeCaseScenarios()
         ];
         
-        console.log(`📋 Loaded ${this.scenarios.length} comprehensive test scenarios across ${this.testCategories.length} categories`);
+        logger.info('TEST_SUITE', `Loaded ${this.scenarios.length} comprehensive test scenarios across ${this.testCategories.length} categories`);
     }
 
     /**
@@ -577,6 +580,7 @@ class ComprehensiveTestSuite extends TomKingTestingFramework {
      * Run comprehensive test suite with detailed reporting
      */
     async runComprehensiveTests() {
+        // Keep main header for test suite visibility
         console.log('\n🧪 COMPREHENSIVE TOM KING TEST SUITE v17');
         console.log('='.repeat(80));
         console.log('📊 Testing ALL scenarios, edge cases, and market conditions');
@@ -601,8 +605,10 @@ class ComprehensiveTestSuite extends TomKingTestingFramework {
             const scenario = this.scenarios[i];
             const category = scenario.category;
             
-            console.log(`\n[${i + 1}/${this.scenarios.length}] 📋 Category: ${category.toUpperCase()}`);
-            console.log(`🧪 Testing: ${scenario.name}`);
+            // Progress tracking - only show every 10th test to reduce output
+            if (i % 10 === 0 || i === this.scenarios.length - 1) {
+                logger.info('TEST_SUITE', `Progress: [${i + 1}/${this.scenarios.length}] Category: ${category.toUpperCase()} - ${scenario.name}`);
+            }
             
             const result = await this.runScenario(scenario);
             

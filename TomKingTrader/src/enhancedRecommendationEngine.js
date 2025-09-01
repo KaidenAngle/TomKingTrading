@@ -13,6 +13,9 @@
  */
 
 const { TastyTradeAPI } = require('./tastytradeAPI');
+const { getLogger } = require('./logger');
+
+const logger = getLogger();
 
 class EnhancedRecommendationEngine {
     constructor() {
@@ -71,7 +74,7 @@ class EnhancedRecommendationEngine {
             5: { range: [30, 100], description: 'Extreme High', sizing: 1.5, strategies: ['Max Premium', 'Aggressive Short'] }
         };
 
-        console.log('🚀 Enhanced Tom King Recommendation Engine v17 initialized');
+        logger.info('ENGINE', 'Enhanced Tom King Recommendation Engine v17 initialized');
     }
 
     /**
@@ -82,10 +85,10 @@ class EnhancedRecommendationEngine {
             try {
                 this.api = new TastyTradeAPI();
                 await this.api.initialize();
-                console.log('✅ API connected for enhanced recommendations');
+                logger.info('ENGINE', 'API connected for enhanced recommendations');
                 return true;
             } catch (error) {
-                console.log('⚠️ API not available, using simulated data for patterns');
+                logger.warn('ENGINE', 'API not available, using simulated data for patterns');
                 this.api = null;
                 return false;
             }
@@ -100,8 +103,11 @@ class EnhancedRecommendationEngine {
      * @param {boolean} includePatterns - Include pattern analysis
      */
     async generateEnhancedRecommendations(userData, includeGreeks = true, includePatterns = true) {
-        console.log('\n🧠 ENHANCED TOM KING ANALYSIS STARTING...');
-        console.log(`📊 Account: £${userData.accountValue?.toLocaleString() || 'N/A'}, Phase: ${userData.phase}, BP: ${userData.bpUsed}%`);
+        logger.info('ENGINE', 'ENHANCED TOM KING ANALYSIS STARTING', {
+            account: `£${userData.accountValue?.toLocaleString() || 'N/A'}`,
+            phase: userData.phase,
+            bpUsed: `${userData.bpUsed}%`
+        });
 
         const startTime = Date.now();
         const recommendations = {
@@ -118,36 +124,36 @@ class EnhancedRecommendationEngine {
 
         try {
             // Step 1: Analyze current portfolio and risk
-            console.log('📋 Step 1: Portfolio Risk Analysis...');
+            logger.debug('ENGINE', 'Step 1: Portfolio Risk Analysis');
             recommendations.riskAnalysis = await this.analyzePortfolioRisk(userData);
 
             // Step 2: Determine qualified tickers based on phase and rules
-            console.log('🎯 Step 2: Ticker Qualification Analysis...');
+            logger.debug('ENGINE', 'Step 2: Ticker Qualification Analysis');
             recommendations.qualifiedTickers = await this.determineQualifiedTickers(userData, recommendations.riskAnalysis);
 
             // Step 3: Collect market data for qualified tickers
-            console.log('📊 Step 3: Market Data Collection...');
+            logger.debug('ENGINE', 'Step 3: Market Data Collection');
             await this.collectMarketDataForTickers(recommendations.qualifiedTickers);
 
             // Step 4: Run pattern analysis for entry opportunities
             if (includePatterns && recommendations.qualifiedTickers.length > 0) {
-                console.log('📈 Step 4: Pattern Analysis & Entry Opportunities...');
+                logger.debug('ENGINE', 'Step 4: Pattern Analysis & Entry Opportunities');
                 recommendations.patternAnalysis = await this.runPatternAnalysis(recommendations.qualifiedTickers, userData);
             }
 
             // Step 5: Analyze Greeks for qualified opportunities
             if (includeGreeks && recommendations.qualifiedTickers.length > 0) {
-                console.log('⚡ Step 5: Greeks Analysis & Strike Optimization...');
+                logger.debug('ENGINE', 'Step 5: Greeks Analysis & Strike Optimization');
                 recommendations.greeksAnalysis = await this.analyzeGreeksAndStrikes(recommendations.qualifiedTickers, userData);
                 recommendations.strikeRecommendations = await this.optimizeStrikes(recommendations.qualifiedTickers, userData, recommendations.greeksAnalysis);
             }
 
             // Step 6: Portfolio optimization and diversification
-            console.log('🎨 Step 6: Portfolio Optimization...');
+            logger.debug('ENGINE', 'Step 6: Portfolio Optimization');
             recommendations.portfolioOptimization = await this.optimizePortfolioWithGreeks(userData, recommendations);
 
             // Step 7: Generate final action items
-            console.log('✅ Step 7: Final Recommendations...');
+            logger.debug('ENGINE', 'Step 7: Final Recommendations');
             recommendations.actionItems = await this.generateActionItems(recommendations, userData);
 
             // Summary
@@ -161,7 +167,10 @@ class EnhancedRecommendationEngine {
                 generatedAt: new Date().toISOString()
             };
 
-            console.log(`\n🎉 Analysis Complete! Generated ${recommendations.actionItems.length} recommendations in ${executionTime}ms`);
+            logger.info('ENGINE', `Analysis Complete! Generated ${recommendations.actionItems.length} recommendations`, {
+                executionTime: `${executionTime}ms`,
+                recommendationCount: recommendations.actionItems.length
+            });
             return recommendations;
 
         } catch (error) {
@@ -240,7 +249,7 @@ class EnhancedRecommendationEngine {
         const phaseConfig = this.phaseRequirements[phase];
         const qualified = [];
 
-        console.log(`   📋 Phase ${phase}: Checking ${phaseConfig.qualifiedTickers.length} potential tickers...`);
+        logger.debug('ENGINE', `Phase ${phase}: Checking ${phaseConfig.qualifiedTickers.length} potential tickers`);
 
         for (const ticker of phaseConfig.qualifiedTickers) {
             const qualification = await this.qualifyTicker(ticker, userData, riskAnalysis, phaseConfig);
@@ -265,7 +274,7 @@ class EnhancedRecommendationEngine {
             return b.priority - a.priority; // Higher priority first within same group
         });
 
-        console.log(`   ✅ Qualified ${qualified.length} tickers for Phase ${phase}`);
+        logger.debug('ENGINE', `Qualified ${qualified.length} tickers for Phase ${phase}`);
         return qualified;
     }
 
@@ -414,7 +423,7 @@ class EnhancedRecommendationEngine {
      */
     async collectMarketDataForTickers(qualifiedTickers) {
         const tickers = qualifiedTickers.map(q => q.ticker);
-        console.log(`   📊 Collecting market data for ${tickers.length} tickers: ${tickers.join(', ')}`);
+        logger.debug('ENGINE', `Collecting market data for ${tickers.length} tickers: ${tickers.join(', ')}`);
 
         if (this.api) {
             try {
@@ -424,7 +433,7 @@ class EnhancedRecommendationEngine {
                     this.currentMarketData[ticker] = await this.api.marketDataCollector.getTickerData(ticker);
                 }
             } catch (error) {
-                console.log('   ⚠️ API data collection failed, using simulated data');
+                logger.warn('ENGINE', 'API data collection failed, using simulated data');
                 this.generateSimulatedMarketData(tickers);
             }
         } else {
@@ -472,7 +481,7 @@ class EnhancedRecommendationEngine {
         const analysis = {};
         const vixRegime = this.getVIXRegime(userData.vixLevel || 16);
 
-        console.log(`   📈 Running pattern analysis for ${qualifiedTickers.length} tickers...`);
+        logger.debug('ENGINE', `Running pattern analysis for ${qualifiedTickers.length} tickers`);
 
         for (const tickerObj of qualifiedTickers) {
             const ticker = tickerObj.ticker;
@@ -493,7 +502,7 @@ class EnhancedRecommendationEngine {
         }
 
         const totalOpportunities = Object.keys(analysis).length;
-        console.log(`   ✅ Found ${totalOpportunities} pattern-based opportunities`);
+        logger.debug('ENGINE', `Found ${totalOpportunities} pattern-based opportunities`);
 
         return analysis;
     }
@@ -595,7 +604,7 @@ class EnhancedRecommendationEngine {
     async analyzeGreeksAndStrikes(qualifiedTickers, userData) {
         const analysis = {};
         
-        console.log(`   ⚡ Analyzing Greeks for ${qualifiedTickers.length} tickers...`);
+        logger.debug('ENGINE', `Analyzing Greeks for ${qualifiedTickers.length} tickers`);
 
         for (const tickerObj of qualifiedTickers) {
             const ticker = tickerObj.ticker;
@@ -614,7 +623,7 @@ class EnhancedRecommendationEngine {
             }
         }
 
-        console.log(`   ✅ Greeks analysis complete for ${Object.keys(analysis).length} tickers`);
+        logger.debug('ENGINE', `Greeks analysis complete for ${Object.keys(analysis).length} tickers`);
         return analysis;
     }
 
@@ -627,7 +636,7 @@ class EnhancedRecommendationEngine {
                 // Get real option chain data
                 return await this.api.getOptionChain(ticker);
             } catch (error) {
-                console.log(`   ⚠️ Option chain for ${ticker} not available, using simulated`);
+                logger.warn('ENGINE', `Option chain for ${ticker} not available, using simulated`);
             }
         }
 
@@ -1017,7 +1026,7 @@ class EnhancedRecommendationEngine {
     async optimizeStrikes(qualifiedTickers, userData, greeksAnalysis) {
         const optimized = {};
         
-        console.log(`   🎯 Optimizing strikes for ${qualifiedTickers.length} tickers...`);
+        logger.debug('ENGINE', `Optimizing strikes for ${qualifiedTickers.length} tickers`);
 
         Object.entries(greeksAnalysis).forEach(([ticker, analysis]) => {
             const bestRecommendations = analysis.recommendations
@@ -1037,7 +1046,7 @@ class EnhancedRecommendationEngine {
             }
         });
 
-        console.log(`   ✅ Optimized strikes for ${Object.keys(optimized).length} tickers`);
+        logger.debug('ENGINE', `Optimized strikes for ${Object.keys(optimized).length} tickers`);
         return optimized;
     }
 
@@ -1165,7 +1174,7 @@ class EnhancedRecommendationEngine {
         const actionItems = [];
         const phase = userData.phase;
 
-        console.log(`   📝 Generating action items for Phase ${phase} account...`);
+        logger.debug('ENGINE', `Generating action items for Phase ${phase} account`);
 
         // Critical warnings first
         if (recommendations.riskAnalysis.correlationRisk.violations.length > 0) {
@@ -1249,7 +1258,7 @@ class EnhancedRecommendationEngine {
         const priorityOrder = { 'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3 };
         actionItems.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
-        console.log(`   ✅ Generated ${actionItems.length} action items`);
+        logger.debug('ENGINE', `Generated ${actionItems.length} action items`);
         return actionItems;
     }
 

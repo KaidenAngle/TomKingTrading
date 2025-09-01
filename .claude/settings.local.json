@@ -16,7 +16,11 @@
       "Bash(wmic process where:*)",
       "Bash(npm run start:*)",
       "Bash(start http://localhost:3000/testing.html)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(del test_credentials.js)",
+      "WebSearch",
+      "WebFetch(domain:developer.tastytrade.com)",
+      "Bash(del test_option_chain.js)"
     ],
     "deny": [],
     "ask": []

@@ -1,4 +1,4 @@
-TOM KING TRADING FRAMEWORK v17.0
+TOM KING TRADING FRAMEWORK v17.2
 ?? TABLE OF CONTENTS
 CORE FRAMEWORK SECTIONS
 1. Framework Purpose & Modes
@@ -19,7 +19,7 @@ API INTEGRATION SECTIONS
 15. WebSocket Streaming
 16. API Mode Integration
 IMPLEMENTATION SECTIONS
-17. Complete Pattern Analysis Code v17.0
+17. Complete Pattern Analysis Code v17.2
 18. HTML Dashboard Template
 19. Testing Procedures
 
@@ -65,7 +65,7 @@ Option 2: API Mode Input
 Mode: API
 Client Secret: [your_oauth2_secret] 
 Refresh Token: [your_refresh_token]
-Environment: [sandbox/production]
+Environment: [production]
 Option 3: Test Mode Override
 To test specific day scenarios, add: "Pretend it's [Day] [Date] [Time]" to your input. Example: �40000 | none | 0% | Pretend it's Friday 01/10 9:15 AM EST | VIX 15.2 | No
 
@@ -329,10 +329,10 @@ Generate comprehensive analysis with:
 COMPLETE INTEGRATION EXAMPLE
 This example demonstrates the FULL framework execution for a Phase 2 account (£40-60k).
 
-EXAMPLE SCENARIO: £45,000 Account on Friday, January 12, 2024 at 10:15 AM EST
+EXAMPLE SCENARIO: £40,000 Account on Friday, January 12, 2024 at 10:15 AM EST
 
 Step 1: Determine Phase & Available Strategies
-Account Value: £45,000
+Account Value: £40,000
 Phase: 2 (£40-60k range)
 Available Strategies: 
 - 0DTE: 2 contracts maximum (Friday only, after 10:30 AM)
@@ -375,7 +375,7 @@ PATTERN ANALYSIS RESULTS:
 Step 5: Position Allocation Table
 +---------------------------------------------------------------+
 |      POSITION ALLOCATION & BP OPTIMIZATION TABLE              |
-|              Phase 2: £45,000 Account                         |
+|              Phase 2: £40,000 Account                         |
 +---------------------------------------------------------------+
 
 Strategy    | Max Pos | Current | Avail | BP/Pos | BP Used | Can Add | Priority
@@ -387,7 +387,7 @@ IPMCC       | 2       | 0       | 2     | 8%     | 0%      | YES     | MEDIUM
 RATIO       | 2       | 0       | 2     | 2%     | 0%      | YES     | LOW
 
 VIX REGIME (15.2): NORMAL - Target 55-65% BP usage
-Current: 0% | Gap to Min: 55% | Available: £45,000
+Current: 0% | Gap to Min: 55% | Available: £40,000
 
 OPTIMIZATION PLAN TO REACH PHASE TARGET:
 1. IMMEDIATE: Enter 2 MES LT112 positions (6% BP)
@@ -1980,9 +1980,9 @@ function selectExecutionMode(input) {
   return { mode: 'MANUAL', input };
 }
 
-COMPLETE PATTERN ANALYSIS CODE v16.0
+COMPLETE PATTERN ANALYSIS CODE v17.2
 // ============================================
-// TOM KING PATTERN ANALYSIS - COMPLETE v16.0
+// TOM KING PATTERN ANALYSIS - COMPLETE v17.2
 // With Full API Integration Support
 // ============================================
 // Execute this ENTIRE code block in the analysis tool
@@ -4147,7 +4147,7 @@ function checkSustainability(monthPL, accountValue) {
 
 function executeFramework(userInput, searchedData) {
   console.log('+---------------------------------------------------------------+');
-  console.log('�      TOM KING FRAMEWORK v16.0 - COMPLETE INTEGRATION          �');
+  console.log('�      TOM KING FRAMEWORK v17.2 - PRODUCTION READY             �');
   console.log('+---------------------------------------------------------------+');
   
   try {
@@ -5029,7 +5029,7 @@ console.log('  - Calculate opportunities');
 console.log('  - Generate recommendations');
 console.log('  - Prepare orders (API mode)');
 console.log('');
-console.log('Framework v16.0 loaded - Complete with API integration.');
+console.log('Framework v17.2 loaded - Production ready with full feature set.');
 console.log('ALL v14.0 functionality preserved + TastyTrade API added.');
 console.log('');
 console.log('+---------------------------------------------------------------+');
@@ -5123,7 +5123,7 @@ HTML DASHBOARD TEMPLATE
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tom King Trading Dashboard v16.0 - Complete Integration</title>
+<title>Tom King Trading Dashboard v17.2 - Production Ready</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <style>
   body { 
@@ -5378,7 +5378,7 @@ HTML DASHBOARD TEMPLATE
 <body>
 
 <div class="header">
-  <h1>?? Tom King Trading Dashboard v16.0
+  <h1>?? Tom King Trading Dashboard v17.2
     <span class="phase-indicator" id="phaseIndicator">Loading...</span>
     <span class="api-indicator" id="apiIndicator" style="display:none;">API MODE</span>
   </h1>
@@ -6145,7 +6145,7 @@ window.addEventListener('load', function() {
 
 </body>
 </html>
-// END OF TOM KING TRADING FRAMEWORK v17.0
+// END OF TOM KING TRADING FRAMEWORK v17.2
 
 // ============================================================
 // AUTO-EXECUTE SECTION - RUNS IMMEDIATELY WHEN LOADED

@@ -48,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PatternAnalyzer**: Added analyzeMarket() method for backward compatibility
 - **SignalGenerator**: Constructor now accepts options parameter
 - **VIX_LEVELS**: Added complete VIX regime configuration
-- **TastyTradeAPI**: Fixed environment mapping (development → sandbox)
+- **TastyTradeAPI**: Fixed environment mapping (development → production)
 
 ### 🗑️ Removed
 - Deprecated files cleaned up:

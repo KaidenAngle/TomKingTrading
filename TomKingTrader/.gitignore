@@ -1,0 +1,37 @@
+# Environment and credentials
+.env
+.env.local
+credentials.config.js
+
+# Dependencies
+node_modules/
+package-lock.json
+
+# Output files
+output/
+*.log
+
+# Test artifacts
+test-results.json
+coverage/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+nul
+
+# API tokens and keys
+*.key
+*.pem
+*.cert
