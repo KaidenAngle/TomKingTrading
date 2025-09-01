@@ -4,6 +4,8 @@
  * Integrates all modules and provides REST API endpoints
  */
 
+require('dotenv').config(); // Load environment variables from .env file
+
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -123,12 +125,27 @@ class TomKingTraderApp {
             try {
                 const { apiMode, phase, accountValue, credentials } = req.body;
                 
+                // Use credentials from environment variables if available
+                const apiCredentials = {
+                    clientSecret: process.env.TASTYTRADE_CLIENT_SECRET || credentials?.clientSecret,
+                    refreshToken: process.env.TASTYTRADE_REFRESH_TOKEN || credentials?.refreshToken
+                };
+                
+                console.log('🔐 API Credentials check:');
+                console.log('   Client Secret:', apiCredentials.clientSecret ? 'Present' : 'Missing');
+                console.log('   Refresh Token:', apiCredentials.refreshToken ? 'Present' : 'Missing');
+                console.log('   API Mode:', apiMode || 'auto-detect');
+                
+                // Auto-enable API mode if credentials are present
+                const useApiMode = apiMode !== false && (apiCredentials.clientSecret && apiCredentials.refreshToken);
+                
                 this.trader = new TomKingTrader({
-                    apiMode: apiMode || false,
+                    apiMode: useApiMode,
                     phase: phase || 1,
                     accountValue: accountValue || 30000,
                     environment: this.config.environment,
-                    ...credentials
+                    clientSecret: apiCredentials.clientSecret,
+                    refreshToken: apiCredentials.refreshToken
                 });
                 
                 const result = await this.trader.initialize();
@@ -413,6 +430,549 @@ class TomKingTraderApp {
                 console.error('🚨 Health check error:', error);
                 res.status(500).json({
                     status: 'ERROR',
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Enable real-time streaming endpoint
+        this.app.post('/api/streaming/enable', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const result = await this.trader.api.enableStreaming();
+                
+                res.json({
+                    success: result,
+                    message: result ? 'Real-time streaming enabled' : 'Failed to enable streaming',
+                    status: this.trader.api.getStreamingStatus(),
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Streaming enable error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Disable real-time streaming endpoint
+        this.app.post('/api/streaming/disable', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const result = await this.trader.api.disableStreaming();
+                
+                res.json({
+                    success: result,
+                    message: result ? 'Real-time streaming disabled' : 'Failed to disable streaming',
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Streaming disable error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Subscribe to real-time quotes endpoint
+        this.app.post('/api/streaming/subscribe', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const { symbols } = req.body;
+                
+                if (!symbols || (!Array.isArray(symbols) && typeof symbols !== 'string')) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing or invalid symbols parameter'
+                    });
+                }
+
+                const result = await this.trader.api.subscribeToQuotes(symbols);
+                
+                res.json({
+                    success: result,
+                    message: result ? `Subscribed to ${Array.isArray(symbols) ? symbols.length : 1} symbols` : 'Failed to subscribe',
+                    symbols: Array.isArray(symbols) ? symbols : [symbols],
+                    status: this.trader.api.getStreamingStatus(),
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Streaming subscribe error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Get real-time quotes endpoint
+        this.app.post('/api/quotes/realtime', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const { symbols } = req.body;
+                
+                if (!symbols) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing symbols parameter'
+                    });
+                }
+
+                const quotes = this.trader.api.getRealtimeQuotes(symbols);
+                
+                res.json({
+                    success: true,
+                    quotes,
+                    count: Object.keys(quotes).length,
+                    streamingStatus: this.trader.api.getStreamingStatus(),
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Real-time quotes error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Get streaming status endpoint
+        this.app.get('/api/streaming/status', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const status = this.trader.api.getStreamingStatus();
+                
+                res.json({
+                    success: true,
+                    status,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Streaming status error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // ORDER PLACEMENT ENDPOINTS
+        
+        // Dry-run order endpoint
+        this.app.post('/api/orders/dry-run', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const { order } = req.body;
+                
+                if (!order) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing order parameter'
+                    });
+                }
+
+                const result = await this.trader.api.orderManager.dryRun(order);
+                
+                res.json({
+                    success: result.success,
+                    result,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Dry-run order error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Place live order endpoint
+        this.app.post('/api/orders/place', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const { order } = req.body;
+                
+                if (!order) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing order parameter'
+                    });
+                }
+
+                const result = await this.trader.api.orderManager.placeOrder(order);
+                
+                res.json({
+                    success: result.success,
+                    result,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Place order error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // TOM KING STRATEGY ENDPOINTS
+
+        // Iron Condor
+        this.app.post('/api/strategies/iron-condor', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const { underlying, expiration, strikes, netCredit, quantity } = req.body;
+                
+                if (!underlying || !expiration || !strikes || !netCredit) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing required parameters: underlying, expiration, strikes, netCredit'
+                    });
+                }
+
+                const expirationDate = new Date(expiration);
+                const result = await this.trader.api.orderManager.placeIronCondor(
+                    underlying, 
+                    expirationDate, 
+                    strikes, 
+                    netCredit, 
+                    quantity || 1
+                );
+                
+                res.json({
+                    success: result.success,
+                    result,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Iron Condor order error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Short Strangle
+        this.app.post('/api/strategies/short-strangle', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const { underlying, expiration, putStrike, callStrike, netCredit, quantity } = req.body;
+                
+                if (!underlying || !expiration || !putStrike || !callStrike || !netCredit) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing required parameters: underlying, expiration, putStrike, callStrike, netCredit'
+                    });
+                }
+
+                const expirationDate = new Date(expiration);
+                const result = await this.trader.api.orderManager.placeShortStrangle(
+                    underlying, 
+                    expirationDate, 
+                    putStrike, 
+                    callStrike, 
+                    netCredit, 
+                    quantity || 1
+                );
+                
+                res.json({
+                    success: result.success,
+                    result,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Short Strangle order error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // 0DTE Strategy
+        this.app.post('/api/strategies/0dte', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const { underlying, expiration, strike, optionType, premium, quantity } = req.body;
+                
+                if (!underlying || !expiration || !strike || !optionType || !premium) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing required parameters: underlying, expiration, strike, optionType, premium'
+                    });
+                }
+
+                const expirationDate = new Date(expiration);
+                const result = await this.trader.api.orderManager.place0DTE(
+                    underlying, 
+                    expirationDate, 
+                    strike, 
+                    optionType, 
+                    premium, 
+                    quantity || 1
+                );
+                
+                res.json({
+                    success: result.success,
+                    result,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 0DTE order error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Butterfly
+        this.app.post('/api/strategies/butterfly', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const { underlying, expiration, strikes, netDebit, quantity } = req.body;
+                
+                if (!underlying || !expiration || !strikes || !netDebit) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing required parameters: underlying, expiration, strikes, netDebit'
+                    });
+                }
+
+                const expirationDate = new Date(expiration);
+                const result = await this.trader.api.orderManager.placeButterfly(
+                    underlying, 
+                    expirationDate, 
+                    strikes, 
+                    netDebit, 
+                    quantity || 1
+                );
+                
+                res.json({
+                    success: result.success,
+                    result,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Butterfly order error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // ORDER MANAGEMENT ENDPOINTS
+
+        // Get live orders
+        this.app.get('/api/orders/live', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const orders = await this.trader.api.orderManager.getLiveOrders();
+                
+                res.json({
+                    success: true,
+                    orders,
+                    count: orders.length,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Get live orders error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Get order status
+        this.app.get('/api/orders/:orderId', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const { orderId } = req.params;
+                const order = await this.trader.api.orderManager.getOrderStatus(orderId);
+                
+                if (!order) {
+                    return res.status(404).json({
+                        success: false,
+                        error: 'Order not found'
+                    });
+                }
+                
+                res.json({
+                    success: true,
+                    order,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Get order status error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Cancel order
+        this.app.delete('/api/orders/:orderId', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const { orderId } = req.params;
+                const result = await this.trader.api.orderManager.cancelOrder(orderId);
+                
+                res.json({
+                    success: result.success,
+                    result,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Cancel order error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        // Get order statistics
+        this.app.get('/api/orders/stats', async (req, res) => {
+            try {
+                if (!this.isInitialized) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'System not initialized. Call /api/initialize first.'
+                    });
+                }
+
+                const stats = this.trader.api.orderManager.getStatistics();
+                
+                res.json({
+                    success: true,
+                    stats,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Get order stats error:', error);
+                res.status(500).json({
+                    success: false,
                     error: error.message,
                     timestamp: new Date().toISOString()
                 });
@@ -777,6 +1337,475 @@ class TomKingTraderApp {
             this.stopScheduler();
             res.json({ success: true, message: 'Scheduler stopped' });
         });
+
+        // Testing Framework Endpoints
+        this.app.get('/api/test/scenarios', async (req, res) => {
+            try {
+                const TomKingTestingFramework = require('./testingFramework');
+                const framework = new TomKingTestingFramework();
+                await framework.initialize(false);
+                
+                res.json({
+                    success: true,
+                    scenarios: framework.scenarios.map(s => ({
+                        name: s.name,
+                        phase: s.phase,
+                        description: s.description,
+                        expectedStrategies: s.expectedStrategies
+                    })),
+                    count: framework.scenarios.length,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Get scenarios error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this.app.post('/api/test/run', async (req, res) => {
+            try {
+                const { scenarioName, useAPI = false } = req.body;
+                
+                if (!scenarioName) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing scenarioName parameter',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                const TomKingTestingFramework = require('./testingFramework');
+                const framework = new TomKingTestingFramework();
+                await framework.initialize(useAPI);
+                
+                const result = await framework.runSpecificTest(scenarioName);
+                
+                if (!result) {
+                    return res.status(404).json({
+                        success: false,
+                        error: `Scenario not found: ${scenarioName}`,
+                        available: framework.scenarios.map(s => s.name),
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                res.json({
+                    success: result.success,
+                    scenario: result.scenario,
+                    phase: result.phase,
+                    recommendations: result.recommendations,
+                    analysis: result.analysis,
+                    validation: result.validation,
+                    executionTime: result.executionTime,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Run test error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this.app.post('/api/test/run-all', async (req, res) => {
+            try {
+                const { useAPI = false, phases = [1, 2, 3, 4] } = req.body;
+
+                const TomKingTestingFramework = require('./testingFramework');
+                const framework = new TomKingTestingFramework();
+                await framework.initialize(useAPI);
+                
+                // Filter scenarios by requested phases
+                const filteredScenarios = framework.scenarios.filter(s => phases.includes(s.phase));
+                
+                console.log(`🧪 Running ${filteredScenarios.length} scenarios for phases: ${phases.join(', ')}`);
+                
+                const results = [];
+                for (const scenario of filteredScenarios) {
+                    const result = await framework.runScenario(scenario);
+                    results.push(result);
+                }
+                
+                // Generate summary report
+                const successful = results.filter(r => r.success);
+                const failed = results.filter(r => !r.success);
+                const avgMatchRate = successful.reduce((sum, r) => sum + r.validation.matchRate, 0) / successful.length || 0;
+                
+                const summary = {
+                    totalTests: results.length,
+                    successful: successful.length,
+                    failed: failed.length,
+                    successRate: (successful.length / results.length) * 100,
+                    avgStrategyMatchRate: avgMatchRate * 100,
+                    phases: phases,
+                    executionTime: results.reduce((sum, r) => sum + r.executionTime, 0)
+                };
+
+                res.json({
+                    success: true,
+                    summary,
+                    results,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Run all tests error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this.app.post('/api/test/manual-input', async (req, res) => {
+            try {
+                const { input, includePatterns = true, includeGreeks = true } = req.body;
+                
+                if (!input) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing input parameter. Format: £[amount] | [positions] | [BP%] | [Day Date Time] | VIX [level] | [PM Y/N]',
+                        example: '£45000 | ES LT112 (85 DTE, 6420, +5%) | 32% | Friday Jan 10 10:15 AM EST | VIX 15.2 | No',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                // Use enhanced recommendation engine if requested
+                if (includePatterns || includeGreeks) {
+                    const EnhancedRecommendationEngine = require('./enhancedRecommendationEngine');
+                    const engine = new EnhancedRecommendationEngine();
+                    await engine.initialize(this.isInitialized);
+                    
+                    // Parse input using testing framework
+                    const TomKingTestingFramework = require('./testingFramework');
+                    const framework = new TomKingTestingFramework();
+                    const userData = framework.parseUserInput(input);
+                    
+                    // Generate enhanced recommendations
+                    const recommendations = await engine.generateEnhancedRecommendations(
+                        userData, includeGreeks, includePatterns
+                    );
+
+                    res.json({
+                        success: true,
+                        input: input,
+                        userData: userData,
+                        recommendations: recommendations.actionItems,
+                        analysis: {
+                            riskAnalysis: recommendations.riskAnalysis,
+                            qualifiedTickers: recommendations.qualifiedTickers,
+                            patternAnalysis: includePatterns ? recommendations.patternAnalysis : null,
+                            greeksAnalysis: includeGreeks ? recommendations.greeksAnalysis : null,
+                            portfolioOptimization: recommendations.portfolioOptimization
+                        },
+                        enhanced: true,
+                        executionTime: recommendations.summary.executionTime,
+                        timestamp: new Date().toISOString()
+                    });
+
+                } else {
+                    // Use basic testing framework
+                    const TomKingTestingFramework = require('./testingFramework');
+                    const framework = new TomKingTestingFramework();
+                    await framework.initialize(this.isInitialized);
+                    
+                    const customScenario = {
+                        name: "Manual Input Test",
+                        input: input,
+                        expectedStrategies: ["Manual Analysis"],
+                        phase: 1,
+                        description: "Manual user input for recommendation generation"
+                    };
+                    
+                    const result = await framework.runScenario(customScenario);
+
+                    res.json({
+                        success: result.success,
+                        input: input,
+                        userData: result.userData,
+                        recommendations: result.recommendations,
+                        analysis: result.analysis,
+                        enhanced: false,
+                        executionTime: result.executionTime,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+            } catch (error) {
+                console.error('🚨 Manual input test error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this.app.post('/api/enhanced/analyze', async (req, res) => {
+            try {
+                const { userData, includePatterns = true, includeGreeks = true } = req.body;
+                
+                if (!userData) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing userData parameter',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                const EnhancedRecommendationEngine = require('./enhancedRecommendationEngine');
+                const engine = new EnhancedRecommendationEngine();
+                await engine.initialize(this.isInitialized);
+                
+                const recommendations = await engine.generateEnhancedRecommendations(
+                    userData, includeGreeks, includePatterns
+                );
+
+                res.json({
+                    success: true,
+                    userData: userData,
+                    recommendations: recommendations,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Enhanced analysis error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this.app.post('/api/enhanced/pattern-analysis', async (req, res) => {
+            try {
+                const { tickers, phase = 2, vixLevel = 16 } = req.body;
+                
+                if (!tickers || !Array.isArray(tickers)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing or invalid tickers array',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                const EnhancedRecommendationEngine = require('./enhancedRecommendationEngine');
+                const engine = new EnhancedRecommendationEngine();
+                await engine.initialize(this.isInitialized);
+                
+                // Create mock userData for pattern analysis
+                const userData = {
+                    phase: phase,
+                    vixLevel: vixLevel,
+                    dayOfWeek: 'Wednesday',
+                    timeEST: '2:30 PM',
+                    positions: [],
+                    bpUsed: 0,
+                    accountValue: phase * 20000 + 20000 // Rough estimate
+                };
+
+                // Simulate qualified tickers
+                const qualifiedTickers = tickers.map(ticker => ({
+                    ticker: ticker,
+                    priority: 70,
+                    correlationGroup: engine.getCorrelationGroup(ticker)
+                }));
+
+                // Collect market data and run pattern analysis
+                await engine.collectMarketDataForTickers(qualifiedTickers);
+                const patternAnalysis = await engine.runPatternAnalysis(qualifiedTickers, userData);
+
+                res.json({
+                    success: true,
+                    tickers: tickers,
+                    phase: phase,
+                    vixLevel: vixLevel,
+                    patternAnalysis: patternAnalysis,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Pattern analysis error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this.app.post('/api/enhanced/greeks-optimization', async (req, res) => {
+            try {
+                const { ticker, strategy = 'strangle', currentPositions = [] } = req.body;
+                
+                if (!ticker) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing ticker parameter',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                const EnhancedRecommendationEngine = require('./enhancedRecommendationEngine');
+                const engine = new EnhancedRecommendationEngine();
+                await engine.initialize(this.isInitialized);
+                
+                // Create mock userData
+                const userData = {
+                    phase: 2,
+                    vixLevel: 16,
+                    dayOfWeek: 'Wednesday',
+                    timeEST: '2:30 PM',
+                    positions: currentPositions,
+                    bpUsed: 25,
+                    accountValue: 45000
+                };
+
+                const qualifiedTickers = [{ ticker: ticker, priority: 80, correlationGroup: engine.getCorrelationGroup(ticker) }];
+                
+                // Collect data and analyze Greeks
+                await engine.collectMarketDataForTickers(qualifiedTickers);
+                const greeksAnalysis = await engine.analyzeGreeksAndStrikes(qualifiedTickers, userData);
+                const strikeOptimization = await engine.optimizeStrikes(qualifiedTickers, userData, greeksAnalysis);
+
+                res.json({
+                    success: true,
+                    ticker: ticker,
+                    strategy: strategy,
+                    greeksAnalysis: greeksAnalysis,
+                    strikeOptimization: strikeOptimization,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error('🚨 Greeks optimization error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+        
+        // PLUG-AND-PLAY ANALYSIS ENDPOINT
+        this.app.post('/api/quick-analysis', async (req, res) => {
+            try {
+                const logger = require('./logger').getLogger();
+                const marketDataService = require('./marketDataService');
+                
+                logger.info('QUICK-ANALYSIS', 'Starting plug-and-play analysis');
+                
+                // Get current VIX
+                const vixData = await marketDataService.getVIXData();
+                const vixLevel = vixData.currentPrice;
+                
+                // Determine phase and account from request or use defaults
+                const phase = req.body.phase || 2;
+                const accountValue = req.body.accountValue || 45000;
+                const bpUsed = req.body.bpUsed || 0;
+                
+                // Initialize if needed
+                if (!this.isInitialized) {
+                    logger.info('QUICK-ANALYSIS', 'Auto-initializing system');
+                    this.trader = new TomKingTrader({
+                        apiMode: false,
+                        phase: phase,
+                        accountValue: accountValue,
+                        environment: 'production'
+                    });
+                    await this.trader.initialize();
+                    this.isInitialized = true;
+                }
+                
+                // Get market data for phase
+                const marketData = await marketDataService.getPhaseMarketData(phase);
+                
+                // Build user data
+                const now = new Date();
+                const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
+                const timeEST = now.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' });
+                
+                const userData = {
+                    accountValue: accountValue,
+                    phase: phase,
+                    positions: req.body.positions || [],
+                    bpUsed: bpUsed,
+                    dayOfWeek: dayOfWeek,
+                    timeEST: timeEST,
+                    vixLevel: vixLevel,
+                    portfolioMargin: false
+                };
+                
+                logger.info('QUICK-ANALYSIS', 'User data prepared', userData);
+                
+                // Run enhanced analysis
+                const EnhancedRecommendationEngine = require('./enhancedRecommendationEngine');
+                const engine = new EnhancedRecommendationEngine();
+                await engine.initialize(true);
+                
+                const recommendations = await engine.generateEnhancedRecommendations(
+                    userData, 
+                    true, // includeGreeks
+                    true  // includePatterns
+                );
+                
+                // Format response
+                const response = {
+                    success: true,
+                    market: {
+                        vix: vixData,
+                        regime: marketDataService.getVIXRegime(vixLevel),
+                        status: marketDataService.getMarketStatus()
+                    },
+                    account: {
+                        phase: phase,
+                        value: accountValue,
+                        bpUsed: bpUsed,
+                        bpAvailable: 65 - bpUsed
+                    },
+                    recommendations: recommendations.actionItems || [],
+                    qualifiedTickers: recommendations.qualifiedTickers || [],
+                    patterns: recommendations.patternAnalysis || {},
+                    greeks: recommendations.greeksAnalysis || {},
+                    risk: recommendations.riskAnalysis || {},
+                    summary: {
+                        totalOpportunities: recommendations.actionItems ? recommendations.actionItems.length : 0,
+                        topPick: recommendations.actionItems && recommendations.actionItems.length > 0 ? 
+                                recommendations.actionItems[0] : null,
+                        executionTime: recommendations.summary ? recommendations.summary.executionTime : 0
+                    },
+                    timestamp: new Date().toISOString()
+                };
+                
+                logger.info('QUICK-ANALYSIS', 'Analysis complete', {
+                    opportunities: response.summary.totalOpportunities,
+                    executionTime: response.summary.executionTime
+                });
+                
+                res.json(response);
+                
+            } catch (error) {
+                const logger = require('./logger').getLogger();
+                logger.error('QUICK-ANALYSIS', 'Analysis failed', error);
+                
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
         
         // Serve main dashboard
         this.app.get('/', (req, res) => {
@@ -804,7 +1833,26 @@ class TomKingTraderApp {
                     'GET /api/config',
                     'POST /api/test-connection',
                     'POST /api/scheduler/start',
-                    'POST /api/scheduler/stop'
+                    'POST /api/scheduler/stop',
+                    'POST /api/streaming/enable',
+                    'POST /api/streaming/disable',
+                    'POST /api/streaming/subscribe',
+                    'POST /api/quotes/realtime',
+                    'GET /api/streaming/status',
+                    'POST /api/orders/dry-run',
+                    'POST /api/orders/place',
+                    'GET /api/orders/live',
+                    'GET /api/orders/:orderId',
+                    'DELETE /api/orders/:orderId',
+                    'GET /api/orders/stats',
+                    'POST /api/strategies/iron-condor',
+                    'POST /api/strategies/short-strangle',
+                    'POST /api/strategies/0dte',
+                    'POST /api/strategies/butterfly',
+                    'GET /api/test/scenarios',
+                    'POST /api/test/run',
+                    'POST /api/test/run-all',
+                    'POST /api/test/manual-input'
                 ]
             });
         });

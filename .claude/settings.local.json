@@ -10,7 +10,12 @@
       "Bash(git init:*)",
       "Bash(git config:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(grep:*)",
+      "Bash(taskkill:*)",
+      "Bash(wmic process where:*)",
+      "Bash(npm run start:*)",
+      "Bash(start http://localhost:3000/testing.html)"
     ],
     "deny": [],
     "ask": []

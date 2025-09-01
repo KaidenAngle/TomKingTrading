@@ -4,6 +4,9 @@
  * Based on Tom King Trading Framework v17 specifications
  */
 
+const MarketDataStreamer = require('./marketDataStreamer');
+const OrderManager = require('./orderManager');
+
 const DEBUG = process.env.NODE_ENV !== 'production';
 
 // API Credentials (Store securely in production!)
@@ -45,15 +48,27 @@ class TokenManager {
     const now = Date.now();
     // Refresh 1 minute early to avoid expiration
     if (!this.accessToken || now >= this.tokenExpiry) {
-      if (DEBUG) console.log('🔄 Refreshing access token...');
+      console.log('🔄 Access token expired or missing, refreshing...');
       this.accessToken = await this.generateAccessToken();
-      this.tokenExpiry = now + (14 * 60 * 1000); // 14 minutes (expires in 15)
+      this.tokenExpiry = now + (14 * 60 * 1000); // 14 minutes (expires in 15 per API docs)
+    } else {
+      console.log('✅ Using cached access token');
     }
     return this.accessToken;
   }
   
+  // Alias for compatibility
+  async getValidAccessToken() {
+    return this.getValidToken();
+  }
+  
   async generateAccessToken() {
     try {
+      console.log('🔄 Generating new OAuth2 access token...');
+      console.log('🔗 OAuth endpoint:', `${CURRENT_ENV.API_BASE}/oauth/token`);
+      console.log('🔑 Refresh token:', this.refreshToken ? `${this.refreshToken.substring(0, 20)}...` : 'MISSING');
+      console.log('🔐 Client secret:', this.clientSecret ? `${this.clientSecret.substring(0, 10)}...` : 'MISSING');
+      
       const response = await fetch(`${CURRENT_ENV.API_BASE}/oauth/token`, {
         method: 'POST',
         headers: {
@@ -261,22 +276,72 @@ class TastyTradeAPI {
     this.marketDataCache = new Map();
     this.cacheTTL = 5000; // 5 seconds
     this.errorHandler = new APIFailureHandler();
+    
+    // Initialize real-time market data streamer
+    this.marketDataStreamer = new MarketDataStreamer(this);
+    this.isStreamingEnabled = false;
+    
+    // Initialize order manager
+    this.orderManager = new OrderManager(this);
+    this.ordersEnabled = false;
   }
   
   async initialize() {
     try {
-      if (DEBUG) console.log('🚀 Initializing TastyTrade API connection...');
+      console.log('🚀 Initializing TastyTrade API connection...');
+      console.log('📊 Environment:', this.env);
+      console.log('🔗 Base URL:', this.baseURL);
       
-      // Get account info
-      const accounts = await this.request('/customers/me/accounts');
-      this.accountNumber = accounts.data.items[0]['account-number'];
-      if (DEBUG) console.log(`✅ Connected to account: ${this.accountNumber}`);
+      // First ensure we have valid tokens
+      const token = await this.tokenManager.getValidAccessToken();
+      console.log('✅ Access token obtained');
       
-      // Load positions and balance
+      // Get customer info first
+      console.log('📝 Fetching customer info...');
+      const customerInfo = await this.request('/customers/me');
+      console.log('👤 Customer ID:', customerInfo?.data?.id);
+      
+      // Get account info - API returns array directly, not data.items
+      console.log('📝 Fetching accounts...');
+      const accountsResponse = await this.request('/customers/me/accounts');
+      console.log('📊 Accounts response type:', typeof accountsResponse);
+      console.log('📊 Accounts response:', JSON.stringify(accountsResponse, null, 2).substring(0, 500));
+      
+      // The response structure can vary: direct array, data array, or data.items array
+      let accounts = accountsResponse;
+      if (accountsResponse?.data?.items) {
+        accounts = accountsResponse.data.items;
+      } else if (accountsResponse?.data && Array.isArray(accountsResponse.data)) {
+        accounts = accountsResponse.data;
+      }
+      
+      // Extract account number from first account
+      if (Array.isArray(accounts) && accounts.length > 0) {
+        const firstAccount = accounts[0];
+        // Account number is in account['account-number'] per API docs
+        if (firstAccount.account && firstAccount.account['account-number']) {
+          this.accountNumber = firstAccount.account['account-number'];
+        } else if (firstAccount['account-number']) {
+          this.accountNumber = firstAccount['account-number'];
+        }
+      }
+      
+      if (!this.accountNumber) {
+        console.error('❌ Could not extract account number from:', accounts);
+        throw new Error('Failed to get account number from API');
+      }
+      
+      console.log(`✅ Connected to account: ${this.accountNumber}`);
+      
+      // Initialize order manager with account number
+      this.orderManager.initialize(this.accountNumber);
+      this.ordersEnabled = true;
+      
+      // Load positions and balance with the valid account number
       await this.refreshPositions();
       await this.refreshBalance();
       
-      if (DEBUG) console.log('✅ API initialization complete');
+      console.log('✅ API initialization complete');
       return true;
     } catch (error) {
       console.error('🚨 API initialization failed:', error);
@@ -520,6 +585,132 @@ class TastyTradeAPI {
       console.error('Account status error:', error);
       throw error;
     }
+  }
+
+  /**
+   * Enable real-time market data streaming
+   */
+  async enableStreaming() {
+    try {
+      if (this.isStreamingEnabled) {
+        if (DEBUG) console.log('📡 Streaming already enabled');
+        return true;
+      }
+
+      if (DEBUG) console.log('📡 Enabling real-time market data streaming...');
+      
+      const success = await this.marketDataStreamer.initialize();
+      
+      if (success) {
+        this.isStreamingEnabled = true;
+        
+        // Set up market data listener to update cache
+        this.marketDataStreamer.addListener((event, data) => {
+          if (event === 'quotes') {
+            // Update market data cache with real-time quotes
+            Object.entries(data.updates).forEach(([symbol, quote]) => {
+              this.marketDataCache.set(symbol, {
+                ...quote,
+                cached: false, // Mark as live data
+                timestamp: data.timestamp
+              });
+            });
+          }
+        });
+        
+        if (DEBUG) console.log('✅ Real-time streaming enabled');
+        return true;
+      } else {
+        console.error('🚨 Failed to enable streaming');
+        return false;
+      }
+      
+    } catch (error) {
+      console.error('🚨 Error enabling streaming:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Disable real-time market data streaming
+   */
+  async disableStreaming() {
+    try {
+      if (!this.isStreamingEnabled) {
+        return true;
+      }
+
+      await this.marketDataStreamer.disconnect();
+      this.isStreamingEnabled = false;
+      
+      if (DEBUG) console.log('📡 Real-time streaming disabled');
+      return true;
+      
+    } catch (error) {
+      console.error('🚨 Error disabling streaming:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Subscribe to real-time quotes for specific symbols
+   */
+  async subscribeToQuotes(symbols) {
+    if (!this.isStreamingEnabled) {
+      console.warn('⚠️ Streaming not enabled - call enableStreaming() first');
+      return false;
+    }
+    
+    const symbolArray = Array.isArray(symbols) ? symbols : [symbols];
+    return await this.marketDataStreamer.subscribeToQuotes(symbolArray);
+  }
+
+  /**
+   * Get real-time quote for a symbol (streaming or cached)
+   */
+  getRealtimeQuote(symbol) {
+    if (this.isStreamingEnabled) {
+      // Try to get live quote first
+      const liveQuote = this.marketDataStreamer.getQuote(symbol);
+      if (liveQuote) {
+        return { ...liveQuote, source: 'live' };
+      }
+    }
+    
+    // Fall back to cached data
+    const cachedQuote = this.marketDataCache.get(symbol);
+    if (cachedQuote) {
+      return { ...cachedQuote, source: 'cached' };
+    }
+    
+    return null;
+  }
+
+  /**
+   * Get multiple real-time quotes
+   */
+  getRealtimeQuotes(symbols) {
+    const result = {};
+    const symbolArray = Array.isArray(symbols) ? symbols : [symbols];
+    
+    symbolArray.forEach(symbol => {
+      const quote = this.getRealtimeQuote(symbol);
+      if (quote) {
+        result[symbol] = quote;
+      }
+    });
+    
+    return result;
+  }
+
+  /**
+   * Get streaming status and statistics
+   */
+  getStreamingStatus() {
+    return {
+      enabled: this.isStreamingEnabled,
+      ...this.marketDataStreamer.getStatus()
+    };
   }
 }
 
@@ -904,12 +1095,6 @@ class OrderBuilder {
   getPreparedOrders() {
     return this.orders.filter(order => order.status === 'PREPARED_NOT_SUBMITTED');
   }
-  
-  // Clear prepared orders
-  clearPreparedOrders() {
-    this.orders = [];
-    if (DEBUG) console.log('🗑️ Prepared orders cleared');
-  }
 }
 
 /**
@@ -952,6 +1137,7 @@ async function testAPIConnection() {
 // Export all classes and utilities
 module.exports = {
   TastyTradeAPI,
+  MarketDataStreamer,
   MarketDataCollector,
   OrderBuilder,
   TokenManager,

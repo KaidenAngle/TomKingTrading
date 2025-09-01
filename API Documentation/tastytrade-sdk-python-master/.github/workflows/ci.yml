@@ -1,0 +1,26 @@
+name: CI
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - '*'
+      - '!master'
+jobs:
+  deploy:
+    name: Check & Deploy Snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.11'
+      - uses: snok/install-poetry@v1
+        with:
+          version: '1.8.3'
+      - run: poetry install
+      - run: make lint
+      - run: make test
+        env:
+          API_BASE_URL: ${{ vars.TASTYTRADE_CERT_URL }}
+          TASTYTRADE_LOGIN: ${{ secrets.TASTYTRADE_CERT_LOGIN }}
+          TASTYTRADE_PASSWORD: ${{ secrets.TASTYTRADE_CERT_PASSWORD }}

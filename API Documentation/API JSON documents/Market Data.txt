@@ -1,0 +1,86 @@
+OpenAPI definition
+ v0 
+OAS3
+Servers
+
+http://localhost:8080 - Generated server url
+Filter by tag
+market-data-controller
+
+
+GET
+/market-data/by-type
+Get market data for many symbols of type. Combined limit across all types is 100
+
+Schemas
+Instrument{
+symbol	string
+instrumentType	string
+Enum:
+Array [ 12 ]
+instrumentKey	InstrumentKey{...}
+underlyingInstrument	{...}
+rootSymbol	string
+exchange	string
+Enum:
+Array [ 9 ]
+}
+InstrumentKey{
+symbol	string
+instrumentType	string
+Enum:
+Array [ 12 ]
+}
+MarketData{
+symbol	string
+instrumentType	string
+Enum:
+Array [ 12 ]
+updatedAt	string($date-time)
+bid	number($double)
+bidSize	number($double)
+ask	number($double)
+askSize	number($double)
+mid	number($double)
+mark	number($double)
+last	number($double)
+lastExt	number($double)
+lastMkt	number($double)
+beta	number($double)
+dividendAmount	number($double)
+dividendFrequency	number($double)
+open	number($double)
+dayHighPrice	number($double)
+dayLowPrice	number($double)
+close	number($double)
+closePriceType	string
+Enum:
+Array [ 5 ]
+prevClose	number($double)
+prevClosePriceType	string
+Enum:
+Array [ 5 ]
+summaryDate	string($date)
+prevCloseDate	string($date)
+lowLimitPrice	number($double)
+highLimitPrice	number($double)
+tradingHaltedReason	string
+haltStartTime	integer($int64)
+haltEndTime	integer($int64)
+yearLowPrice	number($double)
+yearHighPrice	number($double)
+volume	number($double)
+tradingHalted	boolean
+lastTradeTime	integer($int64)
+dayOpen	number($double)
+deprecated: true
+dayHigh	number($double)
+deprecated: true
+dayLow	number($double)
+deprecated: true
+dayClose	number($double)
+deprecated: true
+prevDayClose	number($double)
+deprecated: true
+instrument	Instrument{...}
+}
