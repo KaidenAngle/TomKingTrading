@@ -18,12 +18,12 @@ const path = require('path');
 const { performance } = require('perf_hooks');
 
 // Import backtesting modules
-const BacktestingEngine = require('./src/backtestingEngine');
-const HistoricalDataManager = require('./src/historicalDataManager');
-const PerformanceMetrics = require('./src/performanceMetrics');
-const BacktestReportGenerator = require('./src/backtestReporting');
-const TestDataGenerator = require('./src/testDataGenerator');
-const { getLogger } = require('./src/logger');
+const BacktestingEngine = require('../src/backtestingEngine');
+const HistoricalDataManager = require('../src/historicalDataManager');
+const PerformanceMetrics = require('../src/performanceMetrics');
+const BacktestReportGenerator = require('../src/backtestReporting');
+const TestDataGenerator = require('../src/testDataGenerator');
+const { getLogger } = require('../src/logger');
 
 class BacktestDemonstration {
     constructor(options = {}) {

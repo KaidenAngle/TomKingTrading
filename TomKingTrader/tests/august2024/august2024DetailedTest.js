@@ -18,7 +18,7 @@
  * - Real-time monitoring and forced exits
  */
 
-const { RiskManager, August5DisasterPrevention, VIXRegimeAnalyzer, BPLimitsManager } = require('./src/riskManager');
+const { RiskManager, August5DisasterPrevention, VIXRegimeAnalyzer, BPLimitsManager } = require('../../../src/riskManager');
 
 // Historical market data from August 5, 2024
 const AUGUST_5_MARKET_DATA = {

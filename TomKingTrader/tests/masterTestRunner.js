@@ -19,7 +19,7 @@
  * NO LIVE TRADING - RECOMMENDATIONS ONLY
  */
 
-const ComprehensiveTestSuite = require('./src/comprehensiveTestSuite');
+const ComprehensiveTestSuite = require('../src/comprehensiveTestSuite');
 const fs = require('fs');
 const path = require('path');
 

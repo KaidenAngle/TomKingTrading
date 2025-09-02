@@ -6,9 +6,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const { runAugust2024Test } = require('./august2024DetailedTest');
-const { August2024VisualReport } = require('./august2024VisualReport');
-const { runRecoveryAnalysis } = require('./august2024RecoveryAnalysis');
+const { runAugust2024Test } = require('../../../august2024DetailedTest');
+const { August2024VisualReport } = require('../../../august2024VisualReport');
+const { runRecoveryAnalysis } = require('../../../august2024RecoveryAnalysis');
 
 class ComprehensiveTestRunner {
   constructor() {

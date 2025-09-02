@@ -5,10 +5,10 @@
  * Tests whether the Tom King Framework would have prevented the £308k loss
  */
 
-const BacktestingEngine = require('./src/backtestingEngine');
-const TestDataGenerator = require('./src/testDataGenerator');
-const PerformanceMetrics = require('./src/performanceMetrics');
-const { getLogger } = require('./src/logger');
+const BacktestingEngine = require('../../../src/backtestingEngine');
+const TestDataGenerator = require('../../../src/testDataGenerator');
+const PerformanceMetrics = require('../../../src/performanceMetrics');
+const { getLogger } = require('../../../src/logger');
 
 async function testAugust2024CrashProtection() {
     const logger = getLogger();

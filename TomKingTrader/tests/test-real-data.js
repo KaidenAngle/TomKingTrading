@@ -3,8 +3,8 @@
  * This proves that backtesting uses genuine market data, not simulated data
  */
 
-const HistoricalDataManager = require('./src/historicalDataManager');
-const { getLogger } = require('./src/logger');
+const HistoricalDataManager = require('../src/historicalDataManager');
+const { getLogger } = require('../src/logger');
 
 async function testRealDataFetching() {
     console.log('\n=== TESTING REAL HISTORICAL DATA FETCHING ===\n');

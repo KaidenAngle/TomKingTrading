@@ -24,7 +24,9 @@
       "Bash(timeout:*)",
       "Bash(npm start)",
       "Bash(npm uninstall:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(npm test)",
+      "Bash(npm run test-quick:*)"
     ],
     "deny": [],
     "ask": []

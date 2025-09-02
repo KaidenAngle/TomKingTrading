@@ -7,11 +7,11 @@
  */
 
 require('dotenv').config();
-const { TastyTradeAPI } = require('./src/tastytradeAPI');
-const DataManager = require('./src/dataManager');
-const OrderPreparation = require('./src/orderPreparation');
-const EnhancedRecommendationEngine = require('./src/enhancedRecommendationEngine');
-const V14CompleteFunctionality = require('./src/v14CompleteFunctionality');
+const { TastyTradeAPI } = require('../src/tastytradeAPI');
+const DataManager = require('../src/dataManager');
+const OrderPreparation = require('../src/orderPreparation');
+const EnhancedRecommendationEngine = require('../src/enhancedRecommendationEngine');
+const V14CompleteFunctionality = require('../src/v14CompleteFunctionality');
 
 async function testProductionData() {
     console.log('================================================================================');

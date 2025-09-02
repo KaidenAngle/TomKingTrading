@@ -7,14 +7,14 @@
 
 const fs = require('fs');
 const path = require('path');
-const { TomKingTrader, TomKingUtils } = require('./src/index');
-const SignalGenerator = require('./src/signalGenerator');
-const TradingStrategies = require('./src/strategies');
-const { PatternAnalyzer } = require('./src/patternAnalysis');
-const { PositionManager } = require('./src/positionManager');
-const { RiskManager } = require('./src/riskManager');
-const GreeksCalculator = require('./src/greeksCalculator');
-const config = require('./src/config');
+const { TomKingTrader, TomKingUtils } = require('../src/index');
+const SignalGenerator = require('../src/signalGenerator');
+const TradingStrategies = require('../src/strategies');
+const { PatternAnalyzer } = require('../src/patternAnalysis');
+const { PositionManager } = require('../src/positionManager');
+const { RiskManager } = require('../src/riskManager');
+const GreeksCalculator = require('../src/greeksCalculator');
+const config = require('../src/config');
 
 // Test Results Tracking
 const testResults = {

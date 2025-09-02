@@ -3,8 +3,8 @@
  * Tests the specific symbols used in Tom King strategies
  */
 
-const { TastyTradeAPI } = require('./src/tastytradeAPI');
-const { getLogger } = require('./src/logger');
+const { TastyTradeAPI } = require('../src/tastytradeAPI');
+const { getLogger } = require('../src/logger');
 
 const logger = getLogger();
 

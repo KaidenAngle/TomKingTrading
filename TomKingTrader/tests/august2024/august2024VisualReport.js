@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { runAugust2024Test } = require('./august2024DetailedTest');
+const { runAugust2024Test } = require('../../../august2024DetailedTest');
 
 class August2024VisualReport {
   constructor() {

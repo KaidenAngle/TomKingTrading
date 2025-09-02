@@ -3,7 +3,7 @@
  * Detailed analysis of recovery timelines and diversification benefits
  */
 
-const { August2024CrashSimulator } = require('./august2024DetailedTest');
+const { August2024CrashSimulator } = require('../../../august2024DetailedTest');
 
 class RecoveryAnalysis {
   constructor() {

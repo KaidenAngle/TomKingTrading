@@ -6,9 +6,9 @@
  */
 
 require('dotenv').config();
-const { TastyTradeAPI } = require('./src/tastytradeAPI');
-const EnhancedRecommendationEngine = require('./src/enhancedRecommendationEngine');
-const V14CompleteFunctionality = require('./src/v14CompleteFunctionality');
+const { TastyTradeAPI } = require('../src/tastytradeAPI');
+const EnhancedRecommendationEngine = require('../src/enhancedRecommendationEngine');
+const V14CompleteFunctionality = require('../src/v14CompleteFunctionality');
 
 // Test configuration
 const TEST_CONFIG = {

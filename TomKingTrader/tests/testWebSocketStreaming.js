@@ -3,8 +3,8 @@
  * Tom King Trading Framework - WebSocket Test
  */
 
-const { TastyTradeAPI } = require('./src/tastytradeAPI');
-const { getLogger } = require('./src/logger');
+const { TastyTradeAPI } = require('../src/tastytradeAPI');
+const { getLogger } = require('../src/logger');
 
 const logger = getLogger();
 

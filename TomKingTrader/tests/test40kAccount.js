@@ -7,12 +7,12 @@
  */
 
 require('dotenv').config();
-const { TastyTradeAPI } = require('./src/tastytradeAPI');
-const DataManager = require('./src/dataManager');
-const EnhancedRecommendationEngine = require('./src/enhancedRecommendationEngine');
-const V14CompleteFunctionality = require('./src/v14CompleteFunctionality');
-const OrderPreparation = require('./src/orderPreparation');
-const FrameworkOutputGenerator = require('./src/frameworkOutputGenerator');
+const { TastyTradeAPI } = require('../src/tastytradeAPI');
+const DataManager = require('../src/dataManager');
+const EnhancedRecommendationEngine = require('../src/enhancedRecommendationEngine');
+const V14CompleteFunctionality = require('../src/v14CompleteFunctionality');
+const OrderPreparation = require('../src/orderPreparation');
+const FrameworkOutputGenerator = require('../src/frameworkOutputGenerator');
 
 async function analyze40kAccount() {
     console.log('================================================================================');
