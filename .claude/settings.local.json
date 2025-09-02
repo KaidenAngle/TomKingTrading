@@ -26,7 +26,8 @@
       "Bash(npm uninstall:*)",
       "Bash(powershell:*)",
       "Bash(npm test)",
-      "Bash(npm run test-quick:*)"
+      "Bash(npm run test-quick:*)",
+      "Bash(npm test:*)"
     ],
     "deny": [],
     "ask": []

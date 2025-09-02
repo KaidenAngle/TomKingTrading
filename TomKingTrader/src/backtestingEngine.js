@@ -1217,23 +1217,146 @@ class BacktestingEngine {
     }
 
     async calculatePerformanceMetrics(strategyFilter) {
-        // Placeholder - will be implemented in performance metrics module
         const filteredTrades = strategyFilter ? 
             this.trades.filter(trade => trade.strategy === strategyFilter) : 
             this.trades;
 
+        if (filteredTrades.length === 0) {
+            return {
+                totalTrades: 0,
+                winningTrades: 0,
+                losingTrades: 0,
+                winRate: 0,
+                totalPnL: 0,
+                avgWin: 0,
+                avgLoss: 0,
+                profitFactor: 0,
+                maxDrawdown: 0,
+                sharpeRatio: 0,
+                returnOnInvestment: 0,
+                monthlyReturns: [],
+                maxConsecutiveLosses: 0,
+                maxConsecutiveWins: 0,
+                averageDaysInTrade: 0
+            };
+        }
+
         const winningTrades = filteredTrades.filter(trade => trade.pnl > 0);
         const losingTrades = filteredTrades.filter(trade => trade.pnl < 0);
+        
+        const totalWinAmount = winningTrades.reduce((sum, trade) => sum + trade.pnl, 0);
+        const totalLossAmount = Math.abs(losingTrades.reduce((sum, trade) => sum + trade.pnl, 0));
+        
+        // Calculate drawdown
+        let runningPnL = 0;
+        let peak = 0;
+        let maxDrawdown = 0;
+        
+        filteredTrades.forEach(trade => {
+            runningPnL += trade.pnl;
+            if (runningPnL > peak) {
+                peak = runningPnL;
+            }
+            const drawdown = peak - runningPnL;
+            if (drawdown > maxDrawdown) {
+                maxDrawdown = drawdown;
+            }
+        });
+
+        // Calculate consecutive wins/losses
+        let currentStreak = 0;
+        let maxWinStreak = 0;
+        let maxLossStreak = 0;
+        let lastWasWin = null;
+
+        filteredTrades.forEach(trade => {
+            const isWin = trade.pnl > 0;
+            if (lastWasWin === isWin) {
+                currentStreak++;
+            } else {
+                if (lastWasWin === true) {
+                    maxWinStreak = Math.max(maxWinStreak, currentStreak);
+                } else if (lastWasWin === false) {
+                    maxLossStreak = Math.max(maxLossStreak, currentStreak);
+                }
+                currentStreak = 1;
+                lastWasWin = isWin;
+            }
+        });
+
+        // Final streak check
+        if (lastWasWin === true) {
+            maxWinStreak = Math.max(maxWinStreak, currentStreak);
+        } else if (lastWasWin === false) {
+            maxLossStreak = Math.max(maxLossStreak, currentStreak);
+        }
+
+        // Calculate average days in trade
+        const avgDaysInTrade = filteredTrades.reduce((sum, trade) => {
+            if (trade.exitDate && trade.entryDate) {
+                const days = (new Date(trade.exitDate) - new Date(trade.entryDate)) / (1000 * 60 * 60 * 24);
+                return sum + days;
+            }
+            return sum;
+        }, 0) / filteredTrades.length;
+
+        const totalPnL = filteredTrades.reduce((sum, trade) => sum + trade.pnl, 0);
+        const returnOnInvestment = (totalPnL / this.startingBalance) * 100;
 
         return {
             totalTrades: filteredTrades.length,
             winningTrades: winningTrades.length,
             losingTrades: losingTrades.length,
             winRate: (winningTrades.length / filteredTrades.length) * 100,
-            totalPnL: filteredTrades.reduce((sum, trade) => sum + trade.pnl, 0),
-            avgWin: winningTrades.length > 0 ? winningTrades.reduce((sum, trade) => sum + trade.pnl, 0) / winningTrades.length : 0,
-            avgLoss: losingTrades.length > 0 ? losingTrades.reduce((sum, trade) => sum + trade.pnl, 0) / losingTrades.length : 0
+            totalPnL: totalPnL,
+            avgWin: winningTrades.length > 0 ? totalWinAmount / winningTrades.length : 0,
+            avgLoss: losingTrades.length > 0 ? totalLossAmount / losingTrades.length : 0,
+            profitFactor: totalLossAmount > 0 ? totalWinAmount / totalLossAmount : totalWinAmount > 0 ? 999 : 0,
+            maxDrawdown: maxDrawdown,
+            sharpeRatio: this.calculateSharpeRatio(filteredTrades),
+            returnOnInvestment: returnOnInvestment,
+            monthlyReturns: this.calculateMonthlyReturns(filteredTrades),
+            maxConsecutiveLosses: maxLossStreak,
+            maxConsecutiveWins: maxWinStreak,
+            averageDaysInTrade: Math.round(avgDaysInTrade * 10) / 10
         };
+    }
+
+    calculateSharpeRatio(trades) {
+        if (trades.length < 2) return 0;
+        
+        const returns = trades.map(trade => trade.pnl);
+        const avgReturn = returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
+        const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) / (returns.length - 1);
+        const stdDev = Math.sqrt(variance);
+        
+        if (stdDev === 0) return avgReturn > 0 ? 999 : 0;
+        
+        // Assuming risk-free rate of 2% annually, or ~0.0055% daily
+        const riskFreeRate = 0.000055;
+        return (avgReturn - riskFreeRate) / stdDev;
+    }
+
+    calculateMonthlyReturns(trades) {
+        const monthlyData = {};
+        
+        trades.forEach(trade => {
+            if (trade.exitDate) {
+                const date = new Date(trade.exitDate);
+                const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                
+                if (!monthlyData[monthKey]) {
+                    monthlyData[monthKey] = 0;
+                }
+                monthlyData[monthKey] += trade.pnl;
+            }
+        });
+
+        return Object.entries(monthlyData).map(([month, pnl]) => ({
+            month,
+            pnl,
+            returnPct: (pnl / this.startingBalance) * 100
+        })).sort((a, b) => a.month.localeCompare(b.month));
     }
 }
 

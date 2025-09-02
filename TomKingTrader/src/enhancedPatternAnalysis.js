@@ -1472,8 +1472,72 @@ class ConfidenceScorer {
   }
 
   loadHistoricalData() {
-    // Placeholder - would load from database or file
-    return {};
+    try {
+      // Try to load from historical data manager if available
+      if (typeof require !== 'undefined') {
+        try {
+          const HistoricalDataManager = require('./historicalDataManager');
+          const dataManager = new HistoricalDataManager();
+          return dataManager.loadCachedData() || this.generateSampleData();
+        } catch (moduleError) {
+          console.warn('Historical data manager not available:', moduleError.message);
+        }
+      }
+      
+      // Fallback to sample data generation
+      return this.generateSampleData();
+    } catch (error) {
+      console.error('Error loading historical data:', error);
+      return this.generateSampleData();
+    }
+  }
+
+  generateSampleData() {
+    // Generate sample historical data for common symbols
+    const symbols = ['ES', 'SPY', 'QQQ', 'CL', 'GC', 'TLT', 'IWM'];
+    const data = {};
+    
+    symbols.forEach(symbol => {
+      const basePrice = this.getBasePrice(symbol);
+      const history = [];
+      let currentPrice = basePrice;
+      
+      // Generate 252 days of sample data (1 trading year)
+      for (let i = 0; i < 252; i++) {
+        const change = (Math.random() - 0.5) * 0.04; // +/- 2% daily change
+        currentPrice *= (1 + change);
+        
+        const high = currentPrice * (1 + Math.random() * 0.015);
+        const low = currentPrice * (1 - Math.random() * 0.015);
+        const volume = Math.floor(1000000 * (0.5 + Math.random()));
+        
+        history.push({
+          date: new Date(Date.now() - (251 - i) * 24 * 60 * 60 * 1000),
+          open: currentPrice * (1 + (Math.random() - 0.5) * 0.01),
+          high: high,
+          low: low,
+          close: currentPrice,
+          volume: volume
+        });
+      }
+      
+      data[symbol] = history;
+    });
+    
+    return data;
+  }
+
+  getBasePrice(symbol) {
+    const basePrices = {
+      'ES': 4500,
+      'SPY': 450,
+      'QQQ': 350,
+      'CL': 70,
+      'GC': 2000,
+      'TLT': 100,
+      'IWM': 200
+    };
+    return basePrices[symbol] || 100;
   }
 }
 

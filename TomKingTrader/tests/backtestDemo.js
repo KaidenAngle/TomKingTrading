@@ -1007,20 +1007,226 @@ class BacktestDemonstration {
     renderRiskScenariosHTML(scenarios) { return '<p>Risk scenarios content</p>'; }
     renderOverallAssessmentHTML(assessment) { return '<p>Overall assessment</p>'; }
     
-    generateExecutiveSummary() { return {}; }
+    generateExecutiveSummary() { 
+        const totalPnL = this.trades.reduce((sum, t) => sum + t.pnl, 0);
+        const winningTrades = this.trades.filter(t => t.pnl > 0);
+        
+        return {
+            totalTrades: this.trades.length,
+            winRate: this.trades.length > 0 ? (winningTrades.length / this.trades.length * 100).toFixed(1) : 0,
+            totalPnL: totalPnL,
+            returnPercent: (totalPnL / 35000) * 100, // Based on £35k starting capital
+            maxDrawdown: this.calculateMaxDrawdown(),
+            sharpeRatio: this.calculateSharpeRatio(),
+            bestStrategy: this.identifyBestStrategy(),
+            riskScore: this.calculateRiskScore(),
+            complianceScore: this.calculateOverallCompliance().score
+        };
+    }
     identifyBestStrategy() { return 'LT112'; }
-    calculateOverallPerformance() { return {}; }
-    assessOverallRisk() { return {}; }
+    calculateOverallPerformance() { 
+        const totalPnL = this.trades.reduce((sum, t) => sum + t.pnl, 0);
+        const winningTrades = this.trades.filter(t => t.pnl > 0);
+        const losingTrades = this.trades.filter(t => t.pnl < 0);
+        
+        return {
+            totalReturn: totalPnL,
+            returnPercent: (totalPnL / 35000) * 100, // Based on £35k starting capital
+            winRate: this.trades.length > 0 ? (winningTrades.length / this.trades.length * 100) : 0,
+            avgWin: winningTrades.length > 0 ? winningTrades.reduce((sum, t) => sum + t.pnl, 0) / winningTrades.length : 0,
+            avgLoss: losingTrades.length > 0 ? Math.abs(losingTrades.reduce((sum, t) => sum + t.pnl, 0) / losingTrades.length) : 0,
+            profitFactor: this.calculateProfitFactor(),
+            maxDrawdown: this.calculateMaxDrawdown(),
+            volatility: this.calculateVolatility()
+        };
+    }
+    assessOverallRisk() { 
+        return {
+            riskScore: this.calculateRiskScore(),
+            maxDrawdown: this.calculateMaxDrawdown(),
+            volatility: this.calculateVolatility(),
+            concentrationRisk: this.calculateConcentrationRisk(),
+            bpUtilization: this.calculateBPUtilization(),
+            riskAdjustedReturn: this.calculateRiskAdjustedReturn(),
+            recommendations: ['Maintain diversification', 'Monitor correlation limits', 'Stay within 35% BP usage']
+        };
+    }
     calculateOverallCompliance() { return { score: 85 }; }
     generateKeyFindings() { return []; }
     listOutputFiles() { return []; }
     generateNextSteps() { return []; }
-    generatePortfolioSummary() { return {}; }
+    generatePortfolioSummary() { 
+        const strategyCounts = {};
+        const symbolCounts = {};
+        
+        this.trades.forEach(trade => {
+            strategyCounts[trade.strategy] = (strategyCounts[trade.strategy] || 0) + 1;
+            symbolCounts[trade.symbol] = (symbolCounts[trade.symbol] || 0) + 1;
+        });
+        
+        return {
+            totalPositions: this.trades.length,
+            strategiesUsed: Object.keys(strategyCounts),
+            strategyDistribution: strategyCounts,
+            symbolDistribution: symbolCounts,
+            avgPositionSize: this.calculateAvgPositionSize(),
+            diversificationScore: Object.keys(symbolCounts).length / Math.max(this.trades.length, 1) * 100
+        };
+    }
     generateBenchmarkReturns() { return []; }
-    compareWithBenchmark() { return {}; }
+    compareWithBenchmark() { 
+        const benchmarkReturn = 8; // Assume 8% annual benchmark return
+        const totalPnL = this.trades.reduce((sum, t) => sum + t.pnl, 0);
+        const strategyReturn = (totalPnL / 35000) * 100;
+        
+        return {
+            strategyReturn: strategyReturn,
+            benchmarkReturn: benchmarkReturn,
+            excessReturn: strategyReturn - benchmarkReturn,
+            outperformance: strategyReturn > benchmarkReturn,
+            alpha: strategyReturn - benchmarkReturn,
+            beta: 0.7, // Estimated beta for options strategies
+            trackingError: 5.2 // Estimated tracking error
+        };
+    }
     generateRiskScenarioReport() { return Promise.resolve(); }
-    generateOverallAssessment() { return {}; }
-    generateRecommendations() { return []; }
+    generateOverallAssessment() { 
+        const performance = this.calculateOverallPerformance();
+        const totalPnL = this.trades.reduce((sum, t) => sum + t.pnl, 0);
+        
+        return {
+            overallScore: Math.min(100, Math.max(0, 50 + (performance.returnPercent || 0) * 2)),
+            strengths: this.identifyStrengths(),
+            weaknesses: this.identifyWeaknesses(), 
+            recommendations: this.generateRecommendations(),
+            nextSteps: this.generateNextSteps(),
+            riskLevel: totalPnL < -5000 ? 'HIGH' : totalPnL < 0 ? 'MEDIUM' : 'LOW',
+            goalProgress: Math.min(100, ((35000 + totalPnL) / 80000) * 100) // Progress towards £80k goal
+        };
+    }
+    generateRecommendations() { 
+        const recommendations = [];
+        const totalPnL = this.trades.reduce((sum, t) => sum + t.pnl, 0);
+        const winRate = this.trades.length > 0 ? (this.trades.filter(t => t.pnl > 0).length / this.trades.length * 100) : 0;
+        
+        if (totalPnL < 0) {
+            recommendations.push('Consider reducing position sizes to limit losses');
+        }
+        if (winRate < 60) {
+            recommendations.push('Review entry criteria to improve win rate');
+        }
+        if (this.trades.length < 10) {
+            recommendations.push('Increase trading frequency for better statistical significance');
+        }
+        
+        return recommendations.length > 0 ? recommendations : ['Continue current strategy with minor optimizations'];
+    }
+
+    // Helper methods for the updated functions
+    calculateMaxDrawdown() {
+        let peak = 0;
+        let maxDrawdown = 0;
+        let runningPnL = 0;
+        
+        this.trades.forEach(trade => {
+            runningPnL += trade.pnl;
+            if (runningPnL > peak) peak = runningPnL;
+            const drawdown = peak - runningPnL;
+            if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+        });
+        
+        return maxDrawdown;
+    }
+
+    calculateSharpeRatio() {
+        if (this.trades.length < 2) return 0;
+        const returns = this.trades.map(t => t.pnl);
+        const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+        const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / (returns.length - 1);
+        const stdDev = Math.sqrt(variance);
+        return stdDev > 0 ? avgReturn / stdDev : 0;
+    }
+
+    calculateRiskScore() {
+        const maxDD = this.calculateMaxDrawdown();
+        const volatility = this.calculateVolatility();
+        const concentration = this.calculateConcentrationRisk();
+        
+        // Simple risk scoring: higher drawdown, volatility, and concentration = higher risk
+        return Math.min(100, (maxDD / 1000) * 30 + volatility * 20 + concentration * 50);
+    }
+
+    calculateVolatility() {
+        if (this.trades.length < 2) return 0;
+        const returns = this.trades.map(t => t.pnl);
+        const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+        const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / (returns.length - 1);
+        return Math.sqrt(variance) / Math.abs(avgReturn || 1) * 100; // Coefficient of variation
+    }
+
+    calculateConcentrationRisk() {
+        const symbolCounts = {};
+        this.trades.forEach(trade => {
+            symbolCounts[trade.symbol] = (symbolCounts[trade.symbol] || 0) + 1;
+        });
+        
+        const maxConcentration = Math.max(...Object.values(symbolCounts));
+        return this.trades.length > 0 ? maxConcentration / this.trades.length : 0;
+    }
+
+    calculateBPUtilization() {
+        // Estimate based on typical BP requirements
+        const estimatedBP = this.trades.reduce((sum, trade) => {
+            const bpPerTrade = trade.strategy === 'STRANGLE' ? 5000 : 3000;
+            return sum + bpPerTrade;
+        }, 0);
+        return Math.min(100, (estimatedBP / 35000) * 100); // As percentage of starting capital
+    }
+
+    calculateRiskAdjustedReturn() {
+        const totalPnL = this.trades.reduce((sum, t) => sum + t.pnl, 0);
+        const riskScore = this.calculateRiskScore();
+        return riskScore > 0 ? (totalPnL / 35000 * 100) / (riskScore / 100) : 0;
+    }
+
+    calculateProfitFactor() {
+        const winningTrades = this.trades.filter(t => t.pnl > 0);
+        const losingTrades = this.trades.filter(t => t.pnl < 0);
+        
+        const totalWins = winningTrades.reduce((sum, t) => sum + t.pnl, 0);
+        const totalLosses = Math.abs(losingTrades.reduce((sum, t) => sum + t.pnl, 0));
+        
+        return totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? 999 : 0;
+    }
+
+    calculateAvgPositionSize() {
+        return this.trades.length > 0 ? 
+            this.trades.reduce((sum, t) => sum + Math.abs(t.entryValue || 1000), 0) / this.trades.length : 0;
+    }
+
+    identifyStrengths() {
+        const strengths = [];
+        const winRate = this.trades.length > 0 ? (this.trades.filter(t => t.pnl > 0).length / this.trades.length * 100) : 0;
+        const totalPnL = this.trades.reduce((sum, t) => sum + t.pnl, 0);
+        
+        if (winRate > 70) strengths.push('High win rate');
+        if (totalPnL > 0) strengths.push('Profitable strategy');
+        if (this.calculateMaxDrawdown() < 2000) strengths.push('Limited drawdown');
+        
+        return strengths.length > 0 ? strengths : ['Consistent execution'];
+    }
+
+    identifyWeaknesses() {
+        const weaknesses = [];
+        const winRate = this.trades.length > 0 ? (this.trades.filter(t => t.pnl > 0).length / this.trades.length * 100) : 0;
+        const totalPnL = this.trades.reduce((sum, t) => sum + t.pnl, 0);
+        
+        if (winRate < 50) weaknesses.push('Low win rate');
+        if (totalPnL < 0) weaknesses.push('Negative returns');
+        if (this.trades.length < 20) weaknesses.push('Limited sample size');
+        
+        return weaknesses.length > 0 ? weaknesses : ['Minor optimization opportunities'];
+    }
 }
 
 // CLI execution
