@@ -902,7 +902,7 @@ class TastyTradeAPI extends EventEmitter {
       }
       
       // Parse and format the option chain
-      const formattedChain = this.parseOptionChainComplete(chainResponse, symbol, options);
+      const formattedChain = await this.parseOptionChainComplete(chainResponse, symbol, options);
       
       logger.debug('API', `Option chain loaded: ${symbol}`, { expirations: formattedChain.expirations?.length || 0 });
       
@@ -932,7 +932,7 @@ class TastyTradeAPI extends EventEmitter {
    * @param {object} options - Parsing options and filters
    * @returns {object} - Formatted option chain with comprehensive data
    */
-  parseOptionChainComplete(chainData, symbol, options = {}) {
+  async parseOptionChainComplete(chainData, symbol, options = {}) {
     try {
       if (!chainData.data) {
         console.warn(`⚠️ No data field in option chain response for ${symbol}`);
@@ -957,7 +957,7 @@ class TastyTradeAPI extends EventEmitter {
       }
       
       // Get underlying price for moneyness calculations
-      const underlyingPrice = this.extractUnderlyingPrice(chainData, symbol);
+      const underlyingPrice = await this.extractUnderlyingPrice(chainData, symbol);
       
       // Parse all expirations
       const allExpirations = [];
@@ -1220,7 +1220,7 @@ class TastyTradeAPI extends EventEmitter {
   /**
    * Extract underlying price from option chain response
    */
-  extractUnderlyingPrice(chainData, symbol) {
+  async extractUnderlyingPrice(chainData, symbol) {
     try {
       // Try various possible locations for underlying price
       if (chainData.data && chainData.data['underlying-price']) {
