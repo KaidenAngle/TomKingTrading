@@ -1,0 +1,157 @@
+{
+  "passed": 20,
+  "failed": 4,
+  "warnings": 1,
+  "details": [
+    {
+      "test": "Module Exists: tastytradeAPI.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:49.368Z"
+    },
+    {
+      "test": "Module Exists: config.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:49.369Z"
+    },
+    {
+      "test": "Module Exists: riskManager.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:49.369Z"
+    },
+    {
+      "test": "Module Exists: strategies.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:49.369Z"
+    },
+    {
+      "test": "Module Exists: enhancedPatternAnalysis.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:49.370Z"
+    },
+    {
+      "test": "Module Exists: enhancedRecommendationEngine.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:49.370Z"
+    },
+    {
+      "test": "Module Exists: greeksCalculator.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:49.370Z"
+    },
+    {
+      "test": "Module Exists: orderManager.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:49.370Z"
+    },
+    {
+      "test": "Module Loading: tastytradeAPI.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:49.401Z"
+    },
+    {
+      "test": "Module Loading: config.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:49.402Z"
+    },
+    {
+      "test": "Module Loading: riskManager.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:49.403Z"
+    },
+    {
+      "test": "Module Loading: strategies.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:50.089Z"
+    },
+    {
+      "test": "Module Loading: enhancedPatternAnalysis.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:50.091Z"
+    },
+    {
+      "test": "Module Loading: enhancedRecommendationEngine.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:50.092Z"
+    },
+    {
+      "test": "Module Loading: greeksCalculator.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:50.092Z"
+    },
+    {
+      "test": "Module Loading: orderManager.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:50.092Z"
+    },
+    {
+      "test": "TastyTrade API Class Loading",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:50.092Z"
+    },
+    {
+      "test": "TastyTrade API Class Loading",
+      "status": "FAIL",
+      "details": "TastyTradeAPI is not a constructor",
+      "timestamp": "2025-09-02T16:55:50.093Z"
+    },
+    {
+      "test": "Risk Manager Loading",
+      "status": "FAIL",
+      "details": "RiskManager is not a constructor",
+      "timestamp": "2025-09-02T16:55:50.093Z"
+    },
+    {
+      "test": "Greeks Calculator Loading",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:50.093Z"
+    },
+    {
+      "test": "Greeks Calculation",
+      "status": "FAIL",
+      "details": "Invalid delta calculation",
+      "timestamp": "2025-09-02T16:55:50.093Z"
+    },
+    {
+      "test": "Pattern Analysis Loading",
+      "status": "FAIL",
+      "details": "PatternAnalysis is not a constructor",
+      "timestamp": "2025-09-02T16:55:50.094Z"
+    },
+    {
+      "test": "Strategies Module Loading",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:50.094Z"
+    },
+    {
+      "test": "Configuration Loading",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:55:50.094Z"
+    },
+    {
+      "test": "Config Validation",
+      "status": "WARN",
+      "details": "Missing trading configuration",
+      "timestamp": "2025-09-02T16:55:50.094Z"
+    }
+  ]
+}

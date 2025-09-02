@@ -1,0 +1,88 @@
+{
+  "summary": {
+    "totalTests": 5,
+    "passedTests": 3,
+    "passRate": 60,
+    "duration": 8,
+    "testDate": "2025-09-02T19:31:23.811Z"
+  },
+  "findings": {
+    "hasSection1256Implementation": true,
+    "hasWashSaleDetection": false,
+    "hasUKTaxCompliance": true,
+    "criticalGaps": true
+  },
+  "results": {
+    "section1256Tests": [
+      {
+        "test": "Section 1256 Qualification",
+        "passed": true,
+        "details": {
+          "qualifying": 3,
+          "nonQualifying": 3,
+          "correctlyIdentified": 6,
+          "totalProfit": 7050,
+          "longTermPortion": 4230,
+          "shortTermPortion": 2820,
+          "taxSavings": 719
+        }
+      }
+    ],
+    "ukTaxTests": [
+      {
+        "test": "UK Capital Gains Calculation",
+        "passed": true,
+        "details": {
+          "totalCapitalGains": 5914,
+          "annualAllowance": 6000,
+          "taxableGains": 0,
+          "estimatedTax": 0,
+          "utilizationRate": 99
+        }
+      }
+    ],
+    "washSaleTests": [
+      {
+        "test": "Wash Sale Detection",
+        "passed": false,
+        "details": {
+          "potentialViolations": 1,
+          "disallowedLoss": 1050,
+          "adjustedCostBasis": 1,
+          "preventionRecommendations": [
+            "Wait 31 days before repurchasing substantially identical securities",
+            "Consider tax-loss harvesting with non-identical alternatives",
+            "Use Section 1256 instruments to avoid wash sale rules"
+          ]
+        }
+      }
+    ],
+    "optimizationTests": [
+      {
+        "test": "Tax-Optimized Position Sizing",
+        "passed": true,
+        "details": {
+          "optimizationScore": 93,
+          "section1256Preference": 50,
+          "taxEfficiencyRatio": 0.93,
+          "recommendations": [
+            "Increase allocation to Section 1256 instruments",
+            "Consider futures over ETF options for tax efficiency"
+          ]
+        }
+      },
+      {
+        "test": "Year-End Tax Planning",
+        "passed": false,
+        "details": {
+          "lossHarvestingOpportunity": 2200,
+          "gainRealizationPlan": 3020,
+          "washSalePrevention": "Monitor 30-day windows",
+          "section1256Optimization": 7050
+        }
+      }
+    ],
+    "complianceTests": [],
+    "recommendations": []
+  }
+}

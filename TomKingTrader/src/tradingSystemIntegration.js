@@ -7,12 +7,11 @@
 const { EventEmitter } = require('events');
 const { getLogger } = require('./logger');
 
-// Import all tracking systems
-const { PositionTracker } = require('./positionTracker');
-const { PLCalculationEngine } = require('./plCalculationEngine');
+// Import all tracking systems from consolidated modules
+// PositionTracker functionality is now in PositionManager
+const { PLCalculationEngine, TomKingTracker } = require('./performanceMetrics'); // Consolidated P&L tracking
 const { DashboardDataManager, HTMLDashboardGenerator } = require('./performanceDashboard');
 const { TradeJournal } = require('./tradeJournal');
-const { TomKingTracker } = require('./tomKingTracker');
 const { PositionManager } = require('./positionManager');
 
 const logger = getLogger();
@@ -55,7 +54,7 @@ class UnifiedTradingSystem extends EventEmitter {
     initializeSubsystems() {
         try {
             // Core tracking systems
-            this.positionTracker = new PositionTracker({
+            this.positionTracker = new PositionManager({  // Using PositionManager instead
                 autoSave: this.options.autoSave,
                 maxAlerts: 50
             });

@@ -23,9 +23,9 @@ class VIXRegimeAnalyzer {
     
     let regime, bpLimits, warning, recommendations, characteristics;
     
-    if (vixLevel < 12) {
-      regime = 'EXTREMELY_LOW';
-      bpLimits = { min: 25, max: 40 };
+    if (vixLevel < 13) {
+      regime = 'LOW';
+      bpLimits = { min: 30, max: 45 }; // Tom King: 45% max BP for VIX <13
       warning = '⚠️ Complacency regime - premium scarce, reduce exposure';
       recommendations = [
         'Reduce position sizes significantly',
@@ -39,9 +39,9 @@ class VIXRegimeAnalyzer {
         expectedDuration: 'SHORT_TERM',
         historicalReturn: 'POOR'
       };
-    } else if (vixLevel < 16) {
-      regime = 'LOW';
-      bpLimits = { min: 40, max: 55 };
+    } else if (vixLevel < 18) {
+      regime = 'NORMAL';
+      bpLimits = { min: 50, max: 65 }; // Tom King: 65% max BP for VIX 13-18
       warning = '📉 Low volatility - premium collection challenging';
       recommendations = [
         'Selective premium selling',
@@ -55,9 +55,9 @@ class VIXRegimeAnalyzer {
         expectedDuration: 'MEDIUM_TERM',
         historicalReturn: 'BELOW_AVERAGE'
       };
-    } else if (vixLevel < 20) {
-      regime = 'NORMAL';
-      bpLimits = { min: 50, max: 70 };
+    } else if (vixLevel < 25) {
+      regime = 'ELEVATED';
+      bpLimits = { min: 60, max: 75 }; // Tom King: 75% max BP for VIX 18-25
       warning = null;
       recommendations = [
         'Optimal environment for premium selling',
@@ -71,9 +71,9 @@ class VIXRegimeAnalyzer {
         expectedDuration: 'LONG_TERM',
         historicalReturn: 'GOOD'
       };
-    } else if (vixLevel < 25) {
-      regime = 'ELEVATED';
-      bpLimits = { min: 45, max: 65 };
+    } else if (vixLevel < 30) {
+      regime = 'HIGH';
+      bpLimits = { min: 40, max: 50 }; // Tom King: 50% max BP for VIX 25-30
       warning = '⚠️ Elevated volatility - increased risk environment';
       recommendations = [
         'Rich premium environment - excellent for selling',
@@ -87,9 +87,9 @@ class VIXRegimeAnalyzer {
         expectedDuration: 'SHORT_MEDIUM',
         historicalReturn: 'GOOD'
       };
-    } else if (vixLevel < 30) {
+    } else if (vixLevel < 35) {
       regime = 'HIGH';
-      bpLimits = { min: 35, max: 55 };
+      bpLimits = { min: 40, max: 50 }; // Keep 50% for VIX 30-35
       warning = '🚨 High volatility regime - significant risk present';
       recommendations = [
         'Excellent premium selling opportunities',
@@ -106,7 +106,7 @@ class VIXRegimeAnalyzer {
       };
     } else {
       regime = 'EXTREME';
-      bpLimits = { min: 20, max: 35 };
+      bpLimits = { min: 70, max: 80 }; // Tom King: 80% BP for VIX >30 (puts only)
       warning = '🚨🚨 CRISIS MODE - Generational opportunity but extreme risk';
       recommendations = [
         '💰 GENERATIONAL OPPORTUNITY - Deploy capital aggressively',
@@ -930,6 +930,18 @@ class RiskManager {
       recentAlerts: this.getAlertHistory(1).length,
       keyFactors: overallRisk.factors.slice(0, 3)
     };
+  }
+  
+  /**
+   * Get maximum buying power usage based on VIX level
+   * Implements Tom King's dynamic BP system
+   */
+  static getMaxBPUsage(vixLevel) {
+    if (vixLevel < 13) return 0.45; // 45% for VIX <13
+    if (vixLevel < 18) return 0.65; // 65% for VIX 13-18
+    if (vixLevel < 25) return 0.75; // 75% for VIX 18-25
+    if (vixLevel < 30) return 0.50; // 50% for VIX 25-30
+    return 0.80; // 80% for VIX >30 (puts only)
   }
   
   /**

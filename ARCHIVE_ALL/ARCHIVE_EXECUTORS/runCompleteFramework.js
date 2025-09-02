@@ -278,19 +278,19 @@ function getPhaseTickeres(phase) {
 }
 
 function getVIXRegime(vixLevel) {
-    if (vixLevel < 13) return 'LOW - Deploy 40-50% BP';
-    if (vixLevel < 18) return 'NORMAL - Deploy 60-70% BP';
-    if (vixLevel < 25) return 'ELEVATED - Deploy 75-80% BP';
-    if (vixLevel < 30) return 'HIGH - Deploy 50-60% BP';
+    if (vixLevel < 13) return 'LOW - Deploy 45% BP';
+    if (vixLevel < 18) return 'NORMAL - Deploy 65% BP';
+    if (vixLevel < 25) return 'ELEVATED - Deploy 75% BP';
+    if (vixLevel < 30) return 'HIGH - Deploy 50% BP';
     return 'CRISIS - Deploy 80% BP into puts';
 }
 
 function getMaxBP(userData) {
     const vixBP = {
-        'LOW': 50,
-        'NORMAL': 70,
-        'ELEVATED': 80,
-        'HIGH': 60,
+        'LOW': 45,
+        'NORMAL': 65,
+        'ELEVATED': 75,
+        'HIGH': 50,
         'CRISIS': 80
     };
     const regime = getVIXRegime(userData.vixLevel).split(' - ')[0];

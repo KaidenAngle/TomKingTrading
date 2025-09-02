@@ -15,7 +15,7 @@ const fs = require('fs').promises;
 // Import TomKingTrader modules
 const { TomKingTrader, TomKingUtils } = require('./index');
 const SignalGenerator = require('./signalGenerator');
-const GreeksIntegration = require('./greeksIntegration');
+const GreeksCalculator = require('./greeksCalculator');
 const { getLogger } = require('./logger');
 const config = require('./config');
 
@@ -24,7 +24,7 @@ const { UnifiedTradingSystem } = require('./tradingSystemIntegration');
 
 // Import backtesting modules
 const BacktestingEngine = require('./backtestingEngine');
-const HistoricalDataManager = require('./historicalDataManager');
+const DataManager = require('./dataManager');
 const PerformanceMetrics = require('./performanceMetrics');
 const PatternValidationEngine = require('./patternValidation');
 const BacktestReportGenerator = require('./backtestReporting');
@@ -52,7 +52,7 @@ class TomKingTraderApp {
         
         // Initialize core modules
         this.trader = null;
-        this.greeksIntegration = null;
+        this.greeksCalculator = null;
         this.signalGenerator = new SignalGenerator({
             enableRealTime: true,
             signalCooldown: 300000, // 5 minutes
@@ -92,10 +92,10 @@ class TomKingTraderApp {
      * Setup Greeks integration event handlers
      */
     setupGreeksEventHandlers() {
-        if (!this.greeksIntegration) return;
+        if (!this.greeksCalculator) return;
         
         // Portfolio Greeks updates
-        this.greeksIntegration.on('greeksUpdated', (data) => {
+        this.greeksCalculator.on('greeksUpdated', (data) => {
             this.broadcast({
                 type: 'greeks_updated',
                 data: data
@@ -103,7 +103,7 @@ class TomKingTraderApp {
         });
         
         // Real-time Greeks updates
-        this.greeksIntegration.on('realTimeGreeksUpdate', (data) => {
+        this.greeksCalculator.on('realTimeGreeksUpdate', (data) => {
             this.broadcast({
                 type: 'real_time_greeks',
                 data: data
@@ -111,7 +111,7 @@ class TomKingTraderApp {
         });
         
         // Greeks alerts
-        this.greeksIntegration.on('greeksAlerts', (data) => {
+        this.greeksCalculator.on('greeksAlerts', (data) => {
             this.broadcast({
                 type: 'greeks_alerts',
                 data: data
@@ -119,7 +119,7 @@ class TomKingTraderApp {
         });
         
         // Tom King specific Greeks analysis
-        this.greeksIntegration.on('tomKingGreeksAnalysis', (data) => {
+        this.greeksCalculator.on('tomKingGreeksAnalysis', (data) => {
             this.broadcast({
                 type: 'tom_king_greeks_analysis',
                 data: data
@@ -223,11 +223,11 @@ class TomKingTraderApp {
                 // Initialize Greeks integration if API mode is enabled
                 if (useApiMode && this.trader.api) {
                     try {
-                        this.greeksIntegration = new GreeksIntegration(this.trader, {
+                        this.greeksCalculator = new GreeksCalculator(this.trader.api, {
                             enableRealTimeUpdates: true,
                             updateInterval: 30000
                         });
-                        await this.greeksIntegration.initialize();
+                        await this.greeksCalculator.initialize();
                         
                         // Setup Greeks event handlers
                         this.setupGreeksEventHandlers();
@@ -482,7 +482,7 @@ class TomKingTraderApp {
         // Get portfolio Greeks
         this.app.get('/api/greeks/portfolio', async (req, res) => {
             try {
-                if (!this.greeksIntegration) {
+                if (!this.greeksCalculator) {
                     return res.status(400).json({
                         success: false,
                         error: 'Greeks integration not available. Ensure API mode is enabled.',
@@ -490,7 +490,7 @@ class TomKingTraderApp {
                     });
                 }
 
-                const portfolioGreeks = this.greeksIntegration.getPortfolioGreeks();
+                const portfolioGreeks = this.greeksCalculator.getPortfolioGreeks();
                 
                 res.json({
                     success: true,
@@ -511,7 +511,7 @@ class TomKingTraderApp {
         // Get Greeks for specific option
         this.app.post('/api/greeks/option', async (req, res) => {
             try {
-                if (!this.greeksIntegration) {
+                if (!this.greeksCalculator) {
                     return res.status(400).json({
                         success: false,
                         error: 'Greeks integration not available. Ensure API mode is enabled.',
@@ -529,7 +529,7 @@ class TomKingTraderApp {
                     });
                 }
 
-                const greeks = await this.greeksIntegration.getOptionGreeks(symbol, strike, expiration, optionType);
+                const greeks = await this.greeksCalculator.fetchRealGreeks(symbol, strike, expiration, optionType);
                 
                 res.json({
                     success: true,
@@ -550,7 +550,7 @@ class TomKingTraderApp {
         // Calculate 5-delta strikes for Tom King strangles
         this.app.post('/api/greeks/5-delta-strikes', async (req, res) => {
             try {
-                if (!this.greeksIntegration) {
+                if (!this.greeksCalculator) {
                     return res.status(400).json({
                         success: false,
                         error: 'Greeks integration not available. Ensure API mode is enabled.',
@@ -568,7 +568,7 @@ class TomKingTraderApp {
                     });
                 }
 
-                const strikes = await this.greeksIntegration.get5DeltaStrikes(symbol, expiration);
+                const strikes = await this.greeksCalculator.calculateOptimalStrangleStrikes(symbol, expiration);
                 
                 res.json({
                     success: true,
@@ -590,7 +590,7 @@ class TomKingTraderApp {
         // Force Greeks update
         this.app.post('/api/greeks/update', async (req, res) => {
             try {
-                if (!this.greeksIntegration) {
+                if (!this.greeksCalculator) {
                     return res.status(400).json({
                         success: false,
                         error: 'Greeks integration not available. Ensure API mode is enabled.',
@@ -598,7 +598,7 @@ class TomKingTraderApp {
                     });
                 }
 
-                const result = await this.greeksIntegration.forceGreeksUpdate();
+                const result = await this.greeksCalculator.forceGreeksUpdate();
                 
                 res.json({
                     success: true,
@@ -620,7 +620,7 @@ class TomKingTraderApp {
         // Get Greeks history
         this.app.get('/api/greeks/history', async (req, res) => {
             try {
-                if (!this.greeksIntegration) {
+                if (!this.greeksCalculator) {
                     return res.status(400).json({
                         success: false,
                         error: 'Greeks integration not available. Ensure API mode is enabled.',
@@ -629,7 +629,7 @@ class TomKingTraderApp {
                 }
 
                 const limit = parseInt(req.query.limit) || 50;
-                const history = this.greeksIntegration.getGreeksHistory(limit);
+                const history = this.greeksCalculator.getGreeksHistory(limit);
                 
                 res.json({
                     success: true,
@@ -652,7 +652,7 @@ class TomKingTraderApp {
         // Get current Greeks alerts
         this.app.get('/api/greeks/alerts', async (req, res) => {
             try {
-                if (!this.greeksIntegration) {
+                if (!this.greeksCalculator) {
                     return res.status(400).json({
                         success: false,
                         error: 'Greeks integration not available. Ensure API mode is enabled.',
@@ -660,7 +660,7 @@ class TomKingTraderApp {
                     });
                 }
 
-                const alerts = this.greeksIntegration.getCurrentAlerts();
+                const alerts = this.greeksCalculator.getCurrentAlerts();
                 
                 res.json({
                     success: true,
@@ -683,18 +683,18 @@ class TomKingTraderApp {
         this.app.get('/api/greeks/status', async (req, res) => {
             try {
                 const status = {
-                    available: !!this.greeksIntegration,
-                    initialized: !!this.greeksIntegration,
-                    realTimeEnabled: this.greeksIntegration ? this.greeksIntegration.config.enableRealTimeUpdates : false,
-                    lastUpdate: this.greeksIntegration ? this.greeksIntegration.lastGreeksUpdate : null,
-                    alertsCount: this.greeksIntegration ? this.greeksIntegration.getCurrentAlerts().length : 0,
+                    available: !!this.greeksCalculator,
+                    initialized: !!this.greeksCalculator,
+                    realTimeEnabled: this.greeksCalculator ? this.greeksCalculator.config.enableRealTimeUpdates : false,
+                    lastUpdate: this.greeksCalculator ? this.greeksCalculator.lastGreeksUpdate : null,
+                    alertsCount: this.greeksCalculator ? this.greeksCalculator.getCurrentAlerts().length : 0,
                     features: {
                         portfolioGreeks: true,
-                        realTimeUpdates: !!this.greeksIntegration,
-                        fiveDeltaCalculation: !!this.greeksIntegration,
-                        zdteMonitoring: !!this.greeksIntegration,
-                        lt112Analysis: !!this.greeksIntegration,
-                        riskIntegration: !!this.greeksIntegration
+                        realTimeUpdates: !!this.greeksCalculator,
+                        fiveDeltaCalculation: !!this.greeksCalculator,
+                        zdteMonitoring: !!this.greeksCalculator,
+                        lt112Analysis: !!this.greeksCalculator,
+                        riskIntegration: !!this.greeksCalculator
                     }
                 };
                 
@@ -2026,12 +2026,13 @@ class TomKingTraderApp {
         this.app.post('/api/quick-analysis', async (req, res) => {
             try {
                 const logger = require('./logger').getLogger();
-                const marketDataService = require('./marketDataService');
+                const DataManager = require('./dataManager');
+                const dataManager = new DataManager();
                 
                 logger.info('QUICK-ANALYSIS', 'Starting plug-and-play analysis');
                 
                 // Get current VIX
-                const vixData = await marketDataService.getVIXData();
+                const vixData = await dataManager.getVIXData();
                 const vixLevel = vixData.currentPrice;
                 
                 // Determine phase and account from request or use defaults
@@ -2053,7 +2054,7 @@ class TomKingTraderApp {
                 }
                 
                 // Get market data for phase
-                const marketData = await marketDataService.getPhaseMarketData(phase);
+                const marketData = await dataManager.getPhaseMarketData(phase);
                 
                 // Build user data
                 const now = new Date();
@@ -2089,8 +2090,8 @@ class TomKingTraderApp {
                     success: true,
                     market: {
                         vix: vixData,
-                        regime: marketDataService.getVIXRegime(vixLevel),
-                        status: marketDataService.getMarketStatus()
+                        regime: dataManager.getVIXRegime(vixLevel),
+                        status: dataManager.getDetailedMarketStatus()
                     },
                     account: {
                         phase: phase,

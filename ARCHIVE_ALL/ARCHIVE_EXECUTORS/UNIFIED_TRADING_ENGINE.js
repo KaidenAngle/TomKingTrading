@@ -38,7 +38,7 @@ class UnifiedTradingEngine {
         this.mode = mode;
         this.options = {
             initialCapital: 30000, // £30k Phase 1 start
-            maxBPUsage: 0.35,      // 35% max buying power
+            maxBPUsage: 'DYNAMIC',  // VIX-based: 45-80% per Tom King
             correlationLimit: 3,    // Max 3 positions per correlation group
             commissions: 2.50,     // Per contract
             slippage: 0.02,        // 2% slippage estimate
@@ -82,6 +82,18 @@ class UnifiedTradingEngine {
         this.lastUpdate = null;
         
         logger.info('UNIFIED_ENGINE', `Initialized in ${mode} mode`, this.options);
+    }
+    
+    /**
+     * Get maximum buying power usage based on VIX level
+     * Implements Tom King's dynamic BP system
+     */
+    getMaxBPUsage(vixLevel) {
+        if (vixLevel < 13) return 0.45; // 45% for VIX <13
+        if (vixLevel < 18) return 0.65; // 65% for VIX 13-18
+        if (vixLevel < 25) return 0.75; // 75% for VIX 18-25
+        if (vixLevel < 30) return 0.50; // 50% for VIX 25-30
+        return 0.80; // 80% for VIX >30 (puts only)
     }
     
     /**
@@ -172,7 +184,7 @@ class UnifiedTradingEngine {
             const bpRisk = this.riskManager.validateBuyingPower(
                 this.portfolio.buyingPower,
                 signal.estimatedCost || signal.marginRequirement,
-                this.options.maxBPUsage
+                this.getMaxBPUsage(signal.vixLevel || 20)
             );
             
             // VIX regime check - SAME for all modes
@@ -580,7 +592,7 @@ class UnifiedTradingEngine {
         
         this.portfolio.totalValue = totalValue;
         this.portfolio.unrealizedPnL = unrealizedPnL;
-        this.portfolio.buyingPower = Math.max(0, this.portfolio.cash * (1 / this.options.maxBPUsage));
+        this.portfolio.buyingPower = Math.max(0, this.portfolio.cash * (1 / this.getMaxBPUsage(this.currentVIX || 20)));
     }
     
     /**

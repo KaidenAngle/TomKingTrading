@@ -34,7 +34,7 @@ const PHASES = {
         description: 'Building foundation with micro futures and basic strategies',
         allowedStrategies: ['STRANGLE', '0DTE', 'LT112'],
         allowedTickers: ['MCL', 'MGC', 'GLD', 'TLT'],
-        maxBPUsage: 0.30, // 30%
+        maxBPUsage: 'DYNAMIC', // VIX-based: 45-80% per Tom King
         maxPositionsPerGroup: 2,
         riskLimits: {
             maxRiskPerTrade: 0.05, // 5%
@@ -59,11 +59,11 @@ const PHASES = {
         description: 'Adding MES, MNQ and expanding opportunity set',
         allowedStrategies: ['STRANGLE', '0DTE', 'LT112', 'IPMCC', 'LEAP'],
         allowedTickers: ['MCL', 'MGC', 'GLD', 'TLT', 'MES', 'MNQ', 'SLV', 'XOP'],
-        maxBPUsage: 0.35, // 35%
-        maxPositionsPerGroup: 3,
+        maxBPUsage: 'DYNAMIC', // VIX-based: 45-80% per Tom King
+        maxPositionsPerGroup: 2,
         riskLimits: {
             maxRiskPerTrade: 0.04,
-            maxCorrelatedPositions: 3,
+            maxCorrelatedPositions: 2, // Phase 1-2: Max 2 per group
             emergencyStopLoss: 0.15
         },
         buyingPowerRequirements: {
@@ -84,7 +84,7 @@ const PHASES = {
         description: 'Full futures upgrade and advanced strategies',
         allowedStrategies: ['STRANGLE', '0DTE', 'LT112', 'IPMCC', 'LEAP', 'BUTTERFLY', 'RATIO', 'DIAGONAL'],
         allowedTickers: ['ES', 'CL', 'GC', 'LE', 'HE', 'ZC', 'ZS', 'ZW', 'TLT', 'GLD', 'SLV'],
-        maxBPUsage: 0.40, // 40%
+        maxBPUsage: 'DYNAMIC', // VIX-based: 45-80% per Tom King
         maxPositionsPerGroup: 3,
         riskLimits: {
             maxRiskPerTrade: 0.03,
@@ -109,7 +109,7 @@ const PHASES = {
         description: 'Full professional deployment with all strategies',
         allowedStrategies: ['STRANGLE', '0DTE', 'LT112', 'IPMCC', 'LEAP', 'BUTTERFLY', 'RATIO', 'DIAGONAL', 'BOX'],
         allowedTickers: ['ES', 'NQ', 'RTY', 'CL', 'GC', 'SI', 'NG', 'SPY', 'QQQ', 'IWM', 'GLD', 'SLV', 'TLT', 'XLE', 'XOP'],
-        maxBPUsage: 0.50, // 50%
+        maxBPUsage: 'DYNAMIC', // VIX-based: 45-80% per Tom King
         maxPositionsPerGroup: 4,
         riskLimits: {
             maxRiskPerTrade: 0.025,
@@ -137,7 +137,7 @@ const STRATEGIES = {
     '0DTE': {
         name: '0DTE Friday',
         description: 'Zero days to expiration credit spreads on Friday',
-        winRate: 92,
+        winRate: 88, // Tom King's actual 0DTE win rate
         avgReturn: 8.5,
         maxLoss: 100, // % of premium
         daysAllowed: ['Friday'],
@@ -164,7 +164,7 @@ const STRATEGIES = {
     'LT112': {
         name: 'Long-Term 112',
         description: '112-day targeted strangles',
-        winRate: 85,
+        winRate: 73, // Tom King's actual LT112 win rate
         avgReturn: 12,
         maxLoss: 50,
         daysAllowed: ['Monday', 'Tuesday', 'Wednesday'],
@@ -191,7 +191,7 @@ const STRATEGIES = {
     'STRANGLE': {
         name: 'Futures Strangles',
         description: 'Short strangles on futures with 90 DTE',
-        winRate: 80,
+        winRate: 72, // Tom King's actual strangle win rate
         avgReturn: 15,
         maxLoss: 200,
         daysAllowed: ['Tuesday'],
@@ -218,7 +218,7 @@ const STRATEGIES = {
     'IPMCC': {
         name: 'Income Producing Married Call',
         description: 'LEAP + short calls for income',
-        winRate: 75,
+        winRate: 83, // Tom King's actual IPMCC win rate
         avgReturn: 6,
         maxLoss: 15,
         daysAllowed: ['Monday', 'Tuesday', 'Wednesday', 'Thursday'],
@@ -242,7 +242,7 @@ const STRATEGIES = {
     'LEAP': {
         name: 'LEAP Options',
         description: 'Long-term equity anticipation securities',
-        winRate: 70,
+        winRate: 82, // Tom King's actual LEAP win rate
         avgReturn: 25,
         maxLoss: 100,
         entryRules: {
@@ -410,8 +410,17 @@ const CORRELATION_GROUPS = {
 const RISK_LIMITS = {
     // Global limits
     MAX_PORTFOLIO_RISK: 0.15, // 15% of account value
-    MAX_BP_USAGE: 0.50, // 50% of buying power
+    MAX_BP_USAGE: 'DYNAMIC', // VIX-based: 45-80% per Tom King system
     MAX_CORRELATION_EXPOSURE: 0.25, // 25% per correlation group
+    
+    // Tom King's VIX-based BP system
+    getMaxBPUsage: (vixLevel) => {
+        if (vixLevel < 13) return 0.45; // 45% for VIX <13
+        if (vixLevel < 18) return 0.65; // 65% for VIX 13-18
+        if (vixLevel < 25) return 0.75; // 75% for VIX 18-25
+        if (vixLevel < 30) return 0.50; // 50% for VIX 25-30
+        return 0.80; // 80% for VIX >30 (puts only)
+    },
     
     // VIX-based adjustments
     VIX_REGIMES: {

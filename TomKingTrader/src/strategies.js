@@ -3,7 +3,7 @@
  * Implementation of all 10 strategies with complete rules from PDF
  */
 
-const GreeksCalculator = require('./greeksCalculator');
+const { GreeksCalculator } = require('./greeksCalculator');
 
 class TradingStrategies {
     constructor() {
@@ -18,7 +18,7 @@ class TradingStrategies {
         return {
             '0DTE': {
                 name: '0DTE Friday',
-                winRate: 92,
+                winRate: 88, // Tom King's actual rate
                 avgReturn: 8.5,
                 maxLoss: 100,
                 daysAllowed: ['Friday'],
@@ -27,7 +27,7 @@ class TradingStrategies {
             },
             'LT112': {
                 name: 'Long-Term 112',
-                winRate: 85,
+                winRate: 73, // Tom King's actual rate
                 avgReturn: 12,
                 maxLoss: 50,
                 daysAllowed: ['Monday', 'Tuesday', 'Wednesday'],
@@ -36,7 +36,7 @@ class TradingStrategies {
             },
             'STRANGLE': {
                 name: 'Futures Strangles',
-                winRate: 80,
+                winRate: 72, // Tom King's actual rate
                 avgReturn: 15,
                 maxLoss: 200,
                 daysAllowed: ['Tuesday'],
@@ -45,7 +45,7 @@ class TradingStrategies {
             },
             'IPMCC': {
                 name: 'Income Producing Married Call',
-                winRate: 75,
+                winRate: 83, // Tom King's actual rate
                 avgReturn: 6,
                 maxLoss: 15,
                 daysAllowed: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
@@ -53,7 +53,7 @@ class TradingStrategies {
             },
             'LEAP': {
                 name: 'LEAP Puts Ladder',
-                winRate: 65,
+                winRate: 82, // Tom King's actual rate
                 avgReturn: 25,
                 maxLoss: 100,
                 daysAllowed: ['Wednesday'],

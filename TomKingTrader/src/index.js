@@ -22,15 +22,15 @@ const {
 } = require('./tastytradeAPI');
 
 const {
-  PatternAnalyzer,
-  PatternQualityScorer,
-  TechnicalIndicators,
-  RangeAnalyzer,
-  IVAnalyzer,
-  TrendAnalyzer,
-  StrikeCalculator,
-  StrategyAnalyzers
-} = require('./patternAnalysis');
+  EnhancedPatternAnalyzer: PatternAnalyzer,
+  ConfidenceScorer: PatternQualityScorer,
+  AdvancedTechnicalIndicators: TechnicalIndicators,
+  SupportResistanceDetector: RangeAnalyzer,
+  VolumeProfileAnalyzer: IVAnalyzer,
+  MultiTimeframeAnalyzer: TrendAnalyzer,
+  ChartPatternRecognizer: StrikeCalculator,
+  TomKingPatternDetectors: StrategyAnalyzers
+} = require('./enhancedPatternAnalysis');
 
 const {
   PositionManager,

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tom King Trading Dashboard - £40,000</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+        }
+        h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin: 0;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .card h3 {
+            color: #667eea;
+            margin-top: 0;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+        .metric-label {
+            font-weight: 600;
+            color: #555;
+        }
+        .metric-value {
+            font-weight: bold;
+            color: #333;
+        }
+        .alert {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        .success {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+        }
+        .warning {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            color: #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+        tr:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: transform 0.2s;
+        }
+        .button:hover {
+            transform: scale(1.05);
+        }
+        .position-box {
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .ticker-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .ticker-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .ticker-symbol {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .ticker-price {
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Tom King Trading Framework</h1>
+            <div class="subtitle">
+                Monday, September 1, 2025
+                | £40,000 Account | Phase 2
+            </div>
+        </div>
+
+        
+                <div class="alert">
+                    🚨 VIX SPIKE PROTOCOL ACTIVATED! VIX at 99.55 - Deploy 80% BP into puts!
+                </div>
+            
+
+        <div class="grid">
+            <div class="card">
+                <h3>📊 Account Status</h3>
+                <div class="metric">
+                    <span class="metric-label">Net Liquidation:</span>
+                    <span class="metric-value">£40,000</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">BP Used:</span>
+                    <span class="metric-value">0% / 80%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Active Positions:</span>
+                    <span class="metric-value">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Month P&L:</span>
+                    <span class="metric-value">£0</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 0%">
+                        BP: 0% / 80%
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>🎯 Today's Focus</h3>
+                <div style="font-size: 1.1em; color: #667eea; font-weight: bold; margin-bottom: 15px;">
+            🎯 LEAP entries and position management
+        </div><div style="margin-top: 10px;"><div style="margin: 5px 0;">• Target Phase 3 Upgrade</div></div>
+            </div>
+
+            <div class="card">
+                <h3>📈 Market Conditions</h3>
+                <div class="metric">
+                    <span class="metric-label">VIX Level:</span>
+                    <span class="metric-value">99.55 (CRISIS)</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">ES Futures:</span>
+                    <span class="metric-value">$5450.25</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">SPY:</span>
+                    <span class="metric-value">$548.03</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Market Status:</span>
+                    <span class="metric-value">After-Hours</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📊 Position Allocation Table</h3>
+            <p>Generating allocation data...</p>
+        </div>
+
+        <div class="card">
+            <h3>🎯 Qualified Tickers</h3>
+            <div class="ticker-grid">
+                
+                    <div class="ticker-card">
+                        <div class="ticker-symbol">MCL</div>
+                        <div class="ticker-price">$undefined</div>
+                        <div style="color: #f5576c">NaN%</div>
+                    </div>
+                
+                    <div class="ticker-card">
+                        <div class="ticker-symbol">MGC</div>
+                        <div class="ticker-price">$undefined</div>
+                        <div style="color: #f5576c">NaN%</div>
+                    </div>
+                
+                    <div class="ticker-card">
+                        <div class="ticker-symbol">GLD</div>
+                        <div class="ticker-price">$undefined</div>
+                        <div style="color: #f5576c">NaN%</div>
+                    </div>
+                
+                    <div class="ticker-card">
+                        <div class="ticker-symbol">TLT</div>
+                        <div class="ticker-price">$undefined</div>
+                        <div style="color: #f5576c">NaN%</div>
+                    </div>
+                
+                    <div class="ticker-card">
+                        <div class="ticker-symbol">SLV</div>
+                        <div class="ticker-price">$undefined</div>
+                        <div style="color: #f5576c">NaN%</div>
+                    </div>
+                
+                    <div class="ticker-card">
+                        <div class="ticker-symbol">MES</div>
+                        <div class="ticker-price">$undefined</div>
+                        <div style="color: #f5576c">NaN%</div>
+                    </div>
+                
+                    <div class="ticker-card">
+                        <div class="ticker-symbol">MNQ</div>
+                        <div class="ticker-price">$undefined</div>
+                        <div style="color: #f5576c">NaN%</div>
+                    </div>
+                
+                    <div class="ticker-card">
+                        <div class="ticker-symbol">XOP</div>
+                        <div class="ticker-price">$undefined</div>
+                        <div style="color: #f5576c">NaN%</div>
+                    </div>
+                
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📈 Path to £80k Goal</h3>
+            <canvas id="projectionChart"></canvas>
+        </div>
+
+        <div class="card">
+            <h3>✅ Action Items</h3>
+            <div>
+                <div class="position-box" style="border-left: 5px solid #84fab0">
+                    <strong>🟢 Target Phase 3 Upgrade</strong><br>
+                    Need £35,000 more to reach Phase 3<br>
+                    <em>Reason: Unlock 8 strategies and 15 tickers</em><br>
+                    
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>⚠️ Risk Management</h3>
+            <div><h4 style="margin-top: 20px;">Critical Rules:</h4><ul><li>Maximum BP: 80% for Phase 2</li><li>Max 3 positions per correlation group</li><li>Exit at 21 DTE or 50% profit</li><li>0DTE only Friday after 10:30 AM</li><li>No excessive correlation (August 2024 lesson)</li></ul></div>
+        </div>
+
+    </div>
+
+    <script>
+        // Projection Chart
+        const ctx = document.getElementById('projectionChart').getContext('2d');
+        const projectionData = {"labels":["Month 0","Month 1","Month 2","Month 3","Month 4","Month 5","Month 6","Month 7","Month 8","Month 9","Month 10","Month 11","Month 12"],"values":[40000,43200,46656,50388.48,54419.55840000001,58773.12307200002,63474.972917760024,68552.97075118084,74037.20841127531,79960.18508417734,86356.99989091154,93265.55988218446,100726.80467275923]};
+        
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: projectionData.labels,
+                datasets: [{
+                    label: 'Account Value Projection (8% Monthly)',
+                    data: projectionData.values,
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4
+                }, {
+                    label: '£80k Goal',
+                    data: new Array(projectionData.labels.length).fill(80000),
+                    borderColor: '#f5576c',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        ticks: {
+                            callback: function(value) {
+                                return '£' + (value/1000).toFixed(0) + 'k';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

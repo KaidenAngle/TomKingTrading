@@ -1,0 +1,199 @@
+{
+  "passed": 27,
+  "failed": 2,
+  "warnings": 3,
+  "details": [
+    {
+      "test": "Module Exists: tastytradeAPI.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:57:16.403Z"
+    },
+    {
+      "test": "Module Exists: config.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:57:16.404Z"
+    },
+    {
+      "test": "Module Exists: riskManager.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:57:16.404Z"
+    },
+    {
+      "test": "Module Exists: strategies.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:57:16.404Z"
+    },
+    {
+      "test": "Module Exists: enhancedPatternAnalysis.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:57:16.405Z"
+    },
+    {
+      "test": "Module Exists: enhancedRecommendationEngine.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:57:16.405Z"
+    },
+    {
+      "test": "Module Exists: greeksCalculator.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:57:16.405Z"
+    },
+    {
+      "test": "Module Exists: orderManager.js",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:57:16.405Z"
+    },
+    {
+      "test": "Module Loading: tastytradeAPI.js",
+      "status": "PASS",
+      "details": "Exports: 10 items",
+      "timestamp": "2025-09-02T16:57:16.436Z"
+    },
+    {
+      "test": "Module Loading: config.js",
+      "status": "PASS",
+      "details": "Exports: 18 items",
+      "timestamp": "2025-09-02T16:57:16.437Z"
+    },
+    {
+      "test": "Module Loading: riskManager.js",
+      "status": "PASS",
+      "details": "Exports: 4 items",
+      "timestamp": "2025-09-02T16:57:16.437Z"
+    },
+    {
+      "test": "Module Loading: strategies.js",
+      "status": "PASS",
+      "details": "Exports: 0 items",
+      "timestamp": "2025-09-02T16:57:17.143Z"
+    },
+    {
+      "test": "Module Loading: enhancedPatternAnalysis.js",
+      "status": "PASS",
+      "details": "Exports: 9 items",
+      "timestamp": "2025-09-02T16:57:17.144Z"
+    },
+    {
+      "test": "Module Loading: enhancedRecommendationEngine.js",
+      "status": "PASS",
+      "details": "Exports: 0 items",
+      "timestamp": "2025-09-02T16:57:17.146Z"
+    },
+    {
+      "test": "Module Loading: greeksCalculator.js",
+      "status": "PASS",
+      "details": "Exports: 0 items",
+      "timestamp": "2025-09-02T16:57:17.146Z"
+    },
+    {
+      "test": "Module Loading: orderManager.js",
+      "status": "PASS",
+      "details": "Exports: 0 items",
+      "timestamp": "2025-09-02T16:57:17.146Z"
+    },
+    {
+      "test": "TastyTrade API Class Loading",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:57:17.146Z"
+    },
+    {
+      "test": "TastyTrade API Instance Creation",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:57:17.146Z"
+    },
+    {
+      "test": "Credentials Check",
+      "status": "PASS",
+      "details": "Has credentials: true",
+      "timestamp": "2025-09-02T16:57:17.146Z"
+    },
+    {
+      "test": "API Authentication",
+      "status": "FAIL",
+      "details": "Authentication returned false or no success flag",
+      "timestamp": "2025-09-02T16:57:18.393Z"
+    },
+    {
+      "test": "Risk Manager Loading",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:57:18.393Z"
+    },
+    {
+      "test": "VIX Regime Analysis",
+      "status": "PASS",
+      "details": "Regime: HIGH",
+      "timestamp": "2025-09-02T16:57:18.394Z"
+    },
+    {
+      "test": "Greeks Calculator Loading",
+      "status": "PASS",
+      "details": "Type: function",
+      "timestamp": "2025-09-02T16:57:18.394Z"
+    },
+    {
+      "test": "Greeks Calculation",
+      "status": "FAIL",
+      "details": "Invalid delta calculation result",
+      "timestamp": "2025-09-02T16:57:18.394Z"
+    },
+    {
+      "test": "Pattern Analysis Loading",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-09-02T16:57:18.397Z"
+    },
+    {
+      "test": "Pattern Analysis Methods",
+      "status": "WARN",
+      "details": "Expected methods not found",
+      "timestamp": "2025-09-02T16:57:18.397Z"
+    },
+    {
+      "test": "Strategies Module Loading",
+      "status": "PASS",
+      "details": "Exports: 0 items",
+      "timestamp": "2025-09-02T16:57:18.397Z"
+    },
+    {
+      "test": "Strategy Functions Check",
+      "status": "PASS",
+      "details": "0/3 key strategies found",
+      "timestamp": "2025-09-02T16:57:18.397Z"
+    },
+    {
+      "test": "Configuration Loading",
+      "status": "PASS",
+      "details": "Config sections: 18",
+      "timestamp": "2025-09-02T16:57:18.397Z"
+    },
+    {
+      "test": "Config Validation",
+      "status": "WARN",
+      "details": "Only 0/3 critical sections found",
+      "timestamp": "2025-09-02T16:57:18.397Z"
+    },
+    {
+      "test": "Trading Config",
+      "status": "WARN",
+      "details": "Max buying power usage not configured",
+      "timestamp": "2025-09-02T16:57:18.397Z"
+    },
+    {
+      "test": "Module Integration",
+      "status": "PASS",
+      "details": "Core modules can be instantiated together",
+      "timestamp": "2025-09-02T16:57:18.397Z"
+    }
+  ]
+}

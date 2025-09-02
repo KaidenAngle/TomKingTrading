@@ -1,0 +1,203 @@
+{
+  "summary": {
+    "initialCapital": 35000,
+    "finalCapital": 35000,
+    "totalReturn": 0,
+    "monthlyReturn": 0,
+    "eightMonthProjection": 35000,
+    "goalAchievable": false
+  },
+  "statistics": {
+    "totalTrades": 0,
+    "winRate": 0,
+    "totalPnL": 0
+  },
+  "strategies": {
+    "0DTE": {
+      "strategy": "0DTE",
+      "summary": {
+        "mode": "backtest",
+        "cash": 35000,
+        "totalValue": 35000,
+        "unrealizedPnL": 0,
+        "realizedPnL": 0,
+        "buyingPower": 35000,
+        "positionCount": 0,
+        "dayTradeCount": 0,
+        "bpUsagePercent": 0
+      },
+      "statistics": {
+        "mode": "backtest",
+        "totalTrades": 0,
+        "winningTrades": 0,
+        "losingTrades": 0,
+        "winRate": 0,
+        "totalReturn": 0,
+        "realizedPnL": 0,
+        "unrealizedPnL": 0,
+        "currentPositions": 0
+      },
+      "tradeHistory": [],
+      "config": {
+        "startDate": "2023-01-01",
+        "endDate": "2024-12-31",
+        "initialCapital": 35000,
+        "commissions": 1.17,
+        "slippage": 0.02,
+        "maxPositions": 20,
+        "correlationLimit": 3,
+        "maxBPUsage": 35
+      },
+      "mode": "UNIFIED_STRATEGY_BACKTEST"
+    },
+    "LT112": {
+      "strategy": "LT112",
+      "summary": {
+        "mode": "backtest",
+        "cash": 35000,
+        "totalValue": 35000,
+        "unrealizedPnL": 0,
+        "realizedPnL": 0,
+        "buyingPower": 35000,
+        "positionCount": 0,
+        "dayTradeCount": 0,
+        "bpUsagePercent": 0
+      },
+      "statistics": {
+        "mode": "backtest",
+        "totalTrades": 0,
+        "winningTrades": 0,
+        "losingTrades": 0,
+        "winRate": 0,
+        "totalReturn": 0,
+        "realizedPnL": 0,
+        "unrealizedPnL": 0,
+        "currentPositions": 0
+      },
+      "tradeHistory": [],
+      "config": {
+        "startDate": "2023-01-01",
+        "endDate": "2024-12-31",
+        "initialCapital": 35000,
+        "commissions": 1.17,
+        "slippage": 0.02,
+        "maxPositions": 20,
+        "correlationLimit": 3,
+        "maxBPUsage": 35
+      },
+      "mode": "UNIFIED_STRATEGY_BACKTEST"
+    },
+    "STRANGLE": {
+      "strategy": "STRANGLE",
+      "summary": {
+        "mode": "backtest",
+        "cash": 35000,
+        "totalValue": 35000,
+        "unrealizedPnL": 0,
+        "realizedPnL": 0,
+        "buyingPower": 35000,
+        "positionCount": 0,
+        "dayTradeCount": 0,
+        "bpUsagePercent": 0
+      },
+      "statistics": {
+        "mode": "backtest",
+        "totalTrades": 0,
+        "winningTrades": 0,
+        "losingTrades": 0,
+        "winRate": 0,
+        "totalReturn": 0,
+        "realizedPnL": 0,
+        "unrealizedPnL": 0,
+        "currentPositions": 0
+      },
+      "tradeHistory": [],
+      "config": {
+        "startDate": "2023-01-01",
+        "endDate": "2024-12-31",
+        "initialCapital": 35000,
+        "commissions": 1.17,
+        "slippage": 0.02,
+        "maxPositions": 20,
+        "correlationLimit": 3,
+        "maxBPUsage": 35
+      },
+      "mode": "UNIFIED_STRATEGY_BACKTEST"
+    },
+    "IPMCC": {
+      "strategy": "IPMCC",
+      "summary": {
+        "mode": "backtest",
+        "cash": 35000,
+        "totalValue": 35000,
+        "unrealizedPnL": 0,
+        "realizedPnL": 0,
+        "buyingPower": 35000,
+        "positionCount": 0,
+        "dayTradeCount": 0,
+        "bpUsagePercent": 0
+      },
+      "statistics": {
+        "mode": "backtest",
+        "totalTrades": 0,
+        "winningTrades": 0,
+        "losingTrades": 0,
+        "winRate": 0,
+        "totalReturn": 0,
+        "realizedPnL": 0,
+        "unrealizedPnL": 0,
+        "currentPositions": 0
+      },
+      "tradeHistory": [],
+      "config": {
+        "startDate": "2023-01-01",
+        "endDate": "2024-12-31",
+        "initialCapital": 35000,
+        "commissions": 1.17,
+        "slippage": 0.02,
+        "maxPositions": 20,
+        "correlationLimit": 3,
+        "maxBPUsage": 35
+      },
+      "mode": "UNIFIED_STRATEGY_BACKTEST"
+    },
+    "LEAP": {
+      "strategy": "LEAP",
+      "summary": {
+        "mode": "backtest",
+        "cash": 35000,
+        "totalValue": 35000,
+        "unrealizedPnL": 0,
+        "realizedPnL": 0,
+        "buyingPower": 35000,
+        "positionCount": 0,
+        "dayTradeCount": 0,
+        "bpUsagePercent": 0
+      },
+      "statistics": {
+        "mode": "backtest",
+        "totalTrades": 0,
+        "winningTrades": 0,
+        "losingTrades": 0,
+        "winRate": 0,
+        "totalReturn": 0,
+        "realizedPnL": 0,
+        "unrealizedPnL": 0,
+        "currentPositions": 0
+      },
+      "tradeHistory": [],
+      "config": {
+        "startDate": "2023-01-01",
+        "endDate": "2024-12-31",
+        "initialCapital": 35000,
+        "commissions": 1.17,
+        "slippage": 0.02,
+        "maxPositions": 20,
+        "correlationLimit": 3,
+        "maxBPUsage": 35
+      },
+      "mode": "UNIFIED_STRATEGY_BACKTEST"
+    }
+  },
+  "timestamp": "2025-09-02T14:18:42.433Z"
+}

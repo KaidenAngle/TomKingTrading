@@ -1476,9 +1476,14 @@ class ConfidenceScorer {
       // Try to load from historical data manager if available
       if (typeof require !== 'undefined') {
         try {
-          const HistoricalDataManager = require('./historicalDataManager');
-          const dataManager = new HistoricalDataManager();
-          return dataManager.loadCachedData() || this.generateSampleData();
+          const DataManager = require('./dataManager');
+          const dataManager = new DataManager();
+          if (dataManager.getAvailableSymbols().length > 0) {
+            // For now, use synchronous fallback until async is properly implemented
+            return this.generateSampleData();
+          } else {
+            return this.generateSampleData();
+          }
         } catch (moduleError) {
           console.warn('Historical data manager not available:', moduleError.message);
         }
@@ -1737,6 +1742,11 @@ class EnhancedPatternAnalyzer {
     this.confidenceScorer = new ConfidenceScorer();
     this.backtester = new BacktestingEngine();
     this.cache = new Map();
+  }
+
+  // Wrapper method for compatibility with TomKingTrader
+  analyzePattern(ticker, marketData, phase) {
+    return this.analyzeEnhanced(ticker, marketData, 'AUTO', { phase });
   }
 
   analyzeEnhanced(ticker, marketData, strategy = 'AUTO', options = {}) {

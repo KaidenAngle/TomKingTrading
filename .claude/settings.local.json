@@ -27,7 +27,17 @@
       "Bash(powershell:*)",
       "Bash(npm test)",
       "Bash(npm run test-quick:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(for file in COMPREHENSIVE_2YEAR_BACKTEST.js FINAL_PRODUCTION_BACKTEST.js PHASE9_COMPLETE_VALIDATION.js PHASE9_COMPREHENSIVE_TEST.js RUN_PHASE9_VALIDATION.js RUN_PROFESSIONAL_BACKTEST.js TEST_INTEGRATED_SYSTEM.js UNIFIED_SYSTEM_EXAMPLE.js UNIFIED_SYSTEM_TEST.js verifyAllStrategiesBacktest.js runReportDemo.js IntradayDataGenerator.js MarketMicrostructure.js OptionPricingEngine.js)",
+      "Bash(do if [ -f \"$file\" ])",
+      "Bash(then mv \"$file\" ARCHIVE_REDUNDANT/)",
+      "Bash(echo \"Archived: $file\")",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(for dir in tests test-reports demo_output demo_results PROOF_OF_REAL_EXECUTION examples docs templates data historical_data exports reports output logs config ARCHIVE_EXECUTORS ARCHIVE_REDUNDANT)",
+      "Bash(do if [ -d \"$dir\" ])",
+      "Bash(then mv \"$dir\" ../ARCHIVE_ALL/)",
+      "Bash(echo \"Moved $dir\")"
     ],
     "deny": [],
     "ask": []

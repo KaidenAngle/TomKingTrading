@@ -5,7 +5,7 @@
 
 const EventEmitter = require('events');
 const TradingStrategies = require('./strategies');
-const { PatternAnalyzer } = require('./patternAnalysis');
+const { EnhancedPatternAnalyzer } = require('./enhancedPatternAnalysis');
 const { PositionManager } = require('./positionManager');
 const { RiskManager } = require('./riskManager');
 const GreeksCalculator = require('./greeksCalculator');
@@ -23,7 +23,7 @@ class SignalGenerator extends EventEmitter {
         };
         
         this.strategies = new TradingStrategies();
-        this.patternAnalysis = new PatternAnalyzer();
+        this.patternAnalysis = new EnhancedPatternAnalyzer();
         this.positionManager = new PositionManager();
         this.riskManager = new RiskManager();
         this.greeksCalc = new GreeksCalculator();
@@ -181,7 +181,7 @@ class SignalGenerator extends EventEmitter {
             timeDecay: 'EXTREME',
             contracts,
             expectedReturn: 8.5,
-            winRate: 92,
+            winRate: 88, // Tom King's actual 0DTE rate
             risk: 'HIGH',
             expiry: 'TODAY',
             management: {
@@ -220,7 +220,7 @@ class SignalGenerator extends EventEmitter {
             priority: 'HIGH',
             contracts: ticker === 'MES' ? 4 : 1,
             expectedReturn: 12,
-            winRate: 85,
+            winRate: 73, // Tom King's actual LT112 rate
             risk: 'MEDIUM',
             dte: 112,
             management: {
@@ -265,7 +265,7 @@ class SignalGenerator extends EventEmitter {
                 action: 'Sell 90 DTE 5-delta strangle',
                 priority: pattern.quality === 'EXCELLENT' ? 'HIGH' : 'MEDIUM',
                 expectedReturn: 15,
-                winRate: 80,
+                winRate: 72, // Tom King's actual strangle rate
                 risk: 'MEDIUM',
                 dte: 90,
                 ivRank: data.ivRank,

@@ -1,0 +1,6 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": "printf '\\n\\e[32m%s@%s \\e[35m%s \\e[33m%s\\e[36m%s\\e[0m\\n$ ' \"$(whoami)\" \"$(hostname -s)\" \"$MSYSTEM\" \"$(pwd)\" \"$(git branch 2>/dev/null | grep '^*' | cut -c3- | sed 's/.*/(&)/' || echo '')\""
+  }
+}

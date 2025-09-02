@@ -5,7 +5,7 @@
  */
 
 const MarketDataStreamer = require('./marketDataStreamer');
-const OrderManager = require('./orderManager');
+const { OrderManager } = require('./orderManager');
 const { getLogger } = require('./logger');
 const fs = require('fs');
 const path = require('path');
@@ -663,11 +663,11 @@ class TastyTradeAPI extends EventEmitter {
       let mappedSymbol = symbol;
       
       if (symbol.startsWith('/')) {
-        // For futures, remove slash and use futures contract mapping
+        // For futures, map the symbol but use 'equity' parameter (TastyTrade API quirk)
         const futuresSymbol = this.mapFuturesSymbol(symbol);
-        mappedSymbol = futuresSymbol;
-        params.append('future', futuresSymbol);
-        logger.debug('API', `Requesting futures quote`, { original: symbol, mapped: futuresSymbol });
+        mappedSymbol = '/' + futuresSymbol;
+        params.append('equity', '/' + futuresSymbol);
+        logger.debug('API', `Requesting futures quote`, { original: symbol, mapped: '/' + futuresSymbol });
       } else if (symbol === 'VIX' || symbol === 'SPX' || symbol === 'DJI') {
         params.append('index', symbol);
         logger.debug('API', `Requesting index quote for ${symbol}`);
@@ -703,6 +703,15 @@ class TastyTradeAPI extends EventEmitter {
       });
       return null;
     }
+  }
+
+  /**
+   * Get quote for a single symbol (alias for getSingleQuote)
+   * @param {string} symbol - Symbol to get quote for
+   * @returns {Promise} Quote data
+   */
+  async getQuote(symbol) {
+    return this.getSingleQuote(symbol);
   }
   
   mapFuturesSymbol(symbol) {
@@ -2278,8 +2287,9 @@ class MarketDataCollector {
     const tickersToFetch = phaseTickerMap[phase] || phaseTickerMap[1];
     const tickers = {};
     
-    // Import MarketDataService for fallback
-    const marketDataService = require('./marketDataService');
+    // Import DataManager for fallback
+    const DataManager = require('./dataManager');
+    const dataManager = new DataManager(this.api);
     
     try {
       const quotes = await this.api.getQuotes(tickersToFetch);
@@ -2322,7 +2332,7 @@ class MarketDataCollector {
           
           try {
             // Use MarketDataService fallback for missing tickers
-            const fallbackData = await marketDataService.getTickerData(ticker);
+            const fallbackData = await dataManager.getMarketData(ticker);
             
             if (fallbackData) {
               tickers[ticker] = {
@@ -2360,7 +2370,7 @@ class MarketDataCollector {
         const ticker = symbol.replace('/', '');
         
         try {
-          const fallbackData = await marketDataService.getTickerData(ticker);
+          const fallbackData = await dataManager.getMarketData(ticker);
           
           if (fallbackData) {
             tickers[ticker] = {

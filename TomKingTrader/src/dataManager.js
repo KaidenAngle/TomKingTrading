@@ -4,15 +4,45 @@
  * Works 24/7 using live data when available, cached data otherwise
  */
 
+const fs = require('fs').promises;
+const path = require('path');
 const { getLogger } = require('./logger');
 const logger = getLogger();
 
 class DataManager {
-    constructor(api = null) {
+    constructor(api = null, options = {}) {
         this.api = api;
         this.cache = new Map();
         this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
         this.lastCloseCache = new Map(); // Permanent storage of last close prices
+        
+        // Historical data configuration
+        this.dataDir = options.dataDir || path.join(__dirname, '..', 'data', 'historical');
+        this.rateLimiter = new Map();
+        this.maxRetries = options.maxRetries || 3;
+        this.rateLimitDelay = options.rateLimitDelay || 1000;
+        
+        // Historical data index
+        this.historicalIndex = null;
+        
+        // Phase-based ticker organization
+        this.phaseTickerMap = {
+            1: ['MCL', 'MGC', 'GLD', 'TLT', 'SLV', 'SPY', 'QQQ'],
+            2: ['MES', 'MNQ', 'M6E', 'M6B', 'MYM', 'MCL', 'MGC', 'GLD', 'TLT'],
+            3: ['ES', 'NQ', '6E', '6B', 'YM', 'CL', 'GC', 'ZN', 'ZB'],
+            4: ['ES', 'NQ', 'RTY', 'CL', 'GC', 'SI', '6E', '6B', '6J', 'ZN', 'ZB', 'ZC', 'ZS']
+        };
+        
+        // Default market data templates
+        this.defaultMarketData = {
+            VIX: { symbol: 'VIX', currentPrice: 16.12, previousClose: 16.50, change: -0.38, changePercent: -2.3 },
+            SPY: { symbol: 'SPY', currentPrice: 450.25, previousClose: 448.50, iv: 18.5, ivRank: 35 },
+            ES: { symbol: 'ES', currentPrice: 4520.50, previousClose: 4515.25, iv: 16.2, ivRank: 28 },
+            QQQ: { symbol: 'QQQ', currentPrice: 380.15, previousClose: 378.90, iv: 22.3, ivRank: 45 }
+        };
+        
+        // Initialize data directories and index (async)
+        this.initializeDataSystem();
         
         // Symbol format mappings
         this.symbolMappings = {
@@ -46,6 +76,51 @@ class DataManager {
             'XLE': 'XLE',
             'XOP': 'XOP'
         };
+    }
+    
+    /**
+     * Initialize data system directories and index
+     */
+    async initializeDataSystem() {
+        try {
+            await this.ensureDataDirectory();
+            await this.loadHistoricalIndex();
+        } catch (error) {
+            logger.error('DATA', 'Failed to initialize data system', error);
+        }
+    }
+    
+    /**
+     * Ensure data directory structure exists
+     */
+    async ensureDataDirectory() {
+        try {
+            await fs.mkdir(this.dataDir, { recursive: true });
+            await fs.mkdir(path.join(this.dataDir, 'stocks'), { recursive: true });
+            await fs.mkdir(path.join(this.dataDir, 'options'), { recursive: true });
+            await fs.mkdir(path.join(this.dataDir, 'futures'), { recursive: true });
+            await fs.mkdir(path.join(this.dataDir, 'indices'), { recursive: true });
+            await fs.mkdir(path.join(this.dataDir, 'volatility'), { recursive: true });
+            await fs.mkdir(path.join(this.dataDir, 'tastytrade_cache'), { recursive: true });
+            logger.info('DATA', 'Data directory structure initialized');
+        } catch (error) {
+            logger.error('DATA', 'Failed to create data directories', error);
+        }
+    }
+    
+    /**
+     * Load historical data index
+     */
+    async loadHistoricalIndex() {
+        try {
+            const indexPath = path.join(this.dataDir, 'index_2023_2024.json');
+            const indexData = await fs.readFile(indexPath, 'utf8');
+            this.historicalIndex = JSON.parse(indexData);
+            logger.info('DATA', `Historical data index loaded: ${this.historicalIndex.totalFiles} files`);
+        } catch (error) {
+            logger.debug('DATA', 'No historical index found, using live data only');
+            this.historicalIndex = null;
+        }
     }
 
     /**
@@ -457,6 +532,283 @@ class DataManager {
         };
     }
 
+    // ========== HISTORICAL DATA METHODS ==========
+    
+    /**
+     * Fetch historical stock/ETF/futures data
+     */
+    async fetchHistoricalData(symbol, startDate, endDate, interval = 'daily') {
+        const cacheKey = `hist_${symbol}_${startDate}_${endDate}_${interval}`;
+        
+        // Check cache first
+        if (this.cache.has(cacheKey)) {
+            const cached = this.cache.get(cacheKey);
+            if (Date.now() - cached.timestamp < this.cacheExpiry * 12) { // Longer cache for historical
+                logger.debug('DATA', `Historical cache hit for ${symbol}`);
+                return cached.data;
+            }
+        }
+        
+        // Try TastyTrade API if available
+        if (this.api) {
+            try {
+                const data = await this.fetchFromTastyTradeHistorical(symbol, startDate, endDate, interval);
+                if (data) {
+                    this.cache.set(cacheKey, { data, timestamp: Date.now() });
+                    return data;
+                }
+            } catch (error) {
+                logger.warn('DATA', `Historical API fetch failed for ${symbol}`, error);
+            }
+        }
+        
+        // Fallback to generated data
+        const data = await this.generateHistoricalData(symbol, startDate, endDate, interval);
+        this.cache.set(cacheKey, { data, timestamp: Date.now() });
+        return data;
+    }
+    
+    /**
+     * Load symbol data from historical dataset
+     */
+    loadHistoricalSymbol(symbol) {
+        if (!this.historicalIndex) {
+            throw new Error('Historical index not available');
+        }
+        
+        const cacheKey = `hist_symbol_${symbol}`;
+        if (this.cache.has(cacheKey)) {
+            return this.cache.get(cacheKey).data;
+        }
+        
+        const fileInfo = this.historicalIndex.files.find(file => file.symbol === symbol);
+        if (!fileInfo) {
+            throw new Error(`Symbol ${symbol} not found in historical dataset`);
+        }
+        
+        try {
+            const filePath = path.join(this.dataDir, fileInfo.assetClass, fileInfo.fileName);
+            const rawData = require('fs').readFileSync(filePath, 'utf8');
+            const parsedData = JSON.parse(rawData);
+            
+            const data = {
+                symbol: parsedData.symbol,
+                period: parsedData.period,
+                totalBars: parsedData.totalBars,
+                startDate: parsedData.startDate,
+                endDate: parsedData.endDate,
+                bars: parsedData.data
+            };
+            
+            this.cache.set(cacheKey, { data, timestamp: Date.now() });
+            logger.info('DATA', `Loaded historical ${symbol}: ${data.totalBars} bars`);
+            return data;
+        } catch (error) {
+            throw new Error(`Failed to load historical ${symbol}: ${error.message}`);
+        }
+    }
+    
+    /**
+     * Get data for specific date range from historical dataset
+     */
+    getHistoricalDateRange(symbol, startDate, endDate) {
+        const data = this.loadHistoricalSymbol(symbol);
+        return data.bars.filter(bar => bar.date >= startDate && bar.date <= endDate);
+    }
+    
+    /**
+     * Get data for specific market events
+     */
+    getMarketEvent(symbol, eventName) {
+        const events = {
+            'svb-crisis': { start: '2023-03-08', end: '2023-03-17' },
+            'debt-ceiling': { start: '2023-05-15', end: '2023-06-02' },
+            'fall-correction': { start: '2023-10-10', end: '2023-10-27' },
+            'march-rally': { start: '2024-03-01', end: '2024-03-28' },
+            'august-crash': { start: '2024-08-02', end: '2024-08-09' },
+            'election-volatility': { start: '2024-11-01', end: '2024-11-08' }
+        };
+        
+        const event = events[eventName];
+        if (!event) {
+            throw new Error(`Unknown market event: ${eventName}`);
+        }
+        
+        return this.getHistoricalDateRange(symbol, event.start, event.end);
+    }
+    
+    /**
+     * Get all Fridays for 0DTE testing
+     */
+    getFridays(symbol) {
+        const data = this.loadHistoricalSymbol(symbol);
+        return data.bars.filter(bar => {
+            const date = new Date(bar.date);
+            return date.getDay() === 5; // Friday
+        });
+    }
+    
+    /**
+     * Get correlation data for multiple symbols
+     */
+    getCorrelationData(symbols, startDate = null, endDate = null) {
+        const result = {};
+        
+        for (const symbol of symbols) {
+            const data = this.loadHistoricalSymbol(symbol);
+            let bars = data.bars;
+            
+            if (startDate || endDate) {
+                bars = bars.filter(bar => {
+                    if (startDate && bar.date < startDate) return false;
+                    if (endDate && bar.date > endDate) return false;
+                    return true;
+                });
+            }
+            
+            result[symbol] = bars.map(bar => ({
+                date: bar.date,
+                close: bar.close,
+                dailyReturn: null
+            }));
+            
+            // Calculate daily returns
+            for (let i = 1; i < result[symbol].length; i++) {
+                const today = result[symbol][i];
+                const yesterday = result[symbol][i - 1];
+                today.dailyReturn = (today.close - yesterday.close) / yesterday.close;
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Generate historical data using market characteristics
+     */
+    async generateHistoricalData(symbol, startDate, endDate, interval) {
+        try {
+            logger.info('DATA', `Generating historical data for ${symbol}`);
+            
+            let basePrice = this.getBasePrice(symbol);
+            const data = [];
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+            
+            let currentPrice = basePrice;
+            const volatility = this.getSymbolVolatility(symbol);
+            
+            for (let i = 0; i < days; i++) {
+                const date = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
+                
+                // Skip weekends for stock data
+                if (!this.isFuturesSymbol(symbol) && (date.getDay() === 0 || date.getDay() === 6)) {
+                    continue;
+                }
+                
+                const dailyMove = (Math.random() - 0.5) * volatility * currentPrice;
+                const open = currentPrice;
+                const close = currentPrice + dailyMove;
+                const high = Math.max(open, close) * (1 + Math.random() * 0.01);
+                const low = Math.min(open, close) * (1 - Math.random() * 0.01);
+                
+                data.push({
+                    date: date.toISOString().split('T')[0],
+                    open: parseFloat(open.toFixed(2)),
+                    high: parseFloat(high.toFixed(2)),
+                    low: parseFloat(low.toFixed(2)),
+                    close: parseFloat(close.toFixed(2)),
+                    volume: Math.floor(Math.random() * 1000000 + 500000),
+                    source: 'generated'
+                });
+                
+                currentPrice = close;
+            }
+            
+            return data;
+            
+        } catch (error) {
+            logger.error('DATA', `Historical data generation failed for ${symbol}`, error);
+            throw new Error(`Failed to generate historical data: ${error.message}`);
+        }
+    }
+    
+    /**
+     * Get symbol volatility for data generation
+     */
+    getSymbolVolatility(symbol) {
+        const volatilities = {
+            'SPY': 0.015, 'QQQ': 0.020, 'IWM': 0.025,
+            'VIX': 0.10, 'TLT': 0.012, 'GLD': 0.015,
+            'ES': 0.018, 'MES': 0.018, 'NQ': 0.025, 'MNQ': 0.025,
+            'CL': 0.035, 'MCL': 0.035, 'GC': 0.020, 'MGC': 0.020,
+            'SLV': 0.030, 'XLE': 0.025, 'XOP': 0.030
+        };
+        return volatilities[symbol] || 0.020;
+    }
+    
+    /**
+     * Check if symbol is futures
+     */
+    isFuturesSymbol(symbol) {
+        return ['ES', 'MES', 'NQ', 'MNQ', 'CL', 'MCL', 'GC', 'MGC', 'ZB', 'ZN', 'YM', 'MYM', 'RTY', '6E', '6B', '6J', '6C', 'M6E', 'M6B', 'ZC', 'ZS', 'SI'].includes(symbol) || symbol.startsWith('/');
+    }
+    
+    /**
+     * Fetch from TastyTrade historical API
+     */
+    async fetchFromTastyTradeHistorical(symbol, startDate, endDate, interval) {
+        try {
+            const apiSymbol = this.formatSymbolForAPI(symbol);
+            // This would use the actual TastyTrade historical endpoint if available
+            // For now, return null to use fallback
+            return null;
+        } catch (error) {
+            logger.error('DATA', `TastyTrade historical API error for ${symbol}`, error);
+            return null;
+        }
+    }
+    
+    // ========== PHASE AND MARKET DATA METHODS ==========
+    
+    /**
+     * Get market data for specific phase
+     */
+    async getPhaseMarketData(phase) {
+        const tickers = this.phaseTickerMap[phase] || this.phaseTickerMap[1];
+        const results = {};
+        
+        for (const ticker of tickers) {
+            try {
+                results[ticker] = await this.getMarketData(ticker);
+            } catch (error) {
+                logger.error('DATA', `Failed to get phase data for ${ticker}`, error);
+                results[ticker] = this.generateSimulatedData(ticker);
+            }
+        }
+        
+        return results;
+    }
+    
+    /**
+     * Get available symbols from historical index or defaults
+     */
+    getAvailableSymbols() {
+        if (!this.historicalIndex) return Object.keys(this.defaultMarketData);
+        return this.historicalIndex.files.map(file => file.symbol);
+    }
+    
+    /**
+     * Get symbols by asset class
+     */
+    getSymbolsByAssetClass(assetClass) {
+        if (!this.historicalIndex) return [];
+        return this.historicalIndex.files
+            .filter(file => file.assetClass === assetClass)
+            .map(file => file.symbol);
+    }
+
     /**
      * Clear all caches
      */
@@ -478,4 +830,4 @@ class DataManager {
     }
 }
 
-module.exports = DataManager;
+module.exports = { DataManager };
