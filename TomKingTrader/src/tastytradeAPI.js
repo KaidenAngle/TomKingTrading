@@ -455,6 +455,13 @@ class TastyTradeAPI extends EventEmitter {
     this.ordersEnabled = false;
   }
   
+  /**
+   * Authenticate with the TastyTrade API (alias for initialize)
+   */
+  async authenticate() {
+    return this.initialize();
+  }
+  
   async initialize() {
     try {
       logger.info('API', 'Initializing TastyTrade API connection', {
@@ -616,6 +623,17 @@ class TastyTradeAPI extends EventEmitter {
       console.error('Balance refresh failed:', error);
       return this.balance;
     }
+  }
+  
+  /**
+   * Get market data for specified symbols (alias for getQuotes)
+   */
+  async getMarketData(symbols) {
+    // If single symbol string, convert to array
+    if (typeof symbols === 'string') {
+      symbols = [symbols];
+    }
+    return this.getQuotes(symbols);
   }
   
   async getQuotes(symbols) {
@@ -1747,6 +1765,13 @@ class TastyTradeAPI extends EventEmitter {
       console.error('Strategy identification error:', error);
       return 'UNKNOWN';
     }
+  }
+  
+  /**
+   * Get account information (alias for getAccountStatus)
+   */
+  async getAccount() {
+    return this.getAccountStatus();
   }
   
   async getAccountStatus() {

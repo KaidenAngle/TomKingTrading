@@ -694,6 +694,88 @@ class OrderManager {
   }
 
   /**
+   * Submit a new order to the market
+   * @param {Object} orderDetails - The order details including symbol, type, quantity, etc.
+   * @returns {Promise<Object>} - Order submission result
+   */
+  async submitOrder(orderDetails) {
+    const {
+      symbol,
+      orderType = 'LIMIT',
+      quantity,
+      price,
+      side, // BUY or SELL
+      strategy,
+      timeInForce = 'DAY',
+      stopPrice,
+      metadata = {}
+    } = orderDetails;
+
+    // Validate required fields
+    if (!symbol || !quantity || !side) {
+      throw new Error('Missing required order fields: symbol, quantity, and side are required');
+    }
+
+    // Validate price for limit orders
+    if (orderType === 'LIMIT' && !price) {
+      throw new Error('Price is required for LIMIT orders');
+    }
+
+    // Validate stop price for stop orders
+    if ((orderType === 'STOP' || orderType === 'STOP_LIMIT') && !stopPrice) {
+      throw new Error('Stop price is required for STOP orders');
+    }
+
+    // Create order object
+    const order = {
+      id: this.generateOrderId(),
+      symbol,
+      orderType,
+      quantity,
+      price,
+      side,
+      strategy: strategy || 'MANUAL',
+      timeInForce,
+      stopPrice,
+      status: 'PENDING',
+      submittedAt: new Date().toISOString(),
+      metadata
+    };
+
+    // Add to active orders
+    this.activeOrders.set(order.id, order);
+    this.allOrders.push(order);
+
+    // Log order submission
+    console.log(`📤 Order submitted: ${order.id}`, {
+      symbol: order.symbol,
+      side: order.side,
+      quantity: order.quantity,
+      price: order.price,
+      type: order.orderType
+    });
+
+    // Simulate order execution (in production, this would call the API)
+    if (this.api && typeof this.api.submitOrder === 'function') {
+      try {
+        const apiResponse = await this.api.submitOrder(order);
+        order.apiOrderId = apiResponse.orderId;
+        order.status = 'SUBMITTED';
+      } catch (error) {
+        order.status = 'FAILED';
+        order.error = error.message;
+        console.error(`❌ Order submission failed: ${error.message}`);
+      }
+    } else {
+      // Simulate successful submission in test mode
+      order.status = 'SUBMITTED';
+      order.apiOrderId = `SIM-${order.id}`;
+    }
+
+    return order;
+  }
+
+  /**
    * Get order statistics
    */
   getStatistics() {

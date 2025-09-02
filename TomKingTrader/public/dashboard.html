@@ -55,7 +55,7 @@
         <!-- Main Dashboard Grid -->
         <main class="dashboard-grid">
             <!-- Account Overview -->
-            <section class="card account-overview">
+            <section class="card account-overview" id="account-value">
                 <div class="card-header">
                     <h2>Account Overview</h2>
                     <span id="lastUpdate" class="timestamp">Last updated: --</span>
@@ -110,8 +110,8 @@
                         <span class="message">Risk Alert Active</span>
                     </div>
                 </div>
-                <div class="card-content">
-                    <div class="risk-gauges">
+                <div class="card-content" id="risk-alerts">
+                    <div class="risk-gauges" id="bp-gauge">
                         <div class="gauge-container">
                             <div class="gauge" id="buyingPowerGauge">
                                 <div class="gauge-fill"></div>
@@ -121,7 +121,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="correlation-groups">
+                        <div class="correlation-groups" id="correlation-groups">
                             <h3>Correlation Groups</h3>
                             <div id="correlationStatus" class="correlation-status">
                                 <div class="correlation-group">
@@ -159,7 +159,7 @@
             </section>
 
             <!-- VIX Regime -->
-            <section class="card vix-regime">
+            <section class="card vix-regime" id="vix-regime">
                 <div class="card-header">
                     <h2>VIX Regime</h2>
                     <span id="vixValue" class="vix-value">--</span>

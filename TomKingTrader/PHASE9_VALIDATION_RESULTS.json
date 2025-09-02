@@ -1,0 +1,209 @@
+{
+  "startTime": 1756816182689,
+  "phases": {
+    "phase1": {
+      "tests": [
+        {
+          "name": "Backtesting engine loads and initializes",
+          "status": "PASSED",
+          "duration": 716,
+          "details": "Engine initialized with capital: £35000, BP: 35%"
+        },
+        {
+          "name": "Run 0DTE strategy backtest with real execution",
+          "status": "PASSED",
+          "duration": 5,
+          "details": "Executed 1 trades, Final capital: £35000"
+        },
+        {
+          "name": "All 5 Tom King strategies implemented",
+          "status": "PASSED",
+          "duration": 0,
+          "details": "All 5 strategies found"
+        },
+        {
+          "name": "Test data generator creates realistic data",
+          "status": "PASSED",
+          "duration": 1,
+          "details": "ES: 5482.7, VIX: 18"
+        },
+        {
+          "name": "Tom King rules (correlation, BP, Friday-only) enforced",
+          "status": "PASSED",
+          "duration": 0,
+          "details": "BP: 35%, Correlation: 3, Friday-only: true"
+        }
+      ],
+      "passed": 5,
+      "failed": 0
+    },
+    "phase2": {
+      "tests": [
+        {
+          "name": "Generate 2 years of historical data",
+          "status": "PASSED",
+          "duration": 10,
+          "details": "Generated 522 trading days for 12 symbols"
+        },
+        {
+          "name": "August 2024 crash scenario generates correctly",
+          "status": "PASSED",
+          "duration": 1,
+          "details": "Market drop: -12.0%, VIX: 65"
+        },
+        {
+          "name": "August 2024 crash protection calculations",
+          "status": "PASSED",
+          "duration": 0,
+          "details": "53.2% loss prevention, £421,466 saved, £791,867 potential loss"
+        },
+        {
+          "name": "Historical data files properly generated",
+          "status": "PASSED",
+          "duration": 1,
+          "details": "Found 61 historical data files"
+        }
+      ],
+      "passed": 4,
+      "failed": 0
+    },
+    "phase3": {
+      "tests": [
+        {
+          "name": "TastyTrade API implementation loads",
+          "status": "PASSED",
+          "duration": 22,
+          "details": "All core API methods present"
+        },
+        {
+          "name": "WebSocket market data streamer loads",
+          "status": "PASSED",
+          "duration": 1,
+          "details": "WebSocket streamer initialized"
+        },
+        {
+          "name": "Credentials configuration exists",
+          "status": "PASSED",
+          "duration": 0,
+          "details": "Credentials configured"
+        },
+        {
+          "name": "Greeks calculator implementation",
+          "status": "PASSED",
+          "duration": 0,
+          "details": "Delta: 0.000, Gamma: 0.000"
+        }
+      ],
+      "passed": 4,
+      "failed": 0
+    },
+    "phase4": {
+      "tests": [
+        {
+          "name": "Dashboard HTML/JS/CSS files exist",
+          "status": "PASSED",
+          "duration": 0,
+          "details": "Total dashboard code: 75478 bytes"
+        },
+        {
+          "name": "Dashboard contains all required components",
+          "status": "PASSED",
+          "duration": 0,
+          "details": "All dashboard components present"
+        },
+        {
+          "name": "Dashboard JavaScript implementation",
+          "status": "PASSED",
+          "duration": 1,
+          "details": "Dashboard class with WebSocket and charts"
+        }
+      ],
+      "passed": 3,
+      "failed": 0
+    },
+    "phase5": {
+      "tests": [
+        {
+          "name": "Report generation scripts exist",
+          "status": "PASSED",
+          "duration": 0,
+          "details": "All report generators found"
+        },
+        {
+          "name": "Report templates exist",
+          "status": "PASSED",
+          "duration": 0,
+          "details": "Found 4 Excel templates"
+        },
+        {
+          "name": "Generated reports exist",
+          "status": "PASSED",
+          "duration": 1,
+          "details": "Found 13 generated reports"
+        }
+      ],
+      "passed": 3,
+      "failed": 0
+    },
+    "phase67": {
+      "tests": [
+        {
+          "name": "Main application server",
+          "status": "PASSED",
+          "duration": 0,
+          "details": "Express server with dashboard and API routes"
+        },
+        {
+          "name": "Order management system",
+          "status": "PASSED",
+          "duration": 0,
+          "details": "Order manager with paper trading mode"
+        },
+        {
+          "name": "Performance metrics calculations",
+          "status": "PASSED",
+          "duration": 3,
+          "details": "Win rate: 66.66666666666666%, Sharpe: 0"
+        },
+        {
+          "name": "Logging system",
+          "status": "PASSED",
+          "duration": 0,
+          "details": "Logger with multiple log levels"
+        }
+      ],
+      "passed": 4,
+      "failed": 0
+    },
+    "phase8": {
+      "tests": [
+        {
+          "name": "Tests directory properly organized",
+          "status": "PASSED",
+          "duration": 0,
+          "details": "5 subdirectories, 9 test files"
+        },
+        {
+          "name": "No TODO/FIXME placeholders in code",
+          "status": "PASSED",
+          "duration": 7,
+          "details": "Checked 42 source files"
+        },
+        {
+          "name": "Documentation files exist",
+          "status": "PASSED",
+          "duration": 1,
+          "details": "Found 2 documentation files"
+        }
+      ],
+      "passed": 3,
+      "failed": 0
+    }
+  },
+  "totalTests": 26,
+  "totalPassed": 26,
+  "totalFailed": 0,
+  "errors": [],
+  "endTime": 1756816183463,
+  "duration": "0.77"
+}

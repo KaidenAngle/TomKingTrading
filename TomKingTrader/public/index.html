@@ -116,6 +116,66 @@
                 </form>
             </section>
 
+            <!-- Account Value Display -->
+            <section class="panel account-panel" id="account-value">
+                <h2>💰 Account Overview</h2>
+                <div class="account-metrics">
+                    <div class="metric-item">
+                        <label>Net Liquidation</label>
+                        <span id="netLiqValue" class="value">£0</span>
+                    </div>
+                    <div class="metric-item">
+                        <label>Buying Power</label>
+                        <span id="buyingPowerValue" class="value">£0</span>
+                    </div>
+                    <div class="metric-item">
+                        <label>Day P&L</label>
+                        <span id="dayPnL" class="value">£0</span>
+                    </div>
+                    <div class="metric-item">
+                        <label>Open P&L</label>
+                        <span id="openPnL" class="value">£0</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Risk Alerts Panel -->
+            <section class="panel risk-alerts-panel" id="risk-alerts">
+                <h2>⚠️ Risk Alerts</h2>
+                <div class="alerts-container">
+                    <div id="alertsList" class="alerts-list">
+                        <div class="empty-state">
+                            <p>✅ No active risk alerts</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Buying Power Gauge -->
+            <section class="panel bp-gauge-panel" id="bp-gauge">
+                <h2>📊 Buying Power Usage</h2>
+                <div class="bp-gauge-container">
+                    <div class="bp-meter">
+                        <div id="bpMeter" class="bp-fill" style="width: 0%"></div>
+                        <span class="bp-text">0% Used</span>
+                    </div>
+                    <div class="bp-details">
+                        <div class="bp-stat">
+                            <label>Used</label>
+                            <span id="bpUsedAmount">£0</span>
+                        </div>
+                        <div class="bp-stat">
+                            <label>Available</label>
+                            <span id="bpAvailable">£0</span>
+                        </div>
+                        <div class="bp-stat">
+                            <label>Tom King Limit</label>
+                            <span class="bp-limit">35%</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Signal Alerts Panel -->
             <section class="panel signals-panel">
                 <h2>🎯 Signal Alerts</h2>

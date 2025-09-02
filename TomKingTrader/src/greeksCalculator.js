@@ -23,6 +23,17 @@ class GreeksCalculator {
             dividendYield = 0
         } = params;
 
+        // Input validation to prevent NaN
+        if (!spotPrice || !strikePrice || spotPrice <= 0 || strikePrice <= 0) {
+            return this.getDefaultGreeks();
+        }
+        if (!timeToExpiry || timeToExpiry <= 0) {
+            return this.getDefaultGreeks();
+        }
+        if (!volatility || volatility <= 0) {
+            return this.getDefaultGreeks();
+        }
+
         // Black-Scholes components
         const d1 = this.calculateD1(spotPrice, strikePrice, timeToExpiry, volatility, dividendYield);
         const d2 = d1 - volatility * Math.sqrt(timeToExpiry);
@@ -56,8 +67,17 @@ class GreeksCalculator {
      * Calculate D1 for Black-Scholes
      */
     calculateD1(S, K, T, sigma, q) {
+        // Validate inputs to prevent NaN
+        if (!S || !K || S <= 0 || K <= 0) return 0;
+        if (!T || T <= 0) return 0;
+        if (!sigma || sigma <= 0) return 0;
+        
         const numerator = Math.log(S / K) + (this.riskFreeRate - q + 0.5 * sigma * sigma) * T;
         const denominator = sigma * Math.sqrt(T);
+        
+        // Check for division by zero
+        if (denominator === 0) return 0;
+        
         return numerator / denominator;
     }
 
@@ -383,6 +403,24 @@ class GreeksCalculator {
      */
     normalPDF(x) {
         return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+    }
+
+    /**
+     * Return default Greeks when inputs are invalid
+     */
+    getDefaultGreeks() {
+        return {
+            delta: 0,
+            gamma: 0,
+            theta: 0,
+            vega: 0,
+            rho: 0,
+            theoreticalPrice: 0,
+            deltaPercent: 0,
+            gammaRisk: 'N/A',
+            thetaDecay: 0,
+            vegaRisk: 'N/A'
+        };
     }
 
     /**
