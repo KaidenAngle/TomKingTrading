@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tom King Trading Framework - Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNCIgZmlsbD0iIzAwNDA4MCIvPgo8cGF0aCBkPSJNOCAxNkwyNCAyNE04IDE2TDI0IDhNOCAxNkwyNCAyNCIgc3Ryb2tlPSIjMDBGRkZGIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+</head>
+<body>
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h2>Tom King Trading Framework</h2>
+            <p>Initializing Dashboard...</p>
+        </div>
+    </div>
+
+    <div id="dashboardContainer" class="dashboard-container" style="display: none;">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-left">
+                <h1>Tom King Trading Framework</h1>
+                <div class="account-info">
+                    <span id="accountValue">£35,000</span>
+                    <span class="goal-indicator">Goal: £80,000 (8 months)</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="status-indicators">
+                    <div id="connectionStatus" class="status-indicator offline">
+                        <span class="status-dot"></span>
+                        <span>API Status</span>
+                    </div>
+                    <div id="marketStatus" class="status-indicator">
+                        <span class="status-dot"></span>
+                        <span>Market Closed</span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button id="refreshBtn" class="action-btn">
+                        <span class="icon">🔄</span>
+                        Refresh
+                    </button>
+                    <button id="exportBtn" class="action-btn">
+                        <span class="icon">📊</span>
+                        Export
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Grid -->
+        <main class="dashboard-grid">
+            <!-- Account Overview -->
+            <section class="card account-overview">
+                <div class="card-header">
+                    <h2>Account Overview</h2>
+                    <span id="lastUpdate" class="timestamp">Last updated: --</span>
+                </div>
+                <div class="card-content">
+                    <div class="account-metrics">
+                        <div class="metric">
+                            <label>Current Value</label>
+                            <span id="currentValue" class="value large">£35,000</span>
+                        </div>
+                        <div class="metric">
+                            <label>Daily P&L</label>
+                            <span id="dailyPL" class="value profit">+£0</span>
+                        </div>
+                        <div class="metric">
+                            <label>Monthly P&L</label>
+                            <span id="monthlyPL" class="value profit">+£0</span>
+                        </div>
+                        <div class="metric">
+                            <label>Goal Progress</label>
+                            <span id="goalProgress" class="value">0%</span>
+                        </div>
+                    </div>
+                    <div class="account-chart">
+                        <canvas id="accountChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Positions Monitor -->
+            <section class="card positions-monitor">
+                <div class="card-header">
+                    <h2>Active Positions</h2>
+                    <span id="positionCount" class="badge">0</span>
+                </div>
+                <div class="card-content">
+                    <div id="positionsTable" class="positions-table">
+                        <div class="no-positions">
+                            <p>No active positions</p>
+                            <button class="action-btn secondary" id="addPositionBtn">Add Position</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Risk Management -->
+            <section class="card risk-management">
+                <div class="card-header">
+                    <h2>Risk Management</h2>
+                    <div id="riskAlert" class="risk-alert hidden">
+                        <span class="icon">⚠️</span>
+                        <span class="message">Risk Alert Active</span>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div class="risk-gauges">
+                        <div class="gauge-container">
+                            <div class="gauge" id="buyingPowerGauge">
+                                <div class="gauge-fill"></div>
+                                <div class="gauge-text">
+                                    <span class="gauge-value">0%</span>
+                                    <span class="gauge-label">Buying Power</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="correlation-groups">
+                            <h3>Correlation Groups</h3>
+                            <div id="correlationStatus" class="correlation-status">
+                                <div class="correlation-group">
+                                    <span class="group-name">Indices</span>
+                                    <span class="group-count">0/3</span>
+                                    <div class="group-bar">
+                                        <div class="group-fill" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                <div class="correlation-group">
+                                    <span class="group-name">Commodities</span>
+                                    <span class="group-count">0/3</span>
+                                    <div class="group-bar">
+                                        <div class="group-fill" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                <div class="correlation-group">
+                                    <span class="group-name">Fixed Income</span>
+                                    <span class="group-count">0/3</span>
+                                    <div class="group-bar">
+                                        <div class="group-fill" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="august-protection">
+                        <h3>August 2024 Protection</h3>
+                        <div id="augustProtection" class="protection-status active">
+                            <span class="icon">🛡️</span>
+                            <span>Active - Correlation limits enforced</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIX Regime -->
+            <section class="card vix-regime">
+                <div class="card-header">
+                    <h2>VIX Regime</h2>
+                    <span id="vixValue" class="vix-value">--</span>
+                </div>
+                <div class="card-content">
+                    <div class="vix-indicator">
+                        <div class="vix-levels">
+                            <div class="vix-level" data-level="1">
+                                <span class="level-label">Ultra Low</span>
+                                <span class="level-range">&lt; 12</span>
+                            </div>
+                            <div class="vix-level" data-level="2">
+                                <span class="level-label">Low</span>
+                                <span class="level-range">12-16</span>
+                            </div>
+                            <div class="vix-level active" data-level="3">
+                                <span class="level-label">Normal</span>
+                                <span class="level-range">16-20</span>
+                            </div>
+                            <div class="vix-level" data-level="4">
+                                <span class="level-label">Elevated</span>
+                                <span class="level-range">20-30</span>
+                            </div>
+                            <div class="vix-level" data-level="5">
+                                <span class="level-label">High</span>
+                                <span class="level-range">&gt; 30</span>
+                            </div>
+                        </div>
+                        <div class="position-sizing-adjustment">
+                            <h4>Position Sizing Adjustment</h4>
+                            <span id="positionSizeMultiplier">1.0x</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Strategy Performance -->
+            <section class="card strategy-performance">
+                <div class="card-header">
+                    <h2>Strategy Performance</h2>
+                    <div class="time-selector">
+                        <button class="time-btn active" data-period="1D">1D</button>
+                        <button class="time-btn" data-period="1W">1W</button>
+                        <button class="time-btn" data-period="1M">1M</button>
+                        <button class="time-btn" data-period="3M">3M</button>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div class="strategy-grid">
+                        <div class="strategy-item" data-strategy="0dte">
+                            <div class="strategy-header">
+                                <h4>0DTE Friday</h4>
+                                <span class="win-rate">100%</span>
+                            </div>
+                            <div class="strategy-metrics">
+                                <span class="metric">Trades: 0</span>
+                                <span class="metric profit">P&L: +£0</span>
+                            </div>
+                        </div>
+                        <div class="strategy-item" data-strategy="strangle">
+                            <div class="strategy-header">
+                                <h4>45DTE Strangles</h4>
+                                <span class="win-rate">0%</span>
+                            </div>
+                            <div class="strategy-metrics">
+                                <span class="metric">Trades: 0</span>
+                                <span class="metric">P&L: +£0</span>
+                            </div>
+                        </div>
+                        <div class="strategy-item" data-strategy="long112">
+                            <div class="strategy-header">
+                                <h4>Long 112</h4>
+                                <span class="win-rate">0%</span>
+                            </div>
+                            <div class="strategy-metrics">
+                                <span class="metric">Trades: 0</span>
+                                <span class="metric">P&L: +£0</span>
+                            </div>
+                        </div>
+                        <div class="strategy-item" data-strategy="futures">
+                            <div class="strategy-header">
+                                <h4>Futures Strangles</h4>
+                                <span class="win-rate">0%</span>
+                            </div>
+                            <div class="strategy-metrics">
+                                <span class="metric">Trades: 0</span>
+                                <span class="metric">P&L: +£0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="performance-chart">
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Trade Recommendations -->
+            <section class="card trade-recommendations">
+                <div class="card-header">
+                    <h2>Trade Recommendations</h2>
+                    <button id="generateRecommendationsBtn" class="action-btn secondary">Generate</button>
+                </div>
+                <div class="card-content">
+                    <div id="recommendationsContainer" class="recommendations-container">
+                        <div class="no-recommendations">
+                            <p>Click "Generate" to get trade recommendations</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tom King Rules Compliance -->
+            <section class="card rules-compliance">
+                <div class="card-header">
+                    <h2>Tom King Rules Compliance</h2>
+                    <div id="complianceScore" class="compliance-score">100%</div>
+                </div>
+                <div class="card-content">
+                    <div class="compliance-rules">
+                        <div class="rule-item compliant">
+                            <span class="rule-icon">✅</span>
+                            <span class="rule-text">Buying power &lt; 35%</span>
+                            <span class="rule-status">Compliant</span>
+                        </div>
+                        <div class="rule-item compliant">
+                            <span class="rule-icon">✅</span>
+                            <span class="rule-text">Max 3 per correlation group</span>
+                            <span class="rule-status">Compliant</span>
+                        </div>
+                        <div class="rule-item compliant">
+                            <span class="rule-icon">✅</span>
+                            <span class="rule-text">0DTE only on Fridays after 10:30</span>
+                            <span class="rule-status">Compliant</span>
+                        </div>
+                        <div class="rule-item compliant">
+                            <span class="rule-icon">✅</span>
+                            <span class="rule-text">21 DTE defensive management</span>
+                            <span class="rule-status">Compliant</span>
+                        </div>
+                        <div class="rule-item compliant">
+                            <span class="rule-icon">✅</span>
+                            <span class="rule-text">50% profit targets</span>
+                            <span class="rule-status">Compliant</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Alerts Panel -->
+            <section class="card alerts-panel">
+                <div class="card-header">
+                    <h2>Risk Alerts</h2>
+                    <span id="alertCount" class="badge alert">0</span>
+                </div>
+                <div class="card-content">
+                    <div id="alertsContainer" class="alerts-container">
+                        <div class="no-alerts">
+                            <span class="icon">✅</span>
+                            <p>All systems green</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="dashboard-footer">
+            <div class="footer-left">
+                <span>Tom King Trading Framework v17.1</span>
+                <span class="separator">|</span>
+                <span>Account Phase: <span id="accountPhase">Phase 1</span></span>
+            </div>
+            <div class="footer-right">
+                <span id="marketTime">--:--:-- GMT</span>
+                <span class="separator">|</span>
+                <span>Next refresh in <span id="refreshCountdown">5</span>s</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Modals -->
+    <div id="exportModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Export Data</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="export-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="exportPositions" checked>
+                        <span>Positions</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="exportPerformance" checked>
+                        <span>Performance Data</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="exportAlerts" checked>
+                        <span>Risk Alerts</span>
+                    </label>
+                </div>
+                <div class="export-format">
+                    <label>Format:</label>
+                    <select id="exportFormat">
+                        <option value="csv">CSV</option>
+                        <option value="json">JSON</option>
+                        <option value="pdf">PDF Report</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn secondary" id="cancelExport">Cancel</button>
+                <button class="action-btn primary" id="confirmExport">Export</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="addPositionModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Position</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Symbol</label>
+                    <input type="text" id="newPositionSymbol" placeholder="e.g., SPY">
+                </div>
+                <div class="form-group">
+                    <label>Strategy</label>
+                    <select id="newPositionStrategy">
+                        <option value="0dte">0DTE Friday</option>
+                        <option value="strangle">45DTE Strangle</option>
+                        <option value="long112">Long 112</option>
+                        <option value="futures">Futures Strangle</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Position Size (£)</label>
+                    <input type="number" id="newPositionSize" placeholder="1000">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn secondary" id="cancelAddPosition">Cancel</button>
+                <button class="action-btn primary" id="confirmAddPosition">Add Position</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

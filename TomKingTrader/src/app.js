@@ -2517,8 +2517,8 @@ class TomKingTraderApp {
             }
         });
 
-        // Get HTML dashboard
-        this.app.get('/dashboard', (req, res) => {
+        // Get HTML dashboard (legacy)
+        this.app.get('/dashboard-legacy', (req, res) => {
             try {
                 const html = this.unifiedSystem.generateHTMLDashboard();
                 res.type('html').send(html);
@@ -2529,11 +2529,16 @@ class TomKingTraderApp {
                         <body>
                             <h1>Dashboard Error</h1>
                             <p>Failed to generate dashboard: ${error.message}</p>
-                            <p><a href="/dashboard">Refresh</a></p>
+                            <p><a href="/dashboard-legacy">Refresh</a></p>
                         </body>
                     </html>
                 `);
             }
+        });
+
+        // Serve professional dashboard
+        this.app.get('/dashboard', (req, res) => {
+            res.sendFile(path.join(__dirname, '..', 'public', 'dashboard.html'));
         });
 
         // Position management routes

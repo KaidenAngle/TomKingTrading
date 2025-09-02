@@ -1,0 +1,3 @@
+Date,Symbol,Strategy,DTE,Entry Price,Current Price,P&L £,P&L %,BP Used %,Delta,Gamma,Theta,Vega,Status
+2025-09-02,ES,LT112,85,5420,5441,315,3.8,12,0.15,0.02,45,-0.8,ACTIVE
+2025-09-02,MCL,STRANGLE,45,2.8,2.65,-180,-6.4,8,-0.05,0.01,25,1.2,ACTIVE

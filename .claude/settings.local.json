@@ -23,7 +23,8 @@
       "Bash(del test_option_chain.js)",
       "Bash(timeout:*)",
       "Bash(npm start)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(powershell:*)"
     ],
     "deny": [],
     "ask": []
