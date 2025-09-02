@@ -1,9 +1,10 @@
 /**
  * Tom King Strategy Backtesting Engine
- * Implements exact entry/exit rules for all 10 strategies with historical validation
- * Enforces correlation limits, position sizing, and day-specific trading rules
+ * UPDATED to use UNIFIED_TRADING_ENGINE for exact production parity
+ * Ensures backtesting uses identical logic as live trading
  */
 
+const { UnifiedTradingEngine } = require('../UNIFIED_TRADING_ENGINE');
 const HistoricalDataManager = require('./historicalDataManager');
 const TradingStrategies = require('./strategies');
 const GreeksCalculator = require('./greeksCalculator');
@@ -19,22 +20,26 @@ class BacktestingEngine {
             slippage: options.slippage || 0.02, // 2% slippage estimate
             maxPositions: options.maxPositions || 20,
             correlationLimit: options.correlationLimit || 3,
-            maxBPUsage: options.maxBPUsage || 35, // 35% max buying power
+            maxBPUsage: options.maxBPUsage || 0.35, // 35% max buying power (as decimal)
             ...options
         };
 
         this.logger = getLogger();
         this.dataManager = new HistoricalDataManager(options);
+        
+        // CRITICAL: Use UNIFIED_TRADING_ENGINE in backtest mode
+        // This ensures exact same logic as live trading
+        this.unifiedEngine = new UnifiedTradingEngine('backtest', {
+            initialCapital: this.config.initialCapital,
+            maxBPUsage: this.config.maxBPUsage,
+            correlationLimit: this.config.correlationLimit,
+            commissions: this.config.commissions,
+            slippage: this.config.slippage
+        });
+
+        // Legacy support for existing methods
         this.strategies = new TradingStrategies();
         this.greeksCalc = new GreeksCalculator();
-
-        // Backtesting state
-        this.trades = [];
-        this.positions = [];
-        this.dailyPnL = [];
-        this.currentCapital = this.config.initialCapital;
-        this.currentPhase = 1;
-        this.correlationGroups = new Map();
         
         // Tom King specific rules
         this.tomKingRules = {
@@ -91,13 +96,15 @@ class BacktestingEngine {
     }
 
     /**
-     * Run comprehensive backtest for all strategies
+     * Run comprehensive backtest for all strategies using UNIFIED ENGINE
+     * CRITICAL: This ensures exact same logic as live trading
      */
     async runFullBacktest(symbols = null) {
-        this.logger.info('BACKTEST', 'Starting comprehensive backtest', {
+        this.logger.info('BACKTEST_UNIFIED', 'Starting unified backtest', {
             startDate: this.config.startDate,
             endDate: this.config.endDate,
-            initialCapital: this.config.initialCapital
+            initialCapital: this.config.initialCapital,
+            mode: this.unifiedEngine.mode
         });
 
         // Get default symbols if not provided
@@ -105,49 +112,59 @@ class BacktestingEngine {
             symbols = this.getDefaultSymbols();
         }
 
-        // Load all historical data first
-        const marketData = await this.loadAllHistoricalData(symbols);
-        
-        // Initialize backtest state
-        this.initializeBacktest();
-
         // Generate trading calendar (business days only)
         const tradingDays = this.generateTradingCalendar(this.config.startDate, this.config.endDate);
-
         let processedDays = 0;
         
-        // Process each trading day
+        // Process each trading day using UNIFIED ENGINE
         for (const date of tradingDays) {
-            await this.processBacktestDay(date, marketData);
-            
-            processedDays++;
-            if (processedDays % 100 === 0) {
-                this.logger.info('BACKTEST', `Processed ${processedDays}/${tradingDays.length} days`, {
-                    currentDate: date,
-                    capital: this.currentCapital,
-                    positions: this.positions.length
-                });
+            try {
+                // Run single period through unified engine - EXACT same logic as live trading
+                const dayResults = await this.unifiedEngine.runSinglePeriod(date, symbols);
+                
+                processedDays++;
+                if (processedDays % 100 === 0) {
+                    const portfolio = this.unifiedEngine.getPortfolioSummary();
+                    this.logger.info('BACKTEST_UNIFIED', `Processed ${processedDays}/${tradingDays.length} days`, {
+                        currentDate: date.toISOString().split('T')[0],
+                        totalValue: portfolio.totalValue,
+                        positionCount: portfolio.positionCount,
+                        unrealizedPnL: portfolio.unrealizedPnL
+                    });
+                }
+            } catch (error) {
+                this.logger.error('BACKTEST_UNIFIED', `Failed to process ${date}`, error);
             }
         }
 
-        // Generate final results
-        const results = await this.generateBacktestResults();
+        // Generate final results from unified engine
+        const finalStats = this.unifiedEngine.getStatistics();
+        const portfolio = this.unifiedEngine.getPortfolioSummary();
         
-        this.logger.info('BACKTEST', 'Backtest completed', {
-            finalCapital: this.currentCapital,
-            totalReturn: ((this.currentCapital / this.config.initialCapital - 1) * 100).toFixed(2) + '%',
-            totalTrades: this.trades.length,
-            winRate: results.metrics.winRate
+        this.logger.info('BACKTEST_UNIFIED', 'Unified backtest completed', {
+            finalValue: portfolio.totalValue,
+            totalReturn: (finalStats.totalReturn * 100).toFixed(2) + '%',
+            totalTrades: finalStats.totalTrades,
+            winRate: (finalStats.winRate * 100).toFixed(2) + '%',
+            currentPositions: finalStats.currentPositions
         });
 
-        return results;
+        return {
+            summary: portfolio,
+            statistics: finalStats,
+            tradeHistory: this.unifiedEngine.tradeHistory,
+            correlationGroups: Array.from(this.unifiedEngine.correlationGroups.entries()),
+            config: this.config,
+            mode: 'UNIFIED_BACKTEST'
+        };
     }
 
     /**
-     * Run backtest for specific strategy
+     * Run backtest for specific strategy using UNIFIED ENGINE
+     * CRITICAL: Ensures exact same strategy logic as live trading
      */
     async runStrategyBacktest(strategyName, symbols = null) {
-        this.logger.info('BACKTEST', `Running backtest for ${strategyName}`);
+        this.logger.info('BACKTEST_UNIFIED', `Running unified strategy backtest for ${strategyName}`);
 
         const strategy = this.tomKingRules.strategies[strategyName];
         if (!strategy) {
@@ -155,16 +172,35 @@ class BacktestingEngine {
         }
 
         symbols = symbols || this.getStrategySymbols(strategyName);
-        const marketData = await this.loadAllHistoricalData(symbols);
         
-        this.initializeBacktest();
+        // Create strategy-specific unified engine
+        const strategyEngine = new UnifiedTradingEngine('backtest', {
+            ...this.config,
+            strategyFilter: strategyName // Only run this specific strategy
+        });
+        
         const tradingDays = this.generateTradingCalendar(this.config.startDate, this.config.endDate);
 
+        // Process each day using unified engine with strategy filter
         for (const date of tradingDays) {
-            await this.processStrategyDay(date, strategyName, marketData);
+            try {
+                await strategyEngine.runSinglePeriod(date, symbols);
+            } catch (error) {
+                this.logger.error('BACKTEST_UNIFIED', `Strategy ${strategyName} failed on ${date}`, error);
+            }
         }
 
-        return await this.generateBacktestResults(strategyName);
+        const finalStats = strategyEngine.getStatistics();
+        const portfolio = strategyEngine.getPortfolioSummary();
+        
+        return {
+            strategy: strategyName,
+            summary: portfolio,
+            statistics: finalStats,
+            tradeHistory: strategyEngine.tradeHistory.filter(trade => trade.strategy === strategyName),
+            config: this.config,
+            mode: 'UNIFIED_STRATEGY_BACKTEST'
+        };
     }
 
     /**
@@ -358,37 +394,50 @@ class BacktestingEngine {
      */
     async evaluateStrategyEntry(strategyName, date, marketData) {
         const dateStr = date.toISOString().split('T')[0];
-        const strategy = this.tomKingRules.strategies[strategyName];
         
-        // Check time window for intraday strategies
-        if (strategy.timeWindow) {
-            // For backtesting with daily data, assume we're trading at optimal times
-            // For 0DTE Friday, assume we're trading at 11 AM (after 10:30 AM rule)
-            const assumedHour = strategyName === '0DTE' ? 11 : 10;
-            const time = assumedHour;
-            if (time < strategy.timeWindow.start || time > strategy.timeWindow.end) {
-                return; // Outside trading window
-            }
+        // FIXED: Use the updated TradingStrategies class with realistic entry frequency
+        const accountData = {
+            phase: this.currentPhase,
+            capital: this.currentCapital,
+            buyingPower: this.currentCapital * 0.5, // Assume 50% buying power usage
+            positions: this.positions.filter(p => p.status === 'OPEN')
+        };
+
+        // Set proper time for intraday strategies in backtesting
+        const testDate = new Date(date);
+        if (strategyName === '0DTE') {
+            testDate.setHours(11, 0, 0, 0); // 11:00 AM for 0DTE
+        } else if (strategyName === 'IPMCC') {
+            testDate.setHours(9, 15, 0, 0); // 9:15 AM for IPMCC
+        } else {
+            testDate.setHours(10, 0, 0, 0); // 10:00 AM for other strategies
         }
 
-        let entry = null;
-
+        // Call the fixed strategy analyzer
+        let analysis = null;
         switch (strategyName) {
             case '0DTE':
-                entry = await this.evaluate0DTEEntry(date, marketData);
+                analysis = this.strategies.analyze0DTE(marketData, accountData, testDate);
                 break;
             case 'LT112':
-                entry = await this.evaluateLT112Entry(date, marketData);
+                analysis = this.strategies.analyzeLT112(marketData, accountData, testDate);
                 break;
             case 'STRANGLE':
-                entry = await this.evaluateStrangleEntry(date, marketData);
+                analysis = this.strategies.analyzeStrangles(marketData, accountData, testDate);
                 break;
             case 'IPMCC':
-                entry = await this.evaluateIPMCCEntry(date, marketData);
+                analysis = this.strategies.analyzeIPMCC(marketData, accountData, testDate);
                 break;
             case 'LEAP':
-                entry = await this.evaluateLEAPEntry(date, marketData);
+                analysis = this.strategies.analyzeLEAPLadder(marketData, accountData, testDate);
                 break;
+        }
+
+        // Convert analysis to entry format for backtesting
+        let entry = null;
+        if (analysis && analysis.canTrade && analysis.signals && analysis.signals.length > 0) {
+            const signal = analysis.signals[0];
+            entry = this.convertAnalysisToEntry(signal, strategyName, date, marketData);
         }
 
         if (entry) {
@@ -402,6 +451,124 @@ class BacktestingEngine {
         } else {
             this.logger.debug('BACKTEST', `No entry conditions met for ${strategyName} on ${dateStr}`);
         }
+    }
+    
+    /**
+     * Convert strategy analysis to backtest entry format
+     */
+    convertAnalysisToEntry(signal, strategyName, date, marketData) {
+        const baseEntry = {
+            strategy: strategyName,
+            entryDate: date,
+            capitalRequired: 0,
+            maxLoss: 0
+        };
+
+        switch (strategyName) {
+            case '0DTE':
+                return this.convert0DTEEntry(signal, baseEntry, marketData);
+            case 'LT112':
+                return this.convertLT112Entry(signal, baseEntry, marketData);
+            case 'STRANGLE':
+                return this.convertStrangleEntry(signal, baseEntry, marketData);
+            case 'IPMCC':
+                return this.convertIPMCCEntry(signal, baseEntry, marketData);
+            case 'LEAP':
+                return this.convertLEAPEntry(signal, baseEntry, marketData);
+            default:
+                return null;
+        }
+    }
+
+    convert0DTEEntry(signal, baseEntry, marketData) {
+        const entry = signal.entry;
+        const contracts = signal.contracts || 1;
+        const multiplier = 50; // ES multiplier
+        
+        return {
+            ...baseEntry,
+            type: signal.type.includes('CALL') ? 'CALL_SPREAD' : 
+                  signal.type.includes('PUT') ? 'PUT_SPREAD' : 'IRON_CONDOR',
+            underlying: 'ES',
+            shortStrike: entry.shortStrike || entry.callShort,
+            longStrike: entry.longStrike || entry.callLong,
+            putShort: entry.putShort,
+            putLong: entry.putLong,
+            callShort: entry.callShort,
+            callLong: entry.callLong,
+            expiration: date.toISOString().split('T')[0],
+            contracts: contracts,
+            entryValue: entry.credit ? entry.credit * contracts * multiplier : 
+                       entry.totalCredit ? entry.totalCredit * contracts * multiplier : 1000,
+            capitalRequired: entry.maxLoss ? entry.maxLoss * contracts : 2000,
+            maxLoss: entry.maxLoss ? entry.maxLoss * contracts : 2000
+        };
+    }
+
+    convertLT112Entry(signal, baseEntry, marketData) {
+        const contracts = signal.contracts || 1;
+        const multiplier = signal.ticker === 'ES' ? 50 : 5; // ES vs MES
+        
+        return {
+            ...baseEntry,
+            type: 'PUT_SPREAD',
+            underlying: signal.ticker,
+            shortStrike: signal.shortStrike,
+            longStrike: signal.longStrike,
+            expiration: signal.expiration,
+            contracts: contracts,
+            entryValue: signal.credit * contracts * multiplier,
+            capitalRequired: (signal.shortStrike - signal.longStrike) * contracts * multiplier,
+            maxLoss: ((signal.shortStrike - signal.longStrike) - signal.credit) * contracts * multiplier
+        };
+    }
+
+    convertStrangleEntry(signal, baseEntry, marketData) {
+        const multiplier = this.getContractMultiplier(signal.ticker);
+        
+        return {
+            ...baseEntry,
+            type: 'SHORT_STRANGLE',
+            underlying: signal.ticker,
+            putStrike: signal.putStrike,
+            callStrike: signal.callStrike,
+            expiration: this.getExpirationDate(90).toISOString().split('T')[0],
+            contracts: 1,
+            entryValue: signal.totalCredit * multiplier,
+            capitalRequired: signal.totalCredit * multiplier * 2,
+            maxLoss: signal.totalCredit * multiplier * 2
+        };
+    }
+
+    convertIPMCCEntry(signal, baseEntry, marketData) {
+        return {
+            ...baseEntry,
+            type: 'IPMCC',
+            underlying: signal.ticker,
+            leapStrike: signal.leapStrike,
+            weeklyStrike: signal.weeklyStrike,
+            leapExpiry: signal.leapExpiry,
+            weeklyExpiry: signal.weeklyExpiry,
+            contracts: 1,
+            entryValue: -signal.estimatedCost, // Negative because we pay
+            capitalRequired: signal.estimatedCost,
+            maxLoss: signal.estimatedCost
+        };
+    }
+
+    convertLEAPEntry(signal, baseEntry, marketData) {
+        const totalCost = signal.totalCost || 5000; // Default if missing
+        
+        return {
+            ...baseEntry,
+            type: 'LEAP',
+            underlying: signal.ticker,
+            positions: signal.positions,
+            contracts: signal.positions.length,
+            entryValue: -totalCost, // Negative because we pay
+            capitalRequired: totalCost,
+            maxLoss: totalCost
+        };
     }
 
     /**
