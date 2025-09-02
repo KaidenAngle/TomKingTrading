@@ -2478,65 +2478,6 @@ class TomKingTraderApp {
             res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
         });
         
-        // Catch-all route
-        this.app.get('*', (req, res) => {
-            res.status(404).json({
-                success: false,
-                error: 'Endpoint not found',
-                availableEndpoints: [
-                    'GET /health',
-                    'GET /api/health',
-                    'POST /api/initialize',
-                    'POST /api/analyze',
-                    'POST /api/strategy/analyze',
-                    'POST /api/risk/check',
-                    'POST /api/position/calculate',
-                    'GET /api/status',
-                    'GET /api/signals',
-                    'POST /api/market-data',
-                    'POST /api/positions',
-                    'POST /api/report',
-                    'GET /api/config',
-                    'POST /api/test-connection',
-                    'POST /api/scheduler/start',
-                    'POST /api/scheduler/stop',
-                    'POST /api/streaming/enable',
-                    'POST /api/streaming/disable',
-                    'POST /api/streaming/subscribe',
-                    'POST /api/quotes/realtime',
-                    'GET /api/streaming/status',
-                    'POST /api/orders/dry-run',
-                    'POST /api/orders/place',
-                    'GET /api/orders/live',
-                    'GET /api/orders/:orderId',
-                    'DELETE /api/orders/:orderId',
-                    'GET /api/orders/stats',
-                    'POST /api/strategies/iron-condor',
-                    'POST /api/strategies/short-strangle',
-                    'POST /api/strategies/0dte',
-                    'POST /api/strategies/butterfly',
-                    'GET /api/greeks/portfolio',
-                    'POST /api/greeks/option',
-                    'POST /api/greeks/5-delta-strikes',
-                    'POST /api/greeks/update',
-                    'GET /api/greeks/history',
-                    'GET /api/greeks/alerts',
-                    'GET /api/greeks/status',
-                    'GET /api/test/scenarios',
-                    'POST /api/test/run',
-                    'POST /api/test/run-all',
-                    'POST /api/test/manual-input',
-                    'POST /api/backtest/run',
-                    'POST /api/backtest/strategy/:strategyName',
-                    'POST /api/backtest/validate-patterns',
-                    'POST /api/backtest/optimize/:strategyName',
-                    'POST /api/backtest/report',
-                    'GET /api/backtest/data/:symbol',
-                    'POST /api/backtest/metrics',
-                    'GET /api/backtest/status'
-                ]
-            });
-        });
         // === UNIFIED TRADING SYSTEM ROUTES ===
         
         // Get system status
@@ -2803,6 +2744,80 @@ class TomKingTraderApp {
                     timestamp: new Date().toISOString()
                 });
             }
+        });
+        
+        // Catch-all route - MUST BE LAST!
+        this.app.get('*', (req, res) => {
+            res.status(404).json({
+                success: false,
+                error: 'Endpoint not found',
+                availableEndpoints: [
+                    'GET /health',
+                    'GET /api/health',
+                    'POST /api/initialize',
+                    'POST /api/analyze',
+                    'POST /api/strategy/analyze',
+                    'POST /api/risk/check',
+                    'POST /api/position/calculate',
+                    'GET /api/status',
+                    'GET /api/signals',
+                    'POST /api/market-data',
+                    'POST /api/positions',
+                    'POST /api/report',
+                    'GET /api/config',
+                    'POST /api/test-connection',
+                    'POST /api/scheduler/start',
+                    'POST /api/scheduler/stop',
+                    'POST /api/streaming/enable',
+                    'POST /api/streaming/disable',
+                    'POST /api/streaming/subscribe',
+                    'POST /api/quotes/realtime',
+                    'GET /api/streaming/status',
+                    'POST /api/orders/dry-run',
+                    'POST /api/orders/place',
+                    'GET /api/orders/live',
+                    'GET /api/orders/:orderId',
+                    'DELETE /api/orders/:orderId',
+                    'GET /api/orders/stats',
+                    'POST /api/strategies/iron-condor',
+                    'POST /api/strategies/short-strangle',
+                    'POST /api/strategies/0dte',
+                    'POST /api/strategies/butterfly',
+                    'GET /api/greeks/portfolio',
+                    'POST /api/greeks/option',
+                    'POST /api/greeks/5-delta-strikes',
+                    'POST /api/greeks/update',
+                    'GET /api/greeks/history',
+                    'GET /api/greeks/alerts',
+                    'GET /api/greeks/status',
+                    'GET /api/test/scenarios',
+                    'POST /api/test/run',
+                    'POST /api/test/run-all',
+                    'POST /api/test/manual-input',
+                    'POST /api/backtest/run',
+                    'POST /api/backtest/strategy/:strategyName',
+                    'POST /api/backtest/validate-patterns',
+                    'POST /api/backtest/optimize/:strategyName',
+                    'POST /api/backtest/report',
+                    'GET /api/backtest/data/:symbol',
+                    'POST /api/backtest/metrics',
+                    'GET /api/backtest/status',
+                    'GET /api/system/status',
+                    'GET /api/dashboard',
+                    'GET /dashboard',
+                    'GET /api/positions',
+                    'POST /api/positions',
+                    'PUT /api/positions/:id',
+                    'DELETE /api/positions/:id',
+                    'GET /api/pl/current',
+                    'GET /api/analytics',
+                    'GET /api/tom-king/metrics',
+                    'POST /api/export/trades',
+                    'POST /api/export/analytics',
+                    'GET /api/reports/comprehensive',
+                    'POST /api/market-data/update'
+                ]
+            });
         });
     }
     

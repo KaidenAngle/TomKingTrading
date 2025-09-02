@@ -273,9 +273,9 @@ class TradingStrategies {
             return analysis;
         }
 
-        // Find next 112 DTE expiration (16 weeks out)
+        // Find next 120 DTE expiration (17 weeks out)
         const targetDate = new Date();
-        targetDate.setDate(targetDate.getDate() + 112);
+        targetDate.setDate(targetDate.getDate() + 120);
         const expirationFriday = this.getNextFriday(targetDate);
 
         // Analyze MES for entry (Phase 2) or ES (Phase 3+)
@@ -308,7 +308,7 @@ class TradingStrategies {
                 score: entryScore
             });
             
-            analysis.recommendation = `ENTER ${ticker} LT112: Sell ${spread.shortStrike} / Buy ${spread.longStrike} (112 DTE) for ${spread.credit} credit`;
+            analysis.recommendation = `ENTER ${ticker} LT112: Sell ${spread.shortStrike} / Buy ${spread.longStrike} (120 DTE) for ${spread.credit} credit`;
         } else {
             analysis.recommendation = `Wait for better entry - Score: ${entryScore}/100`;
         }

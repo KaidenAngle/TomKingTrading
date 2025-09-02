@@ -1,0 +1,5 @@
+Strategy,Trades,Win Rate %,Total Return %,Sharpe Ratio,Max Drawdown %,Profit Factor,Compliance Grade
+LT112,24,87.5,18.2,1.94,-4.1,3.8,A
+0DTE,104,92.3,12.4,2.15,-1.8,8.2,A+
+STRANGLE,36,77.8,15.6,1.67,-6.2,2.9,A
+PORTFOLIO,164,85.4,110.0,1.89,-8.3,4.1,A

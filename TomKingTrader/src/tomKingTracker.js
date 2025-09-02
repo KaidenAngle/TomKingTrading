@@ -447,7 +447,6 @@ class PhaseProgressionTracker {
     constructor(startingBalance = 35000) {
         this.startingBalance = startingBalance;
         this.currentBalance = startingBalance;
-        this.currentPhase = this.determinePhase(startingBalance);
         this.phaseHistory = [];
         this.milestones = [
             { phase: 1, minBalance: 30000, maxBalance: 39999, description: 'Foundation Phase - MCL, MGC, TLT strangles, Friday 0DTE' },
@@ -455,6 +454,9 @@ class PhaseProgressionTracker {
             { phase: 3, minBalance: 60000, maxBalance: 74999, description: 'Upgrade Phase - Full futures, butterflies, complex spreads' },
             { phase: 4, minBalance: 75000, maxBalance: Infinity, description: 'Professional Phase - All strategies, maximum capacity' }
         ];
+        
+        // Now determine phase after milestones are defined
+        this.currentPhase = this.determinePhase(startingBalance);
         
         // Record initial phase
         this.recordPhaseEntry(this.currentPhase, startingBalance);

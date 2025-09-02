@@ -781,6 +781,642 @@ class PerformanceMetrics {
         
         return months > 0 ? trades.length / months : 0;
     }
+
+    /**
+     * Calculate monthly consistency metric
+     */
+    calculateMonthlyConsistency(monthlyReturns) {
+        if (!monthlyReturns || monthlyReturns.length === 0) return 0;
+        
+        const profitableMonths = monthlyReturns.filter(r => r > 0).length;
+        return (profitableMonths / monthlyReturns.length) * 100;
+    }
+
+    /**
+     * Calculate return stability
+     */
+    calculateReturnStability(monthlyReturns) {
+        if (!monthlyReturns || monthlyReturns.length < 2) return 0;
+        
+        const mean = monthlyReturns.reduce((sum, r) => sum + r, 0) / monthlyReturns.length;
+        const variance = monthlyReturns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / monthlyReturns.length;
+        const stdDev = Math.sqrt(variance);
+        
+        return mean !== 0 ? (mean / stdDev) : 0;
+    }
+
+    /**
+     * Calculate CAGR (Compound Annual Growth Rate)
+     */
+    calculateCAGR(dailyPnL, initialCapital) {
+        if (!dailyPnL || dailyPnL.length === 0) return 0;
+        
+        const finalCapital = dailyPnL[dailyPnL.length - 1].capital || initialCapital;
+        const years = dailyPnL.length / 252; // Trading days per year
+        
+        if (years === 0) return 0;
+        
+        return (Math.pow(finalCapital / initialCapital, 1 / years) - 1) * 100;
+    }
+
+    /**
+     * Identify best performing strategy
+     */
+    identifyBestStrategy(strategyBreakdown) {
+        if (!strategyBreakdown || Object.keys(strategyBreakdown).length === 0) {
+            return { strategy: 'N/A', winRate: 0 };
+        }
+        
+        let bestStrategy = null;
+        let bestWinRate = -Infinity;
+        
+        for (const [strategy, stats] of Object.entries(strategyBreakdown)) {
+            if (stats.winRate > bestWinRate) {
+                bestWinRate = stats.winRate;
+                bestStrategy = strategy;
+            }
+        }
+        
+        return { strategy: bestStrategy, winRate: bestWinRate };
+    }
+
+    /**
+     * Identify worst performing strategy
+     */
+    identifyWorstStrategy(strategyBreakdown) {
+        if (!strategyBreakdown || Object.keys(strategyBreakdown).length === 0) {
+            return { strategy: 'N/A', winRate: 0 };
+        }
+        
+        let worstStrategy = null;
+        let worstWinRate = Infinity;
+        
+        for (const [strategy, stats] of Object.entries(strategyBreakdown)) {
+            if (stats.winRate < worstWinRate) {
+                worstWinRate = stats.winRate;
+                worstStrategy = strategy;
+            }
+        }
+        
+        return { strategy: worstStrategy, winRate: worstWinRate };
+    }
+
+    /**
+     * Calculate strategy correlation
+     */
+    calculateStrategyCorrelation(trades) {
+        // Simplified correlation calculation
+        if (!trades || trades.length < 2) return 0;
+        
+        const strategies = [...new Set(trades.map(t => t.strategy))];
+        if (strategies.length < 2) return 0;
+        
+        // Basic correlation metric (0 = uncorrelated, 1 = perfectly correlated)
+        return 0.3; // Placeholder for actual correlation calculation
+    }
+
+    /**
+     * Calculate diversification benefit
+     */
+    calculateDiversificationBenefit(strategyBreakdown) {
+        if (!strategyBreakdown || Object.keys(strategyBreakdown).length === 0) return 0;
+        
+        const strategies = Object.keys(strategyBreakdown);
+        if (strategies.length === 1) return 0;
+        
+        // Simplified diversification benefit calculation
+        const avgReturn = Object.values(strategyBreakdown)
+            .reduce((sum, stats) => sum + stats.totalReturn, 0) / strategies.length;
+        
+        return avgReturn * 0.15; // Assume 15% benefit from diversification
+    }
+
+    /**
+     * Calculate maximum winning streak
+     */
+    calculateMaxWinStreak(trades) {
+        if (!trades || trades.length === 0) return 0;
+        
+        let maxStreak = 0;
+        let currentStreak = 0;
+        
+        for (const trade of trades) {
+            if (trade.pnl > 0) {
+                currentStreak++;
+                maxStreak = Math.max(maxStreak, currentStreak);
+            } else {
+                currentStreak = 0;
+            }
+        }
+        
+        return maxStreak;
+    }
+
+    /**
+     * Calculate maximum losing streak
+     */
+    calculateMaxLossStreak(trades) {
+        if (!trades || trades.length === 0) return 0;
+        
+        let maxStreak = 0;
+        let currentStreak = 0;
+        
+        for (const trade of trades) {
+            if (trade.pnl < 0) {
+                currentStreak++;
+                maxStreak = Math.max(maxStreak, currentStreak);
+            } else {
+                currentStreak = 0;
+            }
+        }
+        
+        return maxStreak;
+    }
+    
+    /**
+     * Calculate maximum profit streak from daily P&L
+     */
+    calculateMaxProfitStreak(dailyPnL) {
+        if (!dailyPnL || dailyPnL.length === 0) return 0;
+        
+        let maxStreak = 0;
+        let currentStreak = 0;
+        
+        dailyPnL.forEach(day => {
+            const pnl = day.pnl || day;
+            if (pnl > 0) {
+                currentStreak++;
+                maxStreak = Math.max(maxStreak, currentStreak);
+            } else {
+                currentStreak = 0;
+            }
+        });
+        
+        return maxStreak;
+    }
+    
+    /**
+     * Calculate maximum drawdown streak from daily P&L
+     */
+    calculateMaxDrawdownStreak(dailyPnL) {
+        if (!dailyPnL || dailyPnL.length === 0) return 0;
+        
+        let maxStreak = 0;
+        let currentStreak = 0;
+        
+        dailyPnL.forEach(day => {
+            const pnl = day.pnl || day;
+            if (pnl < 0) {
+                currentStreak++;
+                maxStreak = Math.max(maxStreak, currentStreak);
+            } else {
+                currentStreak = 0;
+            }
+        });
+        
+        return maxStreak;
+    }
+
+
+    /**
+     * Analyze days of week performance
+     */
+    analyzeDaysOfWeek(trades) {
+        const dayStats = {};
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        
+        for (let i = 0; i < 7; i++) {
+            dayStats[dayNames[i]] = { trades: 0, wins: 0, losses: 0, pnl: 0 };
+        }
+        
+        for (const trade of trades) {
+            const day = new Date(trade.entryDate).getDay();
+            const dayName = dayNames[day];
+            
+            dayStats[dayName].trades++;
+            if (trade.pnl > 0) {
+                dayStats[dayName].wins++;
+            } else {
+                dayStats[dayName].losses++;
+            }
+            dayStats[dayName].pnl += trade.pnl || 0;
+        }
+        
+        return dayStats;
+    }
+
+    /**
+     * Analyze time of day performance
+     */
+    analyzeTimeOfDay(trades) {
+        const timeStats = {
+            morning: { trades: 0, pnl: 0 },     // 9:30-12:00
+            midday: { trades: 0, pnl: 0 },      // 12:00-14:00
+            afternoon: { trades: 0, pnl: 0 },   // 14:00-16:00
+            afterHours: { trades: 0, pnl: 0 }   // Other times
+        };
+        
+        for (const trade of trades) {
+            const hour = new Date(trade.entryDate).getHours();
+            
+            let period;
+            if (hour >= 9 && hour < 12) period = 'morning';
+            else if (hour >= 12 && hour < 14) period = 'midday';
+            else if (hour >= 14 && hour < 16) period = 'afternoon';
+            else period = 'afterHours';
+            
+            timeStats[period].trades++;
+            timeStats[period].pnl += trade.pnl || 0;
+        }
+        
+        return timeStats;
+    }
+    
+    /**
+     * Calculate reliability index
+     */
+    calculateReliabilityIndex(trades) {
+        if (!trades || trades.length === 0) return 0;
+        
+        const profitableTrades = trades.filter(t => t.pnl > 0).length;
+        const totalTrades = trades.length;
+        const avgPnL = trades.reduce((sum, t) => sum + t.pnl, 0) / totalTrades;
+        
+        // Combine win rate with average P&L
+        const winRate = profitableTrades / totalTrades;
+        const pnlFactor = avgPnL > 0 ? 1 : 0.5;
+        
+        return Math.round(winRate * pnlFactor * 100);
+    }
+    
+    /**
+     * Calculate stability factor
+     */
+    calculateStabilityFactor(dailyPnL) {
+        if (!dailyPnL || dailyPnL.length === 0) return 0;
+        
+        const pnlValues = dailyPnL.map(d => d.pnl || d);
+        const mean = pnlValues.reduce((sum, v) => sum + v, 0) / pnlValues.length;
+        
+        if (mean === 0) return 0;
+        
+        const variance = pnlValues.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / pnlValues.length;
+        const stdDev = Math.sqrt(variance);
+        
+        // Lower volatility relative to mean = higher stability
+        const cv = stdDev / Math.abs(mean);
+        const stability = Math.max(0, 100 * (1 - cv));
+        
+        return Math.round(stability);
+    }
+    
+    /**
+     * Calculate trading frequency
+     */
+    calculateTradingFrequency(trades) {
+        if (!trades || trades.length === 0) return { daily: 0, weekly: 0, monthly: 0 };
+        
+        const firstTrade = new Date(trades[0].entryDate || trades[0].date);
+        const lastTrade = new Date(trades[trades.length - 1].entryDate || trades[trades.length - 1].date);
+        const daysDiff = Math.max(1, (lastTrade - firstTrade) / (1000 * 60 * 60 * 24));
+        
+        return {
+            daily: Math.round((trades.length / daysDiff) * 10) / 10,
+            weekly: Math.round((trades.length / (daysDiff / 7)) * 10) / 10,
+            monthly: Math.round((trades.length / (daysDiff / 30)) * 10) / 10
+        };
+    }
+    
+    /**
+     * Calculate seasonality patterns
+     */
+    calculateSeasonality(trades) {
+        if (!trades || trades.length === 0) return {};
+        
+        const monthlyPerformance = {};
+        
+        trades.forEach(trade => {
+            const month = new Date(trade.entryDate || trade.date).getMonth();
+            const monthName = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month];
+            
+            if (!monthlyPerformance[monthName]) {
+                monthlyPerformance[monthName] = { trades: 0, pnl: 0 };
+            }
+            
+            monthlyPerformance[monthName].trades++;
+            monthlyPerformance[monthName].pnl += trade.pnl || 0;
+        });
+        
+        return monthlyPerformance;
+    }
+    
+    /**
+     * Calculate stability rating
+     */
+    calculateStabilityRating(monthlyReturns, trades) {
+        if (!monthlyReturns || monthlyReturns.length === 0) return 0;
+        
+        // Calculate consistency of monthly returns
+        const profitableMonths = monthlyReturns.filter(r => r > 0).length;
+        const consistencyScore = (profitableMonths / monthlyReturns.length) * 100;
+        
+        // Calculate trade frequency stability
+        const tradeCount = trades ? trades.length : 0;
+        const frequencyScore = Math.min(100, tradeCount * 2); // Cap at 100
+        
+        // Combine scores
+        return Math.round((consistencyScore * 0.7 + frequencyScore * 0.3));
+    }
+    
+    /**
+     * Calculate time efficiency
+     */
+    calculateTimeEfficiency(trades) {
+        if (!trades || trades.length === 0) return 0;
+        
+        let totalTimeInTrade = 0;
+        let profitableTime = 0;
+        
+        trades.forEach(trade => {
+            const entryDate = new Date(trade.entryDate || trade.date);
+            const exitDate = new Date(trade.exitDate || trade.closeDate || trade.date);
+            const timeDiff = Math.max(1, (exitDate - entryDate) / (1000 * 60 * 60 * 24)); // Days
+            
+            totalTimeInTrade += timeDiff;
+            if (trade.pnl > 0) {
+                profitableTime += timeDiff;
+            }
+        });
+        
+        if (totalTimeInTrade === 0) return 0;
+        
+        return Math.round((profitableTime / totalTimeInTrade) * 100);
+    }
+    
+    /**
+     * Calculate capital utilization rate
+     */
+    calculateCapitalUtilizationRate(trades, initialCapital) {
+        if (!trades || trades.length === 0 || !initialCapital) return 0;
+        
+        let totalCapitalUsed = 0;
+        trades.forEach(trade => {
+            totalCapitalUsed += trade.capitalRequired || trade.buyingPower || 0;
+        });
+        
+        const avgCapitalPerTrade = totalCapitalUsed / trades.length;
+        return Math.round((avgCapitalPerTrade / initialCapital) * 100);
+    }
+    
+    /**
+     * Calculate return efficiency
+     */
+    calculateReturnEfficiency(totalReturn, maxDrawdown) {
+        if (maxDrawdown === 0) return totalReturn > 0 ? 100 : 0;
+        return Math.round((totalReturn / Math.abs(maxDrawdown)) * 100);
+    }
+    
+    /**
+     * Calculate portfolio efficiency score
+     */
+    calculatePortfolioEfficiencyScore(metrics) {
+        const weights = {
+            capitalEfficiency: 0.3,
+            timeEfficiency: 0.2,
+            returnEfficiency: 0.3,
+            utilizationRate: 0.2
+        };
+        
+        let score = 0;
+        score += (metrics.capitalEfficiency || 0) * weights.capitalEfficiency;
+        score += (metrics.timeEfficiency || 0) * weights.timeEfficiency;
+        score += (metrics.returnEfficiency || 0) * weights.returnEfficiency;
+        score += (metrics.utilizationRate || 0) * weights.utilizationRate;
+        
+        return Math.round(score);
+    }
+
+    /**
+     * Calculate turnover rate - stub implementation
+     */
+    calculateTurnoverRate(trades, dailyPnL) {
+        if (!trades || trades.length === 0) return 0;
+        
+        const totalValue = trades.reduce((sum, trade) => sum + Math.abs(trade.entryValue || 0), 0);
+        const tradingPeriodDays = dailyPnL ? dailyPnL.length : 252;
+        const annualTurnover = (totalValue * 252) / Math.max(1, tradingPeriodDays);
+        
+        return Math.round(annualTurnover);
+    }
+
+    /**
+     * Calculate risk-adjusted return - stub implementation
+     */
+    calculateRiskAdjustedReturn(trades, dailyPnL) {
+        if (!trades || trades.length === 0) return 0;
+        
+        const totalReturn = trades.reduce((sum, trade) => sum + (trade.pnl || 0), 0);
+        const avgTradeSize = trades.reduce((sum, trade) => sum + Math.abs(trade.entryValue || 0), 0) / trades.length;
+        
+        return avgTradeSize > 0 ? (totalReturn / avgTradeSize) * 100 : 0;
+    }
+
+    /**
+     * Calculate information ratio - stub implementation (overloaded)
+     */
+    calculateInformationRatio(dailyPnL, benchmark = null) {
+        if (!dailyPnL || dailyPnL.length === 0) return 0;
+        
+        if (benchmark) {
+            // Benchmark comparison version
+            const returns = this.calculateDailyReturns(dailyPnL, dailyPnL[0]?.capital || 30000);
+            const excessReturns = returns.map((ret, i) => ret - (benchmark[i] || 0));
+            const avgExcess = excessReturns.reduce((sum, ret) => sum + ret, 0) / excessReturns.length;
+            const trackingError = this.calculateVolatility(excessReturns) / 100;
+            
+            return trackingError > 0 ? avgExcess / trackingError : 0;
+        } else {
+            // Standalone version
+            const returns = this.calculateDailyReturns(dailyPnL, dailyPnL[0]?.capital || 30000);
+            const avgReturn = returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
+            const volatility = this.calculateVolatility(returns) / 100;
+            
+            return volatility > 0 ? avgReturn / volatility : 0;
+        }
+    }
+
+    /**
+     * Calculate trading costs estimate - stub implementation
+     */
+    estimateTradingCosts(trades) {
+        if (!trades || trades.length === 0) return 0;
+        
+        // Estimate $2 per contract for options, $5 per trade for stocks
+        const totalCosts = trades.length * 5; // Simplified cost model
+        return totalCosts;
+    }
+
+    /**
+     * Calculate net efficiency - stub implementation
+     */
+    calculateNetEfficiency(trades) {
+        if (!trades || trades.length === 0) return 0;
+        
+        const grossProfit = trades.reduce((sum, trade) => sum + (trade.pnl || 0), 0);
+        const estimatedCosts = this.estimateTradingCosts(trades);
+        const netProfit = grossProfit - estimatedCosts;
+        
+        return grossProfit > 0 ? (netProfit / grossProfit) * 100 : 0;
+    }
+
+    /**
+     * Align returns for benchmark comparison - stub implementation
+     */
+    alignReturns(strategyReturns, benchmarkReturns) {
+        const minLength = Math.min(strategyReturns.length, benchmarkReturns.length);
+        return {
+            strategy: strategyReturns.slice(0, minLength),
+            benchmark: benchmarkReturns.slice(0, minLength)
+        };
+    }
+
+    /**
+     * Calculate alpha - stub implementation
+     */
+    calculateAlpha(strategyReturns, benchmarkReturns) {
+        if (!strategyReturns || !benchmarkReturns || strategyReturns.length === 0) return 0;
+        
+        const avgStrategy = strategyReturns.reduce((sum, ret) => sum + ret, 0) / strategyReturns.length;
+        const avgBenchmark = benchmarkReturns.reduce((sum, ret) => sum + ret, 0) / benchmarkReturns.length;
+        const beta = this.calculateBeta(strategyReturns, benchmarkReturns);
+        
+        return avgStrategy - (this.config.riskFreeRate / 252) - beta * (avgBenchmark - (this.config.riskFreeRate / 252));
+    }
+
+    /**
+     * Calculate beta - stub implementation
+     */
+    calculateBeta(strategyReturns, benchmarkReturns) {
+        if (!strategyReturns || !benchmarkReturns || strategyReturns.length === 0) return 1;
+        
+        const covariance = this.calculateCovariance(strategyReturns, benchmarkReturns);
+        const benchmarkVariance = this.calculateVariance(benchmarkReturns);
+        
+        return benchmarkVariance > 0 ? covariance / benchmarkVariance : 1;
+    }
+
+    /**
+     * Calculate correlation - stub implementation
+     */
+    calculateCorrelation(strategyReturns, benchmarkReturns) {
+        if (!strategyReturns || !benchmarkReturns || strategyReturns.length === 0) return 0;
+        
+        const covariance = this.calculateCovariance(strategyReturns, benchmarkReturns);
+        const strategyStdDev = Math.sqrt(this.calculateVariance(strategyReturns));
+        const benchmarkStdDev = Math.sqrt(this.calculateVariance(benchmarkReturns));
+        
+        return (strategyStdDev * benchmarkStdDev) > 0 ? covariance / (strategyStdDev * benchmarkStdDev) : 0;
+    }
+
+    /**
+     * Calculate tracking error - stub implementation
+     */
+    calculateTrackingError(strategyReturns, benchmarkReturns) {
+        if (!strategyReturns || !benchmarkReturns || strategyReturns.length === 0) return 0;
+        
+        const excessReturns = strategyReturns.map((ret, i) => ret - (benchmarkReturns[i] || 0));
+        return this.calculateVolatility(excessReturns);
+    }
+
+    /**
+     * Calculate upside capture - stub implementation
+     */
+    calculateUpsideCapture(strategyReturns, benchmarkReturns) {
+        if (!strategyReturns || !benchmarkReturns || strategyReturns.length === 0) return 0;
+        
+        const upPeriods = benchmarkReturns.map((ret, i) => ret > 0 ? { strategy: strategyReturns[i], benchmark: ret } : null)
+            .filter(period => period !== null);
+        
+        if (upPeriods.length === 0) return 0;
+        
+        const avgStrategyUp = upPeriods.reduce((sum, p) => sum + p.strategy, 0) / upPeriods.length;
+        const avgBenchmarkUp = upPeriods.reduce((sum, p) => sum + p.benchmark, 0) / upPeriods.length;
+        
+        return avgBenchmarkUp > 0 ? (avgStrategyUp / avgBenchmarkUp) * 100 : 0;
+    }
+
+    /**
+     * Calculate downside capture - stub implementation
+     */
+    calculateDownsideCapture(strategyReturns, benchmarkReturns) {
+        if (!strategyReturns || !benchmarkReturns || strategyReturns.length === 0) return 0;
+        
+        const downPeriods = benchmarkReturns.map((ret, i) => ret < 0 ? { strategy: strategyReturns[i], benchmark: ret } : null)
+            .filter(period => period !== null);
+        
+        if (downPeriods.length === 0) return 0;
+        
+        const avgStrategyDown = downPeriods.reduce((sum, p) => sum + p.strategy, 0) / downPeriods.length;
+        const avgBenchmarkDown = downPeriods.reduce((sum, p) => sum + p.benchmark, 0) / downPeriods.length;
+        
+        return avgBenchmarkDown < 0 ? (avgStrategyDown / avgBenchmarkDown) * 100 : 0;
+    }
+
+    /**
+     * Calculate outperformance periods - stub implementation
+     */
+    calculateOutperformancePeriods(strategyReturns, benchmarkReturns) {
+        if (!strategyReturns || !benchmarkReturns || strategyReturns.length === 0) return 0;
+        
+        const outperformingPeriods = strategyReturns.filter((ret, i) => ret > (benchmarkReturns[i] || 0)).length;
+        return (outperformingPeriods / strategyReturns.length) * 100;
+    }
+
+    /**
+     * Calculate covariance - helper function
+     */
+    calculateCovariance(returns1, returns2) {
+        if (!returns1 || !returns2 || returns1.length !== returns2.length || returns1.length === 0) return 0;
+        
+        const mean1 = returns1.reduce((sum, ret) => sum + ret, 0) / returns1.length;
+        const mean2 = returns2.reduce((sum, ret) => sum + ret, 0) / returns2.length;
+        
+        const covariance = returns1.reduce((sum, ret, i) => sum + (ret - mean1) * (returns2[i] - mean2), 0) / returns1.length;
+        return covariance;
+    }
+
+    /**
+     * Calculate variance - helper function
+     */
+    calculateVariance(returns) {
+        if (!returns || returns.length === 0) return 0;
+        
+        const mean = returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
+        const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - mean, 2), 0) / returns.length;
+        return variance;
+    }
+
+    /**
+     * Fix calculateConsistencyScore signature mismatch
+     */
+    calculateConsistencyScore(monthlyReturns) {
+        if (!monthlyReturns || monthlyReturns.length === 0) return 0;
+        
+        const profitableMonths = monthlyReturns.filter(ret => ret > 0).length;
+        const consistencyRatio = profitableMonths / monthlyReturns.length;
+        
+        // Calculate volatility of returns as measure of consistency
+        const mean = monthlyReturns.reduce((sum, ret) => sum + ret, 0) / monthlyReturns.length;
+        const variance = monthlyReturns.reduce((sum, ret) => sum + Math.pow(ret - mean, 2), 0) / monthlyReturns.length;
+        const volatility = Math.sqrt(variance);
+        
+        // Higher consistency ratio and lower volatility = higher score
+        const volatilityScore = Math.max(0, 1 - (volatility / 50)); // Normalize volatility
+        const finalScore = (consistencyRatio * 0.6 + volatilityScore * 0.4) * 100;
+        
+        return Math.round(Math.min(100, Math.max(0, finalScore)));
+    }
 }
 
 module.exports = PerformanceMetrics;

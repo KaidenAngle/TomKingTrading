@@ -216,7 +216,7 @@ class SignalGenerator extends EventEmitter {
             type: 'ENTRY',
             strategy: 'LT112',
             symbol: ticker,
-            action: 'Sell 112 DTE put spread',
+            action: 'Sell 120 DTE put spread',
             priority: 'HIGH',
             contracts: ticker === 'MES' ? 4 : 1,
             expectedReturn: 12,

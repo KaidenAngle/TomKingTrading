@@ -20,7 +20,10 @@
       "Bash(del test_credentials.js)",
       "WebSearch",
       "WebFetch(domain:developer.tastytrade.com)",
-      "Bash(del test_option_chain.js)"
+      "Bash(del test_option_chain.js)",
+      "Bash(timeout:*)",
+      "Bash(npm start)",
+      "Bash(npm uninstall:*)"
     ],
     "deny": [],
     "ask": []

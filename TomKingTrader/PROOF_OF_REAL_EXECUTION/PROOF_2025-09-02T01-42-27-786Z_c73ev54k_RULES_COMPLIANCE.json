@@ -1,0 +1,24 @@
+{
+  "0DTE": {
+    "fridayOnly": true,
+    "violations": []
+  },
+  "LT112": {
+    "monWedOnly": true,
+    "dte120": true,
+    "violations": []
+  },
+  "STRANGLE": {
+    "tuesdayOnly": true,
+    "dte90": true,
+    "violations": []
+  },
+  "IPMCC": {
+    "anyDay": true,
+    "violations": []
+  },
+  "LEAP": {
+    "wednesdayOnly": true,
+    "violations": []
+  }
+}

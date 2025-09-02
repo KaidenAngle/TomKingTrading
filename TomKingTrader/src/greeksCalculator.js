@@ -142,6 +142,14 @@ class GreeksCalculator {
             return K * Math.exp(-this.riskFreeRate * T) * (1 - Nd2) - S * Math.exp(-q * T) * (1 - Nd1);
         }
     }
+    
+    /**
+     * Alias for backward compatibility
+     */
+    blackScholes(S, K, T, r, sigma, optionType) {
+        // Note: r parameter is ignored, using this.riskFreeRate instead
+        return this.blackScholesPrice(S, K, T, sigma, optionType, 0);
+    }
 
     /**
      * Calculate Implied Volatility from option price

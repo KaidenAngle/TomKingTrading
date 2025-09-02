@@ -415,8 +415,12 @@ const SymbolUtils = {
 /**
  * Main TastyTrade API Client
  */
-class TastyTradeAPI {
+const EventEmitter = require('events');
+
+class TastyTradeAPI extends EventEmitter {
   constructor(clientSecret = null, refreshToken = null, environment = null) {
+    super();
+    
     // Use provided parameters or fall back to loaded credentials
     const finalClientSecret = clientSecret || API_CREDENTIALS.CLIENT_SECRET;
     const finalRefreshToken = refreshToken || API_CREDENTIALS.REFRESH_TOKEN;
@@ -1825,6 +1829,86 @@ class TastyTradeAPI {
   }
 
   /**
+   * Unsubscribe from real-time quotes for specific symbols
+   */
+  async unsubscribeFromQuotes(symbols) {
+    if (!this.isStreamingEnabled) {
+      console.warn('⚠️ Streaming not enabled - no subscriptions to unsubscribe from');
+      return false;
+    }
+    
+    const symbolArray = Array.isArray(symbols) ? symbols : [symbols];
+    return await this.marketDataStreamer.unsubscribeFromQuotes(symbolArray);
+  }
+
+  /**
+   * Subscribe to real-time quotes (alias for compatibility)
+   */
+  async subscribe(symbols) {
+    return await this.subscribeToQuotes(symbols);
+  }
+
+  /**
+   * Unsubscribe from real-time quotes (alias for compatibility)
+   */
+  async unsubscribe(symbols) {
+    return await this.unsubscribeFromQuotes(symbols);
+  }
+
+  /**
+   * Subscribe to real-time Greeks updates via WebSocket
+   * Note: This depends on TastyTrade supporting Greeks streaming
+   */
+  async subscribeToGreeksUpdates(symbols) {
+    try {
+      if (!this.marketDataStreamer) {
+        logger.warn('API', 'WebSocket streamer not available for Greeks updates');
+        return false;
+      }
+
+      // Enable streaming if not already enabled
+      if (!this.isStreamingEnabled) {
+        await this.enableStreaming();
+      }
+
+      // For now, subscribe to regular quotes for the underlying symbols
+      // Greeks can be calculated from the option chain data
+      const symbolArray = Array.isArray(symbols) ? symbols : [symbols];
+      const subscriptionSuccess = await this.marketDataStreamer.subscribeToQuotes(symbolArray);
+
+      if (subscriptionSuccess) {
+        logger.info('API', `Subscribed to market data for Greeks calculation on ${symbolArray.length} symbols`);
+        
+        // Set up Greeks-specific event handler
+        this.marketDataStreamer.on('quotes', (data) => {
+          // Process quotes and emit Greeks updates if needed
+          this.emit('greeksUpdate', {
+            quotes: data.updates,
+            timestamp: data.timestamp,
+            type: 'market_data_for_greeks'
+          });
+        });
+
+        return true;
+      } else {
+        logger.warn('API', 'Failed to subscribe to market data for Greeks updates');
+        return false;
+      }
+
+    } catch (error) {
+      logger.error('API', 'Greeks subscription failed', error);
+      return false;
+    }
+  }
+
+  /**
+   * Subscribe to Greeks updates (alias for compatibility)
+   */
+  async subscribeToGreeks(symbols) {
+    return await this.subscribeToGreeksUpdates(symbols);
+  }
+
+  /**
    * Get real-time quote for a symbol (streaming or cached)
    */
   getRealtimeQuote(symbol) {
@@ -2626,49 +2710,6 @@ class OrderBuilder {
     } catch (error) {
       logger.error('API', 'Batch real Greeks fetch failed', error);
       throw error;
-    }
-  }
-
-  /**
-   * Subscribe to real-time Greeks updates via WebSocket
-   * Note: This depends on TastyTrade supporting Greeks streaming
-   */
-  async subscribeToGreeksUpdates(symbols) {
-    try {
-      if (!this.streamer) {
-        logger.warn('API', 'WebSocket streamer not available for Greeks updates');
-        return false;
-      }
-
-      // Enable streaming if not already enabled
-      if (!this.streamingEnabled) {
-        await this.enableStreaming();
-      }
-
-      // Subscribe to Greeks-specific channels
-      const subscriptionSuccess = await this.streamer.subscribe({
-        symbols: symbols,
-        channels: ['greeks', 'option_chain_updates'],
-        eventType: 'GREEKS_UPDATE'
-      });
-
-      if (subscriptionSuccess) {
-        logger.info('API', `Subscribed to Greeks updates for ${symbols.length} symbols`);
-        
-        // Set up Greeks-specific event handler
-        this.streamer.on('greeksUpdate', (data) => {
-          this.emit('greeksUpdate', data);
-        });
-
-        return true;
-      } else {
-        logger.warn('API', 'Failed to subscribe to Greeks updates');
-        return false;
-      }
-
-    } catch (error) {
-      logger.error('API', 'Greeks subscription failed', error);
-      return false;
     }
   }
 

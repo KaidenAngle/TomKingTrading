@@ -1,0 +1,99 @@
+{
+  "sessionId": "test-2025-09-01T23-37-40-194Z-av4lm8",
+  "timestamp": "2025-09-01T23:37:49.316Z",
+  "recommendationMetrics": {
+    "totalPrimaryRecommendations": 15,
+    "totalSecondaryRecommendations": 138,
+    "totalManagementActions": 20,
+    "avgRecommendationsPerTest": 0.25862068965517243
+  },
+  "strategyAnalysis": {
+    "mostRecommended": [
+      [
+        "PORTFOLIO_MANAGEMENT",
+        12
+      ],
+      [
+        "PREMIUM_COLLECTION",
+        3
+      ]
+    ],
+    "strategyDistribution": {
+      "PORTFOLIO_MANAGEMENT": 12,
+      "PREMIUM_COLLECTION": 3
+    }
+  },
+  "phaseAnalysis": {
+    "phase_1": {
+      "tests": 5,
+      "totalRecommendations": 1,
+      "avgRecommendationsPerTest": 0.2,
+      "topStrategies": [
+        [
+          "PORTFOLIO_MANAGEMENT",
+          1
+        ]
+      ]
+    },
+    "phase_2": {
+      "tests": 20,
+      "totalRecommendations": 5,
+      "avgRecommendationsPerTest": 0.25,
+      "topStrategies": [
+        [
+          "PORTFOLIO_MANAGEMENT",
+          4
+        ],
+        [
+          "PREMIUM_COLLECTION",
+          1
+        ]
+      ]
+    },
+    "phase_3": {
+      "tests": 23,
+      "totalRecommendations": 4,
+      "avgRecommendationsPerTest": 0.17391304347826086,
+      "topStrategies": [
+        [
+          "PORTFOLIO_MANAGEMENT",
+          3
+        ],
+        [
+          "PREMIUM_COLLECTION",
+          1
+        ]
+      ]
+    },
+    "phase_4": {
+      "tests": 9,
+      "totalRecommendations": 4,
+      "avgRecommendationsPerTest": 0.4444444444444444,
+      "topStrategies": [
+        [
+          "PORTFOLIO_MANAGEMENT",
+          3
+        ],
+        [
+          "PREMIUM_COLLECTION",
+          1
+        ]
+      ]
+    }
+  },
+  "friday0DTEAnalysis": {
+    "fridayTests": 15,
+    "testsWith0DTE": 15,
+    "coverage": "100.00%",
+    "preMarketAnalysis": 4,
+    "activeTrading": 11
+  },
+  "managementAnalysis": {
+    "totalActions": 20,
+    "actionTypes": {
+      "CLOSE/ROLL": 19,
+      "CLOSE": 1
+    },
+    "highPriorityActions": 19
+  }
+}

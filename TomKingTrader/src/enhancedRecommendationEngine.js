@@ -29,25 +29,25 @@ class EnhancedRecommendationEngine {
         this.phaseRequirements = {
             1: { // £30-40k
                 maxPositions: 3,
-                maxBPPerPosition: 8,
+                maxBPPerPosition: 10, // PDF: Account/3000 formula
                 allowedStrategies: ['0DTE', 'STRANGLE', 'IPMCC', 'LEAP'],
                 qualifiedTickers: ['MCL', 'MGC', 'GLD', 'TLT', 'SLV']
             },
             2: { // £40-60k  
                 maxPositions: 5,
-                maxBPPerPosition: 12,
+                maxBPPerPosition: 15, // PDF: Account/4000 formula
                 allowedStrategies: ['0DTE', 'STRANGLE', 'IPMCC', 'LEAP', 'LT112', 'RATIO'],
                 qualifiedTickers: ['MCL', 'MGC', 'MES', 'MNQ', 'GLD', 'TLT', 'SLV', 'XOP', '6A', 'M6E']
             },
             3: { // £60-75k
                 maxPositions: 6,
-                maxBPPerPosition: 18,
+                maxBPPerPosition: 20, // PDF: Account/3000 formula
                 allowedStrategies: ['0DTE', 'STRANGLE', 'IPMCC', 'LEAP', 'LT112', 'RATIO', 'BUTTERFLY', 'DIAGONAL'],
                 qualifiedTickers: ['ES', 'CL', 'GC', 'LE', 'HE', 'ZC', 'ZS', 'ZW', '6E', '6B', 'ZB', 'ZN', 'TLT', 'GLD', 'SLV']
             },
             4: { // £75k+
                 maxPositions: 10,
-                maxBPPerPosition: 25,
+                maxBPPerPosition: 30, // PDF: Professional level
                 allowedStrategies: ['ALL_STRATEGIES'],
                 qualifiedTickers: ['ES', 'NQ', 'RTY', 'CL', 'GC', 'SI', 'NG', 'RB', 'HO', 'LE', 'HE', 'ZC', 'ZS', 'ZW', 'KC', 'SB', 'CC', '6E', '6B', '6A', '6C', '6J', '6S', 'ZB', 'ZN', 'ZF', 'ZT', 'SPY', 'QQQ', 'IWM', 'GLD', 'SLV', 'TLT', 'XLE', 'XOP']
             }

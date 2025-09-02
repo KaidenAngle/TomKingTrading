@@ -931,6 +931,153 @@ class RiskManager {
       keyFactors: overallRisk.factors.slice(0, 3)
     };
   }
+  
+  /**
+   * Calculate optimal position size based on risk parameters
+   */
+  calculatePositionSize(options = {}) {
+    const {
+      accountValue = 50000,
+      strategy = 'STRANGLE',
+      vixLevel = 20,
+      correlation = 'MEDIUM',
+      riskPerTrade = 0.02, // 2% of account
+      maxPositionSize = 0.1, // 10% of account max
+      confidence = 0.8
+    } = options;
+    
+    // Base position size as percentage of account
+    let baseSize = riskPerTrade * confidence;
+    
+    // Adjust for VIX regime
+    const vixRegime = VIXRegimeAnalyzer.analyzeVIXRegime(vixLevel);
+    const vixAdjustment = this.getVIXPositionAdjustment(vixRegime.regime);
+    baseSize *= vixAdjustment;
+    
+    // Adjust for strategy risk
+    const strategyAdjustment = this.getStrategyRiskAdjustment(strategy);
+    baseSize *= strategyAdjustment;
+    
+    // Adjust for correlation risk
+    const correlationAdjustment = this.getCorrelationAdjustment(correlation);
+    baseSize *= correlationAdjustment;
+    
+    // Apply emergency mode restrictions
+    if (this.emergencyMode) {
+      baseSize *= 0.5; // Halve position size in emergency mode
+    }
+    
+    // Cap at maximum position size
+    const finalSize = Math.min(baseSize, maxPositionSize);
+    
+    // Calculate actual dollar amount
+    const dollarAmount = accountValue * finalSize;
+    
+    return {
+      percentOfAccount: finalSize,
+      dollarAmount: Math.round(dollarAmount),
+      riskAmount: Math.round(dollarAmount * riskPerTrade),
+      adjustments: {
+        vixAdjustment,
+        strategyAdjustment,
+        correlationAdjustment,
+        emergencyMode: this.emergencyMode
+      },
+      recommendation: finalSize > 0.05 ? 'NORMAL' : finalSize > 0.02 ? 'CONSERVATIVE' : 'DEFENSIVE'
+    };
+  }
+  
+  /**
+   * Get VIX-based position adjustment
+   */
+  getVIXPositionAdjustment(vixRegime) {
+    const adjustments = {
+      'EXTREMELY_LOW': 0.6, // Reduce size significantly in complacency
+      'LOW': 0.8,
+      'NORMAL': 1.0,
+      'ELEVATED': 1.2,
+      'EXTREME': 1.5,
+      'UNKNOWN': 0.8
+    };
+    
+    return adjustments[vixRegime] || 1.0;
+  }
+  
+  /**
+   * Get strategy-based risk adjustment
+   */
+  getStrategyRiskAdjustment(strategy) {
+    const adjustments = {
+      '0DTE': 0.7,      // Higher risk, smaller size
+      'LT112': 1.0,     // Baseline
+      'STRANGLE': 1.1,  // Lower risk, can size up
+      'IPMCC': 0.9,     // Moderate risk
+      'LEAP': 0.8       // Long-term risk
+    };
+    
+    return adjustments[strategy] || 1.0;
+  }
+  
+  /**
+   * Get correlation-based adjustment
+   */
+  getCorrelationAdjustment(correlation) {
+    const adjustments = {
+      'LOW': 1.2,     // Less correlated, can size up
+      'MEDIUM': 1.0,  // Baseline
+      'HIGH': 0.7,    // Highly correlated, reduce size
+      'EXTREME': 0.5  // Extremely correlated, significant reduction
+    };
+    
+    return adjustments[correlation] || 1.0;
+  }
+  
+  /**
+   * Check correlation limits for portfolio
+   */
+  checkCorrelationLimits(positions = []) {
+    const correlationGroups = {
+      'EQUITIES': ['ES', 'MES', 'SPY', 'QQQ', 'IWM'],
+      'COMMODITIES': ['MCL', 'MGC', 'GLD', 'SLV'],
+      'BONDS': ['TLT', 'TBT'],
+      'CURRENCIES': ['EUR', 'GBP', 'JPY']
+    };
+    
+    const groupCounts = {};
+    const maxPerGroup = 3; // Tom King's correlation limit
+    
+    // Count positions in each group
+    positions.forEach(position => {
+      const symbol = position.symbol || position.underlying;
+      for (const [group, symbols] of Object.entries(correlationGroups)) {
+        if (symbols.includes(symbol)) {
+          groupCounts[group] = (groupCounts[group] || 0) + 1;
+        }
+      }
+    });
+    
+    // Check for violations
+    const violations = [];
+    for (const [group, count] of Object.entries(groupCounts)) {
+      if (count > maxPerGroup) {
+        violations.push({
+          group,
+          count,
+          limit: maxPerGroup,
+          excess: count - maxPerGroup
+        });
+      }
+    }
+    
+    return {
+      passed: violations.length === 0,
+      violations,
+      groupCounts,
+      recommendation: violations.length > 0 ? 
+        `Reduce positions in: ${violations.map(v => v.group).join(', ')}` :
+        'Correlation limits within acceptable range'
+    };
+  }
 }
 
 // Export all classes and functions

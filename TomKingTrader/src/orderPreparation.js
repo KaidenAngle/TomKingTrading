@@ -163,8 +163,8 @@ class OrderPreparation {
             errors.push('Strangle requires 45+ DTE');
         }
         
-        if (strategy === 'LT112' && dte !== 112) {
-            errors.push('LT112 requires exactly 112 DTE');
+        if (strategy === 'LT112' && (dte < 112 || dte > 120)) {
+            errors.push('LT112 requires 112-120 DTE range (target 120)');
         }
         
         return {
@@ -318,7 +318,7 @@ class OrderPreparation {
         } else if (strategy === 'LT112') {
             console.log('1. Go to Trade tab');
             console.log(`2. Search for: ${ticker}`);
-            console.log('3. Select expiration: 112-120 DTE');
+            console.log('3. Select expiration: 120 DTE (112-120 acceptable)');
             console.log('4. SELL naked puts at support');
             console.log('5. Week 2-4: Add call spreads');
         }
