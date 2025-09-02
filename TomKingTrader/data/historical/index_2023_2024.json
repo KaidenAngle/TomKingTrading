@@ -1,0 +1,155 @@
+{
+  "generated": "2025-09-02T01:53:10.529Z",
+  "period": "2023-2024",
+  "totalFiles": 21,
+  "totalSizeMB": 2,
+  "files": [
+    {
+      "symbol": "ES",
+      "assetClass": "futures",
+      "fileName": "ES_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 114
+    },
+    {
+      "symbol": "MES",
+      "assetClass": "futures",
+      "fileName": "MES_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 113
+    },
+    {
+      "symbol": "NQ",
+      "assetClass": "futures",
+      "fileName": "NQ_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 129
+    },
+    {
+      "symbol": "MNQ",
+      "assetClass": "futures",
+      "fileName": "MNQ_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 123
+    },
+    {
+      "symbol": "RTY",
+      "assetClass": "futures",
+      "fileName": "RTY_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 125
+    },
+    {
+      "symbol": "M2K",
+      "assetClass": "futures",
+      "fileName": "M2K_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 125
+    },
+    {
+      "symbol": "CL",
+      "assetClass": "futures",
+      "fileName": "CL_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 123
+    },
+    {
+      "symbol": "MCL",
+      "assetClass": "futures",
+      "fileName": "MCL_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 121
+    },
+    {
+      "symbol": "GC",
+      "assetClass": "futures",
+      "fileName": "GC_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 128
+    },
+    {
+      "symbol": "MGC",
+      "assetClass": "futures",
+      "fileName": "MGC_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 124
+    },
+    {
+      "symbol": "SI",
+      "assetClass": "futures",
+      "fileName": "SI_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 121
+    },
+    {
+      "symbol": "SIL",
+      "assetClass": "futures",
+      "fileName": "SIL_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 120
+    },
+    {
+      "symbol": "SPY",
+      "assetClass": "stocks",
+      "fileName": "SPY_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 132
+    },
+    {
+      "symbol": "QQQ",
+      "assetClass": "stocks",
+      "fileName": "QQQ_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 128
+    },
+    {
+      "symbol": "IWM",
+      "assetClass": "stocks",
+      "fileName": "IWM_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 126
+    },
+    {
+      "symbol": "GLD",
+      "assetClass": "etfs",
+      "fileName": "GLD_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 125
+    },
+    {
+      "symbol": "TLT",
+      "assetClass": "etfs",
+      "fileName": "TLT_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 123
+    },
+    {
+      "symbol": "SLV",
+      "assetClass": "etfs",
+      "fileName": "SLV_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 124
+    },
+    {
+      "symbol": "VIX",
+      "assetClass": "volatility",
+      "fileName": "VIX_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 45
+    },
+    {
+      "symbol": "VXN",
+      "assetClass": "volatility",
+      "fileName": "VXN_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 126
+    },
+    {
+      "symbol": "RVX",
+      "assetClass": "volatility",
+      "fileName": "RVX_2023_2024.json",
+      "bars": 522,
+      "sizeKB": 125
+    }
+  ]
+}
