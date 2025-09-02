@@ -1,0 +1,1225 @@
+{
+  "timestamp": "2025-09-02T20:11:08.088Z",
+  "mainScenario": {
+    "phase": 4,
+    "accountValue": 75000,
+    "monthlyTarget": 10000,
+    "vixLevel": 20,
+    "vixMultiplier": 1,
+    "strategies": {
+      "dte0": {
+        "strategy": "0DTE_FRIDAY",
+        "targetIncome": 4000,
+        "contractsNeeded": 27,
+        "expectedIncome": 4091.85,
+        "bpRequired": 54000,
+        "maxBP": 12750,
+        "bpUtilization": 72,
+        "bpCompliant": false,
+        "avgCreditPerContract": 50,
+        "expectedProfitPerContract": 35,
+        "winRate": 0.88,
+        "weeklyProjection": {
+          "contracts": 27,
+          "expectedIncome": 945,
+          "maxRisk": 2700
+        },
+        "vixAdjustment": 1,
+        "feasibilityRating": "POOR"
+      },
+      "lt112": {
+        "strategy": "LONG_TERM_112",
+        "targetIncome": 3500,
+        "contractsNeeded": 16,
+        "expectedIncome": 3638.4,
+        "bpRequired": 56000,
+        "maxBP": 19125,
+        "bpUtilization": 74.67,
+        "bpCompliant": false,
+        "avgCreditPerContract": 150,
+        "expectedProfitPerContract": 56.85,
+        "winRate": 0.73,
+        "tradesPerMonth": 4,
+        "weeklyProjection": {
+          "contracts": 16,
+          "expectedIncome": 840.28,
+          "maxRisk": 3600
+        },
+        "vixAdjustment": 1,
+        "feasibilityRating": "POOR"
+      },
+      "strangles": {
+        "strategy": "FUTURES_STRANGLES",
+        "targetIncome": 2500,
+        "contractsNeeded": 12,
+        "expectedIncome": 2611.2,
+        "bpRequired": 30000,
+        "maxBP": 15938,
+        "bpUtilization": 40,
+        "bpCompliant": false,
+        "avgCreditPerContract": 400,
+        "expectedProfitPerContract": 108.8,
+        "winRate": 0.72,
+        "tradesPerMonth": 2,
+        "underlyingAssets": [
+          "MES",
+          "MNQ",
+          "MCL",
+          "MGC"
+        ],
+        "monthlyProjection": {
+          "contracts": 12,
+          "expectedIncome": 2611.2,
+          "maxRisk": 8640
+        },
+        "vixAdjustment": 1,
+        "feasibilityRating": "POOR"
+      }
+    },
+    "totals": {
+      "expectedMonthlyIncome": 10341.45,
+      "totalBPRequired": 140000,
+      "bpUtilization": 186.67,
+      "totalContracts": 55
+    },
+    "feasibility": {
+      "score": 5,
+      "achievable": false,
+      "bpCompliant": false,
+      "recommendations": [
+        "Poor feasibility - significant adjustments required",
+        "BP utilization 186.7% exceeds safe limit of 35%",
+        "Reduce position sizes or consider account growth before increasing targets",
+        "Consider implementing position scaling as account grows"
+      ]
+    },
+    "timestamp": "2025-09-02T20:11:08.088Z"
+  },
+  "thetaOptimization": {
+    "vixLevel": 20,
+    "vixAdjustment": {
+      "regime": "NORMAL",
+      "multiplier": 1,
+      "threshold": 25
+    },
+    "adjustedTargets": {
+      "dte0": 150,
+      "lt112": 202,
+      "strangles": 118,
+      "total": 470,
+      "vixRegime": "NORMAL",
+      "adjustmentFactor": 1
+    },
+    "current": {
+      "byStrategy": {
+        "dte0": {
+          "positions": 0,
+          "dailyTheta": 0,
+          "efficiency": 0
+        },
+        "lt112": {
+          "positions": 0,
+          "dailyTheta": 0,
+          "efficiency": 0
+        },
+        "strangles": {
+          "positions": 0,
+          "dailyTheta": 0,
+          "efficiency": 0
+        },
+        "other": {
+          "positions": 0,
+          "dailyTheta": 0,
+          "efficiency": 0
+        }
+      },
+      "totalPositions": 0,
+      "totalDailyTheta": 0,
+      "averageEfficiency": 0,
+      "riskMetrics": {
+        "totalGamma": 0,
+        "totalVega": 0,
+        "maxSinglePositionTheta": 0
+      }
+    },
+    "gaps": {
+      "dte0": {
+        "current": 0,
+        "target": 150,
+        "gap": 150,
+        "percentOfTarget": 0
+      },
+      "lt112": {
+        "current": 0,
+        "target": 202,
+        "gap": 202,
+        "percentOfTarget": 0
+      },
+      "strangles": {
+        "current": 0,
+        "target": 118,
+        "gap": 118,
+        "percentOfTarget": 0
+      },
+      "total": {
+        "current": 0,
+        "target": 470,
+        "gap": 470,
+        "percentOfTarget": 0
+      }
+    },
+    "balance": {
+      "balanced": false,
+      "score": 0,
+      "issues": [
+        "No current theta generation"
+      ],
+      "recommendations": [
+        "Begin establishing theta positions across all strategies"
+      ]
+    },
+    "recommendations": [
+      {
+        "type": "STRATEGY",
+        "strategy": "DTE0",
+        "strategyName": "0DTE Friday",
+        "priority": "HIGH",
+        "analysis": {
+          "currentTheta": 0,
+          "targetTheta": 150,
+          "shortfall": 150
+        },
+        "recommendation": {
+          "contractsNeeded": 10,
+          "bpRequired": 20000,
+          "bpPercentage": 26.7,
+          "timing": "Every Friday after 10:30 AM"
+        },
+        "feasibility": "LOW",
+        "message": "Add 10 0DTE Friday contracts to generate additional £150 daily theta (26.7% BP)"
+      },
+      {
+        "type": "STRATEGY",
+        "strategy": "LT112",
+        "strategyName": "Long-Term 112",
+        "priority": "HIGH",
+        "analysis": {
+          "currentTheta": 0,
+          "targetTheta": 202,
+          "shortfall": 202
+        },
+        "recommendation": {
+          "contractsNeeded": 9,
+          "bpRequired": 31500,
+          "bpPercentage": 42,
+          "timing": "Weekly entries on Monday"
+        },
+        "feasibility": "LOW",
+        "message": "Add 9 Long-Term 112 contracts to generate additional £202 daily theta (42.0% BP)"
+      },
+      {
+        "type": "STRATEGY",
+        "strategy": "STRANGLES",
+        "strategyName": "Futures Strangles",
+        "priority": "HIGH",
+        "analysis": {
+          "currentTheta": 0,
+          "targetTheta": 118,
+          "shortfall": 118
+        },
+        "recommendation": {
+          "contractsNeeded": 3,
+          "bpRequired": 12000,
+          "bpPercentage": 16,
+          "timing": "Bi-weekly entries"
+        },
+        "feasibility": "MEDIUM",
+        "message": "Add 3 Futures Strangles contracts to generate additional £118 daily theta (16.0% BP)"
+      },
+      {
+        "type": "PORTFOLIO",
+        "priority": "HIGH",
+        "message": "Portfolio theta is 470 below target. Consider adding positions across all strategies.",
+        "impact": 470,
+        "actionRequired": true
+      }
+    ],
+    "optimization": {
+      "efficiency": 0,
+      "diversification": 0,
+      "riskScore": 100,
+      "qualityScore": 10
+    },
+    "projectedIncome": {
+      "currentDaily": 0,
+      "currentMonthly": 0,
+      "potentialAdditionalDaily": 470,
+      "potentialAdditionalMonthly": 9870,
+      "projectedDaily": 470,
+      "projectedMonthly": 9870
+    },
+    "timestamp": "2025-09-02T20:11:08.089Z"
+  },
+  "phaseAnalysis": {
+    "phase1": {
+      "phase": 1,
+      "accountValue": 35000,
+      "monthlyTarget": 3000,
+      "vixLevel": 20,
+      "vixMultiplier": 1,
+      "strategies": {
+        "dte0": {
+          "strategy": "0DTE_FRIDAY",
+          "targetIncome": 1200,
+          "contractsNeeded": 8,
+          "expectedIncome": 1212.4,
+          "bpRequired": 16000,
+          "maxBP": 5950,
+          "bpUtilization": 45.71,
+          "bpCompliant": false,
+          "avgCreditPerContract": 50,
+          "expectedProfitPerContract": 35,
+          "winRate": 0.88,
+          "weeklyProjection": {
+            "contracts": 8,
+            "expectedIncome": 280,
+            "maxRisk": 800
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        },
+        "lt112": {
+          "strategy": "LONG_TERM_112",
+          "targetIncome": 1050,
+          "contractsNeeded": 5,
+          "expectedIncome": 1137,
+          "bpRequired": 17500,
+          "maxBP": 8925,
+          "bpUtilization": 50,
+          "bpCompliant": false,
+          "avgCreditPerContract": 150,
+          "expectedProfitPerContract": 56.85,
+          "winRate": 0.73,
+          "tradesPerMonth": 4,
+          "weeklyProjection": {
+            "contracts": 5,
+            "expectedIncome": 262.59,
+            "maxRisk": 1125
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        },
+        "strangles": {
+          "strategy": "FUTURES_STRANGLES",
+          "targetIncome": 750,
+          "contractsNeeded": 4,
+          "expectedIncome": 870.4,
+          "bpRequired": 10000,
+          "maxBP": 7438,
+          "bpUtilization": 28.57,
+          "bpCompliant": false,
+          "avgCreditPerContract": 400,
+          "expectedProfitPerContract": 108.8,
+          "winRate": 0.72,
+          "tradesPerMonth": 2,
+          "underlyingAssets": [
+            "MES",
+            "MNQ",
+            "MCL",
+            "MGC"
+          ],
+          "monthlyProjection": {
+            "contracts": 4,
+            "expectedIncome": 870.4,
+            "maxRisk": 2880
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        }
+      },
+      "totals": {
+        "expectedMonthlyIncome": 3219.8,
+        "totalBPRequired": 43500,
+        "bpUtilization": 124.29,
+        "totalContracts": 17
+      },
+      "feasibility": {
+        "score": 5,
+        "achievable": false,
+        "bpCompliant": false,
+        "recommendations": [
+          "Poor feasibility - significant adjustments required",
+          "BP utilization 124.3% exceeds safe limit of 35%",
+          "Reduce position sizes or consider account growth before increasing targets",
+          "Consider implementing position scaling as account grows"
+        ]
+      },
+      "timestamp": "2025-09-02T20:11:08.089Z"
+    },
+    "phase2": {
+      "phase": 2,
+      "accountValue": 50000,
+      "monthlyTarget": 5000,
+      "vixLevel": 20,
+      "vixMultiplier": 1,
+      "strategies": {
+        "dte0": {
+          "strategy": "0DTE_FRIDAY",
+          "targetIncome": 2000,
+          "contractsNeeded": 14,
+          "expectedIncome": 2121.7,
+          "bpRequired": 28000,
+          "maxBP": 8500,
+          "bpUtilization": 56,
+          "bpCompliant": false,
+          "avgCreditPerContract": 50,
+          "expectedProfitPerContract": 35,
+          "winRate": 0.88,
+          "weeklyProjection": {
+            "contracts": 14,
+            "expectedIncome": 490,
+            "maxRisk": 1400
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        },
+        "lt112": {
+          "strategy": "LONG_TERM_112",
+          "targetIncome": 1750,
+          "contractsNeeded": 8,
+          "expectedIncome": 1819.2,
+          "bpRequired": 28000,
+          "maxBP": 12750,
+          "bpUtilization": 56,
+          "bpCompliant": false,
+          "avgCreditPerContract": 150,
+          "expectedProfitPerContract": 56.85,
+          "winRate": 0.73,
+          "tradesPerMonth": 4,
+          "weeklyProjection": {
+            "contracts": 8,
+            "expectedIncome": 420.14,
+            "maxRisk": 1800
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        },
+        "strangles": {
+          "strategy": "FUTURES_STRANGLES",
+          "targetIncome": 1250,
+          "contractsNeeded": 6,
+          "expectedIncome": 1305.6,
+          "bpRequired": 15000,
+          "maxBP": 10625,
+          "bpUtilization": 30,
+          "bpCompliant": false,
+          "avgCreditPerContract": 400,
+          "expectedProfitPerContract": 108.8,
+          "winRate": 0.72,
+          "tradesPerMonth": 2,
+          "underlyingAssets": [
+            "MES",
+            "MNQ",
+            "MCL",
+            "MGC"
+          ],
+          "monthlyProjection": {
+            "contracts": 6,
+            "expectedIncome": 1305.6,
+            "maxRisk": 4320
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        }
+      },
+      "totals": {
+        "expectedMonthlyIncome": 5246.5,
+        "totalBPRequired": 71000,
+        "bpUtilization": 142,
+        "totalContracts": 28
+      },
+      "feasibility": {
+        "score": 5,
+        "achievable": false,
+        "bpCompliant": false,
+        "recommendations": [
+          "Poor feasibility - significant adjustments required",
+          "BP utilization 142.0% exceeds safe limit of 35%",
+          "Reduce position sizes or consider account growth before increasing targets",
+          "Consider implementing position scaling as account grows"
+        ]
+      },
+      "timestamp": "2025-09-02T20:11:08.089Z"
+    },
+    "phase3": {
+      "phase": 3,
+      "accountValue": 70000,
+      "monthlyTarget": 7500,
+      "vixLevel": 20,
+      "vixMultiplier": 1,
+      "strategies": {
+        "dte0": {
+          "strategy": "0DTE_FRIDAY",
+          "targetIncome": 3000,
+          "contractsNeeded": 20,
+          "expectedIncome": 3031,
+          "bpRequired": 40000,
+          "maxBP": 11900,
+          "bpUtilization": 57.14,
+          "bpCompliant": false,
+          "avgCreditPerContract": 50,
+          "expectedProfitPerContract": 35,
+          "winRate": 0.88,
+          "weeklyProjection": {
+            "contracts": 20,
+            "expectedIncome": 700,
+            "maxRisk": 2000
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        },
+        "lt112": {
+          "strategy": "LONG_TERM_112",
+          "targetIncome": 2625,
+          "contractsNeeded": 12,
+          "expectedIncome": 2728.8,
+          "bpRequired": 42000,
+          "maxBP": 17850,
+          "bpUtilization": 60,
+          "bpCompliant": false,
+          "avgCreditPerContract": 150,
+          "expectedProfitPerContract": 56.85,
+          "winRate": 0.73,
+          "tradesPerMonth": 4,
+          "weeklyProjection": {
+            "contracts": 12,
+            "expectedIncome": 630.21,
+            "maxRisk": 2700
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        },
+        "strangles": {
+          "strategy": "FUTURES_STRANGLES",
+          "targetIncome": 1875,
+          "contractsNeeded": 9,
+          "expectedIncome": 1958.4,
+          "bpRequired": 22500,
+          "maxBP": 14875,
+          "bpUtilization": 32.14,
+          "bpCompliant": false,
+          "avgCreditPerContract": 400,
+          "expectedProfitPerContract": 108.8,
+          "winRate": 0.72,
+          "tradesPerMonth": 2,
+          "underlyingAssets": [
+            "MES",
+            "MNQ",
+            "MCL",
+            "MGC"
+          ],
+          "monthlyProjection": {
+            "contracts": 9,
+            "expectedIncome": 1958.4,
+            "maxRisk": 6480
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        }
+      },
+      "totals": {
+        "expectedMonthlyIncome": 7718.200000000001,
+        "totalBPRequired": 104500,
+        "bpUtilization": 149.29,
+        "totalContracts": 41
+      },
+      "feasibility": {
+        "score": 5,
+        "achievable": false,
+        "bpCompliant": false,
+        "recommendations": [
+          "Poor feasibility - significant adjustments required",
+          "BP utilization 149.3% exceeds safe limit of 35%",
+          "Reduce position sizes or consider account growth before increasing targets",
+          "Consider implementing position scaling as account grows"
+        ]
+      },
+      "timestamp": "2025-09-02T20:11:08.089Z"
+    },
+    "phase4": {
+      "phase": 4,
+      "accountValue": 80000,
+      "monthlyTarget": 10000,
+      "vixLevel": 20,
+      "vixMultiplier": 1,
+      "strategies": {
+        "dte0": {
+          "strategy": "0DTE_FRIDAY",
+          "targetIncome": 4000,
+          "contractsNeeded": 27,
+          "expectedIncome": 4091.85,
+          "bpRequired": 54000,
+          "maxBP": 13600,
+          "bpUtilization": 67.5,
+          "bpCompliant": false,
+          "avgCreditPerContract": 50,
+          "expectedProfitPerContract": 35,
+          "winRate": 0.88,
+          "weeklyProjection": {
+            "contracts": 27,
+            "expectedIncome": 945,
+            "maxRisk": 2700
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        },
+        "lt112": {
+          "strategy": "LONG_TERM_112",
+          "targetIncome": 3500,
+          "contractsNeeded": 16,
+          "expectedIncome": 3638.4,
+          "bpRequired": 56000,
+          "maxBP": 20400,
+          "bpUtilization": 70,
+          "bpCompliant": false,
+          "avgCreditPerContract": 150,
+          "expectedProfitPerContract": 56.85,
+          "winRate": 0.73,
+          "tradesPerMonth": 4,
+          "weeklyProjection": {
+            "contracts": 16,
+            "expectedIncome": 840.28,
+            "maxRisk": 3600
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        },
+        "strangles": {
+          "strategy": "FUTURES_STRANGLES",
+          "targetIncome": 2500,
+          "contractsNeeded": 12,
+          "expectedIncome": 2611.2,
+          "bpRequired": 30000,
+          "maxBP": 17000,
+          "bpUtilization": 37.5,
+          "bpCompliant": false,
+          "avgCreditPerContract": 400,
+          "expectedProfitPerContract": 108.8,
+          "winRate": 0.72,
+          "tradesPerMonth": 2,
+          "underlyingAssets": [
+            "MES",
+            "MNQ",
+            "MCL",
+            "MGC"
+          ],
+          "monthlyProjection": {
+            "contracts": 12,
+            "expectedIncome": 2611.2,
+            "maxRisk": 8640
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        }
+      },
+      "totals": {
+        "expectedMonthlyIncome": 10341.45,
+        "totalBPRequired": 140000,
+        "bpUtilization": 175,
+        "totalContracts": 55
+      },
+      "feasibility": {
+        "score": 5,
+        "achievable": false,
+        "bpCompliant": false,
+        "recommendations": [
+          "Poor feasibility - significant adjustments required",
+          "BP utilization 175.0% exceeds safe limit of 35%",
+          "Reduce position sizes or consider account growth before increasing targets",
+          "Consider implementing position scaling as account grows"
+        ]
+      },
+      "timestamp": "2025-09-02T20:11:08.089Z"
+    }
+  },
+  "stressTests": {
+    "lowVIX": {
+      "phase": 4,
+      "accountValue": 75000,
+      "monthlyTarget": 10000,
+      "vixLevel": 12,
+      "vixMultiplier": 1.2,
+      "strategies": {
+        "dte0": {
+          "strategy": "0DTE_FRIDAY",
+          "targetIncome": 4000,
+          "contractsNeeded": 32,
+          "expectedIncome": 4849.6,
+          "bpRequired": 64000,
+          "maxBP": 12750,
+          "bpUtilization": 85.33,
+          "bpCompliant": false,
+          "avgCreditPerContract": 50,
+          "expectedProfitPerContract": 35,
+          "winRate": 0.88,
+          "weeklyProjection": {
+            "contracts": 32,
+            "expectedIncome": 1120,
+            "maxRisk": 3200
+          },
+          "vixAdjustment": 1.2,
+          "feasibilityRating": "POOR"
+        },
+        "lt112": {
+          "strategy": "LONG_TERM_112",
+          "targetIncome": 3500,
+          "contractsNeeded": 19,
+          "expectedIncome": 4320.6,
+          "bpRequired": 66500,
+          "maxBP": 19125,
+          "bpUtilization": 88.67,
+          "bpCompliant": false,
+          "avgCreditPerContract": 150,
+          "expectedProfitPerContract": 56.85,
+          "winRate": 0.73,
+          "tradesPerMonth": 4,
+          "weeklyProjection": {
+            "contracts": 19,
+            "expectedIncome": 997.83,
+            "maxRisk": 4275
+          },
+          "vixAdjustment": 1.2,
+          "feasibilityRating": "POOR"
+        },
+        "strangles": {
+          "strategy": "FUTURES_STRANGLES",
+          "targetIncome": 2500,
+          "contractsNeeded": 14,
+          "expectedIncome": 3046.4,
+          "bpRequired": 35000,
+          "maxBP": 15938,
+          "bpUtilization": 46.67,
+          "bpCompliant": false,
+          "avgCreditPerContract": 400,
+          "expectedProfitPerContract": 108.8,
+          "winRate": 0.72,
+          "tradesPerMonth": 2,
+          "underlyingAssets": [
+            "MES",
+            "MNQ",
+            "MCL",
+            "MGC"
+          ],
+          "monthlyProjection": {
+            "contracts": 14,
+            "expectedIncome": 3046.4,
+            "maxRisk": 10080
+          },
+          "vixAdjustment": 1.2,
+          "feasibilityRating": "POOR"
+        }
+      },
+      "totals": {
+        "expectedMonthlyIncome": 12216.6,
+        "totalBPRequired": 165500,
+        "bpUtilization": 220.67,
+        "totalContracts": 65
+      },
+      "feasibility": {
+        "score": 5,
+        "achievable": false,
+        "bpCompliant": false,
+        "recommendations": [
+          "Poor feasibility - significant adjustments required",
+          "BP utilization 220.7% exceeds safe limit of 35%",
+          "Reduce position sizes or consider account growth before increasing targets",
+          "Consider implementing position scaling as account grows"
+        ]
+      },
+      "timestamp": "2025-09-02T20:11:08.089Z"
+    },
+    "highVIX": {
+      "phase": 4,
+      "accountValue": 75000,
+      "monthlyTarget": 10000,
+      "vixLevel": 45,
+      "vixMultiplier": 0.6,
+      "strategies": {
+        "dte0": {
+          "strategy": "0DTE_FRIDAY",
+          "targetIncome": 4000,
+          "contractsNeeded": 16,
+          "expectedIncome": 2424.8,
+          "bpRequired": 32000,
+          "maxBP": 12750,
+          "bpUtilization": 42.67,
+          "bpCompliant": false,
+          "avgCreditPerContract": 50,
+          "expectedProfitPerContract": 35,
+          "winRate": 0.88,
+          "weeklyProjection": {
+            "contracts": 16,
+            "expectedIncome": 560,
+            "maxRisk": 1600
+          },
+          "vixAdjustment": 0.6,
+          "feasibilityRating": "POOR"
+        },
+        "lt112": {
+          "strategy": "LONG_TERM_112",
+          "targetIncome": 3500,
+          "contractsNeeded": 9,
+          "expectedIncome": 2046.6,
+          "bpRequired": 31500,
+          "maxBP": 19125,
+          "bpUtilization": 42,
+          "bpCompliant": false,
+          "avgCreditPerContract": 150,
+          "expectedProfitPerContract": 56.85,
+          "winRate": 0.73,
+          "tradesPerMonth": 4,
+          "weeklyProjection": {
+            "contracts": 9,
+            "expectedIncome": 472.66,
+            "maxRisk": 2025
+          },
+          "vixAdjustment": 0.6,
+          "feasibilityRating": "POOR"
+        },
+        "strangles": {
+          "strategy": "FUTURES_STRANGLES",
+          "targetIncome": 2500,
+          "contractsNeeded": 7,
+          "expectedIncome": 1523.2,
+          "bpRequired": 17500,
+          "maxBP": 15938,
+          "bpUtilization": 23.33,
+          "bpCompliant": false,
+          "avgCreditPerContract": 400,
+          "expectedProfitPerContract": 108.8,
+          "winRate": 0.72,
+          "tradesPerMonth": 2,
+          "underlyingAssets": [
+            "MES",
+            "MNQ",
+            "MCL",
+            "MGC"
+          ],
+          "monthlyProjection": {
+            "contracts": 7,
+            "expectedIncome": 1523.2,
+            "maxRisk": 5040
+          },
+          "vixAdjustment": 0.6,
+          "feasibilityRating": "POOR"
+        }
+      },
+      "totals": {
+        "expectedMonthlyIncome": 5994.599999999999,
+        "totalBPRequired": 81000,
+        "bpUtilization": 108,
+        "totalContracts": 32
+      },
+      "feasibility": {
+        "score": 0,
+        "achievable": false,
+        "bpCompliant": false,
+        "recommendations": [
+          "Poor feasibility - significant adjustments required",
+          "BP utilization 108.0% exceeds safe limit of 35%",
+          "Reduce position sizes or consider account growth before increasing targets",
+          "Consider implementing position scaling as account grows"
+        ]
+      },
+      "timestamp": "2025-09-02T20:11:08.089Z"
+    },
+    "smallAccount": {
+      "phase": 1,
+      "accountValue": 30000,
+      "monthlyTarget": 10000,
+      "vixLevel": 20,
+      "vixMultiplier": 1,
+      "strategies": {
+        "dte0": {
+          "strategy": "0DTE_FRIDAY",
+          "targetIncome": 4000,
+          "contractsNeeded": 27,
+          "expectedIncome": 4091.85,
+          "bpRequired": 54000,
+          "maxBP": 5100,
+          "bpUtilization": 180,
+          "bpCompliant": false,
+          "avgCreditPerContract": 50,
+          "expectedProfitPerContract": 35,
+          "winRate": 0.88,
+          "weeklyProjection": {
+            "contracts": 27,
+            "expectedIncome": 945,
+            "maxRisk": 2700
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        },
+        "lt112": {
+          "strategy": "LONG_TERM_112",
+          "targetIncome": 3500,
+          "contractsNeeded": 16,
+          "expectedIncome": 3638.4,
+          "bpRequired": 56000,
+          "maxBP": 7650,
+          "bpUtilization": 186.67,
+          "bpCompliant": false,
+          "avgCreditPerContract": 150,
+          "expectedProfitPerContract": 56.85,
+          "winRate": 0.73,
+          "tradesPerMonth": 4,
+          "weeklyProjection": {
+            "contracts": 16,
+            "expectedIncome": 840.28,
+            "maxRisk": 3600
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        },
+        "strangles": {
+          "strategy": "FUTURES_STRANGLES",
+          "targetIncome": 2500,
+          "contractsNeeded": 12,
+          "expectedIncome": 2611.2,
+          "bpRequired": 30000,
+          "maxBP": 6375,
+          "bpUtilization": 100,
+          "bpCompliant": false,
+          "avgCreditPerContract": 400,
+          "expectedProfitPerContract": 108.8,
+          "winRate": 0.72,
+          "tradesPerMonth": 2,
+          "underlyingAssets": [
+            "MES",
+            "MNQ",
+            "MCL",
+            "MGC"
+          ],
+          "monthlyProjection": {
+            "contracts": 12,
+            "expectedIncome": 2611.2,
+            "maxRisk": 8640
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        }
+      },
+      "totals": {
+        "expectedMonthlyIncome": 10341.45,
+        "totalBPRequired": 140000,
+        "bpUtilization": 466.67,
+        "totalContracts": 55
+      },
+      "feasibility": {
+        "score": 5,
+        "achievable": false,
+        "bpCompliant": false,
+        "recommendations": [
+          "Poor feasibility - significant adjustments required",
+          "BP utilization 466.7% exceeds safe limit of 35%",
+          "Reduce position sizes or consider account growth before increasing targets",
+          "Consider implementing position scaling as account grows"
+        ]
+      },
+      "timestamp": "2025-09-02T20:11:08.089Z"
+    },
+    "largeAccount": {
+      "phase": 4,
+      "accountValue": 100000,
+      "monthlyTarget": 10000,
+      "vixLevel": 20,
+      "vixMultiplier": 1,
+      "strategies": {
+        "dte0": {
+          "strategy": "0DTE_FRIDAY",
+          "targetIncome": 4000,
+          "contractsNeeded": 27,
+          "expectedIncome": 4091.85,
+          "bpRequired": 54000,
+          "maxBP": 17000,
+          "bpUtilization": 54,
+          "bpCompliant": false,
+          "avgCreditPerContract": 50,
+          "expectedProfitPerContract": 35,
+          "winRate": 0.88,
+          "weeklyProjection": {
+            "contracts": 27,
+            "expectedIncome": 945,
+            "maxRisk": 2700
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        },
+        "lt112": {
+          "strategy": "LONG_TERM_112",
+          "targetIncome": 3500,
+          "contractsNeeded": 16,
+          "expectedIncome": 3638.4,
+          "bpRequired": 56000,
+          "maxBP": 25500,
+          "bpUtilization": 56,
+          "bpCompliant": false,
+          "avgCreditPerContract": 150,
+          "expectedProfitPerContract": 56.85,
+          "winRate": 0.73,
+          "tradesPerMonth": 4,
+          "weeklyProjection": {
+            "contracts": 16,
+            "expectedIncome": 840.28,
+            "maxRisk": 3600
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        },
+        "strangles": {
+          "strategy": "FUTURES_STRANGLES",
+          "targetIncome": 2500,
+          "contractsNeeded": 12,
+          "expectedIncome": 2611.2,
+          "bpRequired": 30000,
+          "maxBP": 21250,
+          "bpUtilization": 30,
+          "bpCompliant": false,
+          "avgCreditPerContract": 400,
+          "expectedProfitPerContract": 108.8,
+          "winRate": 0.72,
+          "tradesPerMonth": 2,
+          "underlyingAssets": [
+            "MES",
+            "MNQ",
+            "MCL",
+            "MGC"
+          ],
+          "monthlyProjection": {
+            "contracts": 12,
+            "expectedIncome": 2611.2,
+            "maxRisk": 8640
+          },
+          "vixAdjustment": 1,
+          "feasibilityRating": "POOR"
+        }
+      },
+      "totals": {
+        "expectedMonthlyIncome": 10341.45,
+        "totalBPRequired": 140000,
+        "bpUtilization": 140,
+        "totalContracts": 55
+      },
+      "feasibility": {
+        "score": 5,
+        "achievable": false,
+        "bpCompliant": false,
+        "recommendations": [
+          "Poor feasibility - significant adjustments required",
+          "BP utilization 140.0% exceeds safe limit of 35%",
+          "Reduce position sizes or consider account growth before increasing targets",
+          "Consider implementing position scaling as account grows"
+        ]
+      },
+      "timestamp": "2025-09-02T20:11:08.089Z"
+    }
+  },
+  "testResults": {
+    "passed": 16,
+    "failed": 14,
+    "errors": [
+      {
+        "test": "0DTE win rate calculation accuracy",
+        "error": "Expected profit calculation must be mathematically correct"
+      },
+      {
+        "test": "LT112 win rate calculation accuracy",
+        "error": "LT112 expected profit calculation must be mathematically correct"
+      },
+      {
+        "test": "Strangles win rate calculation accuracy",
+        "error": "Strangles expected profit calculation must be mathematically correct"
+      },
+      {
+        "test": "Individual strategy BP limits enforced",
+        "error": "0DTE BP ≤ 20%"
+      },
+      {
+        "test": "Total BP utilization within safety limits",
+        "error": "Total BP utilization ≤ 35%"
+      },
+      {
+        "test": "VIX adjustment multipliers correct",
+        "error": "High VIX reduces positions"
+      },
+      {
+        "test": "VIX adjustments applied to calculations",
+        "error": "High VIX multiplier applied"
+      },
+      {
+        "test": "Performance metrics integration",
+        "error": "this.performanceMetrics.calculateMonthlyIncomeProgress is not a function"
+      },
+      {
+        "test": "£35k → £80k transformation feasibility",
+        "error": "Phase 1 achievable"
+      },
+      {
+        "test": "Market stress scenario handling",
+        "error": "Maintains feasibility in stress"
+      },
+      {
+        "test": "Monthly income tracking functionality",
+        "error": "this.performanceMetrics.calculateCurrentMonthIncome is not a function"
+      },
+      {
+        "test": "Account value calculation",
+        "error": "this.performanceMetrics.getCurrentAccountValue is not a function"
+      },
+      {
+        "test": "Progress calculation comprehensive",
+        "error": "this.performanceMetrics.calculateMonthlyIncomeProgress is not a function"
+      },
+      {
+        "test": "£10k monthly income from £75k account validation",
+        "error": "Feasibility score ≥ 80%"
+      }
+    ],
+    "details": [
+      {
+        "test": "Calculator initializes correctly",
+        "status": "PASSED"
+      },
+      {
+        "test": "Configuration accessible and valid",
+        "status": "PASSED"
+      },
+      {
+        "test": "Account phase determination",
+        "status": "PASSED"
+      },
+      {
+        "test": "0DTE win rate calculation accuracy",
+        "status": "FAILED",
+        "error": "Expected profit calculation must be mathematically correct"
+      },
+      {
+        "test": "LT112 win rate calculation accuracy",
+        "status": "FAILED",
+        "error": "LT112 expected profit calculation must be mathematically correct"
+      },
+      {
+        "test": "Strangles win rate calculation accuracy",
+        "status": "FAILED",
+        "error": "Strangles expected profit calculation must be mathematically correct"
+      },
+      {
+        "test": "Phase targets match specification",
+        "status": "PASSED"
+      },
+      {
+        "test": "Scaling progression calculation",
+        "status": "PASSED"
+      },
+      {
+        "test": "Time to phase estimation",
+        "status": "PASSED"
+      },
+      {
+        "test": "Individual strategy BP limits enforced",
+        "status": "FAILED",
+        "error": "0DTE BP ≤ 20%"
+      },
+      {
+        "test": "Total BP utilization within safety limits",
+        "status": "FAILED",
+        "error": "Total BP utilization ≤ 35%"
+      },
+      {
+        "test": "Safety margins properly applied",
+        "status": "PASSED"
+      },
+      {
+        "test": "VIX adjustment multipliers correct",
+        "status": "FAILED",
+        "error": "High VIX reduces positions"
+      },
+      {
+        "test": "VIX adjustments applied to calculations",
+        "status": "FAILED",
+        "error": "High VIX multiplier applied"
+      },
+      {
+        "test": "Theta engine VIX adjustments",
+        "status": "PASSED"
+      },
+      {
+        "test": "Portfolio theta calculation",
+        "status": "PASSED"
+      },
+      {
+        "test": "Theta gap calculation",
+        "status": "PASSED"
+      },
+      {
+        "test": "Optimization recommendations generated",
+        "status": "PASSED"
+      },
+      {
+        "test": "Calculator-Theta engine integration",
+        "status": "PASSED"
+      },
+      {
+        "test": "Performance metrics integration",
+        "status": "FAILED",
+        "error": "this.performanceMetrics.calculateMonthlyIncomeProgress is not a function"
+      },
+      {
+        "test": "Cross-validation of calculations",
+        "status": "PASSED"
+      },
+      {
+        "test": "£35k → £80k transformation feasibility",
+        "status": "FAILED",
+        "error": "Phase 1 achievable"
+      },
+      {
+        "test": "Market stress scenario handling",
+        "status": "FAILED",
+        "error": "Maintains feasibility in stress"
+      },
+      {
+        "test": "8-month progression timeline",
+        "status": "PASSED"
+      },
+      {
+        "test": "Monthly income tracking functionality",
+        "status": "FAILED",
+        "error": "this.performanceMetrics.calculateCurrentMonthIncome is not a function"
+      },
+      {
+        "test": "Account value calculation",
+        "status": "FAILED",
+        "error": "this.performanceMetrics.getCurrentAccountValue is not a function"
+      },
+      {
+        "test": "Progress calculation comprehensive",
+        "status": "FAILED",
+        "error": "this.performanceMetrics.calculateMonthlyIncomeProgress is not a function"
+      },
+      {
+        "test": "Feasibility score calculation",
+        "status": "PASSED"
+      },
+      {
+        "test": "Risk-adjusted feasibility for different account sizes",
+        "status": "PASSED"
+      },
+      {
+        "test": "£10k monthly income from £75k account validation",
+        "status": "FAILED",
+        "error": "Feasibility score ≥ 80%"
+      }
+    ]
+  }
+}

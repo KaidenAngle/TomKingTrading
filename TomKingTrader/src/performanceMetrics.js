@@ -7,6 +7,8 @@
 
 const { EventEmitter } = require('events');
 const { getLogger } = require('./logger');
+const { MonthlyIncomeCalculator } = require('./monthlyIncomeCalculator');
+const { ThetaOptimizationEngine } = require('./thetaOptimizationEngine');
 
 class PerformanceMetrics {
     constructor(options = {}) {
@@ -19,6 +21,10 @@ class PerformanceMetrics {
         };
         
         this.logger = getLogger();
+        
+        // Initialize monthly income systems
+        this.monthlyIncomeCalculator = new MonthlyIncomeCalculator();
+        this.thetaOptimizationEngine = new ThetaOptimizationEngine();
     }
 
     /**
@@ -2853,17 +2859,322 @@ class TomKingTracker extends EventEmitter {
     
     /**
      * Calculate monthly income progress toward £10k target
+     * ENHANCED: Full integration with MonthlyIncomeCalculator
      */
-    calculateMonthlyIncomeProgress() {
-        // This would need actual monthly income data
-        // For now, return placeholder
-        const targetMonthlyIncome = this.options.targetMonthlyIncome;
-        return {
-            currentMonthlyIncome: 0, // Would be calculated from actual data
-            targetMonthlyIncome,
-            progressPercent: 0,
-            monthsToTarget: 'Unknown'
+    calculateMonthlyIncomeProgress(accountValue = null, currentPositions = [], vixLevel = 20) {
+        try {
+            // Get account value from metrics if not provided
+            const currentAccountValue = accountValue || this.getCurrentAccountValue();
+            const targetMonthlyIncome = this.options.targetMonthlyIncome || 10000;
+            
+            // Calculate current month income from actual data
+            const currentMonthIncome = this.calculateCurrentMonthIncome();
+            
+            // Use MonthlyIncomeCalculator for target analysis
+            const incomeRequirements = this.monthlyIncomeCalculator.calculateMonthlyIncomeRequirements(
+                currentAccountValue,
+                targetMonthlyIncome,
+                vixLevel
+            );
+            
+            // Calculate theta optimization
+            const thetaOptimization = this.thetaOptimizationEngine.optimizePortfolioTheta(
+                currentAccountValue,
+                currentPositions,
+                vixLevel,
+                targetMonthlyIncome / 21 // Convert to daily target
+            );
+            
+            // Progressive scaling calculation
+            const scalingProgression = this.monthlyIncomeCalculator.calculateScalingProgression(
+                currentAccountValue,
+                100000 // Target £100k account
+            );
+            
+            return {
+                current: {
+                    accountValue: currentAccountValue,
+                    monthlyIncome: currentMonthIncome,
+                    dailyTheta: thetaOptimization.current.totalDailyTheta,
+                    phase: incomeRequirements.phase
+                },
+                
+                targets: {
+                    monthlyIncome: targetMonthlyIncome,
+                    dailyTheta: targetMonthlyIncome / 21,
+                    phaseTarget: incomeRequirements.monthlyTarget,
+                    nextPhaseAccount: this.getNextPhaseTarget(incomeRequirements.phase)
+                },
+                
+                progress: {
+                    incomeProgressPercent: Math.min(100, (currentMonthIncome / targetMonthlyIncome) * 100),
+                    thetaProgressPercent: Math.min(100, (thetaOptimization.current.totalDailyTheta / (targetMonthlyIncome / 21)) * 100),
+                    accountProgressPercent: this.calculateAccountProgressPercent(currentAccountValue),
+                    overallProgressPercent: this.calculateOverallProgress(currentMonthIncome, currentAccountValue, targetMonthlyIncome)
+                },
+                
+                requirements: incomeRequirements,
+                thetaOptimization,
+                scalingProgression,
+                
+                projections: {
+                    monthsToTargetIncome: this.calculateMonthsToTarget(currentMonthIncome, targetMonthlyIncome),
+                    monthsToNextPhase: scalingProgression.progression.find(p => p.phase > incomeRequirements.phase)?.timeframe || 0,
+                    projectedMonthlyGrowth: this.calculateProjectedGrowthRate(currentMonthIncome)
+                },
+                
+                recommendations: this.generateIncomeRecommendations(incomeRequirements, thetaOptimization),
+                
+                timestamp: new Date().toISOString()
+            };
+            
+        } catch (error) {
+            this.logger.error('PERF-METRICS', 'Error calculating monthly income progress', error);
+            
+            // Fallback to basic calculation
+            const targetMonthlyIncome = this.options.targetMonthlyIncome || 10000;
+            const currentMonthIncome = this.calculateCurrentMonthIncome();
+            
+            return {
+                current: { monthlyIncome: currentMonthIncome },
+                targets: { monthlyIncome: targetMonthlyIncome },
+                progress: { incomeProgressPercent: (currentMonthIncome / targetMonthlyIncome) * 100 },
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Calculate current month income from recent trades and positions
+     */
+    calculateCurrentMonthIncome() {
+        try {
+            const currentDate = new Date();
+            const currentMonth = currentDate.getMonth();
+            const currentYear = currentDate.getFullYear();
+            
+            // Get current month key
+            const monthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+            
+            // Get P&L for current month
+            const monthlyData = this.monthlyPL?.get(monthKey);
+            if (monthlyData) {
+                return Math.max(0, monthlyData.totalDollarPL || 0);
+            }
+            
+            // Fallback: calculate from recent trades
+            const recentTrades = this.getTradesForMonth(currentMonth, currentYear);
+            const monthIncome = recentTrades.reduce((sum, trade) => sum + Math.max(0, trade.pnl || 0), 0);
+            
+            return monthIncome;
+            
+        } catch (error) {
+            this.logger.warn('PERF-METRICS', 'Could not calculate current month income', error);
+            return 0;
+        }
+    }
+
+    /**
+     * Get current account value
+     */
+    getCurrentAccountValue() {
+        try {
+            // Try to get from latest metrics
+            if (this.latestMetrics && this.latestMetrics.finalCapital) {
+                return this.latestMetrics.finalCapital;
+            }
+            
+            // Try to calculate from options
+            if (this.options.initialCapital) {
+                const totalPnL = this.calculateTotalPnL();
+                return this.options.initialCapital + totalPnL;
+            }
+            
+            // Default to Phase 4 threshold for demonstration
+            return 75000;
+            
+        } catch (error) {
+            this.logger.warn('PERF-METRICS', 'Could not determine account value, using default', error);
+            return 75000;
+        }
+    }
+
+    /**
+     * Calculate total P&L from all tracking data
+     */
+    calculateTotalPnL() {
+        let totalPnL = 0;
+        
+        // Sum from monthly P&L tracking
+        if (this.monthlyPL) {
+            for (const monthData of this.monthlyPL.values()) {
+                totalPnL += monthData.totalDollarPL || 0;
+            }
+        }
+        
+        return totalPnL;
+    }
+
+    /**
+     * Get trades for specific month and year
+     */
+    getTradesForMonth(month, year) {
+        // This would interface with actual trade data
+        // Placeholder implementation
+        return [];
+    }
+
+    /**
+     * Get next phase target account value
+     */
+    getNextPhaseTarget(currentPhase) {
+        const phaseTargets = {
+            1: 40000,  // Phase 1 -> Phase 2
+            2: 60000,  // Phase 2 -> Phase 3  
+            3: 75000,  // Phase 3 -> Phase 4
+            4: 100000  // Phase 4 -> Ultimate target
         };
+        
+        return phaseTargets[currentPhase] || 100000;
+    }
+
+    /**
+     * Calculate account progress percentage
+     */
+    calculateAccountProgressPercent(currentValue) {
+        const startValue = 30000; // Minimum Phase 1 start
+        const targetValue = 100000; // Ultimate target
+        
+        return Math.min(100, Math.max(0, ((currentValue - startValue) / (targetValue - startValue)) * 100));
+    }
+
+    /**
+     * Calculate overall progress combining income and account growth
+     */
+    calculateOverallProgress(currentIncome, currentAccount, targetIncome) {
+        const incomeWeight = 0.6; // 60% weight on income generation
+        const accountWeight = 0.4; // 40% weight on account growth
+        
+        const incomeProgress = Math.min(100, (currentIncome / targetIncome) * 100);
+        const accountProgress = this.calculateAccountProgressPercent(currentAccount);
+        
+        return (incomeProgress * incomeWeight) + (accountProgress * accountWeight);
+    }
+
+    /**
+     * Calculate months to reach target income
+     */
+    calculateMonthsToTarget(currentIncome, targetIncome) {
+        if (currentIncome <= 0) return 'Unable to estimate';
+        
+        // Calculate required growth rate
+        const growthNeeded = targetIncome / currentIncome;
+        
+        // Assume 10% monthly growth (conservative for Tom King strategies)
+        const monthlyGrowthRate = 1.10;
+        
+        if (growthNeeded <= 1) return 0; // Already at target
+        
+        const monthsNeeded = Math.ceil(Math.log(growthNeeded) / Math.log(monthlyGrowthRate));
+        
+        return monthsNeeded;
+    }
+
+    /**
+     * Calculate projected monthly growth rate based on recent performance
+     */
+    calculateProjectedGrowthRate(currentIncome) {
+        // Get recent income history
+        const recentIncomes = this.getRecentMonthlyIncomes(6); // Last 6 months
+        
+        if (recentIncomes.length < 2) {
+            return 1.05; // 5% default growth assumption
+        }
+        
+        // Calculate month-over-month growth rates
+        const growthRates = [];
+        for (let i = 1; i < recentIncomes.length; i++) {
+            if (recentIncomes[i-1].income > 0) {
+                const growthRate = recentIncomes[i].income / recentIncomes[i-1].income;
+                growthRates.push(growthRate);
+            }
+        }
+        
+        if (growthRates.length === 0) return 1.05;
+        
+        // Return average growth rate, capped between 0.95 and 1.20
+        const avgGrowthRate = growthRates.reduce((sum, rate) => sum + rate, 0) / growthRates.length;
+        return Math.max(0.95, Math.min(1.20, avgGrowthRate));
+    }
+
+    /**
+     * Get recent monthly incomes
+     */
+    getRecentMonthlyIncomes(months = 6) {
+        const incomes = [];
+        const currentDate = new Date();
+        
+        for (let i = 0; i < months; i++) {
+            const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            
+            const monthData = this.monthlyPL?.get(monthKey);
+            incomes.push({
+                month: monthKey,
+                income: monthData ? Math.max(0, monthData.totalDollarPL || 0) : 0
+            });
+        }
+        
+        return incomes.reverse(); // Oldest first
+    }
+
+    /**
+     * Generate income-focused recommendations
+     */
+    generateIncomeRecommendations(incomeRequirements, thetaOptimization) {
+        const recommendations = [];
+        
+        // Check feasibility
+        if (incomeRequirements.feasibility.score < 80) {
+            recommendations.push({
+                type: 'FEASIBILITY',
+                priority: 'HIGH',
+                message: `Current feasibility score ${incomeRequirements.feasibility.score}% requires attention`,
+                actions: incomeRequirements.feasibility.recommendations
+            });
+        }
+        
+        // Check BP utilization
+        if (incomeRequirements.totals.bpUtilization > 35) {
+            recommendations.push({
+                type: 'RISK_MANAGEMENT',
+                priority: 'HIGH',
+                message: `BP utilization ${incomeRequirements.totals.bpUtilization}% exceeds safe limit`,
+                action: 'Reduce position sizes or grow account before increasing targets'
+            });
+        }
+        
+        // Theta optimization recommendations
+        if (thetaOptimization.recommendations.length > 0) {
+            recommendations.push({
+                type: 'THETA_OPTIMIZATION',
+                priority: 'MEDIUM',
+                message: 'Theta optimization opportunities identified',
+                details: thetaOptimization.recommendations.slice(0, 3) // Top 3 recommendations
+            });
+        }
+        
+        // Phase progression recommendations
+        if (incomeRequirements.phase < 4) {
+            recommendations.push({
+                type: 'PHASE_PROGRESSION',
+                priority: 'LOW',
+                message: `Currently in Phase ${incomeRequirements.phase}. Focus on consistent income generation to progress`,
+                nextTarget: this.getNextPhaseTarget(incomeRequirements.phase)
+            });
+        }
+        
+        return recommendations;
     }
     
     /**

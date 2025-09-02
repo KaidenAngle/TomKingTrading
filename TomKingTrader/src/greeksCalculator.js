@@ -488,9 +488,13 @@ class GreeksCalculator {
      */
     async initialize() {
         try {
+            const { getLogger } = require('./logger');
+            const logger = getLogger();
             logger.info('GREEKS', 'Initializing Greeks Calculator with real-time capabilities');
             return true;
         } catch (error) {
+            const { getLogger } = require('./logger');
+            const logger = getLogger();
             logger.error('GREEKS', 'Failed to initialize Greeks Calculator', error);
             throw error;
         }
@@ -510,6 +514,8 @@ class GreeksCalculator {
             return this.getFallbackGreeks(symbol, strike, expiration, optionType);
             
         } catch (error) {
+            const { getLogger } = require('./logger');
+            const logger = getLogger();
             logger.error('GREEKS', `Failed to fetch real Greeks for ${symbol}`, error);
             return this.getFallbackGreeks(symbol, strike, expiration, optionType);
         }
@@ -543,6 +549,8 @@ class GreeksCalculator {
             };
             
         } catch (error) {
+            const { getLogger } = require('./logger');
+            const logger = getLogger();
             logger.error('GREEKS', 'Failed to calculate fallback Greeks', error);
             return {
                 delta: 0, gamma: 0, theta: 0, vega: 0, rho: 0,
@@ -597,6 +605,8 @@ class GreeksCalculator {
             };
             
         } catch (error) {
+            const { getLogger } = require('./logger');
+            const logger = getLogger();
             logger.error('GREEKS', `Failed to calculate optimal strangle strikes for ${symbol}`, error);
             throw error;
         }
@@ -620,6 +630,8 @@ class GreeksCalculator {
      * Force Greeks update (placeholder)
      */
     async forceGreeksUpdate() {
+        const { getLogger } = require('./logger');
+        const logger = getLogger();
         logger.info('GREEKS', 'Force update requested - using current implementation');
         return null;
     }
@@ -629,8 +641,12 @@ class GreeksCalculator {
      */
     async shutdown() {
         try {
+            const { getLogger } = require('./logger');
+            const logger = getLogger();
             logger.info('GREEKS', 'Greeks Calculator shutdown');
         } catch (error) {
+            const { getLogger } = require('./logger');
+            const logger = getLogger();
             logger.error('GREEKS', 'Error during shutdown', error);
         }
     }

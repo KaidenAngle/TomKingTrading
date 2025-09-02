@@ -26,7 +26,7 @@ const { UnifiedTradingSystem } = require('./tradingSystemIntegration');
 const BacktestingEngine = require('./backtestingEngine');
 const DataManager = require('./dataManager');
 const PerformanceMetrics = require('./performanceMetrics');
-const PatternValidationEngine = require('./patternValidation');
+// const PatternValidationEngine = require('./patternValidation'); // Module not found
 const BacktestReportGenerator = require('./backtestReporting');
 
 const logger = getLogger();

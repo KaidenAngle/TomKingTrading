@@ -1,0 +1,98 @@
+{
+  "date": "2025-09-02",
+  "timestamp": "2025-09-02T21:08:43.933Z",
+  "period": {
+    "start": "2025-09-01T21:08:43.933Z",
+    "end": "2025-09-02T21:08:43.933Z"
+  },
+  "summary": {
+    "totalAlerts": 1,
+    "criticalAlerts": 0,
+    "warningAlerts": 1,
+    "systemsMonitored": 5,
+    "uptime": 3009,
+    "checksPerformed": 3
+  },
+  "systems": {
+    "greeksStreamer": {
+      "registered": "2025-09-02T21:08:40.918Z",
+      "lastCheck": "2025-09-02T21:08:43.926Z",
+      "status": "DEGRADED",
+      "metrics": {
+        "positionsTracked": 3,
+        "updateCount": 8,
+        "alertsActive": 0,
+        "riskScore": 75
+      }
+    },
+    "marketDataStreamer": {
+      "registered": "2025-09-02T21:08:40.918Z",
+      "lastCheck": "2025-09-02T21:08:43.926Z",
+      "status": "HEALTHY",
+      "metrics": {
+        "connected": true,
+        "subscriptions": 0,
+        "quotesReceived": 0
+      }
+    },
+    "monthlyIncomeCalculator": {
+      "registered": "2025-09-02T21:08:40.918Z",
+      "lastCheck": null,
+      "status": "UNKNOWN",
+      "metrics": {}
+    },
+    "compoundingCalculator": {
+      "registered": "2025-09-02T21:08:40.918Z",
+      "lastCheck": null,
+      "status": "UNKNOWN",
+      "metrics": {}
+    },
+    "taxOptimizationEngine": {
+      "registered": "2025-09-02T21:08:40.918Z",
+      "lastCheck": null,
+      "status": "UNKNOWN",
+      "metrics": {}
+    }
+  },
+  "performance": {
+    "systemUptime": 3009,
+    "alertsGenerated": 1,
+    "checksPerformed": 3,
+    "systemLoad": 2.859,
+    "memoryUsage": 0
+  },
+  "alerts": [
+    {
+      "id": "alert_1756847321917_6vs4r3co6",
+      "timestamp": "2025-09-02T21:08:41.917Z",
+      "type": "SYSTEM_DEGRADED",
+      "severity": "WARNING",
+      "system": "greeksStreamer",
+      "message": "Greeks streaming is not active",
+      "data": {
+        "isStreaming": false,
+        "subscriptions": [
+          "SPY",
+          "QQQ",
+          "IWM"
+        ],
+        "positionsTracked": 3,
+        "lastUpdate": "2025-09-02T21:08:40.928Z",
+        "updateCount": 7,
+        "alertsActive": 0,
+        "performance": {
+          "updatesPerSecond": 1,
+          "avgLatency": 0,
+          "updateCounts": [
+            1756847322928
+          ]
+        },
+        "portfolioRiskScore": 75,
+        "timestamp": "2025-09-02T21:08:41.917Z"
+      },
+      "active": true,
+      "acknowledged": false,
+      "escalated": false
+    }
+  ]
+}
