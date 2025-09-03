@@ -3412,6 +3412,266 @@ class TomKingTracker extends EventEmitter {
     }
     
     /**
+     * Generate daily report
+     */
+    generateDailyReport(trades, positions, balance) {
+        const logger = getLogger();
+        const today = new Date().toDateString();
+        
+        // Filter today's trades
+        const todayTrades = trades.filter(t => 
+            new Date(t.timestamp).toDateString() === today
+        );
+        
+        const report = {
+            date: new Date().toISOString(),
+            type: 'DAILY',
+            summary: {
+                tradesExecuted: todayTrades.length,
+                totalPnL: todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0),
+                winRate: this.calculateWinRate(todayTrades),
+                openPositions: positions.length,
+                accountBalance: balance.netLiq,
+                buyingPowerUsed: balance.bpUsedPercent
+            },
+            trades: todayTrades,
+            positions: positions,
+            strategies: this.calculateStrategySpecificMetrics(todayTrades),
+            vixRegime: this.getCurrentVIXRegime(),
+            recommendations: this.generateRecommendations(positions, balance)
+        };
+        
+        logger.info('REPORTING', 'Daily report generated', report.summary);
+        return report;
+    }
+    
+    /**
+     * Generate weekly report
+     */
+    generateWeeklyReport(trades, dailyPnL, positions, balance) {
+        const logger = getLogger();
+        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        
+        // Filter week's trades
+        const weekTrades = trades.filter(t => 
+            new Date(t.timestamp) > oneWeekAgo
+        );
+        
+        // Filter week's daily P&L
+        const weekPnL = dailyPnL.filter(d =>
+            new Date(d.date) > oneWeekAgo
+        );
+        
+        const report = {
+            date: new Date().toISOString(),
+            type: 'WEEKLY',
+            period: {
+                start: oneWeekAgo.toISOString(),
+                end: new Date().toISOString()
+            },
+            summary: {
+                tradesExecuted: weekTrades.length,
+                totalPnL: weekTrades.reduce((sum, t) => sum + (t.pnl || 0), 0),
+                winRate: this.calculateWinRate(weekTrades),
+                avgDailyPnL: weekPnL.length > 0 ? 
+                    weekPnL.reduce((sum, d) => sum + d.pnl, 0) / weekPnL.length : 0,
+                bestDay: weekPnL.length > 0 ?
+                    Math.max(...weekPnL.map(d => d.pnl)) : 0,
+                worstDay: weekPnL.length > 0 ?
+                    Math.min(...weekPnL.map(d => d.pnl)) : 0,
+                accountGrowth: balance.netLiq && weekPnL[0] ? 
+                    ((balance.netLiq - weekPnL[0].capital) / weekPnL[0].capital) * 100 : 0
+            },
+            strategies: this.calculateStrategySpecificMetrics(weekTrades),
+            dailyBreakdown: weekPnL,
+            tomKingMetrics: {
+                fridayZeroDTE: this.calculateFriday0DTEMetrics(weekTrades),
+                longTerm112: this.calculateLongTerm112Metrics(weekTrades),
+                strangles: this.calculateStrangleMetrics(weekTrades)
+            },
+            riskMetrics: this.calculateRiskMetrics(weekPnL, balance.netLiq),
+            recommendations: this.generateWeeklyRecommendations(weekTrades, positions, balance)
+        };
+        
+        logger.info('REPORTING', 'Weekly report generated', report.summary);
+        return report;
+    }
+    
+    /**
+     * Calculate Friday 0DTE metrics
+     */
+    calculateFriday0DTEMetrics(trades) {
+        const friday0DTE = trades.filter(t => 
+            t.strategy === 'ZERO_DTE' && 
+            new Date(t.timestamp).getDay() === 5
+        );
+        
+        return {
+            trades: friday0DTE.length,
+            winRate: this.calculateWinRate(friday0DTE),
+            totalPnL: friday0DTE.reduce((sum, t) => sum + (t.pnl || 0), 0),
+            avgPnL: friday0DTE.length > 0 ? 
+                friday0DTE.reduce((sum, t) => sum + (t.pnl || 0), 0) / friday0DTE.length : 0
+        };
+    }
+    
+    /**
+     * Calculate Long-Term 1-1-2 metrics
+     */
+    calculateLongTerm112Metrics(trades) {
+        const lt112 = trades.filter(t => 
+            t.strategy?.includes('112') || t.strategy?.includes('1-1-2')
+        );
+        
+        return {
+            trades: lt112.length,
+            winRate: this.calculateWinRate(lt112),
+            totalPnL: lt112.reduce((sum, t) => sum + (t.pnl || 0), 0),
+            avgHoldingDays: lt112.length > 0 ?
+                lt112.reduce((sum, t) => sum + (t.holdingPeriod || 0), 0) / lt112.length : 0
+        };
+    }
+    
+    /**
+     * Calculate strangle metrics
+     */
+    calculateStrangleMetrics(trades) {
+        const strangles = trades.filter(t => 
+            t.strategy?.toLowerCase().includes('strangle')
+        );
+        
+        return {
+            trades: strangles.length,
+            winRate: this.calculateWinRate(strangles),
+            totalPnL: strangles.reduce((sum, t) => sum + (t.pnl || 0), 0),
+            avgPnL: strangles.length > 0 ?
+                strangles.reduce((sum, t) => sum + (t.pnl || 0), 0) / strangles.length : 0
+        };
+    }
+    
+    /**
+     * Get current VIX regime
+     */
+    getCurrentVIXRegime() {
+        // This would connect to real VIX data
+        // For now, return placeholder
+        return {
+            level: 'NORMAL',
+            vix: 17,
+            recommendation: 'Standard position sizing'
+        };
+    }
+    
+    /**
+     * Generate weekly recommendations
+     */
+    generateWeeklyRecommendations(trades, positions, balance) {
+        const recommendations = [];
+        
+        // Check win rate
+        const winRate = this.calculateWinRate(trades);
+        if (winRate < 88) {
+            recommendations.push({
+                type: 'STRATEGY',
+                priority: 'HIGH',
+                message: `Win rate ${winRate.toFixed(1)}% below Tom King's 88% target`,
+                action: 'Review entry criteria and position management'
+            });
+        }
+        
+        // Check buying power
+        if (balance.bpUsedPercent > 65) {
+            recommendations.push({
+                type: 'RISK',
+                priority: 'HIGH',
+                message: `Buying power usage ${balance.bpUsedPercent}% exceeds recommended 65%`,
+                action: 'Consider reducing position sizes or closing profitable trades'
+            });
+        }
+        
+        // Check diversification
+        const uniqueUnderlyings = new Set(positions.map(p => p.underlying));
+        if (uniqueUnderlyings.size < 3) {
+            recommendations.push({
+                type: 'DIVERSIFICATION',
+                priority: 'MEDIUM',
+                message: 'Low diversification across underlyings',
+                action: 'Consider adding positions in uncorrelated assets'
+            });
+        }
+        
+        return recommendations;
+    }
+    
+    /**
+     * Calculate win rate
+     */
+    calculateWinRate(trades) {
+        if (trades.length === 0) return 0;
+        const wins = trades.filter(t => t.pnl > 0).length;
+        return (wins / trades.length) * 100;
+    }
+    
+    /**
+     * Export report to file
+     */
+    async exportReport(report, filepath) {
+        const fs = require('fs').promises;
+        const logger = getLogger();
+        
+        try {
+            await fs.writeFile(filepath, JSON.stringify(report, null, 2));
+            logger.info('REPORTING', `Report exported to ${filepath}`);
+            return filepath;
+        } catch (error) {
+            logger.error('REPORTING', 'Failed to export report', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * Schedule automated reports
+     */
+    scheduleAutomatedReports(api, interval = 'daily') {
+        const logger = getLogger();
+        
+        const intervals = {
+            daily: 24 * 60 * 60 * 1000,  // 24 hours
+            weekly: 7 * 24 * 60 * 60 * 1000  // 7 days
+        };
+        
+        const runReport = async () => {
+            try {
+                const trades = api.trades || [];
+                const positions = api.positions || [];
+                const balance = api.balance || {};
+                
+                let report;
+                if (interval === 'daily') {
+                    report = this.generateDailyReport(trades, positions, balance);
+                } else if (interval === 'weekly') {
+                    const dailyPnL = []; // Would come from tracking
+                    report = this.generateWeeklyReport(trades, dailyPnL, positions, balance);
+                }
+                
+                // Export to file
+                const date = new Date().toISOString().split('T')[0];
+                const filepath = `./reports/${interval}_report_${date}.json`;
+                await this.exportReport(report, filepath);
+                
+            } catch (error) {
+                logger.error('REPORTING', `Failed to generate ${interval} report`, error);
+            }
+        };
+        
+        // Run immediately
+        runReport();
+        
+        // Schedule recurring
+        return setInterval(runReport, intervals[interval]);
+    }
+    
+    /**
      * Cleanup resources
      */
     destroy() {
