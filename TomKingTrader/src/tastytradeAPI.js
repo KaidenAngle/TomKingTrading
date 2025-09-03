@@ -731,7 +731,7 @@ class TastyTradeAPI extends EventEmitter {
         Math.round((this.balance.bpUsed / this.balance.totalBP) * 100) : 0;
       
       logger.debug('API', 'Account balance updated', {
-        netLiq: `£${this.balance.netLiq.toLocaleString()}`,
+        netLiq: `$${this.balance.netLiq.toLocaleString()}`,
         bpUsed: `${this.balance.bpUsedPercent}%`
       });
       return this.balance;
@@ -3021,7 +3021,7 @@ async function testAPIConnection() {
     const accountStatus = await api.getAccountStatus();
     
     logger.info('TEST', 'API test completed successfully', {
-      account: `£${accountStatus.netLiq.toLocaleString()}`,
+      account: `$${accountStatus.netLiq.toLocaleString()}`,
       bpUsage: `${accountStatus.bpUsedPercent}%`,
       positions: accountStatus.positions
     });
