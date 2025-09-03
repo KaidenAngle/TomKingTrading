@@ -210,9 +210,10 @@ class GreeksCalculator {
     }
 
     /**
-     * Calculate portfolio Greeks (aggregate)
+     * Enhanced portfolio Greeks aggregation with correlation adjustments
+     * Tom King methodology: Account for correlation and cross-product effects
      */
-    calculatePortfolioGreeks(positions) {
+    calculatePortfolioGreeks(positions, correlationMatrix = null) {
         const portfolioGreeks = {
             delta: 0,
             gamma: 0,
@@ -220,25 +221,67 @@ class GreeksCalculator {
             vega: 0,
             rho: 0,
             deltaAdjusted: 0, // Beta-weighted delta
-            totalValue: 0
+            totalValue: 0,
+            byUnderlying: {},
+            byStrategy: {},
+            byExpiration: {}
         };
 
+        // Group positions by underlying, strategy, and expiration
+        const groupings = this.groupPositions(positions);
+        
+        // Calculate raw Greeks for each position
         positions.forEach(position => {
             const greeks = this.calculateGreeks(position);
             const quantity = position.quantity || 1;
             const multiplier = position.multiplier || 100; // Options multiplier
+            const side = position.side === 'SHORT' ? -1 : 1;
             
-            portfolioGreeks.delta += greeks.delta * quantity * multiplier;
-            portfolioGreeks.gamma += greeks.gamma * quantity * multiplier;
-            portfolioGreeks.theta += greeks.theta * quantity * multiplier;
-            portfolioGreeks.vega += greeks.vega * quantity * multiplier;
-            portfolioGreeks.rho += greeks.rho * quantity * multiplier;
+            // Aggregate raw Greeks
+            portfolioGreeks.delta += greeks.delta * quantity * multiplier * side;
+            portfolioGreeks.gamma += greeks.gamma * quantity * multiplier * side;
+            portfolioGreeks.theta += greeks.theta * quantity * multiplier * side;
+            portfolioGreeks.vega += greeks.vega * quantity * multiplier * side;
+            portfolioGreeks.rho += greeks.rho * quantity * multiplier * side;
             portfolioGreeks.totalValue += greeks.theoreticalPrice * quantity * multiplier;
+            
+            // Track by underlying
+            const underlying = position.underlying || position.symbol;
+            if (!portfolioGreeks.byUnderlying[underlying]) {
+                portfolioGreeks.byUnderlying[underlying] = this.initializeGreeks();
+            }
+            this.addGreeks(portfolioGreeks.byUnderlying[underlying], greeks, quantity, multiplier, side);
+            
+            // Track by strategy
+            const strategy = position.strategy || 'SINGLE';
+            if (!portfolioGreeks.byStrategy[strategy]) {
+                portfolioGreeks.byStrategy[strategy] = this.initializeGreeks();
+            }
+            this.addGreeks(portfolioGreeks.byStrategy[strategy], greeks, quantity, multiplier, side);
+            
+            // Track by expiration
+            const expiration = position.expiration || 'UNKNOWN';
+            if (!portfolioGreeks.byExpiration[expiration]) {
+                portfolioGreeks.byExpiration[expiration] = this.initializeGreeks();
+            }
+            this.addGreeks(portfolioGreeks.byExpiration[expiration], greeks, quantity, multiplier, side);
         });
 
+        // Apply correlation adjustments if matrix provided
+        if (correlationMatrix) {
+            portfolioGreeks.correlationAdjusted = this.applyCorrelationAdjustments(
+                portfolioGreeks,
+                correlationMatrix
+            );
+        }
+
         // Calculate SPY-equivalent delta (beta-weighted)
-        const betaAdjustment = 1; // Assume beta of 1 for simplicity
-        portfolioGreeks.deltaAdjusted = portfolioGreeks.delta * betaAdjustment;
+        portfolioGreeks.deltaAdjusted = this.calculateBetaWeightedDelta(
+            portfolioGreeks.byUnderlying
+        );
+        
+        // Enhanced risk metrics
+        const riskAnalysis = this.analyzePortfolioRisk(portfolioGreeks, positions);
 
         return {
             ...portfolioGreeks,
@@ -246,9 +289,303 @@ class GreeksCalculator {
             gammaRisk: this.assessGammaRisk(portfolioGreeks.gamma),
             thetaIncome: Math.round(portfolioGreeks.theta), // Daily income from theta
             vegaExposure: this.assessVegaExposure(portfolioGreeks.vega),
-            deltaNeutral: Math.abs(portfolioGreeks.delta) < 50, // Consider neutral if < 50 deltas
-            riskScore: this.calculateGreeksRiskScore(portfolioGreeks)
+            deltaNeutral: Math.abs(portfolioGreeks.deltaAdjusted) < 50, // Consider neutral if < 50 SPY deltas
+            riskScore: this.calculateGreeksRiskScore(portfolioGreeks),
+            ...riskAnalysis,
+            // Concentration metrics
+            concentration: this.calculateConcentrationMetrics(portfolioGreeks),
+            // Hedging recommendations
+            hedgingRecommendations: this.generateHedgingRecommendations(portfolioGreeks)
         };
+    }
+    
+    /**
+     * Initialize Greeks object
+     */
+    initializeGreeks() {
+        return {
+            delta: 0,
+            gamma: 0,
+            theta: 0,
+            vega: 0,
+            rho: 0,
+            count: 0,
+            value: 0
+        };
+    }
+    
+    /**
+     * Add Greeks to aggregation
+     */
+    addGreeks(target, greeks, quantity, multiplier, side) {
+        target.delta += greeks.delta * quantity * multiplier * side;
+        target.gamma += greeks.gamma * quantity * multiplier * side;
+        target.theta += greeks.theta * quantity * multiplier * side;
+        target.vega += greeks.vega * quantity * multiplier * side;
+        target.rho += greeks.rho * quantity * multiplier * side;
+        target.count += 1;
+        target.value += greeks.theoreticalPrice * quantity * multiplier;
+    }
+    
+    /**
+     * Group positions for analysis
+     */
+    groupPositions(positions) {
+        const groups = {
+            byUnderlying: {},
+            byStrategy: {},
+            byExpiration: {},
+            byCorrelationGroup: {}
+        };
+        
+        positions.forEach(position => {
+            const underlying = position.underlying || position.symbol;
+            const strategy = position.strategy || 'SINGLE';
+            const expiration = position.expiration || 'UNKNOWN';
+            const correlationGroup = this.getCorrelationGroup(underlying);
+            
+            // Group by underlying
+            if (!groups.byUnderlying[underlying]) {
+                groups.byUnderlying[underlying] = [];
+            }
+            groups.byUnderlying[underlying].push(position);
+            
+            // Group by strategy
+            if (!groups.byStrategy[strategy]) {
+                groups.byStrategy[strategy] = [];
+            }
+            groups.byStrategy[strategy].push(position);
+            
+            // Group by expiration
+            if (!groups.byExpiration[expiration]) {
+                groups.byExpiration[expiration] = [];
+            }
+            groups.byExpiration[expiration].push(position);
+            
+            // Group by correlation
+            if (!groups.byCorrelationGroup[correlationGroup]) {
+                groups.byCorrelationGroup[correlationGroup] = [];
+            }
+            groups.byCorrelationGroup[correlationGroup].push(position);
+        });
+        
+        return groups;
+    }
+    
+    /**
+     * Get correlation group for Tom King risk management
+     */
+    getCorrelationGroup(underlying) {
+        const correlationGroups = {
+            EQUITY_INDEX: ['SPY', 'QQQ', 'IWM', 'DIA', 'SPX', 'NDX', 'RUT'],
+            TECH: ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'AMD'],
+            FINANCIALS: ['JPM', 'BAC', 'GS', 'MS', 'C', 'WFC', 'XLF'],
+            COMMODITIES: ['GLD', 'SLV', 'USO', 'UNG', 'GC', 'SI', 'CL'],
+            BONDS: ['TLT', 'IEF', 'SHY', 'HYG', 'LQD', 'AGG', 'ZB'],
+            VOLATILITY: ['VXX', 'UVXY', 'SVXY', 'VIX', 'VIXY'],
+            CURRENCIES: ['FXE', 'FXY', 'UUP', 'EWJ', '6E', '6J'],
+            ENERGY: ['XLE', 'XOP', 'OIH', 'CVX', 'XOM'],
+            FUTURES: ['ES', 'NQ', 'RTY', 'YM', 'ZN', 'ZB', 'GC', 'CL',
+                     'MES', 'MNQ', 'M2K', 'MYM', 'MGC', 'MCL']
+        };
+        
+        for (const [group, symbols] of Object.entries(correlationGroups)) {
+            if (symbols.includes(underlying.toUpperCase())) {
+                return group;
+            }
+        }
+        
+        return 'OTHER';
+    }
+    
+    /**
+     * Apply correlation adjustments to portfolio Greeks
+     */
+    applyCorrelationAdjustments(portfolioGreeks, correlationMatrix) {
+        const adjusted = { ...portfolioGreeks };
+        
+        // Adjust gamma for correlation
+        // High correlation increases effective gamma risk
+        let correlationFactor = 1.0;
+        const underlyings = Object.keys(portfolioGreeks.byUnderlying);
+        
+        if (underlyings.length > 1) {
+            let totalCorrelation = 0;
+            let pairCount = 0;
+            
+            for (let i = 0; i < underlyings.length; i++) {
+                for (let j = i + 1; j < underlyings.length; j++) {
+                    const corr = correlationMatrix?.[underlyings[i]]?.[underlyings[j]] || 0.5;
+                    totalCorrelation += Math.abs(corr);
+                    pairCount++;
+                }
+            }
+            
+            const avgCorrelation = pairCount > 0 ? totalCorrelation / pairCount : 0;
+            correlationFactor = 1 + (avgCorrelation * 0.5); // Increase gamma risk by up to 50%
+        }
+        
+        adjusted.gammaAdjusted = portfolioGreeks.gamma * correlationFactor;
+        adjusted.correlationFactor = correlationFactor;
+        
+        return adjusted;
+    }
+    
+    /**
+     * Calculate beta-weighted delta
+     */
+    calculateBetaWeightedDelta(byUnderlying) {
+        const betas = {
+            'SPY': 1.0,
+            'QQQ': 1.1,
+            'IWM': 1.2,
+            'DIA': 0.9,
+            'GLD': -0.2,
+            'TLT': -0.3,
+            'VXX': -3.0,
+            'DEFAULT': 1.0
+        };
+        
+        let betaWeightedDelta = 0;
+        
+        for (const [underlying, greeks] of Object.entries(byUnderlying)) {
+            const beta = betas[underlying] || betas.DEFAULT;
+            betaWeightedDelta += greeks.delta * beta;
+        }
+        
+        return betaWeightedDelta;
+    }
+    
+    /**
+     * Analyze portfolio risk comprehensively
+     */
+    analyzePortfolioRisk(portfolioGreeks, positions) {
+        const analysis = {
+            expirationConcentration: {},
+            strikeConcentration: {},
+            gammaConcentration: {},
+            criticalDates: [],
+            riskAlerts: []
+        };
+        
+        // Analyze expiration concentration
+        for (const [expiration, greeks] of Object.entries(portfolioGreeks.byExpiration)) {
+            const concentration = Math.abs(greeks.gamma) / Math.abs(portfolioGreeks.gamma || 1);
+            analysis.expirationConcentration[expiration] = {
+                gammaPercent: concentration * 100,
+                thetaAmount: greeks.theta,
+                vegaAmount: greeks.vega,
+                risk: concentration > 0.5 ? 'HIGH' : concentration > 0.3 ? 'MEDIUM' : 'LOW'
+            };
+            
+            if (concentration > 0.5) {
+                analysis.riskAlerts.push(`High gamma concentration (${(concentration * 100).toFixed(0)}%) at ${expiration}`);
+            }
+        }
+        
+        // Identify critical dates (high gamma/theta days)
+        const expirationDates = Object.keys(portfolioGreeks.byExpiration);
+        expirationDates.forEach(date => {
+            const greeks = portfolioGreeks.byExpiration[date];
+            if (Math.abs(greeks.gamma) > 100 || Math.abs(greeks.theta) > 500) {
+                analysis.criticalDates.push({
+                    date,
+                    gamma: greeks.gamma,
+                    theta: greeks.theta,
+                    severity: Math.abs(greeks.gamma) > 200 ? 'CRITICAL' : 'HIGH'
+                });
+            }
+        });
+        
+        // Check for dangerous gamma/vega ratios
+        const gammaVegaRatio = Math.abs(portfolioGreeks.gamma / (portfolioGreeks.vega || 1));
+        if (gammaVegaRatio > 5) {
+            analysis.riskAlerts.push(`High gamma/vega ratio: ${gammaVegaRatio.toFixed(1)}`);
+        }
+        
+        return analysis;
+    }
+    
+    /**
+     * Calculate concentration metrics
+     */
+    calculateConcentrationMetrics(portfolioGreeks) {
+        const metrics = {
+            underlyingCount: Object.keys(portfolioGreeks.byUnderlying).length,
+            strategyCount: Object.keys(portfolioGreeks.byStrategy).length,
+            expirationCount: Object.keys(portfolioGreeks.byExpiration).length,
+            diversificationScore: 0,
+            concentrationRisk: 'LOW'
+        };
+        
+        // Calculate Herfindahl index for concentration
+        let herfindahl = 0;
+        const totalGamma = Math.abs(portfolioGreeks.gamma) || 1;
+        
+        for (const greeks of Object.values(portfolioGreeks.byUnderlying)) {
+            const share = Math.abs(greeks.gamma) / totalGamma;
+            herfindahl += share * share;
+        }
+        
+        // Diversification score (inverse of concentration)
+        metrics.diversificationScore = Math.round((1 - herfindahl) * 100);
+        
+        // Assess concentration risk
+        if (herfindahl > 0.5) {
+            metrics.concentrationRisk = 'HIGH';
+        } else if (herfindahl > 0.3) {
+            metrics.concentrationRisk = 'MEDIUM';
+        }
+        
+        return metrics;
+    }
+    
+    /**
+     * Generate hedging recommendations
+     */
+    generateHedgingRecommendations(portfolioGreeks) {
+        const recommendations = [];
+        
+        // Delta hedging
+        if (Math.abs(portfolioGreeks.deltaAdjusted) > 100) {
+            const hedgeDirection = portfolioGreeks.deltaAdjusted > 0 ? 'SHORT' : 'LONG';
+            const hedgeAmount = Math.abs(Math.round(portfolioGreeks.deltaAdjusted));
+            recommendations.push({
+                type: 'DELTA_HEDGE',
+                action: `${hedgeDirection} ${hedgeAmount} SPY shares or equivalent`,
+                urgency: Math.abs(portfolioGreeks.deltaAdjusted) > 500 ? 'HIGH' : 'MEDIUM'
+            });
+        }
+        
+        // Gamma hedging
+        if (Math.abs(portfolioGreeks.gamma) > 300) {
+            recommendations.push({
+                type: 'GAMMA_HEDGE',
+                action: 'Consider ATM options to reduce gamma exposure',
+                urgency: Math.abs(portfolioGreeks.gamma) > 500 ? 'HIGH' : 'MEDIUM'
+            });
+        }
+        
+        // Vega hedging
+        if (Math.abs(portfolioGreeks.vega) > 1000) {
+            const hedgeDirection = portfolioGreeks.vega > 0 ? 'SHORT' : 'LONG';
+            recommendations.push({
+                type: 'VEGA_HEDGE',
+                action: `${hedgeDirection} volatility through VIX options or spreads`,
+                urgency: Math.abs(portfolioGreeks.vega) > 2000 ? 'HIGH' : 'MEDIUM'
+            });
+        }
+        
+        // Theta optimization
+        if (portfolioGreeks.theta < -500) {
+            recommendations.push({
+                type: 'THETA_OPTIMIZATION',
+                action: 'High theta decay - consider rolling or closing positions',
+                urgency: portfolioGreeks.theta < -1000 ? 'HIGH' : 'MEDIUM'
+            });
+        }
+        
+        return recommendations;
     }
 
     /**
