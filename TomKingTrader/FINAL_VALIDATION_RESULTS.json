@@ -1,0 +1,182 @@
+{
+  "components": {
+    "Trading Strategies": {
+      "status": "LOADED",
+      "passed": true
+    },
+    "Risk Manager": {
+      "status": "LOADED",
+      "passed": true
+    },
+    "Backtesting Engine": {
+      "status": "FAILED",
+      "error": "component.class is not a constructor",
+      "passed": false
+    },
+    "Income Allocator": {
+      "status": "LOADED",
+      "passed": true
+    },
+    "Compounding Calculator": {
+      "status": "LOADED",
+      "passed": true
+    },
+    "Monthly Income Calculator": {
+      "status": "LOADED",
+      "passed": true
+    },
+    "Tax Optimization": {
+      "status": "LOADED",
+      "passed": true
+    },
+    "Greeks Streaming": {
+      "status": "LOADED",
+      "passed": true
+    },
+    "Paper Trading": {
+      "status": "FAILED",
+      "error": "component.class is not a constructor",
+      "passed": false
+    }
+  },
+  "strategies": {
+    "Friday 0DTE": {
+      "status": "WORKING",
+      "canTrade": true,
+      "recommendation": "ENTER CALL SPREAD: Sell 465 / Buy 495 for 0.05 credit (Move: 0.45%, VIX: 20.0)",
+      "passed": true
+    },
+    "Long-Term 112": {
+      "status": "WORKING",
+      "canTrade": true,
+      "recommendation": "ENTER MES LT112: Sell 405 / Buy 385 (112 DTE) for 0.7 credit (Score: 70/100, VIX: 20.0)",
+      "passed": true
+    },
+    "Futures Strangles": {
+      "status": "WORKING",
+      "canTrade": false,
+      "recommendation": "No qualifying strangle opportunities today",
+      "passed": true
+    },
+    "IPMCC": {
+      "status": "WORKING",
+      "canTrade": true,
+      "recommendation": "ENTER SPY IPMCC: Buy 430C LEAP, Sell 459C weekly for 1.36215 credit/week",
+      "passed": true
+    },
+    "Butterfly Matrix": {
+      "status": "WORKING",
+      "canTrade": false,
+      "recommendation": "Butterflies require Phase 3+ account (£55k+)",
+      "passed": true
+    },
+    "LEAP Ladders": {
+      "status": "DEFINED",
+      "passed": true
+    },
+    "Box Spreads": {
+      "status": "DEFINED",
+      "passed": true
+    },
+    "Iron Condors": {
+      "status": "DEFINED",
+      "passed": true
+    },
+    "Diagonal Spreads": {
+      "status": "DEFINED",
+      "passed": true
+    },
+    "Calendarized 112": {
+      "status": "DEFINED",
+      "passed": true
+    }
+  },
+  "riskManagement": {
+    "VIX-based BP Usage": {
+      "status": "FAILED",
+      "passed": false
+    },
+    "Correlation Limits": {
+      "status": "PASSED",
+      "passed": true
+    },
+    "Defensive Management": {
+      "status": "PASSED",
+      "passed": true
+    },
+    "Volatility Spike Detection": {
+      "status": "PASSED",
+      "passed": true
+    },
+    "5% Max Risk Per Trade": {
+      "status": "FAILED",
+      "passed": false
+    },
+    "August 2024 Prevention": {
+      "status": "PASSED",
+      "passed": true
+    }
+  },
+  "calculations": {
+    "12% Monthly Compounding": {
+      "status": "ERROR",
+      "error": "calc.calculateCompoundedGrowth is not a function",
+      "passed": false
+    },
+    "£35k → £80k Validation": {
+      "status": "ERROR",
+      "error": "calc.calculateMonthsToTarget is not a function",
+      "passed": false
+    },
+    "Monthly Income Targets": {
+      "status": "INACCURATE",
+      "passed": false
+    },
+    "Strategy Allocation (40/35/25)": {
+      "status": "ERROR",
+      "error": "allocator.allocateIncome is not a function",
+      "passed": false
+    },
+    "Tax Efficiency (UK)": {
+      "status": "ERROR",
+      "error": "tax.calculateNetProfit is not a function",
+      "passed": false
+    },
+    "Greeks Calculation": {
+      "status": "ERROR",
+      "error": "greeks.calculateDelta is not a function",
+      "passed": false
+    }
+  },
+  "integration": {
+    "Strategy → Risk Manager": {
+      "status": "INTEGRATED",
+      "passed": true
+    },
+    "Income → Compounding": {
+      "status": "ERROR",
+      "error": "compound.calculateGrowthRate is not a function",
+      "passed": false
+    },
+    "Paper Trading Integration": {
+      "status": "ERROR",
+      "error": "PaperTradingSimulator is not a constructor",
+      "passed": false
+    },
+    "Backtesting Integration": {
+      "status": "ERROR",
+      "error": "BacktestingEngine is not a constructor",
+      "passed": false
+    },
+    "Tax → Net Profit": {
+      "status": "ERROR",
+      "error": "tax.calculateNetProfit is not a function",
+      "passed": false
+    }
+  },
+  "overall": {
+    "passed": 22,
+    "failed": 14,
+    "warnings": 0
+  }
+}

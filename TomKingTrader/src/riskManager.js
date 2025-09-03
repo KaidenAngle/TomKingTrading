@@ -1032,8 +1032,7 @@ class RiskManager {
     if (vixLevel < 13) return 0.45; // 45% for VIX <13
     if (vixLevel < 18) return 0.65; // 65% for VIX 13-18
     if (vixLevel < 25) return 0.75; // 75% for VIX 18-25
-    if (vixLevel < 30) return 0.50; // 50% for VIX 25-30
-    return 0.80; // 80% for VIX >30 (puts only)
+    return 0.80; // 80% for VIX 25+ (Tom King's max)
   }
   
   /**

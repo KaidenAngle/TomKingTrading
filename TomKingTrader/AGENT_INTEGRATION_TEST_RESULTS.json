@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-09-03T01:03:38.019Z",
+  "timestamp": "2025-09-03T03:19:35.161Z",
   "testSuites": [
     {
       "name": "Agent 1-2 Integration",
@@ -7,26 +7,26 @@
         {
           "name": "Agent 1-2 Target Alignment",
           "passed": false,
-          "error": "Target variance too high: 31.3%",
-          "executionTime": 0.39200000000005275
+          "error": "Target variance too high: 31.5%",
+          "executionTime": 0.5841000000000349
         },
         {
           "name": "Agent 1-2 VIX Consistency",
           "passed": true,
           "details": "VIX multiplier: 0.6 (both agents consistent)",
-          "executionTime": 0.28509999999994307
+          "executionTime": 0.20699999999999363
         },
         {
           "name": "Agent 1-2 Phase Coordination",
           "passed": true,
           "details": "Phase 2 consistently identified",
-          "executionTime": 0.19509999999991123
+          "executionTime": 0.18230000000005475
         },
         {
           "name": "Agent 1-2 Integration API",
-          "passed": false,
-          "error": "Integration not well aligned",
-          "executionTime": 0.46059999999999945
+          "passed": true,
+          "details": "Alignment: 97%, 4 recommendations",
+          "executionTime": 0.35750000000007276
         }
       ]
     },
@@ -35,21 +35,21 @@
       "tests": [
         {
           "name": "Agent 1-3 Tax-Optimized Income",
-          "passed": false,
-          "error": "Tax optimization not applied",
-          "executionTime": 0.24350000000004002
+          "passed": true,
+          "details": "Before tax: £4035.5, After tax: £3430.175",
+          "executionTime": 0.10990000000003874
         },
         {
           "name": "Agent 1-3 Section 1256 Priority",
           "passed": false,
           "error": "Section 1256 strategies not prioritized",
-          "executionTime": 0.6428000000000793
+          "executionTime": 0.28880000000003747
         },
         {
           "name": "Agent 1-3 Quarterly Integration",
           "passed": false,
           "error": "Quarterly planning not integrated",
-          "executionTime": 0.30570000000000164
+          "executionTime": 0.22940000000005512
         }
       ]
     },
@@ -60,13 +60,13 @@
           "name": "Agent 1-4 Greeks Position Sizing",
           "passed": false,
           "error": "Greeks validation failed",
-          "executionTime": 0.49270000000001346
+          "executionTime": 0.48099999999999454
         },
         {
           "name": "Agent 1-4 Risk Monitoring",
           "passed": false,
           "error": "Risk monitoring not integrated",
-          "executionTime": 0.39809999999999945
+          "executionTime": 0.5003000000000384
         }
       ]
     },
@@ -77,13 +77,13 @@
           "name": "Agent 2-3 Tax-Efficient Compounding",
           "passed": false,
           "error": "Compounding not tax-optimized",
-          "executionTime": 0.33349999999995816
+          "executionTime": 0.37849999999991724
         },
         {
           "name": "Agent 2-3 Growth-Tax Balance",
           "passed": false,
           "error": "Tax awareness not applied",
-          "executionTime": 0.4008000000000038
+          "executionTime": 0.4152000000000271
         }
       ]
     },
@@ -93,14 +93,14 @@
         {
           "name": "Agent 2-4 Greeks Compound Targeting",
           "passed": false,
-          "error": "Theta target should be negative",
-          "executionTime": 0.11829999999997654
+          "error": "Delta target within reasonable bounds",
+          "executionTime": 0.11670000000003711
         },
         {
           "name": "Agent 2-4 Real-time Adjustments",
           "passed": false,
           "error": "Real-time adjustments not applied",
-          "executionTime": 0.33579999999994925
+          "executionTime": 0.36589999999989686
         }
       ]
     },
@@ -111,7 +111,7 @@
           "name": "Agent 3-4 Tax-Optimized Greeks",
           "passed": false,
           "error": "Tax-Greeks integration failed",
-          "executionTime": 0.1995000000000573
+          "executionTime": 0.19100000000003092
         }
       ]
     },
@@ -122,13 +122,13 @@
           "name": "Agent 1-2-3 Integration",
           "passed": true,
           "details": "Consensus: 85.0%",
-          "executionTime": 0.3572000000000344
+          "executionTime": 0.330600000000004
         },
         {
           "name": "Agent 1-2-4 Integration",
           "passed": false,
           "error": "agent3.optimizeWithAgentIntegration is not a function",
-          "executionTime": 0.251700000000028
+          "executionTime": 0.17060000000003583
         }
       ]
     },
@@ -139,13 +139,13 @@
           "name": "Complete System Integration",
           "passed": false,
           "error": "Insufficient unified recommendations",
-          "executionTime": 0.5009000000000015
+          "executionTime": 0.260599999999954
         },
         {
           "name": "Integration Performance Under Load",
           "passed": true,
-          "details": "Avg response: 0.26447300000000495ms, Success rate: 100.0%",
-          "executionTime": 26.73320000000001
+          "details": "Avg response: 0.1127819999999906ms, Success rate: 100.0%",
+          "executionTime": 11.539699999999925
         }
       ]
     },
@@ -156,7 +156,7 @@
           "name": "Data Consistency",
           "passed": true,
           "details": "Data integrity: 100.0%",
-          "executionTime": 0.09520000000009077
+          "executionTime": 0.09710000000006858
         }
       ]
     },
@@ -166,21 +166,21 @@
         {
           "name": "Integration Response Time",
           "passed": true,
-          "details": "Response time: 0.4ms",
-          "executionTime": 0.4311999999999898
+          "details": "Response time: 0.1ms",
+          "executionTime": 0.1814000000000533
         }
       ]
     }
   ],
   "overall": {
     "totalTests": 20,
-    "passed": 6,
-    "failed": 14,
-    "integrationScore": 30
+    "passed": 8,
+    "failed": 12,
+    "integrationScore": 40
   },
   "dataFlowValidation": {},
   "crossValidationResults": {},
   "performanceMetrics": {
-    "totalExecutionTime": 34.51920000000007
+    "totalExecutionTime": 18.24529999999993
   }
 }
