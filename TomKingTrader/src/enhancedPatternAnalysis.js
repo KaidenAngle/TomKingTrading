@@ -1478,22 +1478,19 @@ class ConfidenceScorer {
         try {
           const DataManager = require('./dataManager');
           const dataManager = new DataManager();
-          if (dataManager.getAvailableSymbols().length > 0) {
-            // For now, use synchronous fallback until async is properly implemented
-            return this.generateSampleData();
-          } else {
-            return this.generateSampleData();
-          }
+          // Require real data from API - no sample data
+          throw new Error('Historical data must come from API - no sample data allowed');
         } catch (moduleError) {
-          console.warn('Historical data manager not available:', moduleError.message);
+          console.error('Historical data requires API connection:', moduleError.message);
+          throw moduleError;
         }
       }
       
-      // Fallback to sample data generation
-      return this.generateSampleData();
+      // No fallback allowed - must have real data
+      throw new Error('Historical data unavailable - API connection required');
     } catch (error) {
       console.error('Error loading historical data:', error);
-      return this.generateSampleData();
+      throw new Error('Cannot proceed without real historical data from API');
     }
   }
 

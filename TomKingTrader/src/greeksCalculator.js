@@ -501,62 +501,67 @@ class GreeksCalculator {
     }
 
     /**
-     * Fetch real Greeks from API or fallback to Black-Scholes
+     * Fetch real Greeks from API ONLY - no fallback to calculated values
      */
     async fetchRealGreeks(symbol, strike, expiration, optionType) {
         try {
             if (!this.api) {
-                // Fall back to Black-Scholes calculation
-                return this.getFallbackGreeks(symbol, strike, expiration, optionType);
+                throw new Error('API connection required for real Greeks data');
             }
             
-            // For now, use Black-Scholes as fallback until full API integration
-            return this.getFallbackGreeks(symbol, strike, expiration, optionType);
+            // Get option chain from API
+            const optionChain = await this.api.getOptionChain(symbol);
+            if (!optionChain || optionChain.length === 0) {
+                throw new Error(`No option chain available for ${symbol}`);
+            }
             
-        } catch (error) {
-            const { getLogger } = require('./logger');
-            const logger = getLogger();
-            logger.error('GREEKS', `Failed to fetch real Greeks for ${symbol}`, error);
-            return this.getFallbackGreeks(symbol, strike, expiration, optionType);
-        }
-    }
-
-    /**
-     * Get fallback Greeks using Black-Scholes
-     */
-    getFallbackGreeks(symbol, strike, expiration, optionType) {
-        try {
-            const timeToExpiry = this.calculateTimeToExpiry(expiration);
-            const estimatedVolatility = 0.25; // 25% default IV
-            const estimatedPrice = 400; // Estimate based on symbol (SPY ~400)
+            // Find the specific option
+            const expiry = optionChain.find(e => e.expiration === expiration);
+            if (!expiry || !expiry.strikes) {
+                throw new Error(`Expiration ${expiration} not found for ${symbol}`);
+            }
             
-            const fallbackGreeks = this.calculateGreeks({
-                spotPrice: estimatedPrice,
-                strikePrice: strike,
-                timeToExpiry: timeToExpiry,
-                volatility: estimatedVolatility,
-                optionType: optionType
-            });
+            const strikeData = expiry.strikes.find(s => s.strike === strike);
+            if (!strikeData) {
+                throw new Error(`Strike ${strike} not found for ${symbol} ${expiration}`);
+            }
             
+            const option = optionType === 'call' ? strikeData.call : strikeData.put;
+            if (!option) {
+                throw new Error(`${optionType} option not found at strike ${strike}`);
+            }
+            
+            // Return real Greeks from API
             return {
-                ...fallbackGreeks,
+                delta: option.delta || 0,
+                gamma: option.gamma || 0,
+                theta: option.theta || 0,
+                vega: option.vega || 0,
+                rho: option.rho || 0,
+                theoreticalPrice: option.theo || option.mid || ((option.bid + option.ask) / 2),
+                iv: option.iv || 0,
                 strike: strike,
                 optionType: optionType,
                 symbol: symbol,
                 expiration: expiration,
                 timestamp: new Date().toISOString(),
-                source: 'Black_Scholes_Calculation'
+                source: 'TastyTrade_API'
             };
             
         } catch (error) {
             const { getLogger } = require('./logger');
             const logger = getLogger();
-            logger.error('GREEKS', 'Failed to calculate fallback Greeks', error);
-            return {
-                delta: 0, gamma: 0, theta: 0, vega: 0, rho: 0,
-                theoreticalPrice: 0, source: 'ERROR_FALLBACK'
-            };
+            logger.error('GREEKS', `Failed to fetch real Greeks for ${symbol}`, error);
+            throw error; // No fallback - must use real data
         }
+    }
+
+    /**
+     * REMOVED: No fallback Greeks allowed - must use real API data
+     * @deprecated Use fetchRealGreeks() with API connection instead
+     */
+    getFallbackGreeks(symbol, strike, expiration, optionType) {
+        throw new Error('Fallback Greeks not allowed - must use real API data. Connect to TastyTrade API for Greeks.');
     }
 
     /**

@@ -88,9 +88,9 @@ class EnhancedRecommendationEngine {
                 logger.info('ENGINE', 'API connected for enhanced recommendations');
                 return true;
             } catch (error) {
-                logger.warn('ENGINE', 'API not available, using simulated data for patterns');
+                logger.error('ENGINE', 'API connection required - no simulated data allowed');
                 this.api = null;
-                return false;
+                throw new Error('API connection required for recommendations - simulated data not allowed');
             }
         }
         return false;
@@ -443,10 +443,10 @@ class EnhancedRecommendationEngine {
     }
 
     /**
-     * REMOVED: Simulated market data not allowed
+     * REMOVED: Simulated market data not allowed - must use API
      */
     generateSimulatedMarketData(tickers) {
-        throw new Error('Simulated market data generation not allowed. Must use real data.');
+        throw new Error('Simulated market data generation not allowed. Connect to TastyTrade API for real data.');
         const basePrices = {
             'ES': 5450, 'MES': 5450, 'NQ': 18500, 'MNQ': 18500, 'RTY': 2100,
             'CL': 75, 'GC': 2050, 'SI': 24, 'NG': 2.8, 'MCL': 75, 'MGC': 2050,
@@ -613,7 +613,7 @@ class EnhancedRecommendationEngine {
             
             if (!marketData) continue;
 
-            // Get option chain data (real or simulated)
+            // Get option chain data (real API data only)
             const optionChain = await this.getOptionChainData(ticker, marketData);
             
             if (optionChain) {
@@ -637,19 +637,20 @@ class EnhancedRecommendationEngine {
                 // Get real option chain data
                 return await this.api.getOptionChain(ticker);
             } catch (error) {
-                logger.warn('ENGINE', `Option chain for ${ticker} not available, using simulated`);
+                logger.error('ENGINE', `Option chain for ${ticker} not available from API`);
+                throw error; // No fallback - must have real data
             }
         }
 
-        // CRITICAL: No simulated option chains
-        throw new Error(`Real option chain unavailable for ${ticker}. Cannot proceed with simulated data.`);
+        // No API connection - cannot proceed
+        throw new Error(`Real option chain unavailable for ${ticker}. API connection required.`);
     }
 
     /**
-     * REMOVED: Simulated option chains not allowed
+     * REMOVED: Simulated option chains not allowed - must use API
      */
     generateSimulatedOptionChain(ticker, marketData) {
-        throw new Error(`Simulated option chain generation not allowed for ${ticker}`);
+        throw new Error(`Simulated option chain not allowed for ${ticker}. Use TastyTrade API for real data.`);
         const { price, iv } = marketData;
         const strikes = [];
         

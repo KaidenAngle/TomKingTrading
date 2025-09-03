@@ -1063,8 +1063,8 @@ class TastyTradeAPI extends EventEmitter {
         return this.getOptionChain(symbol, expiration, options);
       }
       
-      // Return fallback data instead of empty array
-      return this.getFallbackOptionChain(symbol);
+      // No fallback allowed - throw error for real data requirement
+      throw new Error(`Option chain unavailable for ${symbol} - API connection required`);
     }
   }
   
@@ -1413,10 +1413,11 @@ class TastyTradeAPI extends EventEmitter {
   }
   
   /**
-   * Generate fallback option chain data when API fails
-   * Provides realistic simulated data for testing and fallback scenarios
+   * REMOVED: No fallback option chains allowed - must use real API data
+   * @deprecated Use real API connection instead
    */
   getFallbackOptionChain(symbol) {
+    throw new Error(`Fallback option chains not allowed for ${symbol} - must use real API data`);
     try {
       logger.debug('API', `Generating fallback option chain for ${symbol}`);
       
@@ -1522,9 +1523,11 @@ class TastyTradeAPI extends EventEmitter {
   }
   
   /**
-   * Generate fallback expiration with realistic option data
+   * REMOVED: No fallback expiration generation allowed
+   * @deprecated Must use real option data from API
    */
   generateFallbackExpiration(expiration, underlyingPrice, symbol) {
+    throw new Error('Fallback expiration generation not allowed - must use real API data');
     const dte = expiration.dte;
     const strikes = [];
     
@@ -2439,79 +2442,23 @@ class MarketDataCollector {
         }
       });
       
-      // Check for missing tickers and use fallback data
+      // Check for missing tickers - no fallback allowed
       for (const symbol of tickersToFetch) {
         const ticker = symbol.replace('/', '');
         
         if (!tickers[ticker]) {
-          logger.warn('API', `⚠️ ${ticker} missing from API response, using fallback data`);
-          
-          try {
-            // Use MarketDataService fallback for missing tickers
-            const fallbackData = await dataManager.getMarketData(ticker);
-            
-            if (fallbackData) {
-              tickers[ticker] = {
-                currentPrice: fallbackData.currentPrice,
-                openPrice: fallbackData.previousClose || fallbackData.currentPrice,
-                dayChange: fallbackData.change || 0,
-                dayChangePercent: fallbackData.changePercent || 0,
-                bid: fallbackData.currentPrice * 0.999,
-                ask: fallbackData.currentPrice * 1.001,
-                volume: fallbackData.volume || 0,
-                high: fallbackData.high || fallbackData.currentPrice * 1.01,
-                low: fallbackData.low || fallbackData.currentPrice * 0.99,
-                iv: fallbackData.iv || this.getDefaultIV(ticker),
-                ivRank: fallbackData.ivRank || Math.floor(Math.random() * 100),
-                ivPercentile: fallbackData.ivPercentile || Math.floor(Math.random() * 100),
-                source: 'MarketDataService_Fallback'
-              };
-              
-              logger.info('API', `🔄 ${ticker} fallback data used`, { price: tickers[ticker].currentPrice, source: 'fallback' });
-            }
-          } catch (fallbackError) {
-            logger.error('API', `Failed to get fallback data for ${ticker}`, fallbackError);
-            
-            // Last resort: generate basic data
-            tickers[ticker] = this.generateBasicTickerData(ticker);
-          }
+          logger.error('API', `❌ ${ticker} missing from API response - no fallback allowed`);
+          // Continue without this ticker - real data only
+          continue;
         }
       }
       
     } catch (error) {
-      console.warn('⚠️ Phase tickers API call failed, using all fallback data:', error.message);
+      console.error('❌ Phase tickers API call failed - no fallback allowed:', error.message);
+      throw new Error(`API connection required for market data: ${error.message}`);
       
-      // If the entire API call fails, use fallback for all tickers
-      for (const symbol of tickersToFetch) {
-        const ticker = symbol.replace('/', '');
-        
-        try {
-          const fallbackData = await dataManager.getMarketData(ticker);
-          
-          if (fallbackData) {
-            tickers[ticker] = {
-              currentPrice: fallbackData.currentPrice,
-              openPrice: fallbackData.previousClose || fallbackData.currentPrice,
-              dayChange: fallbackData.change || 0,
-              dayChangePercent: fallbackData.changePercent || 0,
-              bid: fallbackData.currentPrice * 0.999,
-              ask: fallbackData.currentPrice * 1.001,
-              volume: fallbackData.volume || 0,
-              high: fallbackData.high || fallbackData.currentPrice * 1.01,
-              low: fallbackData.low || fallbackData.currentPrice * 0.99,
-              iv: fallbackData.iv || this.getDefaultIV(ticker),
-              ivRank: fallbackData.ivRank || Math.floor(Math.random() * 100),
-              ivPercentile: fallbackData.ivPercentile || Math.floor(Math.random() * 100),
-              source: 'MarketDataService_Emergency'
-            };
-            
-            logger.info('API', `🆘 ${ticker} emergency fallback data used`, { price: tickers[ticker].currentPrice });
-          }
-        } catch (fallbackError) {
-          // Absolute fallback
-          tickers[ticker] = this.generateBasicTickerData(ticker);
-        }
-      }
+      // No fallback for failed API calls - real data only
+      // The error has been thrown above
     }
     
     return tickers;

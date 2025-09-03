@@ -174,7 +174,7 @@ class DataManager {
     }
 
     /**
-     * Get market data with intelligent fallback
+     * Get market data - ONLY from real API sources
      */
     async getMarketData(ticker, forceRefresh = false) {
         const apiSymbol = this.formatSymbolForAPI(ticker);
@@ -737,9 +737,9 @@ class DataManager {
     async fetchFromTastyTradeHistorical(symbol, startDate, endDate, interval) {
         try {
             const apiSymbol = this.formatSymbolForAPI(symbol);
-            // This would use the actual TastyTrade historical endpoint if available
-            // For now, return null to use fallback
-            return null;
+            // TastyTrade API doesn't provide historical data endpoint
+            // Must use real-time data or error out
+            throw new Error('Historical data not available via API - use real-time data only');
         } catch (error) {
             logger.error('DATA', `TastyTrade historical API error for ${symbol}`, error);
             return null;
@@ -760,7 +760,7 @@ class DataManager {
                 results[ticker] = await this.getMarketData(ticker);
             } catch (error) {
                 logger.error('DATA', `Failed to get phase data for ${ticker}`, error);
-                // No fallback to simulated data - throw error
+                // No simulated data allowed - real data only
                 throw new Error(`Real data unavailable for ${ticker}: ${error.message}`);
             }
         }

@@ -326,12 +326,12 @@ class TradingStrategies {
         targetDate.setDate(targetDate.getDate() + 112);
         const expirationFriday = this.getNextFriday(targetDate);
 
-        // FIXED: Use MES for Phase 1-2, ES for Phase 3+, allow fallback data
+        // Use MES for Phase 1-2, ES for Phase 3+ (no fallback - must have real data)
         const ticker = accountData.phase >= 3 ? 'ES' : 'MES';
-        const data = marketData[ticker] || marketData.ES || marketData.MES || marketData.SPY;
+        const data = marketData[ticker];
         
         if (!data) {
-            analysis.recommendation = `No ${ticker} or fallback data available`;
+            analysis.recommendation = `No real market data available for ${ticker} - API connection required`;
             return analysis;
         }
 
