@@ -132,10 +132,9 @@ class MasterController extends EventEmitter {
     determinePhase(balance = null) {
         const accountBalance = balance || this.state.accountBalance;
         
-        // Use config.js phase definitions
-        const phase = config.getPhaseFromAccountValue(accountBalance);
-        
-        return phase || 1; // Default to phase 1
+        // Use centralized phase utils
+        const { determinePhase } = require('../utils/phaseUtils');
+        return determinePhase(accountBalance).phase;
     }
     
     /**

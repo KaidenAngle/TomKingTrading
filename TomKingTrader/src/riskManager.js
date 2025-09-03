@@ -5,6 +5,8 @@
  */
 
 const DEBUG = process.env.NODE_ENV !== 'production';
+const { FedAnnouncementProtection } = require('./fedAnnouncementProtection');
+const { EarningsCalendar } = require('./earningsCalendar');
 
 /**
  * VIX Regime Analyzer
@@ -789,11 +791,19 @@ class August5DisasterPrevention {
  * Orchestrates all risk management functions
  */
 class RiskManager {
-  constructor() {
+  constructor(config = {}) {
     this.lastVIXLevel = null;
     this.lastAnalysis = null;
     this.alertHistory = [];
     this.emergencyMode = false;
+    
+    // Initialize protection systems
+    this.fedProtection = new FedAnnouncementProtection(config.fedProtection);
+    this.earningsCalendar = new EarningsCalendar(config.earningsCalendar);
+    
+    // Start monitoring
+    this.fedProtection.startMonitoring();
+    this.earningsCalendar.startMonitoring();
   }
   
   assessRisk(positions, vixLevel, phase, accountValue) {
@@ -814,12 +824,18 @@ class RiskManager {
       phase
     );
     
+    // Check Fed and earnings protections
+    const fedStatus = this.fedProtection.getStatus();
+    const earningsRisks = this.earningsCalendar.checkEarningsRisk(positions);
+    
     // Overall risk assessment
     const overallRisk = this.calculateOverallRisk(
       vixAnalysis,
       bpOptimization,
       august5Analysis,
-      emergencyProtocols
+      emergencyProtocols,
+      fedStatus,
+      earningsRisks
     );
     
     // Generate recommendations
@@ -827,7 +843,9 @@ class RiskManager {
       vixAnalysis,
       bpOptimization,
       august5Analysis,
-      emergencyProtocols
+      emergencyProtocols,
+      fedStatus,
+      earningsRisks
     );
     
     // Check for new alerts
@@ -844,6 +862,8 @@ class RiskManager {
       bpOptimization,
       august5Analysis,
       emergencyProtocols,
+      fedStatus,
+      earningsRisks,
       overallRisk,
       recommendations
     };
@@ -859,13 +879,15 @@ class RiskManager {
       bpOptimization,
       august5Analysis,
       emergencyProtocols,
+      fedStatus,
+      earningsRisks,
       recommendations,
       alerts: newAlerts,
       emergencyMode: this.emergencyMode
     };
   }
   
-  calculateOverallRisk(vixAnalysis, bpOptimization, august5Analysis, emergencyProtocols) {
+  calculateOverallRisk(vixAnalysis, bpOptimization, august5Analysis, emergencyProtocols, fedStatus, earningsRisks) {
     let riskScore = 50; // Base risk level
     let riskLevel = 'MEDIUM';
     const factors = [];
@@ -924,6 +946,24 @@ class RiskManager {
       factors.push('Emergency protocols activated');
     }
     
+    // Fed announcement protection
+    if (fedStatus.protectionActive) {
+      riskScore += 15;
+      factors.push(`Fed ${fedStatus.currentAnnouncement?.type} protection active`);
+    }
+    
+    // Earnings risks
+    if (earningsRisks && earningsRisks.length > 0) {
+      const criticalEarnings = earningsRisks.filter(r => r.risk.level === 'CRITICAL');
+      if (criticalEarnings.length > 0) {
+        riskScore += 20;
+        factors.push(`${criticalEarnings.length} critical earnings exposures`);
+      } else {
+        riskScore += 10;
+        factors.push(`${earningsRisks.length} earnings exposures monitored`);
+      }
+    }
+    
     // Final risk level determination
     if (riskLevel !== 'CRITICAL') {
       if (riskScore >= 80) riskLevel = 'HIGH';
@@ -953,7 +993,7 @@ class RiskManager {
     return summaries[riskLevel] || 'Unknown risk level';
   }
   
-  generateRiskRecommendations(vixAnalysis, bpOptimization, august5Analysis, emergencyProtocols) {
+  generateRiskRecommendations(vixAnalysis, bpOptimization, august5Analysis, emergencyProtocols, fedStatus, earningsRisks) {
     const recommendations = [];
     
     // Emergency recommendations (highest priority)
@@ -1004,6 +1044,42 @@ class RiskManager {
           `Timeline: ${bpOptimization.recommendation.timeline}`
         ]
       });
+    }
+    
+    // Fed announcement recommendations
+    if (fedStatus.protectionActive) {
+      recommendations.push({
+        type: 'FED_PROTECTION',
+        priority: 'HIGH',
+        title: `Fed ${fedStatus.currentAnnouncement?.type} protection active`,
+        actions: [
+          `Hours until: ${fedStatus.currentAnnouncement?.hoursUntil?.toFixed(1) || 'N/A'}`,
+          'New position restrictions in effect',
+          'Position reduction protocols active',
+          'Consider defensive adjustments'
+        ]
+      });
+    }
+    
+    // Earnings recommendations
+    if (earningsRisks && earningsRisks.length > 0) {
+      const criticalEarnings = earningsRisks.filter(r => r.risk.level === 'CRITICAL');
+      
+      if (criticalEarnings.length > 0) {
+        recommendations.push({
+          type: 'EARNINGS_CRITICAL',
+          priority: 'URGENT',
+          title: `${criticalEarnings.length} critical earnings exposures`,
+          actions: criticalEarnings.flatMap(e => e.risk.actions).slice(0, 4)
+        });
+      } else {
+        recommendations.push({
+          type: 'EARNINGS_MONITOR',
+          priority: 'MEDIUM',
+          title: `${earningsRisks.length} earnings exposures monitored`,
+          actions: ['Monitor earnings calendar', 'Review position risk scores', 'Consider adjustments']
+        });
+      }
     }
     
     // General risk management
@@ -1111,6 +1187,99 @@ class RiskManager {
       recentAlerts: this.getAlertHistory(1).length,
       keyFactors: overallRisk.factors.slice(0, 3)
     };
+  }
+  
+  /**
+   * Check if a trade is allowed considering Fed and earnings protections
+   */
+  isTradeAllowed(trade) {
+    const results = [];
+    
+    // Check Fed protection
+    const fedCheck = this.fedProtection.isTradeAllowed(trade);
+    if (!fedCheck.allowed) {
+      results.push({
+        type: 'FED_RESTRICTION',
+        allowed: false,
+        reasons: fedCheck.reasons,
+        announcement: fedCheck.announcement
+      });
+    }
+    
+    // Check earnings protection
+    const earningsCheck = this.earningsCalendar.isTradeAllowed(trade);
+    if (!earningsCheck.allowed) {
+      results.push({
+        type: 'EARNINGS_RESTRICTION',
+        allowed: false,
+        reasons: earningsCheck.reasons,
+        earnings: earningsCheck.earnings,
+        hoursUntilEarnings: earningsCheck.hoursUntilEarnings
+      });
+    }
+    
+    const overallAllowed = results.every(r => r.allowed !== false);
+    
+    return {
+      allowed: overallAllowed,
+      restrictions: results,
+      summary: overallAllowed ? 
+        'Trade approved' : 
+        `Trade blocked: ${results.flatMap(r => r.reasons).join(', ')}`
+    };
+  }
+  
+  /**
+   * Get position sizing recommendations considering Fed/earnings
+   */
+  getPositionSizing(normalSize, trade) {
+    let adjustedSize = normalSize;
+    const adjustments = [];
+    
+    // Fed protection sizing
+    if (this.fedProtection.getStatus().protectionActive) {
+      const fedSizing = this.fedProtection.getPositionSizing(normalSize);
+      adjustedSize = Math.min(adjustedSize, fedSizing.recommendedSize);
+      adjustments.push({
+        type: 'FED_PROTECTION',
+        reduction: (normalSize - fedSizing.recommendedSize) / normalSize,
+        reason: fedSizing.reason
+      });
+    }
+    
+    // Earnings considerations
+    if (trade?.position?.symbol) {
+      const earningsAdjustment = this.earningsCalendar.getEarningsAdjustments({
+        symbol: trade.position.symbol,
+        strategy: trade.strategy,
+        type: trade.type
+      });
+      
+      if (earningsAdjustment.adjustmentNeeded) {
+        const reduction = earningsAdjustment.recommendations[0]?.amount || 0.5;
+        adjustedSize = Math.floor(adjustedSize * (1 - reduction));
+        adjustments.push({
+          type: 'EARNINGS_PROTECTION',
+          reduction: reduction,
+          reason: 'Earnings window position reduction'
+        });
+      }
+    }
+    
+    return {
+      originalSize: normalSize,
+      recommendedSize: adjustedSize,
+      adjustments,
+      totalReduction: (normalSize - adjustedSize) / normalSize
+    };
+  }
+  
+  /**
+   * Stop all monitoring systems
+   */
+  shutdown() {
+    this.fedProtection?.stopMonitoring();
+    this.earningsCalendar?.stopMonitoring();
   }
   
   /**

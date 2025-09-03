@@ -2914,15 +2914,11 @@ class PhaseProgressionTracker {
     }
     
     /**
-     * Determine phase based on balance
+     * Determine phase based on balance - uses centralized phase utils
      */
     determinePhase(balance) {
-        for (const milestone of this.milestones) {
-            if (balance >= milestone.minBalance && balance <= milestone.maxBalance) {
-                return milestone.phase;
-            }
-        }
-        return 1; // Default to phase 1
+        const { determinePhase } = require('../utils/phaseUtils');
+        return determinePhase(balance).phase;
     }
     
     /**

@@ -10,6 +10,10 @@ const path = require('path');
 const { TastyTradeAPI } = require('../src/tastytradeAPI');
 const { RiskManager } = require('../src/riskManager');
 const { PerformanceMetrics } = require('../src/performanceMetrics');
+const { EmergencyProtocol } = require('../src/emergencyProtocol');
+const { FedAnnouncementProtection } = require('../src/fedAnnouncementProtection');
+const { EarningsCalendar } = require('../src/earningsCalendar');
+const { AssignmentRiskMonitor } = require('../src/assignmentRiskMonitor');
 const { getLogger } = require('../src/logger');
 
 const logger = getLogger();
@@ -49,6 +53,10 @@ class SystemMonitor extends EventEmitter {
         this.api = null;
         this.riskManager = null;
         this.performanceMetrics = null;
+        this.emergencyProtocol = null;
+        this.fedProtection = null;
+        this.earningsCalendar = null;
+        this.assignmentRiskMonitor = null;
         this.monitoringInterval = null;
         this.isRunning = false;
     }
@@ -98,11 +106,16 @@ class SystemMonitor extends EventEmitter {
         this.api = new TastyTradeAPI();
         await this.api.initialize();
         
-        // Initialize risk manager
+        // Initialize all monitoring components
         this.riskManager = new RiskManager();
-        
-        // Initialize performance metrics
         this.performanceMetrics = new PerformanceMetrics();
+        this.emergencyProtocol = new EmergencyProtocol(this.api);
+        this.fedProtection = new FedAnnouncementProtection();
+        this.earningsCalendar = new EarningsCalendar();
+        this.assignmentRiskMonitor = new AssignmentRiskMonitor();
+        
+        // Initialize emergency protocol
+        await this.emergencyProtocol.initialize();
         
         // Ensure log directory exists
         await fs.mkdir(this.config.logPath, { recursive: true });

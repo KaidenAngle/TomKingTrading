@@ -27,7 +27,14 @@ class EmergencyProtocol extends EventEmitter {
             rapidLoss: 0.05, // 5% loss in 1 hour
             apiDisconnect: 300000, // 5 minutes disconnect
             marginCall: 0.90, // 90% BP usage
-            volatilityExplosion: 2.0 // 200% IV increase
+            volatilityExplosion: 2.0, // 200% IV increase
+            
+            // Circuit breaker levels
+            circuitBreakerL1: -0.07, // 7% market decline
+            circuitBreakerL2: -0.13, // 13% market decline
+            circuitBreakerL3: -0.20, // 20% market decline
+            momentumSpike: 0.03, // 3% 15-minute move
+            vixAbsolute: 35 // VIX above 35
         };
         
         this.state = {
