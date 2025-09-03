@@ -1025,6 +1025,405 @@ const ConfigHelpers = {
 };
 
 /**
+ * TOM KING WISDOM RULES
+ * Hard-earned trading principles from 30+ years of experience
+ * These rules override all other logic when triggered
+ */
+const WISDOM_RULES = {
+    // Core Trading Principles
+    NEVER_AVERAGE_DOWN: {
+        id: 'NEVER_AVERAGE_DOWN',
+        principle: 'Never add to a losing position',
+        description: 'If a trade moves against you, do not increase position size',
+        enforcement: 'STRICT',
+        check: (position, newTrade) => {
+            if (position.unrealizedPnL < 0 && newTrade.symbol === position.symbol) {
+                return { allowed: false, reason: 'Never average down on losses' };
+            }
+            return { allowed: true };
+        }
+    },
+    
+    FRIDAY_0DTE_RULE: {
+        id: 'FRIDAY_0DTE_RULE',
+        principle: '0DTE only on Fridays after 10:30 AM EST with VIX > 22',
+        description: 'Tom King\'s signature strategy - 88% win rate when rules followed',
+        enforcement: 'STRICT',
+        check: (trade, marketData) => {
+            if (trade.strategy === '0DTE') {
+                const now = new Date();
+                const dayOfWeek = now.getDay();
+                const hour = now.getHours();
+                const minute = now.getMinutes();
+                const vix = marketData?.VIX?.currentPrice || 20;
+                
+                if (dayOfWeek !== 5) {
+                    return { allowed: false, reason: '0DTE only on Fridays' };
+                }
+                if (hour < 10 || (hour === 10 && minute < 30)) {
+                    return { allowed: false, reason: 'Wait until 10:30 AM for 0DTE' };
+                }
+                if (vix < 22) {
+                    return { allowed: false, reason: 'VIX must be > 22 for 0DTE' };
+                }
+            }
+            return { allowed: true };
+        }
+    },
+    
+    CORRELATION_LIMIT: {
+        id: 'CORRELATION_LIMIT',
+        principle: 'Never exceed phase correlation limits',
+        description: 'August 5, 2024 lesson - excessive correlation leads to disaster',
+        enforcement: 'STRICT',
+        phaseLimit: {
+            1: 2, // Phase 1-2: Max 2 per correlation group
+            2: 2,
+            3: 3, // Phase 3-4: Max 3 per correlation group
+            4: 3
+        },
+        check: (positions, newTrade, phase = 1) => {
+            const groups = {
+                'EQUITY': ['ES', 'MES', 'SPY', 'QQQ', 'IWM', 'NQ', 'MNQ'],
+                'COMMODITIES': ['CL', 'MCL', 'GC', 'MGC', 'GLD', 'SLV'],
+                'BONDS': ['ZB', 'ZN', 'TLT', 'TBT'],
+                'CURRENCIES': ['6E', '6B', '6J', 'EUR', 'GBP', 'JPY']
+            };
+            
+            // Find which group the new trade belongs to
+            let tradeGroup = null;
+            for (const [group, symbols] of Object.entries(groups)) {
+                if (symbols.includes(newTrade.symbol)) {
+                    tradeGroup = group;
+                    break;
+                }
+            }
+            
+            if (!tradeGroup) return { allowed: true }; // Unknown symbol, allow
+            
+            // Count existing positions in that group
+            const groupCount = positions.filter(p => {
+                for (const [group, symbols] of Object.entries(groups)) {
+                    if (group === tradeGroup && symbols.includes(p.symbol)) {
+                        return true;
+                    }
+                }
+                return false;
+            }).length;
+            
+            const limit = this.phaseLimit[phase];
+            if (groupCount >= limit) {
+                return { 
+                    allowed: false, 
+                    reason: `Already have ${groupCount} positions in ${tradeGroup} group (limit: ${limit})` 
+                };
+            }
+            
+            return { allowed: true };
+        }
+    },
+    
+    DEFENSIVE_21_DTE: {
+        id: 'DEFENSIVE_21_DTE',
+        principle: 'Manage all positions at 21 DTE',
+        description: 'Roll or close positions with 21 days to expiration',
+        enforcement: 'WARNING',
+        check: (position) => {
+            if (position.daysToExpiration <= 21 && position.daysToExpiration > 0) {
+                if (position.unrealizedPnL > position.maxProfit * 0.5) {
+                    return { action: 'CLOSE', reason: 'Take profit at 50% with 21 DTE' };
+                } else if (position.unrealizedPnL < 0) {
+                    return { action: 'ROLL', reason: 'Roll challenged position at 21 DTE' };
+                }
+                return { action: 'EVALUATE', reason: 'Monitor position at 21 DTE' };
+            }
+            return { action: 'HOLD' };
+        }
+    },
+    
+    PROFIT_TARGET_50: {
+        id: 'PROFIT_TARGET_50',
+        principle: 'Take profits at 50% of max profit',
+        description: 'Mechanical profit-taking improves win rate and reduces risk',
+        enforcement: 'RECOMMENDED',
+        check: (position) => {
+            const profitPercent = (position.unrealizedPnL / position.maxProfit) * 100;
+            if (profitPercent >= 50) {
+                return { action: 'CLOSE', reason: 'Target profit of 50% reached' };
+            }
+            return { action: 'HOLD' };
+        }
+    },
+    
+    VIX_SPIKE_DEFENSE: {
+        id: 'VIX_SPIKE_DEFENSE',
+        principle: 'Reduce exposure during VIX spikes',
+        description: 'When VIX spikes 50% or above 30, reduce all positions',
+        enforcement: 'AUTOMATIC',
+        check: (currentVIX, previousVIX) => {
+            const spikePercent = ((currentVIX - previousVIX) / previousVIX) * 100;
+            
+            if (currentVIX > 30) {
+                return { action: 'REDUCE_ALL', reason: 'VIX above 30 - extreme volatility' };
+            }
+            if (spikePercent > 50) {
+                return { action: 'REDUCE_HALF', reason: 'VIX spike > 50% detected' };
+            }
+            return { action: 'MONITOR' };
+        }
+    },
+    
+    BUYING_POWER_DISCIPLINE: {
+        id: 'BUYING_POWER_DISCIPLINE',
+        principle: 'Never exceed VIX-adjusted BP limits',
+        description: 'Dynamic BP usage: 45% (VIX<13), 65% (13-18), 75% (18-25), 80% (25+)',
+        enforcement: 'STRICT',
+        limits: {
+            veryLow: { max: 13, bp: 0.45 },
+            low: { max: 18, bp: 0.65 },
+            normal: { max: 25, bp: 0.75 },
+            high: { max: 100, bp: 0.80 }
+        },
+        check: (currentBPUsage, vixLevel) => {
+            let maxBP = 0.80;
+            
+            if (vixLevel < 13) maxBP = 0.45;
+            else if (vixLevel < 18) maxBP = 0.65;
+            else if (vixLevel < 25) maxBP = 0.75;
+            else maxBP = 0.80;
+            
+            if (currentBPUsage > maxBP) {
+                return { 
+                    allowed: false, 
+                    reason: `BP usage ${(currentBPUsage * 100).toFixed(1)}% exceeds limit ${(maxBP * 100).toFixed(0)}% for VIX ${vixLevel}` 
+                };
+            }
+            return { allowed: true, maxBP, currentUsage: currentBPUsage };
+        }
+    },
+    
+    NEVER_TRADE_EARNINGS: {
+        id: 'NEVER_TRADE_EARNINGS',
+        principle: 'Avoid trading during earnings week',
+        description: 'Binary events destroy premium selling strategies',
+        enforcement: 'WARNING',
+        check: (symbol, earningsCalendar) => {
+            const earnings = earningsCalendar?.[symbol];
+            if (earnings) {
+                const daysToEarnings = Math.floor((new Date(earnings.date) - new Date()) / (1000 * 60 * 60 * 24));
+                if (daysToEarnings <= 7 && daysToEarnings >= -1) {
+                    return { 
+                        allowed: false, 
+                        reason: `Earnings in ${daysToEarnings} days - avoid binary risk` 
+                    };
+                }
+            }
+            return { allowed: true };
+        }
+    },
+    
+    MOMENTUM_15_MINUTE: {
+        id: 'MOMENTUM_15_MINUTE',
+        principle: 'Tom King\'s 15-minute momentum rule',
+        description: '3% move in 15 minutes signals potential volatility explosion',
+        enforcement: 'ALERT',
+        check: (priceData) => {
+            const fifteenMinChange = ((priceData.current - priceData.fifteenMinAgo) / priceData.fifteenMinAgo) * 100;
+            
+            if (Math.abs(fifteenMinChange) >= 3) {
+                return {
+                    alert: true,
+                    action: 'AVOID_NEW_ENTRIES',
+                    reason: `${fifteenMinChange.toFixed(2)}% move in 15 minutes - volatility spike`
+                };
+            }
+            return { alert: false };
+        }
+    },
+    
+    STRATEGY_HIERARCHY: {
+        id: 'STRATEGY_HIERARCHY',
+        principle: 'Follow Tom King\'s strategy preference order',
+        description: '1) LT-112, 2) Strangles, 3) 0DTE Friday - in that order',
+        enforcement: 'GUIDANCE',
+        priority: {
+            'LT112': 1,
+            'STRANGLE': 2,
+            '0DTE': 3,
+            'BUTTERFLY': 4,
+            'IRON_CONDOR': 5,
+            'OTHER': 6
+        },
+        check: (availableOpportunities) => {
+            return availableOpportunities.sort((a, b) => {
+                const priorityA = this.priority[a.strategy] || 99;
+                const priorityB = this.priority[b.strategy] || 99;
+                return priorityA - priorityB;
+            });
+        }
+    },
+    
+    MAX_RISK_PER_TRADE: {
+        id: 'MAX_RISK_PER_TRADE',
+        principle: 'Never risk more than 5% on a single trade',
+        description: 'Preservation of capital is paramount',
+        enforcement: 'STRICT',
+        check: (tradeRisk, accountValue) => {
+            const riskPercent = (tradeRisk / accountValue) * 100;
+            if (riskPercent > 5) {
+                return {
+                    allowed: false,
+                    reason: `Trade risk ${riskPercent.toFixed(1)}% exceeds 5% limit`
+                };
+            }
+            return { allowed: true, riskPercent };
+        }
+    },
+    
+    COMPOUND_ONLY_PHASES: {
+        id: 'COMPOUND_ONLY_PHASES',
+        principle: 'No withdrawals in Phases 1-2',
+        description: 'Focus on compounding until account reaches £60k',
+        enforcement: 'STRICT',
+        check: (withdrawalAmount, accountBalance, phase) => {
+            if (phase <= 2 && withdrawalAmount > 0) {
+                return {
+                    allowed: false,
+                    reason: `No withdrawals allowed in Phase ${phase} - compound only`
+                };
+            }
+            
+            // In phases 3-4, limit withdrawals to preserve growth
+            if (phase >= 3) {
+                const monthlyProfit = accountBalance * 0.12; // Assuming 12% monthly target
+                const maxWithdrawal = monthlyProfit * 0.5; // Max 50% of monthly profit
+                
+                if (withdrawalAmount > maxWithdrawal) {
+                    return {
+                        allowed: false,
+                        reason: `Withdrawal £${withdrawalAmount} exceeds 50% of monthly profit £${maxWithdrawal.toFixed(0)}`
+                    };
+                }
+            }
+            
+            return { allowed: true };
+        }
+    },
+    
+    NEVER_CHASE_LOSSES: {
+        id: 'NEVER_CHASE_LOSSES',
+        principle: 'Never revenge trade after a loss',
+        description: 'Take a break after losses, don\'t double down',
+        enforcement: 'WARNING',
+        check: (recentTrades, newTrade) => {
+            if (!recentTrades || recentTrades.length === 0) return { allowed: true };
+            
+            const lastTrade = recentTrades[recentTrades.length - 1];
+            const timeSinceLast = Date.now() - new Date(lastTrade.closedAt).getTime();
+            
+            // If last trade was a loss and new trade is within 30 minutes
+            if (lastTrade.pnl < 0 && timeSinceLast < 1800000) {
+                // Check if new trade is larger than normal
+                if (newTrade.size > lastTrade.size * 1.5) {
+                    return {
+                        allowed: false,
+                        reason: 'Potential revenge trade detected - take a break'
+                    };
+                }
+            }
+            
+            return { allowed: true };
+        }
+    },
+    
+    QUALITY_OVER_QUANTITY: {
+        id: 'QUALITY_OVER_QUANTITY',
+        principle: 'Fewer high-quality trades beat many mediocre trades',
+        description: 'Maximum 5 new positions per day',
+        enforcement: 'RECOMMENDED',
+        check: (todaysTrades) => {
+            if (todaysTrades.length >= 5) {
+                return {
+                    allowed: false,
+                    reason: 'Daily trade limit (5) reached - quality over quantity'
+                };
+            }
+            return { allowed: true, tradesRemaining: 5 - todaysTrades.length };
+        }
+    },
+    
+    ALWAYS_HAVE_PLAN: {
+        id: 'ALWAYS_HAVE_PLAN',
+        principle: 'Every trade needs entry, target, and stop',
+        description: 'No trade without a complete plan',
+        enforcement: 'STRICT',
+        check: (trade) => {
+            if (!trade.entryPrice || !trade.targetPrice || !trade.stopLoss) {
+                const missing = [];
+                if (!trade.entryPrice) missing.push('entry price');
+                if (!trade.targetPrice) missing.push('target price');
+                if (!trade.stopLoss) missing.push('stop loss');
+                
+                return {
+                    allowed: false,
+                    reason: `Trade plan incomplete - missing: ${missing.join(', ')}`
+                };
+            }
+            return { allowed: true };
+        }
+    },
+    
+    // Wisdom rule application helper
+    applyWisdomRules: function(trade, context = {}) {
+        const results = [];
+        const violations = [];
+        
+        // Check each applicable rule
+        Object.values(WISDOM_RULES).forEach(rule => {
+            if (typeof rule === 'function') return; // Skip helper functions
+            if (!rule.check) return; // Skip rules without check function
+            
+            try {
+                const result = rule.check(trade, context);
+                if (result.allowed === false) {
+                    violations.push({
+                        rule: rule.id,
+                        reason: result.reason,
+                        enforcement: rule.enforcement
+                    });
+                }
+                results.push({ rule: rule.id, ...result });
+            } catch (error) {
+                // Rule check failed, skip
+            }
+        });
+        
+        // Determine if trade should proceed
+        const strictViolations = violations.filter(v => v.enforcement === 'STRICT');
+        const warnings = violations.filter(v => v.enforcement === 'WARNING' || v.enforcement === 'RECOMMENDED');
+        
+        return {
+            allowed: strictViolations.length === 0,
+            violations: strictViolations,
+            warnings,
+            results
+        };
+    },
+    
+    // Get all wisdom rules for display
+    getAllRules: function() {
+        return Object.values(WISDOM_RULES)
+            .filter(rule => typeof rule !== 'function')
+            .map(rule => ({
+                id: rule.id,
+                principle: rule.principle,
+                description: rule.description,
+                enforcement: rule.enforcement
+            }));
+    }
+};
+
+/**
  * VIX Regime Configuration
  * Different volatility regimes and their adjustments
  */
@@ -1101,6 +1500,7 @@ module.exports = {
     APP_SETTINGS,
     VIX_LEVELS,
     NEVER_TRADE_LIST,
+    WISDOM_RULES,
     
     // Helper functions
     ConfigHelpers,

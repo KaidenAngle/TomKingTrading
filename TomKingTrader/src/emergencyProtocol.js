@@ -55,6 +55,17 @@ class EmergencyProtocol extends EventEmitter {
             commonMistakes: this.initializeCommonMistakes(),
             preventedCount: 0
         };
+        
+        // Disaster recovery system
+        this.disasterRecovery = {
+            enabled: true,
+            lastBackup: null,
+            backupInterval: 3600000, // 1 hour
+            recoveryPoints: [],
+            maxRecoveryPoints: 24, // Keep 24 hours of recovery points
+            autoRecoveryEnabled: true,
+            recoveryInProgress: false
+        };
     }
     
     /**
@@ -1209,6 +1220,820 @@ class EmergencyProtocol extends EventEmitter {
         });
         
         logger.info('MISTAKE_PREVENTION', 'Daily counters reset');
+    }
+    
+    /**
+     * DISASTER RECOVERY SYSTEM
+     * Comprehensive backup, recovery, and failover mechanisms
+     */
+    
+    /**
+     * Initialize disaster recovery
+     */
+    async initializeDisasterRecovery() {
+        logger.info('DISASTER_RECOVERY', 'Initializing disaster recovery system');
+        
+        // Load existing recovery points
+        await this.loadRecoveryPoints();
+        
+        // Start automatic backup schedule
+        this.startBackupSchedule();
+        
+        // Setup crash handlers
+        this.setupCrashHandlers();
+        
+        // Create initial backup
+        await this.createRecoveryPoint('INITIAL');
+        
+        logger.info('DISASTER_RECOVERY', 'Disaster recovery system initialized');
+    }
+    
+    /**
+     * Create recovery point (backup)
+     */
+    async createRecoveryPoint(type = 'SCHEDULED') {
+        try {
+            const recoveryPoint = {
+                id: `RP_${Date.now()}`,
+                timestamp: new Date(),
+                type,
+                state: await this.captureSystemState(),
+                positions: await this.capturePositions(),
+                orders: await this.capturePendingOrders(),
+                configuration: await this.captureConfiguration(),
+                performance: await this.capturePerformanceMetrics()
+            };
+            
+            // Add to recovery points
+            this.disasterRecovery.recoveryPoints.push(recoveryPoint);
+            
+            // Trim old recovery points
+            while (this.disasterRecovery.recoveryPoints.length > this.disasterRecovery.maxRecoveryPoints) {
+                this.disasterRecovery.recoveryPoints.shift();
+            }
+            
+            // Save to disk
+            await this.saveRecoveryPoint(recoveryPoint);
+            
+            this.disasterRecovery.lastBackup = new Date();
+            
+            logger.info('DISASTER_RECOVERY', `Recovery point created: ${recoveryPoint.id} (${type})`);
+            
+            return recoveryPoint;
+        } catch (error) {
+            logger.error('DISASTER_RECOVERY', 'Failed to create recovery point', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * Capture current system state
+     */
+    async captureSystemState() {
+        return {
+            accountBalance: await this.api.getBalance(),
+            buyingPowerUsed: await this.api.getBuyingPowerUsed(),
+            vixLevel: await this.api.getVIXLevel(),
+            phase: this.state.phase || 1,
+            emergencyStatus: this.state.active,
+            marketStatus: await this.api.getMarketStatus(),
+            timestamp: new Date()
+        };
+    }
+    
+    /**
+     * Capture current positions
+     */
+    async capturePositions() {
+        const positions = await this.api.getPositions();
+        return positions.map(p => ({
+            symbol: p.symbol,
+            quantity: p.quantity,
+            side: p.side,
+            entryPrice: p.average_price,
+            currentPrice: p.market_value,
+            pnl: p.unrealized_pnl,
+            strategy: p.strategy,
+            openDate: p.opened_at,
+            dte: p.days_to_expiration
+        }));
+    }
+    
+    /**
+     * Capture pending orders
+     */
+    async capturePendingOrders() {
+        const orders = await this.api.getPendingOrders();
+        return orders.map(o => ({
+            id: o.id,
+            symbol: o.symbol,
+            side: o.side,
+            quantity: o.quantity,
+            orderType: o.order_type,
+            price: o.limit_price,
+            timeInForce: o.time_in_force,
+            status: o.status
+        }));
+    }
+    
+    /**
+     * Capture configuration
+     */
+    async captureConfiguration() {
+        const config = require('./config');
+        return {
+            phase: config.CURRENT_PHASE,
+            riskLimits: {
+                maxBPUsage: config.MAX_BP_USAGE,
+                maxPositions: config.MAX_POSITIONS,
+                maxRiskPerTrade: config.MAX_RISK_PER_TRADE
+            },
+            activeStrategies: config.ACTIVE_STRATEGIES,
+            emergencyTriggers: this.triggers
+        };
+    }
+    
+    /**
+     * Capture performance metrics
+     */
+    async capturePerformanceMetrics() {
+        return {
+            dailyPnL: this.state.dailyPnL || 0,
+            weeklyPnL: this.state.weeklyPnL || 0,
+            monthlyPnL: this.state.monthlyPnL || 0,
+            winRate: this.state.winRate || 0,
+            sharpeRatio: this.state.sharpeRatio || 0,
+            maxDrawdown: this.state.maxDrawdown || 0
+        };
+    }
+    
+    /**
+     * Save recovery point to disk
+     */
+    async saveRecoveryPoint(recoveryPoint) {
+        const filename = `./backups/recovery_${recoveryPoint.id}.json`;
+        
+        try {
+            await fs.mkdir('./backups', { recursive: true });
+            await fs.writeFile(filename, JSON.stringify(recoveryPoint, null, 2));
+            
+            // Also save latest recovery point reference
+            await fs.writeFile(
+                './backups/latest.json',
+                JSON.stringify({ id: recoveryPoint.id, timestamp: recoveryPoint.timestamp }, null, 2)
+            );
+        } catch (error) {
+            logger.error('DISASTER_RECOVERY', 'Failed to save recovery point', error);
+        }
+    }
+    
+    /**
+     * Load recovery points from disk
+     */
+    async loadRecoveryPoints() {
+        try {
+            const files = await fs.readdir('./backups');
+            const recoveryFiles = files.filter(f => f.startsWith('recovery_'));
+            
+            for (const file of recoveryFiles.slice(-this.disasterRecovery.maxRecoveryPoints)) {
+                const content = await fs.readFile(`./backups/${file}`, 'utf8');
+                const recoveryPoint = JSON.parse(content);
+                this.disasterRecovery.recoveryPoints.push(recoveryPoint);
+            }
+            
+            logger.info('DISASTER_RECOVERY', `Loaded ${this.disasterRecovery.recoveryPoints.length} recovery points`);
+        } catch (error) {
+            logger.warn('DISASTER_RECOVERY', 'No existing recovery points found');
+        }
+    }
+    
+    /**
+     * Start automatic backup schedule
+     */
+    startBackupSchedule() {
+        // Clear existing schedule
+        if (this.backupInterval) {
+            clearInterval(this.backupInterval);
+        }
+        
+        // Schedule regular backups
+        this.backupInterval = setInterval(async () => {
+            await this.createRecoveryPoint('SCHEDULED');
+        }, this.disasterRecovery.backupInterval);
+        
+        logger.info('DISASTER_RECOVERY', `Backup schedule started (every ${this.disasterRecovery.backupInterval / 1000 / 60} minutes)`);
+    }
+    
+    /**
+     * Setup crash handlers
+     */
+    setupCrashHandlers() {
+        // Handle uncaught exceptions
+        process.on('uncaughtException', async (error) => {
+            logger.error('DISASTER_RECOVERY', 'UNCAUGHT EXCEPTION - Creating emergency backup', error);
+            await this.createRecoveryPoint('CRASH');
+            await this.initiateDisasterRecovery('CRASH', error);
+        });
+        
+        // Handle unhandled promise rejections
+        process.on('unhandledRejection', async (reason, promise) => {
+            logger.error('DISASTER_RECOVERY', 'UNHANDLED REJECTION - Creating emergency backup', reason);
+            await this.createRecoveryPoint('REJECTION');
+        });
+        
+        // Handle process termination
+        process.on('SIGTERM', async () => {
+            logger.info('DISASTER_RECOVERY', 'SIGTERM received - Creating final backup');
+            await this.createRecoveryPoint('SHUTDOWN');
+        });
+    }
+    
+    /**
+     * Initiate disaster recovery
+     */
+    async initiateDisasterRecovery(reason, error = null) {
+        if (this.disasterRecovery.recoveryInProgress) {
+            logger.warn('DISASTER_RECOVERY', 'Recovery already in progress');
+            return;
+        }
+        
+        this.disasterRecovery.recoveryInProgress = true;
+        
+        logger.critical('DISASTER_RECOVERY', `🆘 DISASTER RECOVERY INITIATED - Reason: ${reason}`);
+        
+        try {
+            // 1. Stop all trading immediately
+            await this.emergencyStop();
+            
+            // 2. Create immediate backup
+            await this.createRecoveryPoint('DISASTER');
+            
+            // 3. Analyze the disaster
+            const analysis = await this.analyzeDisaster(reason, error);
+            
+            // 4. Determine recovery strategy
+            const strategy = this.determineRecoveryStrategy(analysis);
+            
+            // 5. Execute recovery
+            await this.executeRecovery(strategy);
+            
+            // 6. Verify recovery
+            const verified = await this.verifyRecovery();
+            
+            if (verified) {
+                logger.info('DISASTER_RECOVERY', '✅ Recovery successful');
+                this.emit('recoveryComplete', { reason, strategy, success: true });
+            } else {
+                logger.error('DISASTER_RECOVERY', '❌ Recovery verification failed');
+                await this.fallbackRecovery();
+            }
+        } catch (recoveryError) {
+            logger.error('DISASTER_RECOVERY', 'Recovery failed', recoveryError);
+            await this.lastResortRecovery();
+        } finally {
+            this.disasterRecovery.recoveryInProgress = false;
+        }
+    }
+    
+    /**
+     * Analyze disaster to determine recovery strategy
+     */
+    async analyzeDisaster(reason, error) {
+        const analysis = {
+            reason,
+            error: error?.message || 'Unknown',
+            timestamp: new Date(),
+            severity: 'UNKNOWN',
+            dataLoss: false,
+            apiStatus: 'UNKNOWN',
+            positionsAtRisk: [],
+            recommendations: []
+        };
+        
+        // Check API connectivity
+        try {
+            await this.api.ping();
+            analysis.apiStatus = 'CONNECTED';
+        } catch (e) {
+            analysis.apiStatus = 'DISCONNECTED';
+            analysis.severity = 'CRITICAL';
+            analysis.recommendations.push('Reconnect to API');
+        }
+        
+        // Check for data integrity
+        try {
+            const positions = await this.api.getPositions();
+            const orders = await this.api.getPendingOrders();
+            
+            if (!positions || !orders) {
+                analysis.dataLoss = true;
+                analysis.severity = 'CRITICAL';
+            }
+        } catch (e) {
+            analysis.dataLoss = true;
+        }
+        
+        // Determine severity
+        if (reason === 'CRASH' || reason === 'DATA_CORRUPTION') {
+            analysis.severity = 'CRITICAL';
+        } else if (reason === 'API_DISCONNECT' || reason === 'MARGIN_CALL') {
+            analysis.severity = 'HIGH';
+        } else if (reason === 'PERFORMANCE' || reason === 'USER_INITIATED') {
+            analysis.severity = 'MEDIUM';
+        }
+        
+        // Check positions at risk
+        try {
+            const positions = await this.api.getPositions();
+            for (const position of positions) {
+                if (position.days_to_expiration <= 1 || position.unrealized_pnl < -1000) {
+                    analysis.positionsAtRisk.push(position.symbol);
+                }
+            }
+        } catch (e) {
+            // Ignore
+        }
+        
+        return analysis;
+    }
+    
+    /**
+     * Determine recovery strategy based on analysis
+     */
+    determineRecoveryStrategy(analysis) {
+        const strategy = {
+            type: 'STANDARD',
+            actions: [],
+            priority: 'NORMAL',
+            restorePoint: null
+        };
+        
+        switch (analysis.severity) {
+            case 'CRITICAL':
+                strategy.type = 'FULL_RESTORE';
+                strategy.priority = 'IMMEDIATE';
+                strategy.restorePoint = this.getLatestHealthyRecoveryPoint();
+                strategy.actions = [
+                    'STOP_ALL_TRADING',
+                    'CLOSE_RISKY_POSITIONS',
+                    'RESTORE_FROM_BACKUP',
+                    'RECONNECT_API',
+                    'VERIFY_POSITIONS',
+                    'GRADUAL_RESTART'
+                ];
+                break;
+                
+            case 'HIGH':
+                strategy.type = 'PARTIAL_RESTORE';
+                strategy.priority = 'HIGH';
+                strategy.actions = [
+                    'PAUSE_TRADING',
+                    'RECONNECT_API',
+                    'VERIFY_DATA',
+                    'RESUME_CRITICAL_FUNCTIONS',
+                    'MONITOR_CLOSELY'
+                ];
+                break;
+                
+            case 'MEDIUM':
+                strategy.type = 'SOFT_RECOVERY';
+                strategy.priority = 'NORMAL';
+                strategy.actions = [
+                    'CREATE_BACKUP',
+                    'RESTART_SERVICES',
+                    'VERIFY_CONNECTIVITY',
+                    'RESUME_TRADING'
+                ];
+                break;
+                
+            default:
+                strategy.type = 'MONITOR';
+                strategy.actions = ['MONITOR_SYSTEM', 'LOG_INCIDENT'];
+        }
+        
+        return strategy;
+    }
+    
+    /**
+     * Execute recovery strategy
+     */
+    async executeRecovery(strategy) {
+        logger.info('DISASTER_RECOVERY', `Executing ${strategy.type} recovery strategy`);
+        
+        for (const action of strategy.actions) {
+            logger.info('DISASTER_RECOVERY', `Executing: ${action}`);
+            
+            try {
+                switch (action) {
+                    case 'STOP_ALL_TRADING':
+                        await this.stopAllTrading();
+                        break;
+                        
+                    case 'CLOSE_RISKY_POSITIONS':
+                        await this.closeRiskyPositions();
+                        break;
+                        
+                    case 'RESTORE_FROM_BACKUP':
+                        await this.restoreFromBackup(strategy.restorePoint);
+                        break;
+                        
+                    case 'RECONNECT_API':
+                        await this.reconnectAPI();
+                        break;
+                        
+                    case 'VERIFY_POSITIONS':
+                        await this.verifyPositions();
+                        break;
+                        
+                    case 'VERIFY_DATA':
+                        await this.verifyDataIntegrity();
+                        break;
+                        
+                    case 'PAUSE_TRADING':
+                        await this.pauseTrading();
+                        break;
+                        
+                    case 'RESUME_TRADING':
+                        await this.resumeTrading();
+                        break;
+                        
+                    case 'GRADUAL_RESTART':
+                        await this.gradualRestart();
+                        break;
+                        
+                    case 'RESTART_SERVICES':
+                        await this.restartServices();
+                        break;
+                        
+                    case 'MONITOR_SYSTEM':
+                        await this.intensiveMonitoring();
+                        break;
+                        
+                    default:
+                        logger.warn('DISASTER_RECOVERY', `Unknown action: ${action}`);
+                }
+                
+                await this.delay(1000); // Brief pause between actions
+            } catch (error) {
+                logger.error('DISASTER_RECOVERY', `Failed to execute ${action}`, error);
+                // Continue with next action
+            }
+        }
+    }
+    
+    /**
+     * Get latest healthy recovery point
+     */
+    getLatestHealthyRecoveryPoint() {
+        // Find the most recent recovery point that's not a crash/disaster
+        const healthyPoints = this.disasterRecovery.recoveryPoints.filter(
+            rp => !['CRASH', 'DISASTER', 'REJECTION'].includes(rp.type)
+        );
+        
+        return healthyPoints[healthyPoints.length - 1] || null;
+    }
+    
+    /**
+     * Restore from backup recovery point
+     */
+    async restoreFromBackup(recoveryPoint) {
+        if (!recoveryPoint) {
+            logger.error('DISASTER_RECOVERY', 'No recovery point available');
+            return false;
+        }
+        
+        logger.info('DISASTER_RECOVERY', `Restoring from ${recoveryPoint.id}`);
+        
+        try {
+            // Restore configuration
+            await this.restoreConfiguration(recoveryPoint.configuration);
+            
+            // Verify positions match backup
+            await this.reconcilePositions(recoveryPoint.positions);
+            
+            // Restore state
+            this.state = { ...this.state, ...recoveryPoint.state };
+            
+            logger.info('DISASTER_RECOVERY', 'Restore complete');
+            return true;
+        } catch (error) {
+            logger.error('DISASTER_RECOVERY', 'Restore failed', error);
+            return false;
+        }
+    }
+    
+    /**
+     * Verify recovery was successful
+     */
+    async verifyRecovery() {
+        const checks = {
+            apiConnected: false,
+            positionsValid: false,
+            ordersValid: false,
+            riskWithinLimits: false,
+            systemResponsive: false
+        };
+        
+        try {
+            // Check API
+            await this.api.ping();
+            checks.apiConnected = true;
+            
+            // Check positions
+            const positions = await this.api.getPositions();
+            checks.positionsValid = Array.isArray(positions);
+            
+            // Check orders
+            const orders = await this.api.getPendingOrders();
+            checks.ordersValid = Array.isArray(orders);
+            
+            // Check risk
+            const riskStatus = await this.riskManager.assessRisk(positions);
+            checks.riskWithinLimits = !riskStatus.hasEmergency;
+            
+            // Check system responsiveness
+            const startTime = Date.now();
+            await this.api.getBalance();
+            checks.systemResponsive = (Date.now() - startTime) < 5000;
+            
+        } catch (error) {
+            logger.error('DISASTER_RECOVERY', 'Verification failed', error);
+        }
+        
+        const allChecks = Object.values(checks).every(v => v === true);
+        
+        logger.info('DISASTER_RECOVERY', 'Verification results', checks);
+        
+        return allChecks;
+    }
+    
+    /**
+     * Fallback recovery if primary fails
+     */
+    async fallbackRecovery() {
+        logger.warn('DISASTER_RECOVERY', 'Initiating fallback recovery');
+        
+        try {
+            // Try older recovery point
+            const olderPoint = this.disasterRecovery.recoveryPoints[this.disasterRecovery.recoveryPoints.length - 2];
+            if (olderPoint) {
+                await this.restoreFromBackup(olderPoint);
+            }
+            
+            // Minimal safe mode
+            await this.enterSafeMode();
+            
+        } catch (error) {
+            logger.error('DISASTER_RECOVERY', 'Fallback recovery failed', error);
+            await this.lastResortRecovery();
+        }
+    }
+    
+    /**
+     * Last resort recovery - preserve capital at all costs
+     */
+    async lastResortRecovery() {
+        logger.critical('DISASTER_RECOVERY', '🔴 LAST RESORT RECOVERY - PRESERVING CAPITAL');
+        
+        try {
+            // Close all positions
+            await this.closeAllPositions('EMERGENCY');
+            
+            // Cancel all orders
+            await this.cancelAllOrders();
+            
+            // Lock trading
+            this.state.tradingLocked = true;
+            
+            // Alert user
+            console.log('\n' + '='.repeat(60));
+            console.log('🚨🚨🚨 CRITICAL SYSTEM FAILURE 🚨🚨🚨');
+            console.log('ALL POSITIONS CLOSED - TRADING LOCKED');
+            console.log('MANUAL INTERVENTION REQUIRED');
+            console.log('='.repeat(60) + '\n');
+            
+            // Save final state
+            await this.createRecoveryPoint('LAST_RESORT');
+            
+        } catch (error) {
+            logger.critical('DISASTER_RECOVERY', 'TOTAL SYSTEM FAILURE', error);
+            process.exit(1);
+        }
+    }
+    
+    /**
+     * Enter safe mode - minimal functionality
+     */
+    async enterSafeMode() {
+        logger.info('DISASTER_RECOVERY', 'Entering SAFE MODE');
+        
+        this.state.safeMode = true;
+        
+        // Disable risky features
+        this.triggers.maxDrawdown = 0.05; // Tighter limits
+        this.triggers.rapidLoss = 0.02;
+        this.triggers.marginCall = 0.50;
+        
+        // Reduce position sizes
+        if (this.riskManager) {
+            this.riskManager.emergencyMode = true;
+        }
+        
+        // Limit strategies
+        this.state.allowedStrategies = ['CLOSE_ONLY'];
+        
+        logger.info('DISASTER_RECOVERY', 'Safe mode activated - limited functionality');
+    }
+    
+    /**
+     * Gradual restart after recovery
+     */
+    async gradualRestart() {
+        logger.info('DISASTER_RECOVERY', 'Beginning gradual restart');
+        
+        const phases = [
+            { name: 'API_VERIFICATION', delay: 5000 },
+            { name: 'POSITION_RECONCILIATION', delay: 10000 },
+            { name: 'RISK_ASSESSMENT', delay: 5000 },
+            { name: 'MONITORING_ACTIVATION', delay: 5000 },
+            { name: 'LIMITED_TRADING', delay: 30000 },
+            { name: 'FULL_TRADING', delay: 60000 }
+        ];
+        
+        for (const phase of phases) {
+            logger.info('DISASTER_RECOVERY', `Starting phase: ${phase.name}`);
+            
+            switch (phase.name) {
+                case 'API_VERIFICATION':
+                    await this.verifyAPIConnection();
+                    break;
+                case 'POSITION_RECONCILIATION':
+                    await this.reconcileAllPositions();
+                    break;
+                case 'RISK_ASSESSMENT':
+                    await this.performFullRiskAssessment();
+                    break;
+                case 'MONITORING_ACTIVATION':
+                    await this.activateMonitoring();
+                    break;
+                case 'LIMITED_TRADING':
+                    await this.enableLimitedTrading();
+                    break;
+                case 'FULL_TRADING':
+                    await this.enableFullTrading();
+                    break;
+            }
+            
+            await this.delay(phase.delay);
+        }
+        
+        logger.info('DISASTER_RECOVERY', 'Gradual restart complete');
+    }
+    
+    /**
+     * Close risky positions during recovery
+     */
+    async closeRiskyPositions() {
+        const positions = await this.api.getPositions();
+        const riskyPositions = [];
+        
+        for (const position of positions) {
+            // Close if: near expiration, large loss, or high risk
+            if (position.days_to_expiration <= 1 || 
+                position.unrealized_pnl < -1000 ||
+                position.delta > 0.8) {
+                riskyPositions.push(position);
+            }
+        }
+        
+        logger.info('DISASTER_RECOVERY', `Closing ${riskyPositions.length} risky positions`);
+        
+        for (const position of riskyPositions) {
+            try {
+                await this.orderManager.closePosition(position, 'DISASTER_RECOVERY');
+            } catch (error) {
+                logger.error('DISASTER_RECOVERY', `Failed to close ${position.symbol}`, error);
+            }
+        }
+    }
+    
+    /**
+     * Reconnect to API
+     */
+    async reconnectAPI() {
+        logger.info('DISASTER_RECOVERY', 'Attempting API reconnection');
+        
+        let attempts = 0;
+        const maxAttempts = 5;
+        
+        while (attempts < maxAttempts) {
+            try {
+                await this.api.disconnect();
+                await this.delay(2000);
+                await this.api.connect();
+                await this.api.ping();
+                
+                logger.info('DISASTER_RECOVERY', 'API reconnected successfully');
+                return true;
+            } catch (error) {
+                attempts++;
+                logger.warn('DISASTER_RECOVERY', `Reconnection attempt ${attempts} failed`);
+                await this.delay(5000 * attempts); // Exponential backoff
+            }
+        }
+        
+        logger.error('DISASTER_RECOVERY', 'Failed to reconnect to API');
+        return false;
+    }
+    
+    /**
+     * Verify data integrity
+     */
+    async verifyDataIntegrity() {
+        const checks = [];
+        
+        // Check positions
+        try {
+            const positions = await this.api.getPositions();
+            checks.push({
+                name: 'Positions',
+                valid: Array.isArray(positions) && positions.every(p => p.symbol && p.quantity),
+                count: positions.length
+            });
+        } catch (error) {
+            checks.push({ name: 'Positions', valid: false, error: error.message });
+        }
+        
+        // Check orders
+        try {
+            const orders = await this.api.getPendingOrders();
+            checks.push({
+                name: 'Orders',
+                valid: Array.isArray(orders),
+                count: orders.length
+            });
+        } catch (error) {
+            checks.push({ name: 'Orders', valid: false, error: error.message });
+        }
+        
+        // Check account
+        try {
+            const balance = await this.api.getBalance();
+            checks.push({
+                name: 'Account',
+                valid: balance > 0,
+                balance
+            });
+        } catch (error) {
+            checks.push({ name: 'Account', valid: false, error: error.message });
+        }
+        
+        const allValid = checks.every(c => c.valid);
+        
+        logger.info('DISASTER_RECOVERY', 'Data integrity check', { allValid, checks });
+        
+        return allValid;
+    }
+    
+    /**
+     * Handle phase downgrade (called from masterController)
+     */
+    handlePhaseDowngrade(fromPhase, toPhase) {
+        logger.warn('DISASTER_RECOVERY', `Phase downgrade detected: ${fromPhase} → ${toPhase}`);
+        
+        // Create backup before adjusting
+        this.createRecoveryPoint('PHASE_DOWNGRADE');
+        
+        // Adjust risk parameters
+        this.triggers.maxDrawdown *= 0.8; // Tighter drawdown
+        this.triggers.rapidLoss *= 0.8;
+        
+        // Alert user
+        this.emit('phaseDowngrade', { fromPhase, toPhase, timestamp: new Date() });
+    }
+    
+    /**
+     * Get disaster recovery status
+     */
+    getDisasterRecoveryStatus() {
+        return {
+            enabled: this.disasterRecovery.enabled,
+            lastBackup: this.disasterRecovery.lastBackup,
+            recoveryPoints: this.disasterRecovery.recoveryPoints.length,
+            autoRecovery: this.disasterRecovery.autoRecoveryEnabled,
+            recoveryInProgress: this.disasterRecovery.recoveryInProgress,
+            safeMode: this.state.safeMode || false,
+            nextBackup: this.disasterRecovery.lastBackup ? 
+                new Date(this.disasterRecovery.lastBackup.getTime() + this.disasterRecovery.backupInterval) : 
+                null
+        };
+    }
+    
+    /**
+     * Utility: delay function
+     */
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
 // Export

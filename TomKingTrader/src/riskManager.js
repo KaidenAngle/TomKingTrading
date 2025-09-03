@@ -2039,6 +2039,764 @@ class RiskManager {
         `Risk acceptable: ${riskPercent.toFixed(1)}% of account`
     };
   }
+
+  /**
+   * MARGIN FORECASTING SYSTEM
+   * Predicts future margin requirements based on positions and market conditions
+   * Critical for preventing margin calls and optimizing capital deployment
+   */
+  
+  /**
+   * Forecast margin requirements for next N days
+   * Considers VIX expansion, position decay, and market stress scenarios
+   */
+  forecastMarginRequirements(options = {}) {
+    const {
+      positions = [],
+      accountData = {},
+      daysToForecast = 30,
+      vixLevel = 20,
+      stressTest = true,
+      includeWeekendTheta = true
+    } = options;
+    
+    const forecast = {
+      timestamp: new Date(),
+      currentMargin: this.calculateCurrentMargin(positions, accountData),
+      dailyForecasts: [],
+      stressScenarios: [],
+      marginCallRisk: null,
+      recommendations: []
+    };
+    
+    // Generate daily forecasts
+    for (let day = 1; day <= daysToForecast; day++) {
+      const dailyForecast = this.calculateDailyMarginForecast({
+        positions,
+        accountData,
+        daysForward: day,
+        vixLevel,
+        includeWeekendTheta
+      });
+      
+      forecast.dailyForecasts.push(dailyForecast);
+      
+      // Check for margin call risk
+      if (dailyForecast.marginUsagePercent > 90) {
+        if (!forecast.marginCallRisk) {
+          forecast.marginCallRisk = {
+            firstRiskDay: day,
+            peakUsage: dailyForecast.marginUsagePercent,
+            triggerEvent: dailyForecast.notes
+          };
+        }
+      }
+    }
+    
+    // Run stress test scenarios
+    if (stressTest) {
+      forecast.stressScenarios = this.runMarginStressTests({
+        positions,
+        accountData,
+        vixLevel
+      });
+    }
+    
+    // Generate recommendations
+    forecast.recommendations = this.generateMarginRecommendations(forecast);
+    
+    return forecast;
+  }
+  
+  /**
+   * Calculate current margin requirements
+   */
+  calculateCurrentMargin(positions, accountData) {
+    const margin = {
+      initialMargin: 0,
+      maintenanceMargin: 0,
+      buyingPowerUsed: 0,
+      excessLiquidity: 0
+    };
+    
+    // Calculate margin for each position
+    positions.forEach(position => {
+      const positionMargin = this.calculatePositionMargin(position);
+      margin.initialMargin += positionMargin.initial;
+      margin.maintenanceMargin += positionMargin.maintenance;
+      margin.buyingPowerUsed += positionMargin.bpUsed;
+    });
+    
+    // Calculate excess liquidity
+    const netLiq = accountData.netLiquidation || accountData.accountValue || 50000;
+    margin.excessLiquidity = netLiq - margin.maintenanceMargin;
+    margin.marginUsagePercent = (margin.maintenanceMargin / netLiq) * 100;
+    
+    // Add safety metrics
+    margin.marginCallDistance = margin.excessLiquidity / margin.maintenanceMargin;
+    margin.safetyRating = this.getMarginSafetyRating(margin.marginUsagePercent);
+    
+    return margin;
+  }
+  
+  /**
+   * Calculate margin for individual position
+   */
+  calculatePositionMargin(position) {
+    const margin = {
+      initial: 0,
+      maintenance: 0,
+      bpUsed: 0
+    };
+    
+    // Different margin calculations based on position type
+    switch (position.type) {
+      case 'OPTION':
+        margin.initial = this.calculateOptionMargin(position);
+        margin.maintenance = margin.initial * 0.75; // 75% of initial for maintenance
+        margin.bpUsed = margin.initial;
+        break;
+        
+      case 'FUTURE':
+        margin.initial = this.calculateFuturesMargin(position);
+        margin.maintenance = margin.initial * 0.9; // 90% for futures
+        margin.bpUsed = margin.initial;
+        break;
+        
+      case 'SPREAD':
+        margin.initial = this.calculateSpreadMargin(position);
+        margin.maintenance = margin.initial * 0.8;
+        margin.bpUsed = margin.initial;
+        break;
+        
+      default:
+        // Conservative estimate for unknown types
+        const notional = (position.quantity || 1) * (position.price || 100) * 100;
+        margin.initial = notional * 0.2; // 20% margin requirement
+        margin.maintenance = margin.initial * 0.75;
+        margin.bpUsed = margin.initial;
+    }
+    
+    return margin;
+  }
+  
+  /**
+   * Calculate option margin requirements
+   */
+  calculateOptionMargin(position) {
+    const { quantity = 1, strike = 100, underlying = 100, type = 'CALL' } = position;
+    
+    // Naked option margin calculation (simplified)
+    const otm = type === 'CALL' ? 
+      Math.max(0, strike - underlying) : 
+      Math.max(0, underlying - strike);
+    
+    const percentageRequirement = 0.2; // 20% of underlying
+    const minimumRequirement = 250; // Minimum per contract
+    
+    const marginPerContract = Math.max(
+      (underlying * 100 * percentageRequirement) - otm,
+      minimumRequirement
+    );
+    
+    return marginPerContract * Math.abs(quantity);
+  }
+  
+  /**
+   * Calculate futures margin requirements
+   */
+  calculateFuturesMargin(position) {
+    const { symbol = '', quantity = 1 } = position;
+    
+    // Futures margin requirements (approximate)
+    const marginRequirements = {
+      'MES': 1500,   // Micro E-mini S&P
+      'MNQ': 1700,   // Micro E-mini Nasdaq
+      'MCL': 1000,   // Micro Crude Oil
+      'MGC': 1000,   // Micro Gold
+      'ES': 15000,   // E-mini S&P
+      'NQ': 17000,   // E-mini Nasdaq
+      'CL': 10000,   // Crude Oil
+      'GC': 10000    // Gold
+    };
+    
+    const marginPerContract = marginRequirements[symbol] || 2000;
+    return marginPerContract * Math.abs(quantity);
+  }
+  
+  /**
+   * Calculate spread margin requirements
+   */
+  calculateSpreadMargin(position) {
+    const { spreadType = 'VERTICAL', width = 5, quantity = 1 } = position;
+    
+    // Spread margin calculations
+    switch (spreadType) {
+      case 'VERTICAL':
+        return width * 100 * Math.abs(quantity); // Max loss is spread width
+        
+      case 'IRON_CONDOR':
+        return width * 100 * Math.abs(quantity); // One side's width
+        
+      case 'BUTTERFLY':
+        return width * 50 * Math.abs(quantity); // Half width for butterflies
+        
+      case 'CALENDAR':
+        return width * 150 * Math.abs(quantity); // Higher for calendars
+        
+      default:
+        return width * 100 * Math.abs(quantity);
+    }
+  }
+  
+  /**
+   * Calculate daily margin forecast
+   */
+  calculateDailyMarginForecast(options) {
+    const { positions, accountData, daysForward, vixLevel, includeWeekendTheta } = options;
+    
+    const forecast = {
+      day: daysForward,
+      date: new Date(Date.now() + daysForward * 24 * 60 * 60 * 1000),
+      estimatedMargin: 0,
+      marginUsagePercent: 0,
+      vixImpact: 1.0,
+      thetaDecay: 0,
+      notes: []
+    };
+    
+    // Adjust for weekend theta if applicable
+    const isWeekend = [0, 6].includes(forecast.date.getDay());
+    const thetaMultiplier = (includeWeekendTheta && isWeekend) ? 3 : 1;
+    
+    // Calculate VIX impact on margin
+    const vixTrend = this.predictVIXTrend(vixLevel, daysForward);
+    forecast.vixImpact = vixTrend.multiplier;
+    
+    // Calculate margin for each position at future date
+    positions.forEach(position => {
+      const futureMargin = this.calculateFuturePositionMargin({
+        position,
+        daysForward,
+        vixMultiplier: forecast.vixImpact,
+        thetaMultiplier
+      });
+      
+      forecast.estimatedMargin += futureMargin.margin;
+      forecast.thetaDecay += futureMargin.thetaDecay;
+    });
+    
+    // Calculate usage percentage
+    const netLiq = accountData.netLiquidation || 50000;
+    forecast.marginUsagePercent = (forecast.estimatedMargin / netLiq) * 100;
+    
+    // Add notes for significant events
+    if (forecast.marginUsagePercent > 80) {
+      forecast.notes.push('⚠️ High margin usage warning');
+    }
+    if (vixTrend.spike) {
+      forecast.notes.push('📈 VIX spike expected');
+    }
+    if (isWeekend) {
+      forecast.notes.push('📅 Weekend theta acceleration');
+    }
+    
+    // Check for expiration dates
+    const expiringPositions = positions.filter(p => 
+      p.daysToExpiration && p.daysToExpiration <= daysForward
+    );
+    if (expiringPositions.length > 0) {
+      forecast.notes.push(`🎯 ${expiringPositions.length} positions expiring`);
+    }
+    
+    return forecast;
+  }
+  
+  /**
+   * Calculate future margin for a position
+   */
+  calculateFuturePositionMargin(options) {
+    const { position, daysForward, vixMultiplier, thetaMultiplier } = options;
+    
+    // Get current margin
+    const currentMargin = this.calculatePositionMargin(position);
+    
+    // Adjust for time decay (options lose value over time)
+    const timeDecayFactor = position.type === 'OPTION' ? 
+      Math.exp(-0.02 * daysForward) : // 2% daily decay approximation
+      1.0;
+    
+    // Adjust for VIX changes (higher VIX = higher margin requirements)
+    const vixAdjustment = vixMultiplier;
+    
+    // Calculate theta decay
+    const theta = position.theta || 0;
+    const thetaDecay = theta * daysForward * thetaMultiplier;
+    
+    // Future margin estimate
+    const futureMargin = currentMargin.initial * timeDecayFactor * vixAdjustment;
+    
+    return {
+      margin: futureMargin,
+      thetaDecay,
+      original: currentMargin.initial,
+      adjustments: {
+        timeDecay: timeDecayFactor,
+        vixImpact: vixAdjustment
+      }
+    };
+  }
+  
+  /**
+   * Predict VIX trend for forecasting
+   */
+  predictVIXTrend(currentVIX, daysForward) {
+    // Mean reversion assumption
+    const longTermMean = 19; // Historical VIX mean
+    const reversionSpeed = 0.05; // 5% daily reversion
+    
+    // Calculate expected VIX
+    const expectedVIX = currentVIX + (longTermMean - currentVIX) * reversionSpeed * daysForward;
+    
+    // Check for potential spikes (simplified model)
+    const spikeProb = this.calculateVIXSpikeProbability(currentVIX, daysForward);
+    const spike = spikeProb > 0.2;
+    
+    // Calculate margin multiplier based on VIX change
+    const vixChange = expectedVIX / currentVIX;
+    const multiplier = spike ? vixChange * 1.5 : vixChange;
+    
+    return {
+      currentVIX,
+      expectedVIX,
+      spike,
+      spikeProb,
+      multiplier: Math.max(0.8, Math.min(2.0, multiplier)) // Cap between 0.8x and 2x
+    };
+  }
+  
+  /**
+   * Calculate probability of VIX spike
+   */
+  calculateVIXSpikeProbability(currentVIX, daysForward) {
+    // Simplified spike probability model
+    if (currentVIX < 12) return 0.15 * (daysForward / 30); // Higher spike prob in low vol
+    if (currentVIX < 15) return 0.10 * (daysForward / 30);
+    if (currentVIX < 20) return 0.08 * (daysForward / 30);
+    if (currentVIX < 25) return 0.12 * (daysForward / 30);
+    return 0.20 * (daysForward / 30); // Already elevated, could spike more
+  }
+  
+  /**
+   * Run margin stress test scenarios
+   */
+  runMarginStressTests(options) {
+    const { positions, accountData, vixLevel } = options;
+    
+    const scenarios = [
+      {
+        name: 'VIX Spike (50%)',
+        vixMultiplier: 1.5,
+        marketMove: -0.05 // 5% market drop
+      },
+      {
+        name: 'August 2024 Repeat',
+        vixMultiplier: 2.5,
+        marketMove: -0.12 // 12% crash
+      },
+      {
+        name: 'Gradual Increase',
+        vixMultiplier: 1.2,
+        marketMove: -0.02
+      },
+      {
+        name: 'Flash Crash',
+        vixMultiplier: 3.0,
+        marketMove: -0.08
+      },
+      {
+        name: 'Correlation Crisis',
+        vixMultiplier: 2.0,
+        marketMove: -0.10,
+        correlationMultiplier: 2.0 // All positions move together
+      }
+    ];
+    
+    return scenarios.map(scenario => {
+      const stressResult = this.calculateStressScenario({
+        positions,
+        accountData,
+        scenario,
+        currentVIX: vixLevel
+      });
+      
+      return {
+        ...scenario,
+        ...stressResult,
+        survives: stressResult.marginUsagePercent < 100,
+        marginCallRisk: stressResult.marginUsagePercent > 90 ? 'HIGH' : 
+                       stressResult.marginUsagePercent > 75 ? 'MEDIUM' : 'LOW'
+      };
+    });
+  }
+  
+  /**
+   * Calculate stress scenario impact
+   */
+  calculateStressScenario(options) {
+    const { positions, accountData, scenario, currentVIX } = options;
+    
+    let totalMargin = 0;
+    let totalLoss = 0;
+    
+    // Calculate impact on each position
+    positions.forEach(position => {
+      // Adjust margin for scenario
+      const baseMargin = this.calculatePositionMargin(position);
+      const stressedMargin = baseMargin.initial * scenario.vixMultiplier;
+      
+      // Calculate P&L impact
+      const delta = position.delta || 0.5;
+      const gamma = position.gamma || 0.01;
+      const vega = position.vega || 0.1;
+      
+      // Price impact from market move
+      const priceImpact = delta * scenario.marketMove * position.underlyingPrice * 100;
+      const gammaImpact = 0.5 * gamma * Math.pow(scenario.marketMove * position.underlyingPrice, 2) * 100;
+      const vegaImpact = vega * (currentVIX * (scenario.vixMultiplier - 1));
+      
+      const positionLoss = (priceImpact + gammaImpact + vegaImpact) * position.quantity;
+      
+      totalMargin += stressedMargin;
+      totalLoss += Math.min(0, positionLoss); // Only count losses
+    });
+    
+    const netLiq = accountData.netLiquidation || 50000;
+    const stressedNetLiq = netLiq + totalLoss;
+    
+    return {
+      estimatedMargin: totalMargin,
+      estimatedLoss: Math.abs(totalLoss),
+      stressedNetLiq,
+      marginUsagePercent: (totalMargin / stressedNetLiq) * 100,
+      excessLiquidity: stressedNetLiq - totalMargin,
+      daysToMarginCall: this.estimateDaysToMarginCall(stressedNetLiq, totalMargin)
+    };
+  }
+  
+  /**
+   * Estimate days until margin call
+   */
+  estimateDaysToMarginCall(netLiq, currentMargin) {
+    const marginCallLevel = netLiq * 0.9; // Margin call at 90% usage
+    const dailyDecay = netLiq * 0.01; // Assume 1% daily loss
+    
+    if (currentMargin >= marginCallLevel) return 0;
+    
+    const buffer = marginCallLevel - currentMargin;
+    return Math.floor(buffer / dailyDecay);
+  }
+  
+  /**
+   * Get margin safety rating
+   */
+  getMarginSafetyRating(usagePercent) {
+    if (usagePercent < 30) return 'EXCELLENT';
+    if (usagePercent < 50) return 'GOOD';
+    if (usagePercent < 70) return 'FAIR';
+    if (usagePercent < 85) return 'POOR';
+    return 'CRITICAL';
+  }
+  
+  /**
+   * Generate margin recommendations
+   */
+  generateMarginRecommendations(forecast) {
+    const recommendations = [];
+    
+    // Check current margin usage
+    if (forecast.currentMargin.marginUsagePercent > 70) {
+      recommendations.push({
+        priority: 'HIGH',
+        action: 'REDUCE_POSITIONS',
+        reason: `Current margin usage ${forecast.currentMargin.marginUsagePercent.toFixed(1)}% exceeds safe threshold`,
+        suggestion: 'Close or reduce lowest performing positions'
+      });
+    }
+    
+    // Check margin call risk
+    if (forecast.marginCallRisk) {
+      recommendations.push({
+        priority: 'CRITICAL',
+        action: 'IMMEDIATE_ACTION',
+        reason: `Margin call risk detected in ${forecast.marginCallRisk.firstRiskDay} days`,
+        suggestion: 'Reduce positions immediately or add capital'
+      });
+    }
+    
+    // Check stress test results
+    const failedStressTests = forecast.stressScenarios?.filter(s => !s.survives) || [];
+    if (failedStressTests.length > 0) {
+      recommendations.push({
+        priority: 'HIGH',
+        action: 'IMPROVE_RESILIENCE',
+        reason: `Portfolio fails ${failedStressTests.length} stress scenarios`,
+        suggestion: 'Add hedges or reduce leverage'
+      });
+    }
+    
+    // Check for margin efficiency
+    if (forecast.currentMargin.marginUsagePercent < 30) {
+      recommendations.push({
+        priority: 'LOW',
+        action: 'OPTIMIZE_CAPITAL',
+        reason: 'Low margin usage indicates underutilized capital',
+        suggestion: 'Consider adding positions within risk limits'
+      });
+    }
+    
+    return recommendations;
+  }
+  
+  /**
+   * Calculate position impact on margin
+   * Analyzes how adding/removing a position affects overall margin
+   */
+  calculatePositionImpact(options = {}) {
+    const {
+      currentPositions = [],
+      newPosition = null,
+      accountData = {},
+      action = 'ADD' // ADD or REMOVE
+    } = options;
+    
+    // Calculate current state
+    const currentMargin = this.calculateCurrentMargin(currentPositions, accountData);
+    
+    // Calculate new state
+    let modifiedPositions;
+    if (action === 'ADD' && newPosition) {
+      modifiedPositions = [...currentPositions, newPosition];
+    } else if (action === 'REMOVE' && newPosition) {
+      modifiedPositions = currentPositions.filter(p => 
+        p.symbol !== newPosition.symbol || p.strike !== newPosition.strike
+      );
+    } else {
+      return { error: 'Invalid action or missing position' };
+    }
+    
+    const newMargin = this.calculateCurrentMargin(modifiedPositions, accountData);
+    
+    // Calculate impact
+    const impact = {
+      action,
+      position: newPosition,
+      currentMarginUsage: currentMargin.marginUsagePercent,
+      newMarginUsage: newMargin.marginUsagePercent,
+      marginChange: newMargin.maintenanceMargin - currentMargin.maintenanceMargin,
+      marginChangePercent: ((newMargin.marginUsagePercent - currentMargin.marginUsagePercent) / 
+                           currentMargin.marginUsagePercent * 100),
+      newExcessLiquidity: newMargin.excessLiquidity,
+      liquidityChange: newMargin.excessLiquidity - currentMargin.excessLiquidity,
+      approved: newMargin.marginUsagePercent < 85, // Max 85% usage
+      warnings: []
+    };
+    
+    // Add warnings
+    if (newMargin.marginUsagePercent > 70) {
+      impact.warnings.push('Margin usage exceeds 70% - monitor closely');
+    }
+    if (newMargin.marginUsagePercent > 85) {
+      impact.warnings.push('CRITICAL: Margin usage too high - trade rejected');
+    }
+    if (impact.liquidityChange < -5000) {
+      impact.warnings.push('Significant liquidity reduction');
+    }
+    
+    return impact;
+  }
+  
+  /**
+   * Dynamic position sizing based on available margin
+   * Calculates optimal position size considering margin constraints
+   */
+  calculateDynamicPositionSize(options = {}) {
+    const {
+      strategy = 'STRANGLE',
+      accountData = {},
+      currentPositions = [],
+      targetMarginUsage = 0.65, // Target 65% margin usage
+      maxPositionMargin = 0.15, // Max 15% of margin per position
+      vixLevel = 20
+    } = options;
+    
+    // Get current margin state
+    const currentMargin = this.calculateCurrentMargin(currentPositions, accountData);
+    const netLiq = accountData.netLiquidation || 50000;
+    
+    // Calculate available margin for new positions
+    const targetMargin = netLiq * targetMarginUsage;
+    const availableMargin = targetMargin - currentMargin.maintenanceMargin;
+    
+    if (availableMargin <= 0) {
+      return {
+        contracts: 0,
+        reason: 'No margin available for new positions',
+        currentUsage: currentMargin.marginUsagePercent,
+        targetUsage: targetMarginUsage * 100
+      };
+    }
+    
+    // Calculate position size based on strategy
+    const strategyMargin = this.estimateStrategyMargin(strategy, vixLevel);
+    const maxPositionMarginDollars = netLiq * maxPositionMargin;
+    
+    // Use the smaller of available margin or max position size
+    const positionMargin = Math.min(availableMargin, maxPositionMarginDollars);
+    
+    // Calculate number of contracts
+    const contracts = Math.floor(positionMargin / strategyMargin.perContract);
+    
+    // Verify the position won't exceed limits
+    const finalMarginUsage = (currentMargin.maintenanceMargin + (contracts * strategyMargin.perContract)) / netLiq;
+    
+    return {
+      contracts: Math.max(0, contracts),
+      marginPerContract: strategyMargin.perContract,
+      totalMarginRequired: contracts * strategyMargin.perContract,
+      currentMarginUsage: currentMargin.marginUsagePercent,
+      projectedMarginUsage: finalMarginUsage * 100,
+      availableMargin,
+      strategy,
+      vixAdjustment: strategyMargin.vixAdjustment,
+      approved: finalMarginUsage <= 0.85,
+      recommendation: contracts > 0 ? 
+        `Trade ${contracts} contracts using ${(finalMarginUsage * 100).toFixed(1)}% total margin` :
+        'Insufficient margin for position'
+    };
+  }
+  
+  /**
+   * Estimate margin requirements for different strategies
+   */
+  estimateStrategyMargin(strategy, vixLevel) {
+    // Base margin requirements per contract (approximate)
+    const baseMargins = {
+      'STRANGLE': 2500,
+      'STRADDLE': 3500,
+      'IRON_CONDOR': 500,
+      'VERTICAL': 500,
+      'BUTTERFLY': 250,
+      'CALENDAR': 1500,
+      '0DTE': 1000,
+      'LT112': 2000,
+      'NAKED_PUT': 4000,
+      'COVERED_CALL': 0 // No additional margin for covered
+    };
+    
+    const baseMargin = baseMargins[strategy] || 2000;
+    
+    // Adjust for VIX level
+    let vixAdjustment = 1.0;
+    if (vixLevel < 15) vixAdjustment = 0.8;
+    else if (vixLevel > 25) vixAdjustment = 1.3;
+    else if (vixLevel > 30) vixAdjustment = 1.5;
+    
+    return {
+      perContract: baseMargin * vixAdjustment,
+      baseMargin,
+      vixAdjustment,
+      vixLevel
+    };
+  }
+  
+  /**
+   * Monitor margin health in real-time
+   */
+  monitorMarginHealth(positions, accountData) {
+    const health = {
+      timestamp: new Date(),
+      status: 'HEALTHY',
+      alerts: [],
+      metrics: {}
+    };
+    
+    // Calculate current margin metrics
+    const margin = this.calculateCurrentMargin(positions, accountData);
+    health.metrics = margin;
+    
+    // Check margin usage
+    if (margin.marginUsagePercent > 85) {
+      health.status = 'CRITICAL';
+      health.alerts.push({
+        level: 'CRITICAL',
+        message: `Margin usage ${margin.marginUsagePercent.toFixed(1)}% - Immediate action required`,
+        action: 'Reduce positions or add capital immediately'
+      });
+    } else if (margin.marginUsagePercent > 70) {
+      health.status = 'WARNING';
+      health.alerts.push({
+        level: 'WARNING',
+        message: `Margin usage ${margin.marginUsagePercent.toFixed(1)}% - Approaching limits`,
+        action: 'Consider reducing positions'
+      });
+    } else if (margin.marginUsagePercent > 60) {
+      health.status = 'CAUTION';
+      health.alerts.push({
+        level: 'INFO',
+        message: `Margin usage ${margin.marginUsagePercent.toFixed(1)}% - Monitor closely`,
+        action: 'Normal range but stay vigilant'
+      });
+    }
+    
+    // Check excess liquidity
+    if (margin.excessLiquidity < 5000) {
+      health.alerts.push({
+        level: 'WARNING',
+        message: `Low excess liquidity: £${margin.excessLiquidity.toFixed(0)}`,
+        action: 'Maintain minimum £5000 buffer'
+      });
+    }
+    
+    // Check margin call distance
+    if (margin.marginCallDistance < 0.2) {
+      health.alerts.push({
+        level: 'CRITICAL',
+        message: 'Close to margin call threshold',
+        action: 'Reduce positions immediately'
+      });
+    }
+    
+    // Add recommendations
+    health.recommendations = this.getMarginHealthRecommendations(health);
+    
+    return health;
+  }
+  
+  /**
+   * Get margin health recommendations
+   */
+  getMarginHealthRecommendations(health) {
+    const recommendations = [];
+    
+    if (health.status === 'CRITICAL') {
+      recommendations.push('🚨 IMMEDIATE: Close lowest performing positions');
+      recommendations.push('🚨 IMMEDIATE: Avoid any new positions');
+      recommendations.push('🚨 Consider adding capital if possible');
+    } else if (health.status === 'WARNING') {
+      recommendations.push('⚠️ Reduce position sizes on new trades');
+      recommendations.push('⚠️ Close any underperforming positions');
+      recommendations.push('⚠️ Monitor margin usage hourly');
+    } else if (health.status === 'CAUTION') {
+      recommendations.push('📊 Monitor margin usage daily');
+      recommendations.push('📊 Maintain current position sizes');
+    } else {
+      recommendations.push('✅ Margin health good');
+      recommendations.push('✅ Can consider new positions within limits');
+    }
+    
+    return recommendations;
+  }
 }
 
 // Export all classes and functions

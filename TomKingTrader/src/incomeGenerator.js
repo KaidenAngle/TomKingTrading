@@ -66,6 +66,21 @@ class IncomeGenerator extends EventEmitter {
             4: { min: 75000, max: Infinity, monthlyIncome: 10000, strategies: ['ALL_ENHANCED'] }
         };
         
+        // Withdrawal optimizer configuration
+        this.withdrawalOptimizer = {
+            enabled: true,
+            settings: {
+                minAccountBalance: 30000, // Never withdraw below this
+                emergencyReserve: 5000, // Always keep this buffer
+                maxWithdrawalRate: 0.5, // Max 50% of monthly profit
+                compoundingPriority: 0.75, // 75% priority to compounding
+                taxWithholding: 0.25 // 25% for UK tax (estimate)
+            },
+            history: [],
+            optimizationRuns: 0,
+            lastOptimization: null
+        };
+        
         this.currentPhase = this.determinePhase(this.config.accountBalance);
         this.strategies = new TradingStrategies();
         this.riskManager = new RiskManager();
@@ -695,6 +710,494 @@ class IncomeGenerator extends EventEmitter {
         }
         
         console.log('═'.repeat(50));
+    }
+    
+    /**
+     * WITHDRAWAL OPTIMIZER SYSTEM
+     * Intelligently manages withdrawals vs reinvestment for optimal growth
+     */
+    
+    /**
+     * Optimize withdrawal vs reinvestment decision
+     * Balances income needs with account growth objectives
+     */
+    optimizeWithdrawal(monthlyProfit, context = {}) {
+        const {
+            currentBalance = this.config.accountBalance,
+            phase = this.currentPhase,
+            monthsToTarget = 8,
+            personalNeed = 0,
+            taxDue = 0
+        } = context;
+        
+        logger.info('WITHDRAWAL_OPTIMIZER', `Optimizing withdrawal for £${monthlyProfit} profit`);
+        
+        // Initialize optimization result
+        const optimization = {
+            timestamp: new Date(),
+            monthlyProfit,
+            currentBalance,
+            phase,
+            recommendation: null,
+            withdrawAmount: 0,
+            reinvestAmount: 0,
+            reasoning: [],
+            projectedGrowth: null,
+            optimizationScore: 0
+        };
+        
+        // Phase 1-2: No withdrawals, full compounding
+        if (phase <= 2) {
+            optimization.recommendation = 'FULL_REINVEST';
+            optimization.reinvestAmount = monthlyProfit;
+            optimization.withdrawAmount = 0;
+            optimization.reasoning.push(`Phase ${phase}: Focus on compounding to reach £60k`);
+            optimization.reasoning.push('No withdrawals recommended until Phase 3');
+            optimization.optimizationScore = 100;
+        }
+        // Phase 3: Limited withdrawals allowed
+        else if (phase === 3) {
+            const maxWithdrawal = monthlyProfit * 0.25; // 25% max in Phase 3
+            const actualWithdrawal = Math.min(personalNeed, maxWithdrawal);
+            
+            optimization.withdrawAmount = actualWithdrawal;
+            optimization.reinvestAmount = monthlyProfit - actualWithdrawal;
+            optimization.recommendation = actualWithdrawal > 0 ? 'PARTIAL_WITHDRAW' : 'FULL_REINVEST';
+            optimization.reasoning.push(`Phase 3: Limited withdrawal (£${actualWithdrawal.toFixed(0)})`);
+            optimization.reasoning.push('75% reinvestment maintains growth trajectory');
+            optimization.optimizationScore = 85;
+        }
+        // Phase 4: Full flexibility
+        else {
+            // Run multi-factor optimization
+            const factors = this.calculateOptimizationFactors({
+                monthlyProfit,
+                currentBalance,
+                personalNeed,
+                taxDue,
+                monthsToTarget
+            });
+            
+            // Calculate optimal withdrawal
+            const optimalWithdrawal = this.calculateOptimalWithdrawal(factors);
+            
+            optimization.withdrawAmount = optimalWithdrawal;
+            optimization.reinvestAmount = monthlyProfit - optimalWithdrawal;
+            optimization.recommendation = this.getWithdrawalRecommendation(optimalWithdrawal, monthlyProfit);
+            optimization.reasoning = factors.reasoning;
+            optimization.optimizationScore = factors.score;
+        }
+        
+        // Calculate projected growth impact
+        optimization.projectedGrowth = this.projectGrowthImpact({
+            currentBalance,
+            reinvestAmount: optimization.reinvestAmount,
+            monthsAhead: 6
+        });
+        
+        // Record optimization
+        this.withdrawalOptimizer.history.push(optimization);
+        this.withdrawalOptimizer.lastOptimization = optimization;
+        this.withdrawalOptimizer.optimizationRuns++;
+        
+        // Emit event
+        this.emit('withdrawalOptimized', optimization);
+        
+        return optimization;
+    }
+    
+    /**
+     * Calculate multi-factor optimization scores
+     */
+    calculateOptimizationFactors(params) {
+        const { monthlyProfit, currentBalance, personalNeed, taxDue, monthsToTarget } = params;
+        
+        const factors = {
+            growthPriority: 0,
+            incomeNeed: 0,
+            taxObligations: 0,
+            safetyMargin: 0,
+            timeToTarget: 0,
+            reasoning: [],
+            score: 0
+        };
+        
+        // 1. Growth Priority Factor (0-100)
+        const distanceToTarget = 100000 - currentBalance;
+        factors.growthPriority = Math.min(100, (distanceToTarget / 65000) * 100);
+        if (factors.growthPriority > 70) {
+            factors.reasoning.push('High growth priority - significant distance to £100k target');
+        }
+        
+        // 2. Income Need Factor (0-100)
+        const needRatio = personalNeed / monthlyProfit;
+        factors.incomeNeed = Math.min(100, needRatio * 100);
+        if (personalNeed > 0) {
+            factors.reasoning.push(`Personal income need: £${personalNeed}`);
+        }
+        
+        // 3. Tax Obligations (0-100)
+        const taxRatio = taxDue / monthlyProfit;
+        factors.taxObligations = Math.min(100, taxRatio * 100);
+        if (taxDue > 0) {
+            factors.reasoning.push(`Tax obligations: £${taxDue} due`);
+        }
+        
+        // 4. Safety Margin (0-100)
+        const bufferRatio = (currentBalance - this.withdrawalOptimizer.settings.minAccountBalance) / currentBalance;
+        factors.safetyMargin = bufferRatio * 100;
+        if (factors.safetyMargin < 30) {
+            factors.reasoning.push('Low safety margin - preserve capital');
+        }
+        
+        // 5. Time to Target (0-100)
+        const urgency = Math.max(0, Math.min(100, (12 - monthsToTarget) / 12 * 100));
+        factors.timeToTarget = urgency;
+        if (monthsToTarget <= 6) {
+            factors.reasoning.push(`Only ${monthsToTarget} months to target - maximize reinvestment`);
+        }
+        
+        // Calculate composite score
+        factors.score = (
+            factors.growthPriority * 0.35 +
+            (100 - factors.incomeNeed) * 0.25 +
+            (100 - factors.taxObligations) * 0.15 +
+            factors.safetyMargin * 0.15 +
+            factors.timeToTarget * 0.10
+        );
+        
+        return factors;
+    }
+    
+    /**
+     * Calculate optimal withdrawal amount based on factors
+     */
+    calculateOptimalWithdrawal(factors) {
+        const { incomeNeed, taxObligations, safetyMargin, score } = factors;
+        
+        // Base withdrawal calculation
+        let withdrawal = 0;
+        
+        // High optimization score (>80): Minimal withdrawal
+        if (score > 80) {
+            withdrawal = 0; // Full reinvestment
+        }
+        // Good optimization score (60-80): Strategic withdrawal
+        else if (score > 60) {
+            const withdrawalRate = (100 - score) / 100 * 0.3; // Max 30% withdrawal
+            withdrawal = this.monthlyIncome.actual * withdrawalRate;
+        }
+        // Moderate score (40-60): Balanced approach
+        else if (score > 40) {
+            const withdrawalRate = 0.35; // 35% withdrawal
+            withdrawal = this.monthlyIncome.actual * withdrawalRate;
+        }
+        // Low score (<40): Priority withdrawal
+        else {
+            const withdrawalRate = 0.5; // 50% withdrawal
+            withdrawal = this.monthlyIncome.actual * withdrawalRate;
+        }
+        
+        // Apply constraints
+        const maxWithdrawal = this.monthlyIncome.actual * this.withdrawalOptimizer.settings.maxWithdrawalRate;
+        withdrawal = Math.min(withdrawal, maxWithdrawal);
+        
+        // Ensure minimum needs are met
+        const minimumRequired = (incomeNeed + taxObligations) / 100 * this.monthlyIncome.actual;
+        withdrawal = Math.max(withdrawal, minimumRequired);
+        
+        return Math.round(withdrawal);
+    }
+    
+    /**
+     * Get withdrawal recommendation type
+     */
+    getWithdrawalRecommendation(withdrawAmount, monthlyProfit) {
+        const ratio = withdrawAmount / monthlyProfit;
+        
+        if (ratio === 0) return 'FULL_REINVEST';
+        if (ratio < 0.25) return 'MINIMAL_WITHDRAW';
+        if (ratio < 0.5) return 'BALANCED_WITHDRAW';
+        if (ratio < 0.75) return 'PRIORITY_WITHDRAW';
+        return 'MAXIMUM_WITHDRAW';
+    }
+    
+    /**
+     * Project growth impact of reinvestment decision
+     */
+    projectGrowthImpact(params) {
+        const { currentBalance, reinvestAmount, monthsAhead } = params;
+        
+        const projections = [];
+        let balance = currentBalance;
+        
+        for (let month = 1; month <= monthsAhead; month++) {
+            // Apply monthly growth
+            const monthlyGrowth = balance * this.config.monthlyGrowthTarget;
+            balance += monthlyGrowth;
+            
+            // Add reinvestment
+            balance += reinvestAmount;
+            
+            projections.push({
+                month,
+                balance: Math.round(balance),
+                cumulativeGrowth: balance - currentBalance,
+                growthRate: ((balance - currentBalance) / currentBalance * 100).toFixed(2)
+            });
+        }
+        
+        return {
+            finalBalance: projections[projections.length - 1].balance,
+            totalGrowth: projections[projections.length - 1].cumulativeGrowth,
+            averageMonthlyGrowth: projections[projections.length - 1].cumulativeGrowth / monthsAhead,
+            projections
+        };
+    }
+    
+    /**
+     * Execute optimized withdrawal
+     */
+    async executeWithdrawal(optimization) {
+        const { withdrawAmount, reinvestAmount, recommendation } = optimization;
+        
+        logger.info('WITHDRAWAL_EXECUTION', `Executing ${recommendation}: Withdraw £${withdrawAmount}, Reinvest £${reinvestAmount}`);
+        
+        try {
+            // Record withdrawal
+            if (withdrawAmount > 0) {
+                this.monthlyIncome.withdrawals.push({
+                    timestamp: new Date(),
+                    amount: withdrawAmount,
+                    purpose: recommendation,
+                    taxWithheld: withdrawAmount * this.withdrawalOptimizer.settings.taxWithholding,
+                    netAmount: withdrawAmount * (1 - this.withdrawalOptimizer.settings.taxWithholding)
+                });
+                
+                this.compoundingTracker.withdrawnAmount += withdrawAmount;
+            }
+            
+            // Record reinvestment
+            if (reinvestAmount > 0) {
+                this.monthlyIncome.reinvestments.push({
+                    timestamp: new Date(),
+                    amount: reinvestAmount,
+                    projectedReturn: reinvestAmount * this.config.monthlyGrowthTarget
+                });
+                
+                this.compoundingTracker.reinvestedAmount += reinvestAmount;
+                this.config.accountBalance += reinvestAmount;
+                this.compoundingTracker.currentBalance = this.config.accountBalance;
+            }
+            
+            // Update phase if needed
+            const newPhase = this.determinePhase(this.config.accountBalance);
+            if (newPhase !== this.currentPhase) {
+                this.currentPhase = newPhase;
+                this.emit('phaseChange', { from: this.currentPhase, to: newPhase });
+            }
+            
+            // Log execution
+            this.logWithdrawalExecution(optimization);
+            
+            return {
+                success: true,
+                executed: {
+                    withdrawn: withdrawAmount,
+                    reinvested: reinvestAmount,
+                    newBalance: this.config.accountBalance
+                }
+            };
+        } catch (error) {
+            logger.error('WITHDRAWAL_EXECUTION', 'Failed to execute withdrawal', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+    
+    /**
+     * Log withdrawal execution for tracking
+     */
+    logWithdrawalExecution(optimization) {
+        const log = {
+            timestamp: optimization.timestamp,
+            monthlyProfit: optimization.monthlyProfit,
+            withdrawAmount: optimization.withdrawAmount,
+            reinvestAmount: optimization.reinvestAmount,
+            recommendation: optimization.recommendation,
+            newBalance: this.config.accountBalance,
+            phase: this.currentPhase,
+            optimizationScore: optimization.optimizationScore
+        };
+        
+        // Would write to journal/database
+        logger.info('WITHDRAWAL_LOG', 'Withdrawal executed', log);
+    }
+    
+    /**
+     * Get withdrawal optimization history
+     */
+    getWithdrawalHistory() {
+        return {
+            totalOptimizations: this.withdrawalOptimizer.optimizationRuns,
+            lastOptimization: this.withdrawalOptimizer.lastOptimization,
+            recentHistory: this.withdrawalOptimizer.history.slice(-10),
+            statistics: this.calculateWithdrawalStatistics()
+        };
+    }
+    
+    /**
+     * Calculate withdrawal statistics
+     */
+    calculateWithdrawalStatistics() {
+        const history = this.withdrawalOptimizer.history;
+        
+        if (history.length === 0) {
+            return {
+                averageWithdrawal: 0,
+                averageReinvestment: 0,
+                totalWithdrawn: 0,
+                totalReinvested: 0,
+                withdrawalRate: 0
+            };
+        }
+        
+        const totalWithdrawn = history.reduce((sum, h) => sum + h.withdrawAmount, 0);
+        const totalReinvested = history.reduce((sum, h) => sum + h.reinvestAmount, 0);
+        const totalProfit = history.reduce((sum, h) => sum + h.monthlyProfit, 0);
+        
+        return {
+            averageWithdrawal: totalWithdrawn / history.length,
+            averageReinvestment: totalReinvested / history.length,
+            totalWithdrawn,
+            totalReinvested,
+            withdrawalRate: totalProfit > 0 ? (totalWithdrawn / totalProfit * 100).toFixed(1) : 0,
+            reinvestmentRate: totalProfit > 0 ? (totalReinvested / totalProfit * 100).toFixed(1) : 0
+        };
+    }
+    
+    /**
+     * Smart withdrawal scheduler
+     * Determines optimal timing for withdrawals
+     */
+    scheduleOptimalWithdrawal(monthlyPnL) {
+        const schedule = {
+            recommendedDate: null,
+            amount: 0,
+            reasoning: [],
+            taxEfficient: false
+        };
+        
+        // UK tax year ends April 5th
+        const now = new Date();
+        const taxYearEnd = new Date(now.getFullYear(), 3, 5); // April 5
+        const daysToTaxYearEnd = Math.floor((taxYearEnd - now) / (1000 * 60 * 60 * 24));
+        
+        // If near tax year end, optimize for tax
+        if (daysToTaxYearEnd > 0 && daysToTaxYearEnd < 30) {
+            schedule.recommendedDate = taxYearEnd;
+            schedule.reasoning.push('Optimize for tax year end');
+            schedule.taxEfficient = true;
+        }
+        // Regular monthly withdrawal
+        else {
+            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            schedule.recommendedDate = endOfMonth;
+            schedule.reasoning.push('End of month withdrawal');
+        }
+        
+        // Calculate optimal amount
+        const optimization = this.optimizeWithdrawal(monthlyPnL);
+        schedule.amount = optimization.withdrawAmount;
+        
+        return schedule;
+    }
+    
+    /**
+     * Withdrawal vs Reinvestment analyzer
+     * Compares outcomes of different strategies
+     */
+    analyzeWithdrawalStrategies(monthlyProfit, months = 12) {
+        const strategies = [
+            { name: 'Full Reinvestment', withdrawRate: 0 },
+            { name: '25% Withdrawal', withdrawRate: 0.25 },
+            { name: 'Balanced (50/50)', withdrawRate: 0.5 },
+            { name: '75% Withdrawal', withdrawRate: 0.75 },
+            { name: 'Maximum Withdrawal', withdrawRate: 1.0 }
+        ];
+        
+        const currentBalance = this.config.accountBalance;
+        const results = [];
+        
+        for (const strategy of strategies) {
+            let balance = currentBalance;
+            let totalWithdrawn = 0;
+            let totalGrowth = 0;
+            
+            // Project forward
+            for (let month = 1; month <= months; month++) {
+                const profit = balance * this.config.monthlyGrowthTarget;
+                const withdrawal = profit * strategy.withdrawRate;
+                const reinvestment = profit * (1 - strategy.withdrawRate);
+                
+                totalWithdrawn += withdrawal;
+                balance += reinvestment;
+                totalGrowth += profit;
+            }
+            
+            results.push({
+                strategy: strategy.name,
+                withdrawRate: strategy.withdrawRate,
+                finalBalance: Math.round(balance),
+                totalWithdrawn: Math.round(totalWithdrawn),
+                totalGrowth: Math.round(totalGrowth),
+                balanceGrowth: ((balance - currentBalance) / currentBalance * 100).toFixed(1),
+                monthlyIncome: Math.round(totalWithdrawn / months),
+                score: this.scoreWithdrawalStrategy(balance, totalWithdrawn, currentBalance)
+            });
+        }
+        
+        // Sort by score
+        results.sort((a, b) => b.score - a.score);
+        
+        return {
+            optimal: results[0],
+            allStrategies: results,
+            recommendation: this.getStrategyRecommendation(results[0])
+        };
+    }
+    
+    /**
+     * Score withdrawal strategy
+     */
+    scoreWithdrawalStrategy(finalBalance, totalWithdrawn, startBalance) {
+        // Balance growth weight: 60%
+        const growthScore = ((finalBalance - startBalance) / startBalance) * 60;
+        
+        // Income generation weight: 30%
+        const incomeScore = Math.min(30, (totalWithdrawn / 10000) * 30);
+        
+        // Target achievement weight: 10%
+        const targetScore = finalBalance >= 100000 ? 10 : (finalBalance / 100000) * 10;
+        
+        return Math.round(growthScore + incomeScore + targetScore);
+    }
+    
+    /**
+     * Get strategy recommendation
+     */
+    getStrategyRecommendation(optimalStrategy) {
+        if (optimalStrategy.withdrawRate === 0) {
+            return 'Full reinvestment maximizes growth - recommended for phases 1-2';
+        } else if (optimalStrategy.withdrawRate <= 0.25) {
+            return 'Conservative withdrawal preserves growth while providing income';
+        } else if (optimalStrategy.withdrawRate <= 0.5) {
+            return 'Balanced approach suitable for phase 3-4 accounts';
+        } else {
+            return 'High withdrawal rate - only for accounts exceeding targets';
+        }
     }
     
     /**
