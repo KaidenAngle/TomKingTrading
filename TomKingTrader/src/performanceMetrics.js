@@ -376,33 +376,71 @@ class PerformanceMetrics extends EventEmitter {
     }
 
     calculateDailyReturns(dailyPnL, initialCapital) {
+        if (!dailyPnL || dailyPnL.length === 0) return [];
+        
         const returns = [];
-        let previousCapital = initialCapital;
+        let previousCapital = initialCapital || 35000; // Default to starting balance
         
         for (const day of dailyPnL) {
-            const dailyReturn = (day.capital - previousCapital) / previousCapital;
-            returns.push(dailyReturn);
-            previousCapital = day.capital;
+            const currentCapital = day.capital || day.balance || previousCapital;
+            
+            // Prevent division by zero and NaN
+            if (previousCapital === 0 || isNaN(previousCapital)) {
+                previousCapital = initialCapital || 35000;
+            }
+            
+            const dailyReturn = (currentCapital - previousCapital) / previousCapital;
+            
+            // Only add valid returns
+            if (!isNaN(dailyReturn) && isFinite(dailyReturn)) {
+                returns.push(dailyReturn);
+            } else {
+                returns.push(0); // Add 0 for invalid calculations
+            }
+            
+            previousCapital = currentCapital;
         }
         
         return returns;
     }
 
     calculateAnnualizedReturn(returns) {
-        if (returns.length === 0) return 0;
+        if (!returns || returns.length === 0) return 0;
         
-        const compoundReturn = returns.reduce((acc, ret) => acc * (1 + ret), 1);
-        const annualized = Math.pow(compoundReturn, this.config.tradingDaysPerYear / returns.length) - 1;
-        return annualized * 100;
+        // Filter out NaN and invalid values
+        const validReturns = returns.filter(ret => !isNaN(ret) && isFinite(ret));
+        if (validReturns.length === 0) return 0;
+        
+        // Use geometric mean for compounding
+        const compoundReturn = validReturns.reduce((acc, ret) => acc * (1 + ret), 1);
+        
+        // Prevent negative base for pow operation
+        if (compoundReturn <= 0) return -100; // Total loss
+        
+        const periods = validReturns.length || 1;
+        const annualized = Math.pow(compoundReturn, this.config.tradingDaysPerYear / periods) - 1;
+        const result = annualized * 100;
+        
+        return isNaN(result) || !isFinite(result) ? 0 : result;
     }
 
     calculateVolatility(returns) {
-        if (returns.length === 0) return 0;
+        if (!returns || returns.length === 0) return 0;
         
-        const mean = returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
-        const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - mean, 2), 0) / returns.length;
+        // Filter out NaN values
+        const validReturns = returns.filter(ret => !isNaN(ret) && isFinite(ret));
+        if (validReturns.length === 0) return 0;
+        
+        const mean = validReturns.reduce((sum, ret) => sum + ret, 0) / validReturns.length;
+        const variance = validReturns.reduce((sum, ret) => sum + Math.pow(ret - mean, 2), 0) / validReturns.length;
+        
+        // Prevent NaN from sqrt of negative variance
+        if (isNaN(variance) || variance < 0) return 0;
+        
         const dailyVol = Math.sqrt(variance);
-        return dailyVol * Math.sqrt(this.config.tradingDaysPerYear) * 100;
+        const annualizedVol = dailyVol * Math.sqrt(this.config.tradingDaysPerYear) * 100;
+        
+        return isNaN(annualizedVol) || !isFinite(annualizedVol) ? 0 : annualizedVol;
     }
 
     calculateSharpeRatio(annualizedReturn, volatility) {

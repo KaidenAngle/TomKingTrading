@@ -61,10 +61,11 @@ class TomKingTraderApp {
         });
         
         // Initialize unified trading system
+        // NOTE: targetBPUsage is now dynamic based on VIX (45-80%)
         this.unifiedSystem = new UnifiedTradingSystem({
             startingBalance: 35000,
             goalBalance: 80000,
-            targetBPUsage: 35,
+            targetBPUsage: 'DYNAMIC', // VIX-based: 45-80% per Tom King
             enableRealTimeUpdates: true,
             dashboardUpdateInterval: 30000
         });

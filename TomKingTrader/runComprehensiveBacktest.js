@@ -67,13 +67,13 @@ const testScenarios = [
 const strategyConfigs = [
     {
         name: 'Conservative',
-        maxBPUsage: 0.35,
+        maxBPUsage: 'DYNAMIC', // VIX-based: 45-80% per Tom King
         maxRiskPerTrade: 0.02,
         strategies: ['Friday Zero DTE', 'Long-Term 112']
     },
     {
         name: 'Balanced',
-        maxBPUsage: 0.50,
+        maxBPUsage: 'DYNAMIC', // VIX-based: 45-80% per Tom King
         maxRiskPerTrade: 0.03,
         strategies: ['Friday Zero DTE', 'Long-Term 112', 'Futures Strangles']
     },

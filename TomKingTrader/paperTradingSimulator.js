@@ -195,10 +195,14 @@ class PaperTradingSimulator {
             bpRequired = requirements?.bpRequired || (contracts * 1500);
         }
         
-        // Check buying power constraint (35% max)
-        if (bpRequired > this.account.currentBalance * 0.35) {
-            console.log(`  ⚠️ BP constraint exceeded (${(bpRequired/this.account.currentBalance*100).toFixed(1)}% > 35%)`);
-            contracts = Math.floor((this.account.currentBalance * 0.35) / (bpRequired / contracts));
+        // Check buying power constraint (VIX-based dynamic: 45-80%)
+        const { RiskManager } = require('./src/riskManager');
+        const vixLevel = this.currentVIX || 20; // Default VIX if not available
+        const maxBPUsage = RiskManager.getMaxBPUsage(vixLevel) / 100;
+        
+        if (bpRequired > this.account.currentBalance * maxBPUsage) {
+            console.log(`  ⚠️ BP constraint exceeded (${(bpRequired/this.account.currentBalance*100).toFixed(1)}% > ${(maxBPUsage*100).toFixed(0)}% for VIX ${vixLevel})`);
+            contracts = Math.floor((this.account.currentBalance * maxBPUsage) / (bpRequired / contracts));
             bpRequired = contracts * (bpRequired / (requirements?.contractsNeeded || contracts));
         }
         
