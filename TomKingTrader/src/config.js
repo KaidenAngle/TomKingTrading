@@ -573,6 +573,282 @@ const DATA_PATHS = {
 };
 
 /**
+ * Never Trade List Configuration
+ * Symbols and patterns to never trade based on Tom King's wisdom
+ */
+const NEVER_TRADE_LIST = {
+    // Individual symbols to never trade
+    symbols: [
+        'GME', // Meme stock - too volatile/manipulated
+        'AMC', // Meme stock - too volatile/manipulated
+        'BBBY', // Bankruptcy risk
+        'COIN', // Crypto correlation - too volatile
+        'RIOT', // Crypto miner - extreme volatility
+        'MARA', // Crypto miner - extreme volatility
+        'DWAC', // Political/social media stock
+        'HOOD', // Controversial/volatile
+        'WISH', // Poor fundamentals
+        'CLOV', // Meme stock history
+        'BB', // Meme stock history
+        'NOK', // Meme stock history
+        'SPCE', // Speculative space stock
+        'NKLA', // Fraud history
+        'RIDE', // Production issues
+        'WKHS', // Penny stock territory
+        'PSTH', // SPAC issues
+        'VXX', // Decay product - only for hedging
+        'UVXY', // Leveraged volatility - decay
+        'SVXY', // Inverse volatility - blow up risk
+        'TVIX', // Delisted but avoid similar
+        'USO', // Contango issues
+        'UCO', // Leveraged oil - decay
+        'SCO', // Inverse oil - decay
+        'JNUG', // 3x leveraged gold miners
+        'JDST', // 3x inverse gold miners
+        'NUGT', // 3x leveraged gold miners
+        'DUST', // 3x inverse gold miners
+        'TQQQ', // 3x leveraged - decay in sideways
+        'SQQQ', // 3x inverse - decay
+        'SPXU', // 3x inverse S&P - decay
+        'SPXS', // 3x inverse S&P - decay
+        'TZA', // 3x inverse Russell - decay
+        'SRTY', // 3x inverse Russell - decay
+        'FAZ', // 3x inverse financials
+        'FAS', // 3x leveraged financials
+        'ERX', // 3x leveraged energy
+        'ERY', // 3x inverse energy
+        'LABU', // 3x leveraged biotech
+        'LABD', // 3x inverse biotech
+        'SOXL', // 3x leveraged semiconductors
+        'SOXS' // 3x inverse semiconductors
+    ],
+    
+    // Patterns to avoid
+    patterns: [
+        {
+            pattern: /^3[xX]/i, // Any 3x leveraged ETF
+            reason: 'Triple leveraged ETFs decay over time'
+        },
+        {
+            pattern: /^2[xX]/i, // Any 2x leveraged ETF  
+            reason: 'Double leveraged ETFs have time decay'
+        },
+        {
+            pattern: /SPAC/i, // SPACs
+            reason: 'SPAC structures are too uncertain'
+        },
+        {
+            pattern: /\.OTC$/i, // OTC stocks
+            reason: 'OTC stocks lack liquidity and transparency'
+        },
+        {
+            pattern: /^PINK:/i, // Pink sheets
+            reason: 'Pink sheet stocks are too risky'
+        },
+        {
+            pattern: /CRYPTO|COIN|BTC|ETH/i, // Crypto-related
+            reason: 'Crypto correlation too volatile for options'
+        },
+        {
+            pattern: /CANNABIS|WEED|POT|CBD/i, // Cannabis stocks
+            reason: 'Cannabis stocks too speculative and volatile'
+        }
+    ],
+    
+    // Market cap and price filters
+    filters: {
+        minMarketCap: 1000000000, // $1B minimum
+        minPrice: 5, // $5 minimum stock price
+        minVolume: 1000000, // 1M shares daily volume
+        maxBidAskSpread: 0.10, // 10 cent max spread
+        minOptionVolume: 1000 // 1000 contracts daily
+    },
+    
+    // Specific conditions to avoid
+    conditions: [
+        {
+            name: 'Earnings Week',
+            check: 'EARNINGS_WITHIN_7_DAYS',
+            reason: 'Avoid trading during earnings week'
+        },
+        {
+            name: 'Ex-Dividend',
+            check: 'EX_DIV_WITHIN_5_DAYS',
+            reason: 'Avoid assignment risk near ex-dividend'
+        },
+        {
+            name: 'Binary Event',
+            check: 'BINARY_EVENT_PENDING',
+            reason: 'FDA approval, court case, etc - too binary'
+        },
+        {
+            name: 'Halted',
+            check: 'TRADING_HALTED',
+            reason: 'Never trade halted securities'
+        },
+        {
+            name: 'Delisted Warning',
+            check: 'DELISTING_WARNING',
+            reason: 'Avoid stocks with delisting risk'
+        }
+    ],
+    
+    // Tom King specific wisdom rules
+    tomKingRules: [
+        {
+            rule: 'NO_PENNIES',
+            description: 'Never trade penny stocks under $5',
+            enforcement: 'STRICT'
+        },
+        {
+            rule: 'NO_ILLIQUID',
+            description: 'Avoid options with <100 open interest',
+            enforcement: 'STRICT'
+        },
+        {
+            rule: 'NO_WIDE_SPREADS',
+            description: 'Skip if bid-ask spread >5% of mid price',
+            enforcement: 'STRICT'
+        },
+        {
+            rule: 'NO_BROKEN_COMPANIES',
+            description: 'Avoid companies with fundamental issues',
+            enforcement: 'STRICT'
+        },
+        {
+            rule: 'NO_MEMES',
+            description: 'Never trade meme stocks or social media pumps',
+            enforcement: 'STRICT'
+        },
+        {
+            rule: 'NO_LEVERAGED_ETFS',
+            description: 'Avoid all leveraged/inverse ETFs for options',
+            enforcement: 'STRICT'
+        },
+        {
+            rule: 'NO_LOW_IV',
+            description: 'Skip if IV Rank <10% - not worth selling',
+            enforcement: 'WARNING'
+        },
+        {
+            rule: 'NO_EXTREME_IV',
+            description: 'Careful if IV Rank >90% - likely binary event',
+            enforcement: 'WARNING'
+        }
+    ],
+    
+    // Enforcement settings
+    enforcement: {
+        enabled: true,
+        mode: 'STRICT', // STRICT, WARNING, or MONITOR
+        logViolations: true,
+        preventOrders: true,
+        alertOnAttempt: true
+    },
+    
+    // Check if symbol should be traded
+    isAllowed: function(symbol, marketData = {}) {
+        // Direct symbol check
+        if (this.symbols.includes(symbol.toUpperCase())) {
+            return {
+                allowed: false,
+                reason: `${symbol} is on the never trade list`,
+                type: 'BLACKLISTED_SYMBOL'
+            };
+        }
+        
+        // Pattern matching
+        for (const rule of this.patterns) {
+            if (rule.pattern.test(symbol)) {
+                return {
+                    allowed: false,
+                    reason: rule.reason,
+                    type: 'PATTERN_MATCH'
+                };
+            }
+        }
+        
+        // Market data filters
+        if (marketData.marketCap && marketData.marketCap < this.filters.minMarketCap) {
+            return {
+                allowed: false,
+                reason: `Market cap too small: $${(marketData.marketCap/1e9).toFixed(2)}B`,
+                type: 'MARKET_CAP_FILTER'
+            };
+        }
+        
+        if (marketData.price && marketData.price < this.filters.minPrice) {
+            return {
+                allowed: false,
+                reason: `Price too low: $${marketData.price}`,
+                type: 'PRICE_FILTER'
+            };
+        }
+        
+        if (marketData.volume && marketData.volume < this.filters.minVolume) {
+            return {
+                allowed: false,
+                reason: `Volume too low: ${marketData.volume.toLocaleString()}`,
+                type: 'VOLUME_FILTER'
+            };
+        }
+        
+        if (marketData.bidAskSpread && marketData.bidAskSpread > this.filters.maxBidAskSpread) {
+            return {
+                allowed: false,
+                reason: `Spread too wide: $${marketData.bidAskSpread.toFixed(2)}`,
+                type: 'SPREAD_FILTER'
+            };
+        }
+        
+        // Check conditions
+        if (marketData.hasEarnings && marketData.daysToEarnings <= 7) {
+            return {
+                allowed: false,
+                reason: 'Earnings within 7 days',
+                type: 'EARNINGS_BLACKOUT',
+                severity: 'WARNING'
+            };
+        }
+        
+        if (marketData.hasExDividend && marketData.daysToExDiv <= 5) {
+            return {
+                allowed: false,
+                reason: 'Ex-dividend within 5 days',
+                type: 'EXDIV_RISK',
+                severity: 'WARNING'
+            };
+        }
+        
+        // IV checks
+        if (marketData.ivRank !== undefined) {
+            if (marketData.ivRank < 10) {
+                return {
+                    allowed: false,
+                    reason: `IV Rank too low: ${marketData.ivRank}%`,
+                    type: 'LOW_IV',
+                    severity: 'WARNING'
+                };
+            }
+            if (marketData.ivRank > 90) {
+                return {
+                    allowed: 'WARNING',
+                    reason: `IV Rank very high: ${marketData.ivRank}% - possible binary event`,
+                    type: 'HIGH_IV',
+                    severity: 'CAUTION'
+                };
+            }
+        }
+        
+        return {
+            allowed: true,
+            reason: 'Symbol passed all checks',
+            type: 'APPROVED'
+        };
+    }
+};
+
+/**
  * Application Settings
  */
 const APP_SETTINGS = {
@@ -824,6 +1100,7 @@ module.exports = {
     DATA_PATHS,
     APP_SETTINGS,
     VIX_LEVELS,
+    NEVER_TRADE_LIST,
     
     // Helper functions
     ConfigHelpers,

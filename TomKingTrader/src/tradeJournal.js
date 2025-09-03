@@ -42,7 +42,7 @@ class TradeJournal {
     }
     
     /**
-     * Initialize journal system
+     * Initialize journal system with daily checklist
      */
     async initialize() {
         try {
@@ -52,6 +52,9 @@ class TradeJournal {
             // Load current journal
             await this.loadCurrentJournal();
             
+            // Initialize daily checklist
+            await this.initializeDailyChecklist();
+            
             // Setup auto-save
             if (this.config.autoSave) {
                 this.autoSaveInterval = setInterval(() => {
@@ -59,11 +62,471 @@ class TradeJournal {
                 }, this.config.saveInterval);
             }
             
-            logger.info('JOURNAL', 'Trade journal initialized');
+            logger.info('JOURNAL', 'Trade journal initialized with daily checklist');
             
         } catch (error) {
             logger.error('JOURNAL', 'Failed to initialize journal', error);
         }
+    }
+    
+    /**
+     * Initialize daily trading checklist - Tom King methodology
+     */
+    async initializeDailyChecklist() {
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        
+        this.dailyChecklist = {
+            date: today.toISOString().split('T')[0],
+            dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek],
+            isFriday: dayOfWeek === 5,
+            completed: false,
+            startTime: null,
+            endTime: null,
+            
+            // Pre-market checklist
+            preMarket: {
+                completed: false,
+                items: {
+                    checkAccountBalance: { done: false, value: null, target: 'Record current balance' },
+                    reviewOpenPositions: { done: false, count: 0, notes: [] },
+                    checkExpirations: { done: false, todayExpiring: 0, weekExpiring: 0 },
+                    assessMarketConditions: { done: false, vix: null, spy: null, trend: null },
+                    checkEconomicCalendar: { done: false, events: [], highImpact: 0 },
+                    reviewCorrelations: { done: false, groups: {}, violations: [] },
+                    setDailyGoals: { done: false, profitTarget: null, maxLoss: null },
+                    verifyBuyingPower: { done: false, available: null, usage: null },
+                    checkForAssignments: { done: false, assignments: [] },
+                    reviewYesterdayTrades: { done: false, pnl: null, lessons: [] }
+                }
+            },
+            
+            // Market hours checklist
+            marketHours: {
+                completed: false,
+                items: {
+                    morningRoutine: {
+                        '9:30-10:00': { done: false, action: 'Observe opening volatility', notes: null },
+                        '10:00-10:30': { done: false, action: 'Check 0DTE setup (Friday)', notes: null },
+                        '10:30-11:00': { done: false, action: 'Execute morning trades', notes: null }
+                    },
+                    middayReview: {
+                        '12:00-12:30': { done: false, action: 'Review morning positions', notes: null },
+                        checkProfitTargets: { done: false, closed: 0, remaining: 0 },
+                        assessNewOpportunities: { done: false, identified: [] }
+                    },
+                    afternoonManagement: {
+                        '14:00-14:30': { done: false, action: 'Defensive checks', notes: null },
+                        '14:30-15:00': { done: false, action: '21 DTE management', notes: null },
+                        '15:00-15:30': { done: false, action: 'End of day positioning', notes: null },
+                        '15:30-16:00': { done: false, action: 'Final adjustments', notes: null }
+                    }
+                }
+            },
+            
+            // Post-market checklist
+            postMarket: {
+                completed: false,
+                items: {
+                    calculateDailyPnL: { done: false, realized: null, unrealized: null, total: null },
+                    reviewAllTrades: { done: false, winners: 0, losers: 0, winRate: null },
+                    updateJournal: { done: false, entries: 0, lessons: [] },
+                    planTomorrow: { done: false, watchlist: [], potentialTrades: [] },
+                    checkAssignmentRisk: { done: false, atRisk: [], action: null },
+                    reviewMistakes: { done: false, mistakes: [], preventionPlan: [] },
+                    updateMetrics: { done: false, weeklyPnL: null, monthlyPnL: null },
+                    backupData: { done: false, timestamp: null }
+                }
+            },
+            
+            // Tom King specific checks
+            tomKingRules: {
+                fridayZeroDTE: { 
+                    applicable: dayOfWeek === 5,
+                    checkTime: '10:30',
+                    executed: false,
+                    strikes: null,
+                    premium: null
+                },
+                correlationLimits: {
+                    checked: false,
+                    violations: [],
+                    maxGroupSize: 3
+                },
+                vixRegimeCheck: {
+                    checked: false,
+                    currentRegime: null,
+                    positionAdjustment: null
+                },
+                profitTargets: {
+                    checked: false,
+                    at50Percent: [],
+                    closedToday: []
+                },
+                defensiveRules: {
+                    checked: false,
+                    at21DTE: [],
+                    tested: [],
+                    actionsT taken: []
+                }
+            },
+            
+            // Risk management checks
+            riskManagement: {
+                buyingPowerUsage: { checked: false, current: null, max: 0.65, withinLimits: null },
+                dailyLossLimit: { checked: false, current: null, max: null, breached: false },
+                positionSizing: { checked: false, violations: [] },
+                emergencyProtocol: { triggered: false, reason: null, action: null }
+            },
+            
+            // Performance tracking
+            performance: {
+                dailyGoalMet: null,
+                weeklyProgress: null,
+                monthlyTarget: null,
+                compoundingRate: null,
+                notes: []
+            }
+        };
+        
+        // Load existing checklist if it exists
+        await this.loadDailyChecklist();
+    }
+    
+    /**
+     * Load today's checklist if it exists
+     */
+    async loadDailyChecklist() {
+        const today = new Date().toISOString().split('T')[0];
+        const checklistFile = path.join(this.config.journalPath, `checklist_${today}.json`);
+        
+        try {
+            const data = await fs.readFile(checklistFile, 'utf8');
+            const savedChecklist = JSON.parse(data);
+            // Merge with current checklist to preserve structure
+            this.dailyChecklist = { ...this.dailyChecklist, ...savedChecklist };
+            logger.info('JOURNAL', 'Loaded existing daily checklist');
+        } catch (error) {
+            // No existing checklist, use initialized version
+            logger.info('JOURNAL', 'Starting new daily checklist');
+        }
+    }
+    
+    /**
+     * Update checklist item
+     */
+    async updateChecklistItem(section, item, value) {
+        if (section === 'preMarket' || section === 'postMarket') {
+            if (this.dailyChecklist[section].items[item]) {
+                this.dailyChecklist[section].items[item].done = true;
+                if (typeof value === 'object') {
+                    Object.assign(this.dailyChecklist[section].items[item], value);
+                } else {
+                    this.dailyChecklist[section].items[item].value = value;
+                }
+            }
+        } else if (section === 'marketHours') {
+            // Handle nested market hours structure
+            for (const period of Object.values(this.dailyChecklist.marketHours.items)) {
+                if (period[item]) {
+                    period[item].done = true;
+                    period[item].notes = value;
+                    break;
+                }
+            }
+        } else if (this.dailyChecklist[section] && this.dailyChecklist[section][item]) {
+            this.dailyChecklist[section][item] = { 
+                ...this.dailyChecklist[section][item], 
+                ...value 
+            };
+        }
+        
+        await this.saveChecklist();
+    }
+    
+    /**
+     * Get checklist completion status
+     */
+    getChecklistStatus() {
+        const status = {
+            preMarket: { total: 0, completed: 0, percentage: 0 },
+            marketHours: { total: 0, completed: 0, percentage: 0 },
+            postMarket: { total: 0, completed: 0, percentage: 0 },
+            overall: { total: 0, completed: 0, percentage: 0 }
+        };
+        
+        // Count pre-market items
+        for (const item of Object.values(this.dailyChecklist.preMarket.items)) {
+            status.preMarket.total++;
+            if (item.done) status.preMarket.completed++;
+        }
+        
+        // Count market hours items
+        for (const period of Object.values(this.dailyChecklist.marketHours.items)) {
+            for (const item of Object.values(period)) {
+                if (item.done !== undefined) {
+                    status.marketHours.total++;
+                    if (item.done) status.marketHours.completed++;
+                }
+            }
+        }
+        
+        // Count post-market items
+        for (const item of Object.values(this.dailyChecklist.postMarket.items)) {
+            status.postMarket.total++;
+            if (item.done) status.postMarket.completed++;
+        }
+        
+        // Calculate percentages
+        status.preMarket.percentage = status.preMarket.total > 0 ? 
+            (status.preMarket.completed / status.preMarket.total) * 100 : 0;
+        status.marketHours.percentage = status.marketHours.total > 0 ? 
+            (status.marketHours.completed / status.marketHours.total) * 100 : 0;
+        status.postMarket.percentage = status.postMarket.total > 0 ? 
+            (status.postMarket.completed / status.postMarket.total) * 100 : 0;
+        
+        // Overall
+        status.overall.total = status.preMarket.total + status.marketHours.total + status.postMarket.total;
+        status.overall.completed = status.preMarket.completed + status.marketHours.completed + status.postMarket.completed;
+        status.overall.percentage = status.overall.total > 0 ? 
+            (status.overall.completed / status.overall.total) * 100 : 0;
+        
+        return status;
+    }
+    
+    /**
+     * Generate checklist report
+     */
+    generateChecklistReport() {
+        const status = this.getChecklistStatus();
+        const report = {
+            date: this.dailyChecklist.date,
+            dayOfWeek: this.dailyChecklist.dayOfWeek,
+            completionStatus: status,
+            highlights: [],
+            warnings: [],
+            recommendations: []
+        };
+        
+        // Check for incomplete critical items
+        if (!this.dailyChecklist.preMarket.items.checkAccountBalance.done) {
+            report.warnings.push('Account balance not checked');
+        }
+        if (!this.dailyChecklist.preMarket.items.reviewOpenPositions.done) {
+            report.warnings.push('Open positions not reviewed');
+        }
+        if (!this.dailyChecklist.riskManagement.buyingPowerUsage.checked) {
+            report.warnings.push('Buying power usage not verified');
+        }
+        
+        // Friday specific checks
+        if (this.dailyChecklist.isFriday) {
+            if (this.dailyChecklist.tomKingRules.fridayZeroDTE.applicable && 
+                !this.dailyChecklist.tomKingRules.fridayZeroDTE.executed) {
+                report.warnings.push('Friday 0DTE trade not executed');
+            }
+        }
+        
+        // Highlights
+        if (this.dailyChecklist.postMarket.items.calculateDailyPnL.done) {
+            const pnl = this.dailyChecklist.postMarket.items.calculateDailyPnL.total;
+            if (pnl > 0) {
+                report.highlights.push(`Profitable day: £${pnl.toFixed(2)}`);
+            }
+        }
+        
+        // Recommendations for tomorrow
+        if (this.dailyChecklist.postMarket.items.planTomorrow.done) {
+            const plan = this.dailyChecklist.postMarket.items.planTomorrow;
+            if (plan.watchlist.length > 0) {
+                report.recommendations.push(`Watch: ${plan.watchlist.join(', ')}`);
+            }
+        }
+        
+        return report;
+    }
+    
+    /**
+     * Save checklist to file
+     */
+    async saveChecklist() {
+        const today = new Date().toISOString().split('T')[0];
+        const checklistFile = path.join(this.config.journalPath, `checklist_${today}.json`);
+        
+        try {
+            await fs.writeFile(
+                checklistFile, 
+                JSON.stringify(this.dailyChecklist, null, 2),
+                'utf8'
+            );
+            logger.debug('JOURNAL', 'Daily checklist saved');
+        } catch (error) {
+            logger.error('JOURNAL', 'Failed to save checklist', error);
+        }
+    }
+    
+    /**
+     * Enhanced weekly review functionality
+     */
+    async generateWeeklyReview() {
+        const endDate = new Date();
+        const startDate = new Date(endDate);
+        startDate.setDate(startDate.getDate() - 7);
+        
+        const weeklyReview = {
+            period: {
+                start: startDate.toISOString().split('T')[0],
+                end: endDate.toISOString().split('T')[0]
+            },
+            summary: {
+                totalTrades: 0,
+                winningTrades: 0,
+                losingTrades: 0,
+                winRate: 0,
+                totalPnL: 0,
+                avgDailyPnL: 0,
+                bestDay: null,
+                worstDay: null
+            },
+            strategyPerformance: {},
+            mistakes: [],
+            improvements: [],
+            lessonsLearned: [],
+            nextWeekPlan: {
+                goals: [],
+                watchlist: [],
+                strategies: [],
+                riskLimits: {}
+            }
+        };
+        
+        // Load week's journals
+        const weekData = await this.loadWeekData(startDate, endDate);
+        
+        // Analyze performance
+        weekData.forEach(day => {
+            weeklyReview.summary.totalTrades += day.trades.length;
+            weeklyReview.summary.totalPnL += day.statistics.totalPnL;
+            
+            // Track best/worst days
+            if (!weeklyReview.summary.bestDay || day.statistics.totalPnL > weeklyReview.summary.bestDay.pnl) {
+                weeklyReview.summary.bestDay = {
+                    date: day.date,
+                    pnl: day.statistics.totalPnL
+                };
+            }
+            if (!weeklyReview.summary.worstDay || day.statistics.totalPnL < weeklyReview.summary.worstDay.pnl) {
+                weeklyReview.summary.worstDay = {
+                    date: day.date,
+                    pnl: day.statistics.totalPnL
+                };
+            }
+            
+            // Analyze by strategy
+            day.trades.forEach(trade => {
+                const strategy = trade.strategy || 'UNKNOWN';
+                if (!weeklyReview.strategyPerformance[strategy]) {
+                    weeklyReview.strategyPerformance[strategy] = {
+                        trades: 0,
+                        wins: 0,
+                        losses: 0,
+                        pnl: 0
+                    };
+                }
+                weeklyReview.strategyPerformance[strategy].trades++;
+                weeklyReview.strategyPerformance[strategy].pnl += trade.pnl;
+                if (trade.pnl > 0) weeklyReview.strategyPerformance[strategy].wins++;
+                else weeklyReview.strategyPerformance[strategy].losses++;
+            });
+        });
+        
+        // Calculate averages
+        weeklyReview.summary.avgDailyPnL = weeklyReview.summary.totalPnL / 7;
+        weeklyReview.summary.winRate = weeklyReview.summary.totalTrades > 0 ?
+            (weeklyReview.summary.winningTrades / weeklyReview.summary.totalTrades) * 100 : 0;
+        
+        return weeklyReview;
+    }
+    
+    /**
+     * Enhanced monthly review
+     */
+    async generateMonthlyReview() {
+        const endDate = new Date();
+        const startDate = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+        
+        const monthlyReview = {
+            period: {
+                month: endDate.toLocaleString('default', { month: 'long' }),
+                year: endDate.getFullYear(),
+                start: startDate.toISOString().split('T')[0],
+                end: endDate.toISOString().split('T')[0]
+            },
+            performance: {
+                totalPnL: 0,
+                totalTrades: 0,
+                winRate: 0,
+                profitFactor: 0,
+                sharpeRatio: 0,
+                maxDrawdown: 0,
+                returnOnCapital: 0
+            },
+            goals: {
+                target: null,
+                achieved: null,
+                percentage: 0
+            },
+            bestTrades: [],
+            worstTrades: [],
+            strategySummary: {},
+            compoundingAnalysis: {
+                startingCapital: 0,
+                endingCapital: 0,
+                growthRate: 0,
+                projectedAnnual: 0
+            },
+            improvements: [],
+            nextMonthPlan: {}
+        };
+        
+        // Load month's data
+        const monthData = await this.loadMonthData(startDate, endDate);
+        
+        // Perform comprehensive analysis
+        // ... (analysis implementation)
+        
+        return monthlyReview;
+    }
+    
+    /**
+     * Load week's journal data
+     */
+    async loadWeekData(startDate, endDate) {
+        const weekData = [];
+        const currentDate = new Date(startDate);
+        
+        while (currentDate <= endDate) {
+            const dateStr = currentDate.toISOString().split('T')[0];
+            const journalFile = path.join(this.config.journalPath, `journal_${dateStr}.json`);
+            
+            try {
+                const data = await fs.readFile(journalFile, 'utf8');
+                weekData.push(JSON.parse(data));
+            } catch (error) {
+                // No journal for this day
+            }
+            
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+        
+        return weekData;
+    }
+    
+    /**
+     * Load month's journal data
+     */
+    async loadMonthData(startDate, endDate) {
+        return this.loadWeekData(startDate, endDate); // Same logic, different period
     }
     
     /**

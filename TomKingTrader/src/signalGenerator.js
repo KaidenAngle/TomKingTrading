@@ -74,6 +74,14 @@ class SignalGenerator extends EventEmitter {
             const hour = timestamp.getHours();
             const minute = timestamp.getMinutes();
             
+            // Run pre-market analysis if in pre-market hours
+            if (this.isPreMarketHours(hour, minute)) {
+                const preMarketAnalysis = await this.runPreMarketAnalysis(marketData, accountData);
+                if (preMarketAnalysis.alerts) {
+                    this.alerts.push(...preMarketAnalysis.alerts);
+                }
+            }
+            
             // Check if market is open
             if (!this.isMarketOpen(timestamp)) {
                 this.addAlert('INFO', 'Market closed - monitoring continues');
@@ -113,6 +121,533 @@ class SignalGenerator extends EventEmitter {
             this.addAlert('ERROR', `Signal generation failed: ${error.message}`);
             return this.getSignalReport();
         }
+    }
+    
+    /**
+     * Check if in pre-market hours
+     */
+    isPreMarketHours(hour, minute) {
+        // Pre-market: 8:00 AM - 9:30 AM EST
+        const totalMinutes = hour * 60 + minute;
+        const preMarketStart = 8 * 60; // 8:00 AM
+        const marketOpen = 9 * 60 + 30; // 9:30 AM
+        
+        return totalMinutes >= preMarketStart && totalMinutes < marketOpen;
+    }
+    
+    /**
+     * Run comprehensive pre-market analysis
+     */
+    async runPreMarketAnalysis(marketData, accountData) {
+        const analysis = {
+            timestamp: new Date(),
+            alerts: [],
+            opportunities: [],
+            risks: [],
+            todaysSetup: {},
+            marketConditions: {}
+        };
+        
+        try {
+            // 1. Analyze overnight gaps
+            const gapAnalysis = this.analyzeOvernightGaps(marketData);
+            if (gapAnalysis.significantGap) {
+                analysis.alerts.push({
+                    type: 'PRE_MARKET',
+                    severity: 'HIGH',
+                    message: `Significant ${gapAnalysis.direction} gap: ${gapAnalysis.gapPercent.toFixed(2)}%`,
+                    data: gapAnalysis
+                });
+            }
+            
+            // 2. Check economic calendar
+            const economicEvents = this.checkEconomicCalendar();
+            if (economicEvents.highImpact.length > 0) {
+                analysis.alerts.push({
+                    type: 'ECONOMIC_EVENT',
+                    severity: 'HIGH',
+                    message: `${economicEvents.highImpact.length} high-impact events today`,
+                    events: economicEvents.highImpact
+                });
+            }
+            
+            // 3. Analyze futures positioning
+            const futuresAnalysis = this.analyzeFuturesPositioning(marketData);
+            analysis.marketConditions.futures = futuresAnalysis;
+            
+            // 4. Check VIX term structure
+            const vixAnalysis = this.analyzeVIXTermStructure(marketData);
+            if (vixAnalysis.backwardation) {
+                analysis.alerts.push({
+                    type: 'VIX_STRUCTURE',
+                    severity: 'MEDIUM',
+                    message: 'VIX in backwardation - elevated risk',
+                    data: vixAnalysis
+                });
+            }
+            
+            // 5. Identify today's trading opportunities
+            const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+            analysis.opportunities = this.identifyTodaysOpportunities(dayOfWeek, marketData, accountData);
+            
+            // 6. Check for earnings/dividends
+            const corporateEvents = this.checkCorporateEvents(accountData?.positions);
+            if (corporateEvents.warnings.length > 0) {
+                analysis.alerts.push(...corporateEvents.warnings);
+            }
+            
+            // 7. Assess correlation risks
+            const correlationRisk = this.assessPreMarketCorrelation(marketData);
+            if (correlationRisk.elevated) {
+                analysis.risks.push({
+                    type: 'CORRELATION',
+                    level: correlationRisk.level,
+                    message: 'Elevated correlation detected',
+                    affectedGroups: correlationRisk.groups
+                });
+            }
+            
+            // 8. Generate today's game plan
+            analysis.todaysSetup = this.generateTodaysGamePlan(
+                dayOfWeek,
+                marketData,
+                accountData,
+                analysis.opportunities,
+                analysis.risks
+            );
+            
+            // 9. Position health check
+            if (accountData?.positions?.length > 0) {
+                const positionHealth = this.checkPositionHealth(accountData.positions, marketData);
+                if (positionHealth.needsAttention.length > 0) {
+                    analysis.alerts.push({
+                        type: 'POSITION_HEALTH',
+                        severity: 'MEDIUM',
+                        message: `${positionHealth.needsAttention.length} positions need attention`,
+                        positions: positionHealth.needsAttention
+                    });
+                }
+            }
+            
+            // 10. Market regime assessment
+            const marketRegime = this.assessMarketRegime(marketData);
+            analysis.marketConditions.regime = marketRegime;
+            
+            return analysis;
+            
+        } catch (error) {
+            console.error('Pre-market analysis error:', error);
+            analysis.alerts.push({
+                type: 'ERROR',
+                severity: 'LOW',
+                message: 'Partial pre-market analysis due to error',
+                error: error.message
+            });
+            return analysis;
+        }
+    }
+    
+    /**
+     * Analyze overnight gaps
+     */
+    analyzeOvernightGaps(marketData) {
+        const gaps = {};
+        const significantGapThreshold = 0.5; // 0.5%
+        
+        for (const [symbol, data] of Object.entries(marketData || {})) {
+            if (data.previousClose && data.openPrice) {
+                const gapPercent = ((data.openPrice - data.previousClose) / data.previousClose) * 100;
+                
+                if (Math.abs(gapPercent) >= significantGapThreshold) {
+                    gaps[symbol] = {
+                        gapPercent,
+                        direction: gapPercent > 0 ? 'UP' : 'DOWN',
+                        fillProbability: this.calculateGapFillProbability(gapPercent),
+                        tradingOpportunity: Math.abs(gapPercent) > 1
+                    };
+                }
+            }
+        }
+        
+        const largestGap = Object.values(gaps).reduce((max, gap) => 
+            Math.abs(gap.gapPercent) > Math.abs(max?.gapPercent || 0) ? gap : max, null
+        );
+        
+        return {
+            gaps,
+            significantGap: Object.keys(gaps).length > 0,
+            largestGap,
+            ...largestGap
+        };
+    }
+    
+    /**
+     * Calculate gap fill probability
+     */
+    calculateGapFillProbability(gapPercent) {
+        // Historical probabilities
+        const absGap = Math.abs(gapPercent);
+        
+        if (absGap < 0.5) return 0.65;
+        if (absGap < 1.0) return 0.55;
+        if (absGap < 1.5) return 0.45;
+        if (absGap < 2.0) return 0.35;
+        return 0.25;
+    }
+    
+    /**
+     * Check economic calendar
+     */
+    checkEconomicCalendar() {
+        const today = new Date().toDateString();
+        
+        // Simulated economic events - in production, fetch from API
+        const events = {
+            highImpact: [],
+            mediumImpact: [],
+            lowImpact: []
+        };
+        
+        // Check for major events
+        const dayOfWeek = new Date().getDay();
+        
+        // Fed days (typically Tuesday/Wednesday)
+        if (dayOfWeek === 2 || dayOfWeek === 3) {
+            // Check if it's around mid-month (Fed meeting days)
+            const dayOfMonth = new Date().getDate();
+            if (dayOfMonth >= 14 && dayOfMonth <= 16) {
+                events.highImpact.push({
+                    time: '14:00',
+                    event: 'FOMC Decision',
+                    impact: 'HIGH',
+                    tradingImplication: 'Avoid new positions until after announcement'
+                });
+            }
+        }
+        
+        // Jobs Friday (first Friday)
+        if (dayOfWeek === 5) {
+            const dayOfMonth = new Date().getDate();
+            if (dayOfMonth <= 7) {
+                events.highImpact.push({
+                    time: '08:30',
+                    event: 'Non-Farm Payrolls',
+                    impact: 'HIGH',
+                    tradingImplication: 'Expect volatility at open'
+                });
+            }
+        }
+        
+        // CPI/PPI (typically mid-month)
+        const dayOfMonth = new Date().getDate();
+        if (dayOfMonth >= 10 && dayOfMonth <= 15) {
+            events.mediumImpact.push({
+                time: '08:30',
+                event: 'Inflation Data',
+                impact: 'MEDIUM',
+                tradingImplication: 'Monitor for trend changes'
+            });
+        }
+        
+        return events;
+    }
+    
+    /**
+     * Analyze futures positioning
+     */
+    analyzeFuturesPositioning(marketData) {
+        const analysis = {
+            sentiment: 'NEUTRAL',
+            strength: 0,
+            divergences: []
+        };
+        
+        if (!marketData) return analysis;
+        
+        // Compare ES, NQ, RTY movements
+        const es = marketData.ES;
+        const nq = marketData.NQ || marketData.MNQ;
+        const rty = marketData.RTY;
+        
+        if (es && nq) {
+            const esChange = ((es.currentPrice - es.previousClose) / es.previousClose) * 100;
+            const nqChange = ((nq.currentPrice - nq.previousClose) / nq.previousClose) * 100;
+            
+            // Check for divergence
+            if (Math.sign(esChange) !== Math.sign(nqChange)) {
+                analysis.divergences.push({
+                    type: 'ES_NQ',
+                    message: 'Tech/broad market divergence',
+                    opportunity: 'Consider pairs trade'
+                });
+            }
+            
+            // Overall sentiment
+            const avgChange = (esChange + nqChange) / 2;
+            if (avgChange > 0.3) {
+                analysis.sentiment = 'BULLISH';
+                analysis.strength = Math.min(avgChange / 2, 1);
+            } else if (avgChange < -0.3) {
+                analysis.sentiment = 'BEARISH';
+                analysis.strength = Math.min(Math.abs(avgChange) / 2, 1);
+            }
+        }
+        
+        return analysis;
+    }
+    
+    /**
+     * Analyze VIX term structure
+     */
+    analyzeVIXTermStructure(marketData) {
+        const vix = marketData?.VIX;
+        if (!vix) {
+            return { available: false };
+        }
+        
+        // Simplified term structure analysis
+        const analysis = {
+            currentLevel: vix.currentPrice,
+            regime: this.getVIXRegime(vix.currentPrice),
+            backwardation: false,
+            contango: true,
+            tradingImplication: ''
+        };
+        
+        // Check for backwardation (front month > back month)
+        // This would need real VIX futures data in production
+        if (vix.currentPrice > 30) {
+            analysis.backwardation = true;
+            analysis.contango = false;
+            analysis.tradingImplication = 'Favor put selling over call selling';
+        } else if (vix.currentPrice < 15) {
+            analysis.tradingImplication = 'Reduce position sizes - low premium environment';
+        } else {
+            analysis.tradingImplication = 'Normal premium selling environment';
+        }
+        
+        return analysis;
+    }
+    
+    /**
+     * Get VIX regime
+     */
+    getVIXRegime(vixLevel) {
+        if (vixLevel < 12) return 'EXTREMELY_LOW';
+        if (vixLevel < 16) return 'LOW';
+        if (vixLevel < 20) return 'NORMAL';
+        if (vixLevel < 25) return 'ELEVATED';
+        if (vixLevel < 30) return 'HIGH';
+        return 'EXTREME';
+    }
+    
+    /**
+     * Identify today's opportunities
+     */
+    identifyTodaysOpportunities(dayOfWeek, marketData, accountData) {
+        const opportunities = [];
+        const vix = marketData?.VIX?.currentPrice || 20;
+        
+        // Friday 0DTE
+        if (dayOfWeek === 'Friday' && vix > 22) {
+            opportunities.push({
+                strategy: '0DTE',
+                priority: 'HIGH',
+                timeWindow: '10:30 AM - 2:00 PM',
+                requirements: 'Wait for direction after open',
+                expectedReturn: '8-12%'
+            });
+        }
+        
+        // Tuesday Strangles
+        if (dayOfWeek === 'Tuesday') {
+            opportunities.push({
+                strategy: 'STRANGLE',
+                priority: 'MEDIUM',
+                timeWindow: 'After 10:00 AM',
+                requirements: 'Check correlation limits',
+                expectedReturn: '3-5% monthly'
+            });
+        }
+        
+        // Monday/Wednesday LT112
+        if (['Monday', 'Wednesday'].includes(dayOfWeek)) {
+            opportunities.push({
+                strategy: 'LT112',
+                priority: 'MEDIUM',
+                timeWindow: 'Any time',
+                requirements: 'Find 112 DTE expiration',
+                expectedReturn: '12-15% over cycle'
+            });
+        }
+        
+        return opportunities;
+    }
+    
+    /**
+     * Check corporate events
+     */
+    checkCorporateEvents(positions) {
+        const warnings = [];
+        
+        // In production, check against earnings/dividend calendar
+        // For now, return empty
+        
+        return { warnings };
+    }
+    
+    /**
+     * Assess pre-market correlation
+     */
+    assessPreMarketCorrelation(marketData) {
+        // Simplified correlation check
+        const correlationLevel = 0.5; // Would calculate from actual data
+        
+        return {
+            elevated: correlationLevel > 0.7,
+            level: correlationLevel,
+            groups: correlationLevel > 0.7 ? ['EQUITY'] : []
+        };
+    }
+    
+    /**
+     * Generate today's game plan
+     */
+    generateTodaysGamePlan(dayOfWeek, marketData, accountData, opportunities, risks) {
+        const vix = marketData?.VIX?.currentPrice || 20;
+        const phase = accountData?.phase || 1;
+        
+        const plan = {
+            focusStrategies: [],
+            avoidList: [],
+            positionSizing: '',
+            riskManagement: '',
+            keyLevels: {},
+            timeline: []
+        };
+        
+        // Determine focus based on day
+        if (dayOfWeek === 'Friday') {
+            plan.focusStrategies.push('0DTE if VIX > 22');
+            plan.timeline.push({ time: '10:30', action: 'Assess 0DTE setup' });
+            plan.timeline.push({ time: '14:00', action: 'Final 0DTE entry cutoff' });
+        }
+        
+        if (dayOfWeek === 'Tuesday') {
+            plan.focusStrategies.push('Futures strangles');
+            plan.timeline.push({ time: '10:00', action: 'Begin strangle analysis' });
+        }
+        
+        // Position sizing based on VIX
+        if (vix < 15) {
+            plan.positionSizing = 'Reduce sizes by 20% - low volatility';
+        } else if (vix > 30) {
+            plan.positionSizing = 'Opportunity zone - can increase put selling';
+        } else {
+            plan.positionSizing = 'Normal position sizing';
+        }
+        
+        // Risk management
+        plan.riskManagement = `Max BP: ${this.getMaxBPForVIX(vix)}%, Correlation limit: ${phase <= 2 ? 2 : 3}`;
+        
+        // Key levels for ES
+        if (marketData?.ES) {
+            const es = marketData.ES;
+            plan.keyLevels = {
+                resistance: es.currentPrice * 1.005,
+                support: es.currentPrice * 0.995,
+                pivotPoint: es.openPrice
+            };
+        }
+        
+        return plan;
+    }
+    
+    /**
+     * Get max BP for VIX level
+     */
+    getMaxBPForVIX(vixLevel) {
+        if (vixLevel < 13) return 45;
+        if (vixLevel < 18) return 65;
+        if (vixLevel < 25) return 75;
+        return 80;
+    }
+    
+    /**
+     * Check position health
+     */
+    checkPositionHealth(positions, marketData) {
+        const needsAttention = [];
+        
+        positions.forEach(position => {
+            const health = {
+                symbol: position.symbol,
+                issues: []
+            };
+            
+            // Check if approaching 21 DTE
+            if (position.dte <= 21 && position.dte > 0) {
+                health.issues.push('Approaching 21 DTE management point');
+            }
+            
+            // Check if breached
+            if (position.delta && Math.abs(position.delta) > 30) {
+                health.issues.push('Delta exceeds comfort zone');
+            }
+            
+            // Check P&L targets
+            if (position.pnlPercent >= 50) {
+                health.issues.push('Profit target reached - consider closing');
+            } else if (position.pnlPercent <= -100) {
+                health.issues.push('Stop loss area - evaluate adjustment');
+            }
+            
+            if (health.issues.length > 0) {
+                needsAttention.push(health);
+            }
+        });
+        
+        return { needsAttention };
+    }
+    
+    /**
+     * Assess market regime
+     */
+    assessMarketRegime(marketData) {
+        const vix = marketData?.VIX?.currentPrice || 20;
+        
+        let regime = 'NORMAL';
+        let characteristics = [];
+        
+        if (vix < 15) {
+            regime = 'LOW_VOLATILITY';
+            characteristics = ['Grinding higher', 'Sell call spreads carefully', 'Smaller profits expected'];
+        } else if (vix > 25) {
+            regime = 'HIGH_VOLATILITY';
+            characteristics = ['Two-way action', 'Rich premiums', 'Manage positions actively'];
+        } else {
+            characteristics = ['Balanced market', 'Follow normal rules', 'Standard position sizing'];
+        }
+        
+        return {
+            regime,
+            characteristics,
+            vixLevel: vix,
+            tradingApproach: this.getTradingApproachForRegime(regime)
+        };
+    }
+    
+    /**
+     * Get trading approach for regime
+     */
+    getTradingApproachForRegime(regime) {
+        const approaches = {
+            'LOW_VOLATILITY': 'Focus on highest probability setups only, reduce size',
+            'NORMAL': 'Deploy standard strategy mix per Tom King hierarchy',
+            'HIGH_VOLATILITY': 'Aggressive put selling, avoid call side, use full BP allowance'
+        };
+        
+        return approaches[regime] || approaches['NORMAL'];
     }
 
     /**

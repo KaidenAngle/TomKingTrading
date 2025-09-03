@@ -1326,11 +1326,26 @@ class RiskManager {
       correlation = 'MEDIUM',
       riskPerTrade = 0.02, // 2% of account
       maxPositionSize = 0.1, // 10% of account max
-      confidence = 0.8
+      confidence = 0.8,
+      winRate = 0.88, // Tom King's 88% win rate for 0DTE
+      avgWin = 200, // Average win in £
+      avgLoss = 800, // Average loss in £
+      useKellyCriterion = false
     } = options;
     
     // Base position size as percentage of account
     let baseSize = riskPerTrade * confidence;
+    
+    // Apply Kelly Criterion if requested
+    if (useKellyCriterion) {
+      const kellySize = this.calculateKellyCriterion({
+        winRate,
+        avgWin,
+        avgLoss,
+        maxSize: maxPositionSize
+      });
+      baseSize = Math.min(baseSize, kellySize.recommendedSize);
+    }
     
     // Adjust for VIX regime
     const vixRegime = VIXRegimeAnalyzer.analyzeVIXRegime(vixLevel);
@@ -1364,9 +1379,356 @@ class RiskManager {
         vixAdjustment,
         strategyAdjustment,
         correlationAdjustment,
-        emergencyMode: this.emergencyMode
+        emergencyMode: this.emergencyMode,
+        kellyCriterion: useKellyCriterion
       },
       recommendation: finalSize > 0.05 ? 'NORMAL' : finalSize > 0.02 ? 'CONSERVATIVE' : 'DEFENSIVE'
+    };
+  }
+  
+  /**
+   * Kelly Criterion Position Sizing
+   * Calculates optimal position size based on win rate and payoff ratio
+   * Formula: f* = (p*b - q) / b
+   * where f* = fraction to bet, p = win probability, q = loss probability, b = payoff ratio
+   */
+  calculateKellyCriterion(options = {}) {
+    const {
+      winRate = 0.88, // Tom King's 88% win rate
+      avgWin = 200, // Average winning trade profit
+      avgLoss = 800, // Average losing trade loss
+      maxSize = 0.25, // Maximum position size (25% of account)
+      kellyFraction = 0.25 // Use 25% of full Kelly for safety
+    } = options;
+    
+    // Validate inputs
+    if (winRate <= 0 || winRate >= 1) {
+      return {
+        recommendedSize: 0.02,
+        fullKelly: 0,
+        fractionalKelly: 0.02,
+        error: 'Invalid win rate - must be between 0 and 1'
+      };
+    }
+    
+    // Calculate payoff ratio (b)
+    const payoffRatio = avgWin / avgLoss;
+    
+    // Calculate loss probability
+    const lossRate = 1 - winRate;
+    
+    // Kelly formula: f* = (p*b - q) / b
+    const fullKelly = (winRate * payoffRatio - lossRate) / payoffRatio;
+    
+    // Apply fractional Kelly for safety (typically 25% of full Kelly)
+    const fractionalKelly = fullKelly * kellyFraction;
+    
+    // Cap at maximum size
+    const recommendedSize = Math.min(Math.max(fractionalKelly, 0), maxSize);
+    
+    // Calculate expected growth rate (for information)
+    const expectedGrowthRate = this.calculateExpectedGrowthRate(
+      winRate, 
+      payoffRatio, 
+      recommendedSize
+    );
+    
+    return {
+      recommendedSize,
+      fullKelly,
+      fractionalKelly,
+      payoffRatio,
+      expectedGrowthRate,
+      details: {
+        winRate: (winRate * 100).toFixed(1) + '%',
+        lossRate: (lossRate * 100).toFixed(1) + '%',
+        avgWin: '£' + avgWin,
+        avgLoss: '£' + avgLoss,
+        kellyFraction: (kellyFraction * 100).toFixed(0) + '% of full Kelly',
+        maxAllowed: (maxSize * 100).toFixed(0) + '% of account'
+      },
+      interpretation: this.interpretKellyResult(recommendedSize, fullKelly)
+    };
+  }
+  
+  /**
+   * Calculate expected growth rate using Kelly position sizing
+   * G = p * ln(1 + b*f) + q * ln(1 - f)
+   */
+  calculateExpectedGrowthRate(winRate, payoffRatio, positionSize) {
+    const lossRate = 1 - winRate;
+    
+    // Expected growth formula
+    const winGrowth = winRate * Math.log(1 + payoffRatio * positionSize);
+    const lossGrowth = lossRate * Math.log(1 - positionSize);
+    
+    return winGrowth + lossGrowth;
+  }
+  
+  /**
+   * Interpret Kelly Criterion results
+   */
+  interpretKellyResult(recommendedSize, fullKelly) {
+    if (fullKelly <= 0) {
+      return {
+        verdict: 'DO_NOT_TRADE',
+        reason: 'Negative expectancy - avoid this trade setup',
+        action: 'Review strategy or improve edge'
+      };
+    } else if (fullKelly > 0.5) {
+      return {
+        verdict: 'EXCEPTIONAL_EDGE',
+        reason: 'Very strong edge detected - rare opportunity',
+        action: 'Consider increasing position size carefully'
+      };
+    } else if (fullKelly > 0.25) {
+      return {
+        verdict: 'STRONG_EDGE',
+        reason: 'Good trading edge with favorable risk/reward',
+        action: 'Trade with recommended Kelly sizing'
+      };
+    } else if (fullKelly > 0.1) {
+      return {
+        verdict: 'MODERATE_EDGE',
+        reason: 'Decent edge but modest position sizing advised',
+        action: 'Trade conservatively with fractional Kelly'
+      };
+    } else {
+      return {
+        verdict: 'WEAK_EDGE',
+        reason: 'Marginal edge - consider if worth the risk',
+        action: 'Use minimum position size or skip trade'
+      };
+    }
+  }
+  
+  /**
+   * Calculate optimal position size for multiple correlated positions
+   * Uses modified Kelly for portfolio of correlated assets
+   */
+  calculatePortfolioKelly(positions = []) {
+    // Aggregate statistics across positions
+    const portfolioStats = positions.reduce((stats, pos) => {
+      stats.totalWinRate += pos.winRate || 0.88;
+      stats.totalPayoff += (pos.avgWin || 200) / (pos.avgLoss || 800);
+      stats.count++;
+      return stats;
+    }, { totalWinRate: 0, totalPayoff: 0, count: 0 });
+    
+    if (portfolioStats.count === 0) {
+      return {
+        recommendedSize: 0.02,
+        perPositionSize: 0.02,
+        error: 'No positions to calculate'
+      };
+    }
+    
+    // Average statistics
+    const avgWinRate = portfolioStats.totalWinRate / portfolioStats.count;
+    const avgPayoff = portfolioStats.totalPayoff / portfolioStats.count;
+    
+    // Calculate correlation penalty (simplified)
+    const correlationPenalty = this.calculateCorrelationPenalty(positions);
+    
+    // Modified Kelly for correlated positions
+    const baseKelly = this.calculateKellyCriterion({
+      winRate: avgWinRate,
+      avgWin: avgPayoff * 800,
+      avgLoss: 800
+    });
+    
+    // Apply correlation penalty
+    const adjustedKelly = baseKelly.recommendedSize * (1 - correlationPenalty);
+    
+    // Divide among positions
+    const perPositionSize = adjustedKelly / Math.sqrt(portfolioStats.count);
+    
+    return {
+      recommendedTotalSize: adjustedKelly,
+      perPositionSize,
+      numberOfPositions: portfolioStats.count,
+      correlationPenalty: (correlationPenalty * 100).toFixed(1) + '%',
+      details: {
+        avgWinRate: (avgWinRate * 100).toFixed(1) + '%',
+        avgPayoffRatio: avgPayoff.toFixed(2),
+        baseKellySize: baseKelly.recommendedSize,
+        adjustmentFactor: 1 - correlationPenalty
+      }
+    };
+  }
+  
+  /**
+   * Calculate correlation penalty for portfolio Kelly
+   */
+  calculateCorrelationPenalty(positions) {
+    // Group positions by correlation
+    const groups = {};
+    positions.forEach(pos => {
+      const group = BPLimitsManager.getAssetGroup(pos.ticker);
+      groups[group] = (groups[group] || 0) + 1;
+    });
+    
+    // Calculate penalty based on concentration
+    let penalty = 0;
+    Object.values(groups).forEach(count => {
+      if (count > 1) {
+        // Exponential penalty for concentration
+        penalty += Math.pow(count - 1, 2) * 0.1;
+      }
+    });
+    
+    return Math.min(penalty, 0.5); // Cap at 50% penalty
+  }
+  
+  /**
+   * Dynamic Kelly adjustment based on market conditions
+   */
+  getDynamicKellyAdjustment(vixLevel, accountPhase) {
+    let adjustment = 1.0;
+    
+    // VIX-based adjustments
+    if (vixLevel < 15) {
+      adjustment *= 0.5; // Reduce in low volatility
+    } else if (vixLevel > 30) {
+      adjustment *= 0.3; // Significant reduction in crisis
+    } else if (vixLevel > 25) {
+      adjustment *= 0.6; // Moderate reduction in high vol
+    }
+    
+    // Phase-based adjustments
+    switch(accountPhase) {
+      case 1: // £30-40k - Conservative
+        adjustment *= 0.5;
+        break;
+      case 2: // £40-60k - Building
+        adjustment *= 0.7;
+        break;
+      case 3: // £60-75k - Optimization
+        adjustment *= 0.9;
+        break;
+      case 4: // £75k+ - Full deployment
+        adjustment *= 1.0;
+        break;
+    }
+    
+    return adjustment;
+  }
+  
+  /**
+   * Calculate optimal bet size for specific Tom King strategies
+   */
+  calculateStrategyKelly(strategy, marketConditions = {}) {
+    const { vixLevel = 20, dayOfWeek = 'Monday', timeOfDay = '10:00' } = marketConditions;
+    
+    // Strategy-specific win rates and payoffs from Tom King methodology
+    const strategyStats = {
+      '0DTE_FRIDAY': {
+        winRate: 0.88,
+        avgWin: 200,
+        avgLoss: 800,
+        requirements: {
+          dayOfWeek: 'Friday',
+          minVIX: 22,
+          timeAfter: '10:30'
+        }
+      },
+      'LT112': {
+        winRate: 0.75,
+        avgWin: 500,
+        avgLoss: 1000,
+        requirements: {
+          dte: [45, 90],
+          vixRange: [18, 30]
+        }
+      },
+      'STRANGLE': {
+        winRate: 0.70,
+        avgWin: 300,
+        avgLoss: 600,
+        requirements: {
+          dte: [30, 60],
+          vixMin: 16
+        }
+      },
+      'IPMCC': {
+        winRate: 0.65,
+        avgWin: 800,
+        avgLoss: 400,
+        requirements: {
+          accountMin: 50000,
+          phase: [3, 4]
+        }
+      }
+    };
+    
+    const stats = strategyStats[strategy];
+    if (!stats) {
+      return {
+        error: `Unknown strategy: ${strategy}`,
+        recommendedSize: 0.02
+      };
+    }
+    
+    // Check if requirements are met
+    const requirementsMet = this.checkStrategyRequirements(
+      stats.requirements, 
+      marketConditions
+    );
+    
+    if (!requirementsMet.passed) {
+      return {
+        recommendedSize: 0,
+        error: 'Strategy requirements not met',
+        unmetRequirements: requirementsMet.failed
+      };
+    }
+    
+    // Calculate Kelly with strategy-specific parameters
+    const kellyResult = this.calculateKellyCriterion({
+      winRate: stats.winRate,
+      avgWin: stats.avgWin,
+      avgLoss: stats.avgLoss,
+      kellyFraction: strategy === '0DTE_FRIDAY' ? 0.2 : 0.25 // More conservative for 0DTE
+    });
+    
+    // Apply dynamic adjustments
+    const dynamicAdjustment = this.getDynamicKellyAdjustment(
+      vixLevel, 
+      marketConditions.accountPhase || 1
+    );
+    
+    kellyResult.recommendedSize *= dynamicAdjustment;
+    kellyResult.strategy = strategy;
+    kellyResult.requirementsMet = true;
+    
+    return kellyResult;
+  }
+  
+  /**
+   * Check if strategy requirements are met
+   */
+  checkStrategyRequirements(requirements, conditions) {
+    const failed = [];
+    
+    if (requirements.dayOfWeek && conditions.dayOfWeek !== requirements.dayOfWeek) {
+      failed.push(`Wrong day: need ${requirements.dayOfWeek}, got ${conditions.dayOfWeek}`);
+    }
+    
+    if (requirements.minVIX && conditions.vixLevel < requirements.minVIX) {
+      failed.push(`VIX too low: need >${requirements.minVIX}, got ${conditions.vixLevel}`);
+    }
+    
+    if (requirements.timeAfter && conditions.timeOfDay < requirements.timeAfter) {
+      failed.push(`Too early: wait until ${requirements.timeAfter}`);
+    }
+    
+    if (requirements.accountMin && conditions.accountValue < requirements.accountMin) {
+      failed.push(`Account too small: need £${requirements.accountMin}`);
+    }
+    
+    return {
+      passed: failed.length === 0,
+      failed
     };
   }
   
