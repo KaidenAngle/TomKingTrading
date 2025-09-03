@@ -293,6 +293,102 @@ class GreeksCalculator {
     }
 
     /**
+     * Calculate weekend theta decay
+     * Accounts for 3-day theta burn over weekends
+     */
+    calculateWeekendTheta(positions, currentDate = new Date()) {
+        const dayOfWeek = currentDate.getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        const isFriday = dayOfWeek === 5;
+        
+        const weekendAnalysis = {
+            isWeekend,
+            isFriday,
+            positions: [],
+            totalWeekendDecay: 0,
+            criticalPositions: [],
+            recommendations: []
+        };
+        
+        positions.forEach(position => {
+            if (!position.greeks || !position.greeks.theta) return;
+            
+            const theta = position.greeks.theta;
+            const dte = position.dte || 30;
+            
+            // Weekend multiplier - 3 days of decay over 2 calendar days
+            let weekendMultiplier = 1;
+            
+            if (isWeekend || isFriday) {
+                // Higher multiplier for options closer to expiration
+                if (dte <= 7) {
+                    weekendMultiplier = 3.5; // Severe weekend decay for weeklies
+                } else if (dte <= 14) {
+                    weekendMultiplier = 3.2; // High decay for 2-week options
+                } else if (dte <= 21) {
+                    weekendMultiplier = 3.0; // Standard 3-day decay
+                } else {
+                    weekendMultiplier = 2.8; // Slightly less for longer-term
+                }
+            }
+            
+            const weekendTheta = theta * weekendMultiplier;
+            const weekendDecay = weekendTheta * position.quantity * 100; // Convert to dollar amount
+            
+            const positionAnalysis = {
+                symbol: position.symbol,
+                strategy: position.strategy,
+                theta: theta,
+                weekendTheta: weekendTheta,
+                weekendDecay: weekendDecay,
+                dte: dte,
+                quantity: position.quantity,
+                multiplier: weekendMultiplier,
+                severity: this.assessThetaSeverity(weekendDecay, position.value || 1000)
+            };
+            
+            weekendAnalysis.positions.push(positionAnalysis);
+            weekendAnalysis.totalWeekendDecay += weekendDecay;
+            
+            // Flag critical positions (high weekend decay)
+            if (positionAnalysis.severity === 'CRITICAL' || Math.abs(weekendDecay) > 200) {
+                weekendAnalysis.criticalPositions.push(positionAnalysis);
+            }
+        });
+        
+        // Generate recommendations
+        if (isFriday && weekendAnalysis.criticalPositions.length > 0) {
+            weekendAnalysis.recommendations.push({
+                type: 'FRIDAY_CLOSE',
+                message: 'Consider closing high-theta positions before weekend',
+                affectedPositions: weekendAnalysis.criticalPositions.length
+            });
+        }
+        
+        if (Math.abs(weekendAnalysis.totalWeekendDecay) > 500) {
+            weekendAnalysis.recommendations.push({
+                type: 'PORTFOLIO_RISK',
+                message: `High weekend theta exposure: $${Math.abs(weekendAnalysis.totalWeekendDecay).toFixed(2)}`,
+                severity: 'HIGH'
+            });
+        }
+        
+        return weekendAnalysis;
+    }
+    
+    /**
+     * Assess theta decay severity relative to position value
+     */
+    assessThetaSeverity(thetaDecay, positionValue) {
+        const decayPercent = Math.abs(thetaDecay) / positionValue;
+        
+        if (decayPercent > 0.05) return 'CRITICAL'; // >5% weekend decay
+        if (decayPercent > 0.03) return 'HIGH';     // >3% weekend decay
+        if (decayPercent > 0.01) return 'MEDIUM';   // >1% weekend decay
+        return 'LOW';
+    }
+    
+    /**
      * Assess portfolio vega exposure
      */
     assessVegaExposure(portfolioVega) {

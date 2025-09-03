@@ -9,17 +9,41 @@ const path = require('path');
  * Environment Configuration
  */
 const ENVIRONMENT = {
+    sandbox: {
+        API_BASE: 'https://api.cert.tastyworks.com',
+        STREAMER: 'wss://streamer.cert.tastyworks.com',
+        LOG_LEVEL: 'debug',
+        RATE_LIMIT: false,
+        description: 'TastyWorks sandbox environment - safe testing with simulated fills',
+        features: {
+            marketOrderFill: '$1.00', // Market orders fill at $1
+            limitOrderFill: 'immediate_if_under_$3', // Limits ≤$3 fill immediately
+            accountBalance: 100000, // $100k simulated balance
+            realMarketData: true // Real market data, simulated executions
+        }
+    },
     development: {
         API_BASE: 'https://api.cert.tastyworks.com',
         STREAMER: 'wss://streamer.cert.tastyworks.com',
         LOG_LEVEL: 'debug',
-        RATE_LIMIT: false
+        RATE_LIMIT: false,
+        description: 'Development environment using sandbox API'
+    },
+    paper: {
+        API_BASE: 'https://api.tastyworks.com',
+        STREAMER: 'wss://streamer.tastyworks.com',
+        LOG_LEVEL: 'info',
+        RATE_LIMIT: true,
+        description: 'Paper trading with real market data',
+        accountType: 'paper_trading'
     },
     production: {
         API_BASE: 'https://api.tastyworks.com',
         STREAMER: 'wss://streamer.tastyworks.com',
         LOG_LEVEL: 'info',
-        RATE_LIMIT: true
+        RATE_LIMIT: true,
+        description: 'Live trading environment - real money',
+        safetyChecks: true
     }
 };
 
@@ -644,6 +668,52 @@ const ConfigHelpers = {
      */
     getEnvironmentConfig(env = 'production') {
         return ENVIRONMENT[env] || ENVIRONMENT.production;
+    },
+    
+    /**
+     * Get current mode configuration
+     */
+    getModeConfig() {
+        const currentMode = process.env.TOM_KING_MODE || 'paper';
+        return this.getEnvironmentConfig(currentMode);
+    },
+    
+    /**
+     * Set trading mode with validation
+     */
+    setTradingMode(mode) {
+        const validModes = ['sandbox', 'paper', 'production'];
+        if (!validModes.includes(mode)) {
+            throw new Error(`Invalid trading mode: ${mode}. Valid modes: ${validModes.join(', ')}`);
+        }
+        
+        process.env.TOM_KING_MODE = mode;
+        console.log(`🎯 Trading mode set to: ${mode.toUpperCase()}`);
+        console.log(`📊 Environment: ${this.getEnvironmentConfig(mode).description}`);
+        
+        if (mode === 'sandbox') {
+            console.log(`💡 Sandbox Features:`);
+            console.log(`   • Market orders fill at $1.00`);
+            console.log(`   • Limit orders ≤$3 fill immediately`);
+            console.log(`   • $100k simulated balance`);
+            console.log(`   • Real market data, simulated executions`);
+        }
+        
+        return this.getEnvironmentConfig(mode);
+    },
+    
+    /**
+     * Check if sandbox mode safety features are enabled
+     */
+    isSandboxMode() {
+        return (process.env.TOM_KING_MODE || 'paper') === 'sandbox';
+    },
+    
+    /**
+     * Check if production mode with real money
+     */
+    isProductionMode() {
+        return (process.env.TOM_KING_MODE || 'paper') === 'production';
     },
     
     /**
