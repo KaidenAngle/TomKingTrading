@@ -167,7 +167,7 @@ class TradeJournal {
                     checked: false,
                     at21DTE: [],
                     tested: [],
-                    actionsT taken: []
+                    actionsTaken: []
                 }
             },
             

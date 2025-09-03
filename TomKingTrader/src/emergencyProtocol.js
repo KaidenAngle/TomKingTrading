@@ -2035,6 +2035,7 @@ class EmergencyProtocol extends EventEmitter {
     delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
+}
 
 // Export
 module.exports = { EmergencyProtocol };
