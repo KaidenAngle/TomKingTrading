@@ -165,6 +165,557 @@ class OrderManager {
 
     return validations;
   }
+  
+  /**
+   * Comprehensive execution checks before order placement
+   */
+  async performExecutionChecks(order, accountData = null) {
+    const checks = {
+      passed: [],
+      failed: [],
+      warnings: [],
+      canExecute: true,
+      requiresOverride: false
+    };
+    
+    try {
+      // 1. Basic order validation
+      const validationErrors = this.validateOrder(order);
+      if (validationErrors.length > 0) {
+        checks.failed.push({
+          type: 'VALIDATION',
+          errors: validationErrors,
+          severity: 'CRITICAL'
+        });
+        checks.canExecute = false;
+      } else {
+        checks.passed.push('Basic validation');
+      }
+      
+      // 2. Account status check
+      if (accountData) {
+        const accountCheck = await this.checkAccountStatus(accountData);
+        if (accountCheck.healthy) {
+          checks.passed.push('Account status');
+        } else {
+          checks.failed.push({
+            type: 'ACCOUNT_STATUS',
+            issues: accountCheck.issues,
+            severity: accountCheck.critical ? 'CRITICAL' : 'HIGH'
+          });
+          if (accountCheck.critical) {
+            checks.canExecute = false;
+          }
+        }
+      }
+      
+      // 3. Risk management checks
+      const riskCheck = await this.checkRiskLimits(order, accountData);
+      if (riskCheck.passed) {
+        checks.passed.push('Risk limits');
+      } else {
+        checks.failed.push({
+          type: 'RISK_LIMIT',
+          violations: riskCheck.violations,
+          severity: riskCheck.severity
+        });
+        if (riskCheck.severity === 'CRITICAL') {
+          checks.canExecute = false;
+        } else if (riskCheck.severity === 'HIGH') {
+          checks.requiresOverride = true;
+        }
+      }
+      
+      // 4. Correlation check
+      const correlationCheck = await this.checkCorrelation(order, accountData);
+      if (correlationCheck.withinLimits) {
+        checks.passed.push('Correlation limits');
+      } else {
+        checks.warnings.push({
+          type: 'CORRELATION',
+          message: correlationCheck.message,
+          currentPositions: correlationCheck.positions
+        });
+      }
+      
+      // 5. Market conditions check
+      const marketCheck = await this.checkMarketConditions(order);
+      if (marketCheck.suitable) {
+        checks.passed.push('Market conditions');
+      } else {
+        checks.warnings.push({
+          type: 'MARKET_CONDITIONS',
+          issues: marketCheck.issues
+        });
+      }
+      
+      // 6. Strategy-specific checks
+      const strategyCheck = await this.checkStrategyRequirements(order);
+      if (strategyCheck.met) {
+        checks.passed.push('Strategy requirements');
+      } else {
+        checks.failed.push({
+          type: 'STRATEGY_REQUIREMENTS',
+          unmet: strategyCheck.unmet,
+          severity: 'HIGH'
+        });
+        checks.requiresOverride = true;
+      }
+      
+      // 7. Execution timing check
+      const timingCheck = this.checkExecutionTiming(order);
+      if (timingCheck.appropriate) {
+        checks.passed.push('Execution timing');
+      } else {
+        checks.warnings.push({
+          type: 'TIMING',
+          message: timingCheck.message
+        });
+      }
+      
+      // 8. Never trade list check
+      const blacklistCheck = await this.checkNeverTradeList(order);
+      if (blacklistCheck.allowed) {
+        checks.passed.push('Never trade list');
+      } else {
+        checks.failed.push({
+          type: 'BLACKLISTED',
+          symbol: blacklistCheck.symbol,
+          reason: blacklistCheck.reason,
+          severity: 'CRITICAL'
+        });
+        checks.canExecute = false;
+      }
+      
+      // 9. Price sanity check
+      const priceCheck = await this.checkPriceSanity(order);
+      if (priceCheck.reasonable) {
+        checks.passed.push('Price sanity');
+      } else {
+        checks.warnings.push({
+          type: 'PRICE_SANITY',
+          issues: priceCheck.issues,
+          marketPrice: priceCheck.marketPrice,
+          orderPrice: priceCheck.orderPrice
+        });
+      }
+      
+      // 10. Duplicate order check
+      const duplicateCheck = await this.checkForDuplicates(order);
+      if (!duplicateCheck.isDuplicate) {
+        checks.passed.push('No duplicates');
+      } else {
+        checks.warnings.push({
+          type: 'POTENTIAL_DUPLICATE',
+          existingOrder: duplicateCheck.existingOrder
+        });
+      }
+      
+    } catch (error) {
+      console.error('Execution check error:', error);
+      checks.failed.push({
+        type: 'SYSTEM_ERROR',
+        error: error.message,
+        severity: 'CRITICAL'
+      });
+      checks.canExecute = false;
+    }
+    
+    // Generate summary
+    checks.summary = {
+      totalChecks: 10,
+      passed: checks.passed.length,
+      failed: checks.failed.length,
+      warnings: checks.warnings.length,
+      recommendation: this.getExecutionRecommendation(checks)
+    };
+    
+    return checks;
+  }
+  
+  /**
+   * Check account status
+   */
+  async checkAccountStatus(accountData) {
+    const issues = [];
+    let critical = false;
+    
+    // Check if account is restricted
+    if (accountData.restricted) {
+      issues.push('Account is restricted');
+      critical = true;
+    }
+    
+    // Check margin call
+    if (accountData.marginCall) {
+      issues.push('Account in margin call');
+      critical = true;
+    }
+    
+    // Check day trading status
+    if (accountData.patternDayTrader && accountData.dayTradesRemaining <= 0) {
+      issues.push('No day trades remaining');
+    }
+    
+    // Check buying power
+    const bpUsage = accountData.buyingPowerUsed / accountData.buyingPower;
+    if (bpUsage > 0.9) {
+      issues.push(`Buying power near limit: ${(bpUsage * 100).toFixed(1)}%`);
+      if (bpUsage > 0.95) critical = true;
+    }
+    
+    return {
+      healthy: issues.length === 0,
+      issues,
+      critical
+    };
+  }
+  
+  /**
+   * Check risk limits
+   */
+  async checkRiskLimits(order, accountData) {
+    const violations = [];
+    let severity = 'LOW';
+    
+    if (!accountData) {
+      return { passed: true, violations: [], severity: 'LOW' };
+    }
+    
+    // Calculate order value
+    const orderValue = this.calculateOrderValue(order);
+    const accountValue = accountData.netLiq || accountData.accountValue;
+    
+    // Check position size limit
+    const positionSizePercent = orderValue / accountValue;
+    if (positionSizePercent > this.riskLimits.maxPositionSize) {
+      violations.push(`Position size ${(positionSizePercent * 100).toFixed(1)}% exceeds ${(this.riskLimits.maxPositionSize * 100)}% limit`);
+      severity = 'HIGH';
+    }
+    
+    // Check VIX-based BP limits
+    const vixLevel = accountData.vixLevel || 20;
+    const maxBP = this.riskLimits.getMaxBPUsage(vixLevel);
+    const currentBPUsage = accountData.buyingPowerUsed / accountValue;
+    const projectedBPUsage = (accountData.buyingPowerUsed + orderValue) / accountValue;
+    
+    if (projectedBPUsage > maxBP) {
+      violations.push(`Projected BP usage ${(projectedBPUsage * 100).toFixed(1)}% exceeds VIX-based limit ${(maxBP * 100)}%`);
+      severity = projectedBPUsage > maxBP * 1.2 ? 'CRITICAL' : 'HIGH';
+    }
+    
+    // Check daily order limit
+    const todayOrders = this.orderHistory.filter(o => {
+      const orderDate = new Date(o.timestamp).toDateString();
+      return orderDate === new Date().toDateString();
+    });
+    
+    if (todayOrders.length >= this.riskLimits.dailyOrderLimit) {
+      violations.push(`Daily order limit reached: ${todayOrders.length}/${this.riskLimits.dailyOrderLimit}`);
+      severity = 'HIGH';
+    }
+    
+    return {
+      passed: violations.length === 0,
+      violations,
+      severity
+    };
+  }
+  
+  /**
+   * Check correlation limits
+   */
+  async checkCorrelation(order, accountData) {
+    if (!accountData || !accountData.positions) {
+      return { withinLimits: true };
+    }
+    
+    // Extract underlying from order
+    const underlying = this.extractUnderlying(order);
+    const correlationGroup = this.getCorrelationGroup(underlying);
+    
+    if (!correlationGroup) {
+      return { withinLimits: true };
+    }
+    
+    // Count positions in same correlation group
+    const groupPositions = accountData.positions.filter(pos => {
+      const posGroup = this.getCorrelationGroup(pos.underlying || pos.symbol);
+      return posGroup === correlationGroup;
+    });
+    
+    if (groupPositions.length >= this.riskLimits.maxCorrelatedPositions) {
+      return {
+        withinLimits: false,
+        message: `Already have ${groupPositions.length} positions in ${correlationGroup} group`,
+        positions: groupPositions.map(p => p.symbol)
+      };
+    }
+    
+    return { withinLimits: true };
+  }
+  
+  /**
+   * Check market conditions
+   */
+  async checkMarketConditions(order) {
+    const issues = [];
+    
+    // Check if market is open
+    if (!this.isMarketOpen()) {
+      issues.push('Market is closed');
+    }
+    
+    // Check for circuit breakers
+    // This would need real market data in production
+    
+    // Check for high volatility
+    // This would need VIX data in production
+    
+    return {
+      suitable: issues.length === 0,
+      issues
+    };
+  }
+  
+  /**
+   * Check strategy-specific requirements
+   */
+  async checkStrategyRequirements(order) {
+    const unmet = [];
+    
+    if (!order.source) {
+      return { met: true };
+    }
+    
+    // 0DTE specific checks
+    if (order.source === 'TOM_KING_0DTE') {
+      const day = new Date().getDay();
+      if (day !== 5) {
+        unmet.push('0DTE trades only allowed on Fridays');
+      }
+      
+      // Check VIX requirement
+      // Would need real VIX data in production
+    }
+    
+    // LT112 specific checks
+    if (order.source === 'TOM_KING_LT112') {
+      const day = new Date().getDay();
+      if (![1, 2, 3].includes(day)) {
+        unmet.push('LT112 trades only on Mon-Wed');
+      }
+    }
+    
+    return {
+      met: unmet.length === 0,
+      unmet
+    };
+  }
+  
+  /**
+   * Check execution timing
+   */
+  checkExecutionTiming(order) {
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const totalMinutes = hour * 60 + minute;
+    
+    // Market hours check (9:30 AM - 4:00 PM ET)
+    const marketOpen = 9 * 60 + 30;
+    const marketClose = 16 * 60;
+    
+    if (totalMinutes < marketOpen || totalMinutes > marketClose) {
+      return {
+        appropriate: false,
+        message: 'Outside regular market hours'
+      };
+    }
+    
+    // Close to close warning
+    if (totalMinutes > marketClose - 30) {
+      return {
+        appropriate: true,
+        message: 'Close to market close - consider waiting for next session'
+      };
+    }
+    
+    return { appropriate: true };
+  }
+  
+  /**
+   * Check never trade list
+   */
+  async checkNeverTradeList(order) {
+    const config = require('./config');
+    const underlying = this.extractUnderlying(order);
+    
+    const checkResult = config.NEVER_TRADE_LIST.isAllowed(underlying);
+    
+    return {
+      allowed: checkResult.allowed === true,
+      symbol: underlying,
+      reason: checkResult.reason
+    };
+  }
+  
+  /**
+   * Check price sanity
+   */
+  async checkPriceSanity(order) {
+    if (order['order-type'] === 'Market') {
+      return { reasonable: true };
+    }
+    
+    const issues = [];
+    const orderPrice = parseFloat(order.price);
+    
+    // Check for obviously wrong prices
+    if (orderPrice <= 0) {
+      issues.push('Price is zero or negative');
+    }
+    
+    // Check for suspiciously high prices
+    if (order['price-effect'] === 'Debit' && orderPrice > 10000) {
+      issues.push('Unusually high debit');
+    }
+    
+    // Would need market data for more sophisticated checks
+    
+    return {
+      reasonable: issues.length === 0,
+      issues,
+      orderPrice
+    };
+  }
+  
+  /**
+   * Check for duplicate orders
+   */
+  async checkForDuplicates(order) {
+    // Check recent orders for similar characteristics
+    const recentOrders = this.orderHistory.slice(-10);
+    
+    for (const recent of recentOrders) {
+      // Check if same symbol and similar price
+      if (this.isSimilarOrder(order, recent)) {
+        const timeDiff = Date.now() - new Date(recent.timestamp).getTime();
+        if (timeDiff < 60000) { // Within 1 minute
+          return {
+            isDuplicate: true,
+            existingOrder: recent
+          };
+        }
+      }
+    }
+    
+    return { isDuplicate: false };
+  }
+  
+  /**
+   * Get execution recommendation based on checks
+   */
+  getExecutionRecommendation(checks) {
+    if (!checks.canExecute) {
+      return 'DO_NOT_EXECUTE';
+    }
+    
+    if (checks.requiresOverride && checks.warnings.length > 2) {
+      return 'REQUIRES_MANUAL_REVIEW';
+    }
+    
+    if (checks.requiresOverride) {
+      return 'EXECUTE_WITH_CAUTION';
+    }
+    
+    if (checks.warnings.length > 0) {
+      return 'EXECUTE_WITH_WARNINGS';
+    }
+    
+    return 'SAFE_TO_EXECUTE';
+  }
+  
+  /**
+   * Helper: Extract underlying symbol from order
+   */
+  extractUnderlying(order) {
+    if (!order.legs || order.legs.length === 0) return null;
+    
+    const firstLeg = order.legs[0];
+    if (firstLeg['instrument-type'] === 'Equity Option') {
+      // Extract from OCC symbol (first 6 characters)
+      return firstLeg.symbol.substring(0, 6).trim();
+    }
+    
+    return firstLeg.symbol;
+  }
+  
+  /**
+   * Helper: Get correlation group for symbol
+   */
+  getCorrelationGroup(symbol) {
+    const groups = {
+      EQUITY: ['SPY', 'QQQ', 'IWM', 'ES', 'MES'],
+      ENERGY: ['CL', 'MCL', 'XLE', 'XOP'],
+      METALS: ['GC', 'MGC', 'GLD', 'SLV'],
+      BONDS: ['TLT', 'IEF', 'ZB', 'ZN']
+    };
+    
+    for (const [group, symbols] of Object.entries(groups)) {
+      if (symbols.includes(symbol)) {
+        return group;
+      }
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Helper: Calculate order value
+   */
+  calculateOrderValue(order) {
+    // Simplified calculation - would need option pricing in production
+    const quantity = order.legs.reduce((sum, leg) => sum + leg.quantity, 0);
+    const price = parseFloat(order.price) || 0;
+    
+    return quantity * price * 100; // Assuming options with 100 multiplier
+  }
+  
+  /**
+   * Helper: Check if orders are similar
+   */
+  isSimilarOrder(order1, order2) {
+    if (!order2.legs) return false;
+    
+    // Check if same underlying and strategy
+    const underlying1 = this.extractUnderlying(order1);
+    const underlying2 = this.extractUnderlying(order2);
+    
+    return underlying1 === underlying2 && 
+           order1.source === order2.source;
+  }
+  
+  /**
+   * Helper: Check if market is open
+   */
+  isMarketOpen() {
+    const now = new Date();
+    const day = now.getDay();
+    
+    // Markets closed on weekends
+    if (day === 0 || day === 6) return false;
+    
+    // Check time (simplified - would need holiday calendar)
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const totalMinutes = hour * 60 + minute;
+    
+    const marketOpen = 9 * 60 + 30;  // 9:30 AM
+    const marketClose = 16 * 60;      // 4:00 PM
+    
+    return totalMinutes >= marketOpen && totalMinutes <= marketClose;
+  }
 
   /**
    * Place dry-run order for testing

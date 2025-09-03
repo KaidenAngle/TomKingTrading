@@ -76,11 +76,21 @@ class TomKingTraderApp {
         this.lastAnalysisTime = null;
         this.schedulerInterval = null;
         
+        // Unified notification system
+        this.notificationSystem = {
+            enabled: true,
+            channels: new Map(),
+            queue: [],
+            priorities: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'],
+            handlers: new Map()
+        };
+        
         // Setup middleware and routes
         this.setupMiddleware();
         this.setupRoutes();
         this.setupWebSocket();
         this.setupScheduler();
+        this.setupUnifiedNotifications();
         
         // Bind signal generator events
         this.signalGenerator.on('signal', (signal) => {
@@ -3149,6 +3159,304 @@ class TomKingTraderApp {
                     running: !!this.schedulerInterval
                 }
             };
+        }
+    }
+    
+    /**
+     * Setup unified notification system
+     */
+    setupUnifiedNotifications() {
+        // Register notification channels
+        this.registerNotificationChannel('websocket', {
+            send: (notification) => this.broadcast(notification),
+            enabled: true
+        });
+        
+        this.registerNotificationChannel('console', {
+            send: (notification) => {
+                const icon = this.getNotificationIcon(notification.priority);
+                console.log(`${icon} [${notification.priority}] ${notification.message}`);
+            },
+            enabled: true
+        });
+        
+        this.registerNotificationChannel('file', {
+            send: async (notification) => {
+                const logEntry = {
+                    timestamp: new Date().toISOString(),
+                    ...notification
+                };
+                try {
+                    await fs.appendFile(
+                        path.join(__dirname, '..', 'logs', 'notifications.log'),
+                        JSON.stringify(logEntry) + '\n'
+                    );
+                } catch (error) {
+                    console.error('Failed to write notification to file:', error);
+                }
+            },
+            enabled: true
+        });
+        
+        // Register notification handlers for different types
+        this.registerNotificationHandler('TRADE_SIGNAL', (data) => {
+            this.sendNotification({
+                type: 'TRADE_SIGNAL',
+                priority: data.confidence > 0.8 ? 'HIGH' : 'MEDIUM',
+                message: `${data.strategy} signal: ${data.action} ${data.symbol}`,
+                data,
+                channels: ['websocket', 'console']
+            });
+        });
+        
+        this.registerNotificationHandler('RISK_ALERT', (data) => {
+            this.sendNotification({
+                type: 'RISK_ALERT',
+                priority: data.severity || 'HIGH',
+                message: data.message,
+                data,
+                channels: ['websocket', 'console', 'file']
+            });
+        });
+        
+        this.registerNotificationHandler('POSITION_UPDATE', (data) => {
+            this.sendNotification({
+                type: 'POSITION_UPDATE',
+                priority: 'LOW',
+                message: `Position ${data.action}: ${data.symbol}`,
+                data,
+                channels: ['websocket']
+            });
+        });
+        
+        this.registerNotificationHandler('EMERGENCY', (data) => {
+            this.sendNotification({
+                type: 'EMERGENCY',
+                priority: 'CRITICAL',
+                message: `EMERGENCY: ${data.message}`,
+                data,
+                channels: ['websocket', 'console', 'file'],
+                persistent: true
+            });
+        });
+        
+        this.registerNotificationHandler('MILESTONE', (data) => {
+            this.sendNotification({
+                type: 'MILESTONE',
+                priority: 'MEDIUM',
+                message: `Milestone achieved: ${data.milestone}`,
+                data,
+                channels: ['websocket', 'console', 'file']
+            });
+        });
+        
+        // Subscribe to module events
+        this.subscribeToModuleEvents();
+        
+        // Start notification processor
+        this.startNotificationProcessor();
+        
+        logger.info('NOTIFICATIONS', 'Unified notification system initialized');
+    }
+    
+    /**
+     * Register notification channel
+     */
+    registerNotificationChannel(name, handler) {
+        this.notificationSystem.channels.set(name, handler);
+        logger.debug('NOTIFICATIONS', `Registered channel: ${name}`);
+    }
+    
+    /**
+     * Register notification handler
+     */
+    registerNotificationHandler(type, handler) {
+        this.notificationSystem.handlers.set(type, handler);
+    }
+    
+    /**
+     * Send notification
+     */
+    sendNotification(notification) {
+        if (!this.notificationSystem.enabled) return;
+        
+        // Add metadata
+        notification.id = Date.now().toString();
+        notification.timestamp = new Date().toISOString();
+        
+        // Add to queue
+        this.notificationSystem.queue.push(notification);
+        
+        // Process immediately if high priority
+        if (notification.priority === 'CRITICAL' || notification.priority === 'HIGH') {
+            this.processNotification(notification);
+        }
+    }
+    
+    /**
+     * Process notification
+     */
+    processNotification(notification) {
+        const channels = notification.channels || ['websocket'];
+        
+        channels.forEach(channelName => {
+            const channel = this.notificationSystem.channels.get(channelName);
+            if (channel && channel.enabled) {
+                try {
+                    channel.send(notification);
+                } catch (error) {
+                    logger.error('NOTIFICATIONS', `Failed to send via ${channelName}:`, error);
+                }
+            }
+        });
+        
+        // Store persistent notifications
+        if (notification.persistent) {
+            this.storePersistentNotification(notification);
+        }
+    }
+    
+    /**
+     * Start notification processor
+     */
+    startNotificationProcessor() {
+        setInterval(() => {
+            while (this.notificationSystem.queue.length > 0) {
+                const notification = this.notificationSystem.queue.shift();
+                this.processNotification(notification);
+            }
+        }, 1000);
+    }
+    
+    /**
+     * Subscribe to module events for notifications
+     */
+    subscribeToModuleEvents() {
+        // Signal generator events
+        if (this.signalGenerator) {
+            this.signalGenerator.on('signal', (signal) => {
+                const handler = this.notificationSystem.handlers.get('TRADE_SIGNAL');
+                if (handler) handler(signal);
+            });
+        }
+        
+        // Risk manager events
+        if (this.trader?.riskManager) {
+            this.trader.riskManager.on('risk-alert', (alert) => {
+                const handler = this.notificationSystem.handlers.get('RISK_ALERT');
+                if (handler) handler(alert);
+            });
+            
+            this.trader.riskManager.on('emergency', (emergency) => {
+                const handler = this.notificationSystem.handlers.get('EMERGENCY');
+                if (handler) handler(emergency);
+            });
+        }
+        
+        // Position manager events
+        if (this.trader?.positionManager) {
+            this.trader.positionManager.on('position-opened', (position) => {
+                const handler = this.notificationSystem.handlers.get('POSITION_UPDATE');
+                if (handler) handler({ ...position, action: 'opened' });
+            });
+            
+            this.trader.positionManager.on('position-closed', (position) => {
+                const handler = this.notificationSystem.handlers.get('POSITION_UPDATE');
+                if (handler) handler({ ...position, action: 'closed' });
+            });
+        }
+        
+        // Income generator events
+        if (this.trader?.incomeGenerator) {
+            this.trader.incomeGenerator.on('milestoneAchieved', (milestone) => {
+                const handler = this.notificationSystem.handlers.get('MILESTONE');
+                if (handler) handler(milestone);
+            });
+        }
+    }
+    
+    /**
+     * Get notification icon based on priority
+     */
+    getNotificationIcon(priority) {
+        const icons = {
+            'CRITICAL': '🚨',
+            'HIGH': '⚠️',
+            'MEDIUM': '📢',
+            'LOW': 'ℹ️'
+        };
+        return icons[priority] || '📌';
+    }
+    
+    /**
+     * Store persistent notification
+     */
+    async storePersistentNotification(notification) {
+        try {
+            const filepath = path.join(__dirname, '..', 'logs', 'persistent_notifications.json');
+            let notifications = [];
+            
+            try {
+                const existing = await fs.readFile(filepath, 'utf8');
+                notifications = JSON.parse(existing);
+            } catch (error) {
+                // File doesn't exist yet
+            }
+            
+            notifications.push(notification);
+            
+            // Keep only last 100 persistent notifications
+            if (notifications.length > 100) {
+                notifications = notifications.slice(-100);
+            }
+            
+            await fs.writeFile(filepath, JSON.stringify(notifications, null, 2));
+        } catch (error) {
+            logger.error('NOTIFICATIONS', 'Failed to store persistent notification:', error);
+        }
+    }
+    
+    /**
+     * Get notification history
+     */
+    async getNotificationHistory(filters = {}) {
+        const { type, priority, since, limit = 50 } = filters;
+        
+        try {
+            const filepath = path.join(__dirname, '..', 'logs', 'notifications.log');
+            const content = await fs.readFile(filepath, 'utf8');
+            const lines = content.trim().split('\n');
+            
+            let notifications = lines.map(line => {
+                try {
+                    return JSON.parse(line);
+                } catch {
+                    return null;
+                }
+            }).filter(n => n !== null);
+            
+            // Apply filters
+            if (type) {
+                notifications = notifications.filter(n => n.type === type);
+            }
+            
+            if (priority) {
+                notifications = notifications.filter(n => n.priority === priority);
+            }
+            
+            if (since) {
+                const sinceDate = new Date(since);
+                notifications = notifications.filter(n => new Date(n.timestamp) > sinceDate);
+            }
+            
+            // Sort by timestamp descending and limit
+            notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            
+            return notifications.slice(0, limit);
+            
+        } catch (error) {
+            logger.error('NOTIFICATIONS', 'Failed to get notification history:', error);
+            return [];
         }
     }
 }
