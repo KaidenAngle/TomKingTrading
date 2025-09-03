@@ -5,6 +5,7 @@
  */
 
 const DEBUG = process.env.NODE_ENV !== 'production';
+const { SectorRotationTracker } = require('./sectorRotationTracker');
 
 /**
  * Correlation Groups Definition (PDF Page 12)
@@ -736,13 +737,15 @@ class ExitManager {
 
 /**
  * Main Position Manager Class
- * Orchestrates all position management functions
+ * Orchestrates all position management functions with enhanced sector rotation tracking
  */
 class PositionManager {
-  constructor() {
+  constructor(api = null) {
     this.correlationTracker = new CorrelationTracker();
+    this.sectorTracker = new SectorRotationTracker(api);
     this.positions = [];
     this.lastUpdate = null;
+    this.api = api;
   }
   
   updatePositions(positions) {
@@ -805,13 +808,238 @@ class PositionManager {
       pos.exitEvaluation.urgentAction
     );
   }
+
+  /**
+   * Get enhanced sector correlation analysis
+   */
+  async getEnhancedSectorAnalysis() {
+    try {
+      const sectorAnalysis = await this.sectorTracker.getCompleteSectorAnalysis();
+      const enhancedCorrelation = this.sectorTracker.checkEnhancedCorrelationLimits(this.positions);
+      
+      return {
+        sectorRotation: sectorAnalysis,
+        enhancedCorrelation: enhancedCorrelation,
+        riskAssessment: this.assessSectorBasedRisk(sectorAnalysis, enhancedCorrelation),
+        tradingImplications: this.generateSectorTradingImplications(sectorAnalysis),
+        timestamp: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      console.warn('Enhanced sector analysis failed:', error.message);
+      return {
+        sectorRotation: null,
+        enhancedCorrelation: { violations: [], overallRisk: 'UNKNOWN' },
+        riskAssessment: { level: 'UNKNOWN', message: 'Analysis unavailable' },
+        tradingImplications: []
+      };
+    }
+  }
+
+  /**
+   * Assess risk based on sector rotation and correlation
+   */
+  assessSectorBasedRisk(sectorAnalysis, enhancedCorrelation) {
+    let overallRisk = 'LOW';
+    const riskFactors = [];
+    
+    if (enhancedCorrelation.violations.length > 0) {
+      const criticalViolations = enhancedCorrelation.violations.filter(v => v.severity === 'CRITICAL');
+      if (criticalViolations.length > 0) {
+        overallRisk = 'CRITICAL';
+        riskFactors.push(`${criticalViolations.length} critical sector concentration violations`);
+      } else {
+        overallRisk = 'HIGH';
+        riskFactors.push(`${enhancedCorrelation.violations.length} sector concentration warnings`);
+      }
+    }
+    
+    if (sectorAnalysis && sectorAnalysis.current) {
+      const riskLevel = sectorAnalysis.current.riskAssessment.level;
+      if (riskLevel === 'HIGH') {
+        overallRisk = overallRisk === 'CRITICAL' ? 'CRITICAL' : 'HIGH';
+        riskFactors.push('High sector rotation risk detected');
+      }
+      
+      if (sectorAnalysis.current.rotationType === 'RISK_OFF_DEFENSIVE') {
+        overallRisk = overallRisk === 'CRITICAL' ? 'CRITICAL' : 'HIGH';
+        riskFactors.push('Risk-off market regime detected');
+      }
+      
+      if (sectorAnalysis.current.correlationBreakdown.detected) {
+        riskFactors.push(`${sectorAnalysis.current.correlationBreakdown.count} sector correlation breakdowns`);
+      }
+    }
+    
+    return {
+      level: overallRisk,
+      factors: riskFactors,
+      message: this.getSectorRiskMessage(overallRisk, riskFactors),
+      bpAdjustment: this.getSectorBPAdjustment(overallRisk),
+      actionRequired: overallRisk === 'CRITICAL' || overallRisk === 'HIGH'
+    };
+  }
+
+  /**
+   * Get sector risk message
+   */
+  getSectorRiskMessage(riskLevel, factors) {
+    switch (riskLevel) {
+      case 'CRITICAL':
+        return `🚨 CRITICAL SECTOR RISK: ${factors.join(', ')} - Emergency reduction required`;
+      case 'HIGH':
+        return `⚠️ HIGH SECTOR RISK: ${factors.join(', ')} - Reduce exposure`;
+      case 'MODERATE':
+        return `📊 MODERATE SECTOR RISK: ${factors.join(', ')} - Monitor closely`;
+      default:
+        return '✅ Normal sector risk environment';
+    }
+  }
+
+  /**
+   * Get BP adjustment based on sector risk
+   */
+  getSectorBPAdjustment(riskLevel) {
+    switch (riskLevel) {
+      case 'CRITICAL': return -40; // 40% BP reduction
+      case 'HIGH': return -25;     // 25% BP reduction
+      case 'MODERATE': return -10; // 10% BP reduction
+      default: return 0;           // No adjustment
+    }
+  }
+
+  /**
+   * Generate trading implications from sector analysis
+   */
+  generateSectorTradingImplications(sectorAnalysis) {
+    const implications = [];
+    
+    if (!sectorAnalysis || !sectorAnalysis.current) {
+      return implications;
+    }
+    
+    const current = sectorAnalysis.current;
+    
+    // Sector leadership implications
+    current.leaders.forEach(leader => {
+      if (leader.relativePerformance > 1.5) {
+        implications.push({
+          type: 'SECTOR_OPPORTUNITY',
+          sector: leader.sector,
+          ticker: leader.ticker,
+          action: 'CONSIDER_EXPOSURE',
+          reason: `Leading sector with ${leader.relativePerformance.toFixed(2)}% outperformance`,
+          impact: 'POSITIVE',
+          priority: 'HIGH'
+        });
+      }
+    });
+    
+    // Sector weakness implications
+    current.laggards.forEach(laggard => {
+      if (laggard.relativePerformance < -1.5) {
+        implications.push({
+          type: 'SECTOR_AVOIDANCE',
+          sector: laggard.sector,
+          ticker: laggard.ticker,
+          action: 'AVOID_NEW_EXPOSURE',
+          reason: `Weak sector with ${laggard.relativePerformance.toFixed(2)}% underperformance`,
+          impact: 'NEGATIVE',
+          priority: 'MEDIUM'
+        });
+      }
+    });
+    
+    // Rotation type implications
+    if (current.rotationType === 'RISK_OFF_DEFENSIVE') {
+      implications.push({
+        type: 'MARKET_REGIME_SHIFT',
+        action: 'REDUCE_RISK_EXPOSURE',
+        reason: 'Defensive sector rotation indicates risk-off environment',
+        impact: 'CAUTION',
+        priority: 'HIGH'
+      });
+    } else if (current.rotationType === 'RISK_ON_GROWTH') {
+      implications.push({
+        type: 'MARKET_REGIME_SHIFT',
+        action: 'FAVOR_GROWTH_SECTORS',
+        reason: 'Growth sector leadership indicates risk-on environment',
+        impact: 'OPPORTUNITY',
+        priority: 'MEDIUM'
+      });
+    }
+    
+    return implications;
+  }
+
+  /**
+   * Check if a new position would violate enhanced sector limits
+   */
+  async canAddPositionWithSectorCheck(ticker, phase = 1) {
+    // Basic correlation check
+    const basicCheck = this.canAddPosition(ticker, phase);
+    
+    if (!basicCheck.allowed) {
+      return basicCheck;
+    }
+    
+    // Enhanced sector check
+    try {
+      const sector = this.sectorTracker.getSectorForTicker(ticker);
+      const sectorInfo = this.sectorTracker.sectorGroups[sector];
+      
+      if (sectorInfo) {
+        const currentSectorPositions = this.positions.filter(pos => 
+          this.sectorTracker.getSectorForTicker(pos.ticker) === sector
+        ).length;
+        
+        if (currentSectorPositions >= sectorInfo.maxPositions) {
+          return {
+            allowed: false,
+            reason: `Sector ${sector} at maximum (${currentSectorPositions}/${sectorInfo.maxPositions})`,
+            action: 'Close existing position in this sector first',
+            sectorLimited: true
+          };
+        }
+      }
+      
+      // Get current sector analysis
+      const sectorAnalysis = await this.sectorTracker.getCompleteSectorAnalysis();
+      const sectorData = sectorAnalysis.current.rawData[ticker];
+      
+      if (sectorData && sectorData.relativePerformance < -2.0) {
+        return {
+          allowed: true,
+          reason: 'Position allowed but sector is underperforming',
+          warning: `${ticker} sector underperforming by ${sectorData.relativePerformance.toFixed(2)}%`,
+          recommendation: 'Consider waiting for sector strength or reduce position size'
+        };
+      }
+      
+      return {
+        allowed: true,
+        reason: 'Position allowed - no sector restrictions',
+        sectorStatus: sectorData ? {
+          performance: sectorData.relativePerformance,
+          outperforming: sectorData.outperforming
+        } : null
+      };
+      
+    } catch (error) {
+      console.warn('Enhanced sector check failed:', error.message);
+      return basicCheck; // Fall back to basic check
+    }
+  }
   
-  // Generate comprehensive position report
-  generateReport() {
+  // Generate comprehensive position report with enhanced sector analysis
+  async generateReport() {
     const correlationStatus = this.getCorrelationStatus();
     const exitPlan = this.getExitPlan();
     const bpUsage = this.getCurrentBPUsage();
     const criticalPositions = this.getCriticalPositions();
+    
+    // Enhanced sector analysis
+    const enhancedSectorAnalysis = await this.getEnhancedSectorAnalysis();
     
     return {
       timestamp: new Date().toISOString(),
@@ -822,9 +1050,11 @@ class PositionManager {
           this.positions.reduce((sum, pos) => sum + pos.healthScore.score, 0) / 
           (this.positions.length || 1)
         ),
-        totalBPUsage: bpUsage.totalBP
+        totalBPUsage: bpUsage.totalBP,
+        sectorRiskLevel: enhancedSectorAnalysis.riskAssessment.level
       },
       correlationStatus,
+      enhancedSectorAnalysis,
       exitPlan,
       bpUsage,
       criticalPositions: criticalPositions.map(pos => ({
@@ -833,11 +1063,11 @@ class PositionManager {
         issue: pos.exitEvaluation.primaryExit?.message || 'Health score critical',
         action: pos.exitEvaluation.primaryExit?.action || pos.healthScore.primaryAction
       })),
-      recommendations: this.generateRecommendations(correlationStatus, exitPlan, bpUsage)
+      recommendations: this.generateRecommendations(correlationStatus, exitPlan, bpUsage, enhancedSectorAnalysis)
     };
   }
   
-  generateRecommendations(correlationStatus, exitPlan, bpUsage) {
+  generateRecommendations(correlationStatus, exitPlan, bpUsage, enhancedSectorAnalysis) {
     const recommendations = [];
     
     // Correlation warnings
@@ -860,6 +1090,34 @@ class PositionManager {
       });
     }
     
+    // Enhanced sector risk warnings
+    if (enhancedSectorAnalysis && enhancedSectorAnalysis.riskAssessment.actionRequired) {
+      recommendations.push({
+        type: 'ENHANCED_SECTOR_RISK',
+        priority: enhancedSectorAnalysis.riskAssessment.level === 'CRITICAL' ? 'URGENT' : 'HIGH',
+        message: enhancedSectorAnalysis.riskAssessment.message,
+        action: 'SECTOR_RISK_MANAGEMENT',
+        bpAdjustment: enhancedSectorAnalysis.riskAssessment.bpAdjustment
+      });
+    }
+    
+    // Sector trading implications
+    if (enhancedSectorAnalysis && enhancedSectorAnalysis.tradingImplications.length > 0) {
+      const highPriorityImplications = enhancedSectorAnalysis.tradingImplications.filter(
+        impl => impl.priority === 'HIGH'
+      );
+      
+      if (highPriorityImplications.length > 0) {
+        recommendations.push({
+          type: 'SECTOR_OPPORTUNITY',
+          priority: 'MEDIUM',
+          message: `${highPriorityImplications.length} high-priority sector opportunities identified`,
+          action: 'REVIEW_SECTOR_IMPLICATIONS',
+          details: highPriorityImplications
+        });
+      }
+    }
+    
     // Exit plan recommendations
     if (exitPlan.immediate.length > 0) {
       recommendations.push({
@@ -870,12 +1128,15 @@ class PositionManager {
       });
     }
     
-    // BP optimization
-    if (bpUsage.totalBP < 40) {
+    // BP optimization (adjusted for sector risk)
+    const sectorAdjustedBP = enhancedSectorAnalysis ? 
+      Math.max(20, 65 + enhancedSectorAnalysis.riskAssessment.bpAdjustment) : 65;
+    
+    if (bpUsage.totalBP < sectorAdjustedBP - 20) {
       recommendations.push({
         type: 'BP_UNDERUTILIZED',
         priority: 'MEDIUM',
-        message: `BP usage at ${bpUsage.totalBP}% - consider adding positions`,
+        message: `BP usage at ${bpUsage.totalBP}% - consider adding positions (sector-adjusted target: ${sectorAdjustedBP}%)`,
         action: 'OPTIMIZE_BP_USAGE'
       });
     }

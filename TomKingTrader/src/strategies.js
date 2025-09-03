@@ -4,10 +4,12 @@
  */
 
 const { GreeksCalculator } = require('./greeksCalculator');
+const { VIXTermStructureAnalyzer } = require('./vixTermStructure');
 
 class TradingStrategies {
-    constructor() {
+    constructor(api = null) {
         this.greeksCalc = new GreeksCalculator();
+        this.vixAnalyzer = new VIXTermStructureAnalyzer(api);
         this.strategies = this.initializeStrategies();
     }
 
@@ -1053,15 +1055,160 @@ class TradingStrategies {
      */
 
     /**
-     * Master strategy analyzer - runs all strategies
+     * Get comprehensive VIX term structure analysis for strategy decisions
      */
-    analyzeAllStrategies(marketData, accountData, currentDate = null) {
+    async getVIXTermStructureAnalysis() {
+        try {
+            const analysis = await this.vixAnalyzer.getCompleteAnalysis();
+            return analysis;
+        } catch (error) {
+            console.warn('VIX term structure analysis failed, using basic VIX data:', error.message);
+            return {
+                current: {
+                    rawData: { VIX: { price: 16 } },
+                    regime: 'NORMAL',
+                    structureType: 'NORMAL_CONTANGO',
+                    signals: [],
+                    warnings: []
+                },
+                recommendation: {
+                    action: 'NORMAL_OPERATIONS',
+                    confidence: 50,
+                    suggestedBPUsage: { suggested: 65 }
+                }
+            };
+        }
+    }
+
+    /**
+     * Enhanced VIX-based strategy filtering using term structure analysis
+     */
+    async applyVIXTermStructureFilters(strategies, accountData) {
+        try {
+            const vixAnalysis = await this.getVIXTermStructureAnalysis();
+            const vixLevel = vixAnalysis.current.rawData.VIX?.price || 16;
+            const regime = vixAnalysis.current.regime;
+            const structureType = vixAnalysis.current.structureType;
+            const signals = vixAnalysis.current.signals || [];
+            const warnings = vixAnalysis.current.warnings || [];
+            
+            const filteredStrategies = [];
+            const vixWarnings = [];
+            
+            for (const strategy of strategies) {
+                let keepStrategy = true;
+                let adjustedScore = strategy.signals?.[0]?.score || 50;
+                
+                // Apply regime-based filtering
+                switch (regime) {
+                    case 'EXTREMELY_LOW':
+                        if (['STRANGLE', 'LT112'].includes(strategy.strategy)) {
+                            adjustedScore -= 20; // Reduce premium selling appeal
+                            vixWarnings.push(`${strategy.strategy}: Reduced appeal in extremely low VIX (${vixLevel})`);
+                        }
+                        break;
+                        
+                    case 'EXTREME':
+                        if (['0DTE', 'BUTTERFLY'].includes(strategy.strategy)) {
+                            keepStrategy = false;
+                            vixWarnings.push(`${strategy.strategy}: Suspended in extreme VIX (${vixLevel})`);
+                        } else {
+                            adjustedScore -= 30; // High risk environment
+                        }
+                        break;
+                        
+                    case 'HIGH':
+                        if (strategy.strategy === 'IPMCC') {
+                            adjustedScore -= 15; // Directional risk higher
+                        }
+                        break;
+                        
+                    case 'ELEVATED':
+                        // Generally good for premium selling
+                        if (['STRANGLE', 'LT112'].includes(strategy.strategy)) {
+                            adjustedScore += 10;
+                        }
+                        break;
+                }
+                
+                // Apply structure type adjustments
+                switch (structureType) {
+                    case 'BACKWARDATION':
+                        // Excellent for premium selling
+                        if (['STRANGLE', 'LT112', '0DTE'].includes(strategy.strategy)) {
+                            adjustedScore += 15;
+                            vixWarnings.push(`${strategy.strategy}: Enhanced by backwardation structure`);
+                        }
+                        break;
+                        
+                    case 'SHORT_TERM_INVERSION':
+                        // Potential volatility spike coming
+                        if (['0DTE', 'BUTTERFLY'].includes(strategy.strategy)) {
+                            adjustedScore -= 20;
+                            vixWarnings.push(`${strategy.strategy}: Caution due to short-term VIX inversion`);
+                        }
+                        break;
+                        
+                    case 'STEEP_CONTANGO':
+                        // Great premium decay environment
+                        if (['STRANGLE', 'LT112'].includes(strategy.strategy)) {
+                            adjustedScore += 10;
+                            vixWarnings.push(`${strategy.strategy}: Favorable contango environment`);
+                        }
+                        break;
+                }
+                
+                // Apply critical signal filters
+                for (const signal of signals) {
+                    if (signal.severity === 'CRITICAL') {
+                        if (signal.action === 'EMERGENCY_REDUCTION') {
+                            adjustedScore -= 50; // Major reduction
+                            keepStrategy = false;
+                            vixWarnings.push(`ALL STRATEGIES: Emergency reduction recommended - ${signal.message}`);
+                        }
+                    }
+                }
+                
+                // Update strategy with adjusted scoring
+                if (keepStrategy && adjustedScore > 25) { // Minimum threshold after adjustments
+                    if (strategy.signals?.[0]) {
+                        strategy.signals[0].score = Math.round(adjustedScore);
+                        strategy.signals[0].vixAdjustment = Math.round(adjustedScore - (strategy.signals[0].originalScore || adjustedScore));
+                    }
+                    filteredStrategies.push(strategy);
+                }
+            }
+            
+            return {
+                strategies: filteredStrategies,
+                vixAnalysis,
+                vixWarnings,
+                recommendedBPUsage: vixAnalysis.recommendation.suggestedBPUsage.suggested
+            };
+            
+        } catch (error) {
+            console.warn('VIX term structure filtering failed:', error.message);
+            return {
+                strategies,
+                vixAnalysis: null,
+                vixWarnings: ['VIX term structure analysis unavailable'],
+                recommendedBPUsage: 65
+            };
+        }
+    }
+
+    /**
+     * Master strategy analyzer - runs all strategies with VIX term structure analysis
+     */
+    async analyzeAllStrategies(marketData, accountData, currentDate = null) {
         const results = {
             timestamp: (currentDate || new Date()).toISOString(),
             account: accountData,
             availableStrategies: [],
             recommendations: [],
-            warnings: []
+            warnings: [],
+            vixAnalysis: null,
+            recommendedBPUsage: 65
         };
 
         // FIXED: Pass currentDate to all strategy analyzers for backtesting
@@ -1080,17 +1227,25 @@ class TradingStrategies {
         }
         
         if (accountData.phase >= 3) {
-            // Add Butterflies, Diagonals
+            results.availableStrategies.push(this.analyzeButterfly(marketData, accountData, currentDate));
+            // Add Diagonals
         }
         
         if (accountData.phase >= 4) {
             // Add Box Spreads, Enhanced Optimizations
         }
 
+        // Apply VIX term structure analysis and filtering
+        const vixResults = await this.applyVIXTermStructureFilters(results.availableStrategies, accountData);
+        results.availableStrategies = vixResults.strategies;
+        results.vixAnalysis = vixResults.vixAnalysis;
+        results.warnings.push(...vixResults.vixWarnings);
+        results.recommendedBPUsage = vixResults.recommendedBPUsage;
+
         // Filter for tradeable strategies
         const tradeableStrategies = results.availableStrategies.filter(s => s.canTrade);
         
-        // Sort by expected return or score
+        // Sort by expected return or score (now VIX-adjusted)
         tradeableStrategies.sort((a, b) => {
             const scoreA = a.signals[0]?.score || 0;
             const scoreB = b.signals[0]?.score || 0;
@@ -1101,15 +1256,37 @@ class TradingStrategies {
         if (tradeableStrategies.length > 0) {
             results.recommendations = tradeableStrategies.slice(0, 3); // Top 3
         } else {
-            results.warnings.push('No strategies meet entry criteria today');
+            results.warnings.push('No strategies meet entry criteria after VIX analysis');
         }
 
-        // Add risk warnings based on market conditions - FIXED: More realistic thresholds
-        const vixLevel = (marketData.VIX?.currentLevel) || (marketData.VIX?.currentPrice) || 16;
-        if (vixLevel > 35) {
-            results.warnings.push(`VIX >${35}: Reduce all position sizes by 50% (Current: ${vixLevel.toFixed(1)})`);
-        } else if (vixLevel > 25) {
-            results.warnings.push(`VIX elevated at ${vixLevel.toFixed(1)}: Monitor positions closely`);
+        // Add comprehensive VIX warnings
+        if (results.vixAnalysis) {
+            const vixLevel = results.vixAnalysis.current.rawData.VIX?.price || 16;
+            const regime = results.vixAnalysis.current.regime;
+            const structureType = results.vixAnalysis.current.structureType;
+            
+            // Add regime-based warnings
+            switch (regime) {
+                case 'EXTREME':
+                    results.warnings.push(`EXTREME VIX REGIME (${vixLevel.toFixed(1)}): Emergency protocols active - reduce all positions by 70%`);
+                    break;
+                case 'HIGH':
+                    results.warnings.push(`HIGH VIX REGIME (${vixLevel.toFixed(1)}): Elevated risk - reduce positions by 40%`);
+                    break;
+                case 'ELEVATED':
+                    results.warnings.push(`ELEVATED VIX (${vixLevel.toFixed(1)}): Good premium environment but monitor closely`);
+                    break;
+                case 'EXTREMELY_LOW':
+                    results.warnings.push(`EXTREMELY LOW VIX (${vixLevel.toFixed(1)}): Reduced premium environment - be selective`);
+                    break;
+            }
+            
+            // Add structure-based insights
+            if (structureType === 'BACKWARDATION') {
+                results.warnings.push(`VIX BACKWARDATION: Excellent environment for premium selling strategies`);
+            } else if (structureType === 'SHORT_TERM_INVERSION') {
+                results.warnings.push(`VIX SHORT-TERM INVERSION: Potential volatility spike within 1-2 weeks`);
+            }
         }
 
         return results;

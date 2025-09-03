@@ -203,6 +203,9 @@ class DataManager {
                 if (quotes && quotes[apiSymbol]) {
                     const data = this.parseQuoteData(quotes[apiSymbol], ticker);
                     
+                    // Enhance with real IV rank/percentile from market-metrics API
+                    await this.enhanceWithIVMetrics(data, ticker);
+                    
                     // Special debug for VIX
                     if (ticker === 'VIX') {
                         logger.debug('DATA', `VIX parsed data:`, data);
@@ -290,9 +293,50 @@ class DataManager {
             ema21: parseFloat(apiData['21-day-ema'] || currentPrice * 0.997),
             vwap: parseFloat(apiData.vwap || currentPrice),
             iv: parseFloat(apiData['implied-volatility'] || this.getDefaultIV(ticker)),
-            ivRank: parseFloat(apiData['iv-rank'] || Math.random() * 100),
-            ivPercentile: parseFloat(apiData['iv-percentile'] || Math.random() * 100)
+            ivRank: parseFloat(apiData['iv-rank'] || 0), // No random fallback - use API or 0
+            ivPercentile: parseFloat(apiData['iv-percentile'] || 0) // No random fallback - use API or 0
         };
+    }
+
+    /**
+     * Enhance market data with real IV rank/percentile from TastyTrade market-metrics API
+     */
+    async enhanceWithIVMetrics(data, ticker) {
+        try {
+            // Skip VIX and futures - IV rank not applicable
+            if (ticker === 'VIX' || this.isFuturesSymbol(ticker)) {
+                return;
+            }
+            
+            // Only enhance if we have zero values (meaning no data from quotes)
+            if (data.ivRank > 0 && data.ivPercentile > 0) {
+                return; // Already has real data
+            }
+            
+            // Fetch from market-metrics API
+            if (this.api && typeof this.api.getIVRank === 'function') {
+                try {
+                    const ivRank = await this.api.getIVRank(ticker);
+                    const ivPercentile = await this.api.getIVPercentile(ticker);
+                    
+                    if (ivRank !== null && ivRank !== undefined) {
+                        data.ivRank = ivRank;
+                        logger.debug('DATA', `✅ Enhanced ${ticker} with real IV rank: ${ivRank}%`);
+                    }
+                    
+                    if (ivPercentile !== null && ivPercentile !== undefined) {
+                        data.ivPercentile = ivPercentile;
+                        logger.debug('DATA', `✅ Enhanced ${ticker} with real IV percentile: ${ivPercentile}%`);
+                    }
+                    
+                } catch (error) {
+                    logger.debug('DATA', `Could not enhance ${ticker} with IV metrics:`, error.message);
+                }
+            }
+            
+        } catch (error) {
+            logger.warn('DATA', `IV metrics enhancement failed for ${ticker}`, error);
+        }
     }
     
     /**

@@ -601,12 +601,34 @@ class August5DisasterPrevention {
       indicators.warningCount++;
     }
     
-    // Term structure inversion (short-term vol > long-term)
+    // VIX Term structure analysis (enhanced with VIXTermStructureAnalyzer)
     const vix9Day = marketData.VIX9D || vix;
     const vix30Day = marketData.VIX || vix;
     if (vix9Day > vix30Day) {
       indicators.termStructureInversion = true;
       indicators.warningCount++;
+    }
+    
+    // Enhanced term structure analysis if VIXTermStructureAnalyzer is available
+    if (this.vixAnalyzer) {
+      try {
+        const termStructure = this.vixAnalyzer.getTermStructureSummary();
+        if (termStructure) {
+          indicators.vixRegime = termStructure.regime;
+          indicators.vixStructureType = termStructure.structureType;
+          indicators.recommendedBPUsage = termStructure.suggestedBP;
+          
+          // Override basic term structure with advanced analysis
+          if (termStructure.structureType === 'SHORT_TERM_INVERSION' || 
+              termStructure.structureType === 'FULL_BACKWARDATION') {
+            indicators.termStructureInversion = true;
+            indicators.warningCount++;
+          }
+        }
+      } catch (error) {
+        // Fallback to basic analysis if advanced fails
+        console.debug('Advanced VIX analysis unavailable, using basic term structure');
+      }
     }
     
     // Volume spike detection

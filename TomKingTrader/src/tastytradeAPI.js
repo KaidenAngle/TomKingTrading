@@ -2473,7 +2473,7 @@ class MarketDataCollector {
     return defaultIVs[ticker] || 20;
   }
   
-  generateBasicTickerData(ticker) {
+  async generateBasicTickerData(ticker) {
     // Basic prices for different asset classes
     const basePrices = {
       // Futures
@@ -2491,6 +2491,32 @@ class MarketDataCollector {
     
     logger.warn('API', `🔧 ${ticker} using generated basic data`, { price: currentPrice });
     
+    // Attempt to get real IV rank and percentile from TastyTrade API
+    let ivRank = 0;
+    let ivPercentile = 0;
+    let source = 'Generated_Basic_Data';
+    
+    try {
+      // Try to get real IV metrics from market-metrics API
+      const ivMetrics = await this.batchGetIVMetrics([ticker]);
+      
+      if (ivMetrics[ticker] && !ivMetrics[ticker].error) {
+        ivRank = ivMetrics[ticker].ivRank || 0;
+        ivPercentile = ivMetrics[ticker].ivPercentile || 0;
+        source = 'Generated_Basic_Data_with_Real_IV';
+        
+        logger.info('API', `✅ Real IV metrics retrieved for ${ticker}`, {
+          ivRank: `${ivRank}%`,
+          ivPercentile: `${ivPercentile}%`
+        });
+      } else {
+        logger.warn('API', `⚠️ No IV metrics available for ${ticker}, using defaults`);
+      }
+    } catch (error) {
+      logger.warn('API', `Failed to get real IV metrics for ${ticker}`, error.message);
+      // Continue with default values (ivRank = 0, ivPercentile = 0)
+    }
+    
     return {
       currentPrice,
       openPrice: basePrice,
@@ -2502,9 +2528,9 @@ class MarketDataCollector {
       high: parseFloat((currentPrice * 1.005).toFixed(2)),
       low: parseFloat((currentPrice * 0.995).toFixed(2)),
       iv: this.getDefaultIV(ticker),
-      ivRank: 0, // TODO: Must fetch from TastyTrade API
-      ivPercentile: 0, // TODO: Must fetch from TastyTrade API
-      source: 'Generated_Basic_Data'
+      ivRank: ivRank, // Now uses real TastyTrade API data when available
+      ivPercentile: ivPercentile, // Now uses real TastyTrade API data when available
+      source: source
     };
   }
   
@@ -2992,6 +3018,170 @@ class OrderBuilder {
     } catch (error) {
       logger.error('API', 'Failed to calculate strangle profit probability', error);
       return 50; // Default 50% if calculation fails
+    }
+  }
+
+  /**
+   * Get market metrics including IV rank and percentile from TastyTrade API
+   * Connects directly to /market-metrics endpoint
+   */
+  async getMarketMetrics(symbols) {
+    try {
+      if (!symbols || symbols.length === 0) {
+        throw new Error('No symbols provided for market metrics');
+      }
+
+      // Convert array to comma-separated string if needed
+      const symbolString = Array.isArray(symbols) ? symbols.join(',') : symbols;
+      
+      logger.debug('API', `Fetching market metrics for symbols: ${symbolString}`);
+      
+      const response = await this.request(`/market-metrics?symbols=${encodeURIComponent(symbolString)}`);
+      
+      if (!response || !response.data) {
+        throw new Error('Invalid market metrics response');
+      }
+
+      const metrics = {};
+      
+      // Process each symbol's market metrics
+      response.data.items.forEach(item => {
+        if (item.symbol) {
+          metrics[item.symbol] = {
+            symbol: item.symbol,
+            ivIndex: parseFloat(item['implied-volatility-index'] || 0),
+            ivIndex5DayChange: parseFloat(item['implied-volatility-index-5-day-change'] || 0),
+            ivRank: parseFloat(item['implied-volatility-rank'] || 0),
+            ivPercentile: parseFloat(item['implied-volatility-percentile'] || 0),
+            liquidity: parseFloat(item.liquidity || 0),
+            liquidityRank: parseFloat(item['liquidity-rank'] || 0),
+            liquidityRating: parseInt(item['liquidity-rating'] || 0),
+            optionExpirationIVs: item['option-expiration-implied-volatilities'] || [],
+            timestamp: new Date().toISOString(),
+            source: 'TastyTrade_Market_Metrics'
+          };
+        }
+      });
+
+      logger.info('API', `Market metrics retrieved for ${Object.keys(metrics).length} symbols`);
+      
+      return metrics;
+      
+    } catch (error) {
+      logger.error('API', 'Failed to get market metrics', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get IV rank for a specific symbol using TastyTrade market-metrics API
+   * Used throughout codebase for real IV rank data
+   */
+  async getIVRank(symbol, dateStr = null) {
+    try {
+      logger.debug('API', `Getting IV rank for ${symbol}`, { dateStr });
+      
+      // For historical data, we'd need a different endpoint
+      // Current market-metrics only provides current IV rank
+      if (dateStr) {
+        logger.warn('API', `Historical IV rank not available via market-metrics API for ${dateStr}, using current`);
+      }
+      
+      const marketMetrics = await this.getMarketMetrics([symbol]);
+      
+      if (!marketMetrics[symbol]) {
+        throw new Error(`No market metrics data found for ${symbol}`);
+      }
+      
+      const ivRank = marketMetrics[symbol].ivRank;
+      
+      logger.debug('API', `IV rank for ${symbol}: ${ivRank}%`);
+      
+      return ivRank;
+      
+    } catch (error) {
+      logger.error('API', `Failed to get IV rank for ${symbol}`, error);
+      
+      // Fallback: return null instead of random data (fail-safe approach)
+      return null;
+    }
+  }
+
+  /**
+   * Get IV percentile for a specific symbol using TastyTrade market-metrics API
+   * Used throughout codebase for real IV percentile data
+   */
+  async getIVPercentile(symbol, dateStr = null) {
+    try {
+      logger.debug('API', `Getting IV percentile for ${symbol}`, { dateStr });
+      
+      // For historical data, we'd need a different endpoint
+      if (dateStr) {
+        logger.warn('API', `Historical IV percentile not available via market-metrics API for ${dateStr}, using current`);
+      }
+      
+      const marketMetrics = await this.getMarketMetrics([symbol]);
+      
+      if (!marketMetrics[symbol]) {
+        throw new Error(`No market metrics data found for ${symbol}`);
+      }
+      
+      const ivPercentile = marketMetrics[symbol].ivPercentile;
+      
+      logger.debug('API', `IV percentile for ${symbol}: ${ivPercentile}%`);
+      
+      return ivPercentile;
+      
+    } catch (error) {
+      logger.error('API', `Failed to get IV percentile for ${symbol}`, error);
+      
+      // Fallback: return null instead of random data (fail-safe approach)
+      return null;
+    }
+  }
+
+  /**
+   * Batch fetch IV rank and percentile for multiple symbols
+   * More efficient than individual calls
+   */
+  async batchGetIVMetrics(symbols) {
+    try {
+      logger.debug('API', `Batch fetching IV metrics for ${symbols.length} symbols`);
+      
+      const marketMetrics = await this.getMarketMetrics(symbols);
+      
+      const results = {};
+      
+      symbols.forEach(symbol => {
+        if (marketMetrics[symbol]) {
+          results[symbol] = {
+            symbol: symbol,
+            ivRank: marketMetrics[symbol].ivRank,
+            ivPercentile: marketMetrics[symbol].ivPercentile,
+            ivIndex: marketMetrics[symbol].ivIndex,
+            ivIndex5DayChange: marketMetrics[symbol].ivIndex5DayChange,
+            timestamp: marketMetrics[symbol].timestamp
+          };
+        } else {
+          results[symbol] = {
+            symbol: symbol,
+            ivRank: null,
+            ivPercentile: null,
+            ivIndex: null,
+            ivIndex5DayChange: null,
+            timestamp: new Date().toISOString(),
+            error: 'No data available'
+          };
+        }
+      });
+      
+      logger.info('API', `Batch IV metrics completed for ${Object.keys(results).length} symbols`);
+      
+      return results;
+      
+    } catch (error) {
+      logger.error('API', 'Batch IV metrics fetch failed', error);
+      throw error;
     }
   }
 }
