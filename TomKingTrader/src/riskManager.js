@@ -1137,6 +1137,20 @@ class RiskManager {
   }
   
   /**
+   * Get correlation limit based on phase
+   */
+  getCorrelationLimit(phase) {
+    // Tom King's phase-based correlation limits
+    switch(phase) {
+      case 1: return 2; // Phase 1: Max 2 correlated positions
+      case 2: return 2; // Phase 2: Max 2 correlated positions
+      case 3: return 3; // Phase 3: Max 3 correlated positions
+      case 4: return 4; // Phase 4: Max 4 correlated positions
+      default: return 2;
+    }
+  }
+
+  /**
    * Check correlation limits for portfolio
    */
   checkCorrelationLimits(positions = []) {
@@ -1180,6 +1194,137 @@ class RiskManager {
       recommendation: violations.length > 0 ? 
         `Reduce positions in: ${violations.map(v => v.group).join(', ')}` :
         'Correlation limits within acceptable range'
+    };
+  }
+
+  /**
+   * Get position size based on VIX level
+   * Implements Tom King's VIX-based sizing
+   */
+  getPositionSizeByVIX(vixLevel, baseSize) {
+    const bpUsage = RiskManager.getMaxBPUsage(vixLevel);
+    
+    // Scale position size based on VIX
+    if (vixLevel < 15) {
+      return baseSize * 0.8; // Reduce size in low vol
+    } else if (vixLevel < 20) {
+      return baseSize * 1.0; // Normal size
+    } else if (vixLevel < 25) {
+      return baseSize * 1.2; // Increase in elevated vol
+    } else if (vixLevel < 30) {
+      return baseSize * 1.5; // Larger in high vol
+    } else {
+      return baseSize * 0.5; // Reduce in extreme vol
+    }
+  }
+
+  /**
+   * Check for defensive adjustment at 21 DTE
+   * Tom King's defensive management rule
+   */
+  checkDefensiveAdjustment(position) {
+    if (!position || !position.dte) return null;
+    
+    if (position.dte <= 21) {
+      const adjustments = [];
+      
+      // Check if position is challenged
+      if (position.pnlPercent < -10) {
+        adjustments.push({
+          action: 'ROLL',
+          reason: 'Position challenged at 21 DTE',
+          urgency: 'HIGH'
+        });
+      } else if (position.pnlPercent > 50) {
+        adjustments.push({
+          action: 'CLOSE',
+          reason: 'Take profit at 50% with 21 DTE',
+          urgency: 'MEDIUM'
+        });
+      } else {
+        adjustments.push({
+          action: 'MONITOR',
+          reason: 'Position within range at 21 DTE',
+          urgency: 'LOW'
+        });
+      }
+      
+      return adjustments;
+    }
+    
+    return null;
+  }
+
+  /**
+   * Check for volatility spike conditions
+   * Implements August 2024 crash prevention
+   */
+  checkVolatilitySpike(currentVIX, historicalVIX) {
+    const spikeThreshold = 1.5; // 50% spike
+    const absoluteThreshold = 30; // VIX > 30
+    
+    const isSpike = (currentVIX / historicalVIX) > spikeThreshold || 
+                    currentVIX > absoluteThreshold;
+    
+    if (isSpike) {
+      return {
+        detected: true,
+        severity: currentVIX > 40 ? 'EXTREME' : 'HIGH',
+        actions: [
+          'Reduce all positions by 50%',
+          'Close all 0DTE positions',
+          'Avoid new entries until VIX < 25',
+          'Implement correlation limits strictly'
+        ],
+        vixLevel: currentVIX,
+        spikeRatio: (currentVIX / historicalVIX).toFixed(2)
+      };
+    }
+    
+    return {
+      detected: false,
+      vixLevel: currentVIX
+    };
+  }
+
+  /**
+   * Monitor buying power usage
+   */
+  monitorBuyingPower(account) {
+    const bpUsed = account.buyingPowerUsed || 0;
+    const totalBP = account.buyingPower || account.netLiquidation || 0;
+    const usage = totalBP > 0 ? (bpUsed / totalBP) : 0;
+    
+    // Get VIX-based limit
+    const vixLevel = account.vixLevel || 20;
+    const maxUsage = RiskManager.getMaxBPUsage(vixLevel);
+    
+    return {
+      currentUsage: usage,
+      maxAllowed: maxUsage,
+      withinLimits: usage <= maxUsage,
+      availableBP: totalBP - bpUsed,
+      recommendation: usage > maxUsage ? 
+        `Reduce BP usage from ${(usage * 100).toFixed(1)}% to ${(maxUsage * 100).toFixed(1)}%` :
+        `BP usage OK: ${(usage * 100).toFixed(1)}% of ${(maxUsage * 100).toFixed(1)}% max`
+    };
+  }
+
+  /**
+   * Check max risk per trade (5% rule)
+   */
+  checkMaxRiskPerTrade(tradeRisk, accountValue) {
+    const maxRisk = accountValue * 0.05; // 5% max risk
+    const riskPercent = (tradeRisk / accountValue) * 100;
+    
+    return {
+      withinLimits: tradeRisk <= maxRisk,
+      tradeRisk,
+      maxRisk,
+      riskPercent,
+      recommendation: tradeRisk > maxRisk ?
+        `Reduce position size: ${riskPercent.toFixed(1)}% exceeds 5% limit` :
+        `Risk acceptable: ${riskPercent.toFixed(1)}% of account`
     };
   }
 }

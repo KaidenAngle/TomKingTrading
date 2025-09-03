@@ -50,7 +50,7 @@ class TradingStrategies {
             },
             'STRANGLE': {
                 name: 'Futures Strangles',
-                winRate: 72, // Tom King's verified win rate
+                winRate: 70, // Tom King's verified win rate
                 avgReturn: 15,
                 maxLoss: 200,
                 daysAllowed: ['Tuesday'],
