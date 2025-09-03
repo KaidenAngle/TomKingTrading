@@ -7,11 +7,10 @@
 
 const { EventEmitter } = require('events');
 const { getLogger } = require('./logger');
-const { MonthlyIncomeCalculator } = require('./monthlyIncomeCalculator');
-const { ThetaOptimizationEngine } = require('./thetaOptimizationEngine');
 
-class PerformanceMetrics {
+class PerformanceMetrics extends EventEmitter {
     constructor(options = {}) {
+        super();
         this.config = {
             riskFreeRate: options.riskFreeRate || 0.02, // 2% annual risk-free rate
             benchmarkSymbol: options.benchmarkSymbol || 'SPY',
@@ -21,10 +20,6 @@ class PerformanceMetrics {
         };
         
         this.logger = getLogger();
-        
-        // Initialize monthly income systems
-        this.monthlyIncomeCalculator = new MonthlyIncomeCalculator();
-        this.thetaOptimizationEngine = new ThetaOptimizationEngine();
     }
 
     /**
@@ -2882,6 +2877,9 @@ class TomKingTracker extends EventEmitter {
         });
         this.phaseProgression = new PhaseProgressionTracker(this.options.startingBalance);
         
+        // Create performance metrics instance for calculations
+        this.performanceMetrics = new PerformanceMetrics();
+        
         getLogger().info('TOM_KING_TRACKER', 'Tom King tracking system initialized');
     }
     
@@ -3436,9 +3434,9 @@ class TomKingTracker extends EventEmitter {
             },
             trades: todayTrades,
             positions: positions,
-            strategies: this.calculateStrategySpecificMetrics(todayTrades),
+            strategies: this.performanceMetrics.calculateStrategySpecificMetrics(todayTrades),
             vixRegime: this.getCurrentVIXRegime(),
-            recommendations: this.generateRecommendations(positions, balance)
+            recommendations: []  // Would need friday0DTE, buyingPower, phase objects
         };
         
         logger.info('REPORTING', 'Daily report generated', report.summary);
@@ -3482,14 +3480,14 @@ class TomKingTracker extends EventEmitter {
                 accountGrowth: balance.netLiq && weekPnL[0] ? 
                     ((balance.netLiq - weekPnL[0].capital) / weekPnL[0].capital) * 100 : 0
             },
-            strategies: this.calculateStrategySpecificMetrics(weekTrades),
+            strategies: this.performanceMetrics.calculateStrategySpecificMetrics(weekTrades),
             dailyBreakdown: weekPnL,
             tomKingMetrics: {
                 fridayZeroDTE: this.calculateFriday0DTEMetrics(weekTrades),
                 longTerm112: this.calculateLongTerm112Metrics(weekTrades),
                 strangles: this.calculateStrangleMetrics(weekTrades)
             },
-            riskMetrics: this.calculateRiskMetrics(weekPnL, balance.netLiq),
+            riskMetrics: this.performanceMetrics.calculateRiskMetrics(weekPnL, balance.netLiq),
             recommendations: this.generateWeeklyRecommendations(weekTrades, positions, balance)
         };
         
