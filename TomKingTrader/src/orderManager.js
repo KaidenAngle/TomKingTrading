@@ -1198,13 +1198,202 @@ class OrderManager {
   }
 
   /**
-   * Find optimal strikes (placeholder for API implementation)
+   * Find optimal strikes using Greeks-based selection
+   * Tom King methodology: Use delta for strike selection
    */
-  async findOptimalStrikes(ticker, strategy) {
-    // This would use real option chain data
+  async findOptimalStrikes(ticker, strategy, optionChain = null) {
+    try {
+      // Get option chain if not provided
+      if (!optionChain) {
+        optionChain = await this.api?.getOptionChain(ticker);
+      }
+      
+      if (!optionChain || optionChain.length === 0) {
+        logger.warn('ORDER', `No option chain available for ${ticker}`);
+        return { put: 'N/A', call: 'N/A' };
+      }
+      
+      // Get current price
+      const quote = await this.api?.getMarketData(ticker);
+      const currentPrice = quote?.last || quote?.price;
+      
+      if (!currentPrice) {
+        return { put: 'N/A', call: 'N/A' };
+      }
+      
+      // Define target deltas based on strategy
+      let targetPutDelta, targetCallDelta;
+      
+      switch(strategy) {
+        case '0DTE':
+        case 'STRANGLE':
+          // Tom King: 5-10 delta for strangles and 0DTE
+          targetPutDelta = -0.05;
+          targetCallDelta = 0.05;
+          break;
+          
+        case 'LT112':
+          // Tom King: 10 delta for Long-Term 112
+          targetPutDelta = -0.10;
+          targetCallDelta = 0.10;
+          break;
+          
+        case 'IRON_CONDOR':
+          // Tom King: 10-15 delta for Iron Condors
+          targetPutDelta = -0.10;
+          targetCallDelta = 0.10;
+          break;
+          
+        case 'BUTTERFLY':
+          // ATM for body, 20 delta for wings
+          targetPutDelta = -0.50; // ATM
+          targetCallDelta = 0.50;  // ATM
+          break;
+          
+        default:
+          // Default to 10 delta
+          targetPutDelta = -0.10;
+          targetCallDelta = 0.10;
+      }
+      
+      // Find optimal expiration (Friday for 0DTE, appropriate DTE for others)
+      const optimalExpiration = this.findOptimalExpiration(optionChain, strategy);
+      
+      if (!optimalExpiration) {
+        return { put: 'N/A', call: 'N/A' };
+      }
+      
+      // Find strikes closest to target delta
+      const strikes = this.findStrikesByDelta(
+        optimalExpiration.strikes,
+        targetPutDelta,
+        targetCallDelta,
+        currentPrice
+      );
+      
+      return {
+        put: strikes.putStrike,
+        call: strikes.callStrike,
+        putDelta: strikes.putDelta,
+        callDelta: strikes.callDelta,
+        expiration: optimalExpiration.expiration,
+        dte: optimalExpiration.dte
+      };
+      
+    } catch (error) {
+      logger.error('ORDER', 'Failed to find optimal strikes', error);
+      return { put: 'ERROR', call: 'ERROR' };
+    }
+  }
+  
+  /**
+   * Find optimal expiration based on strategy
+   */
+  findOptimalExpiration(optionChain, strategy) {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    
+    // Sort expirations by DTE
+    const expirations = optionChain
+      .map(exp => {
+        const expDate = new Date(exp.expiration);
+        const dte = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+        return { ...exp, dte, dayOfWeek: expDate.getDay() };
+      })
+      .filter(exp => exp.dte >= 0)
+      .sort((a, b) => a.dte - b.dte);
+    
+    if (expirations.length === 0) return null;
+    
+    let targetExp;
+    
+    switch(strategy) {
+      case '0DTE':
+        // Find today's expiration (must be Friday)
+        targetExp = expirations.find(exp => exp.dte === 0 && exp.dayOfWeek === 5);
+        break;
+        
+      case 'LT112':
+        // Find expiration around 112 DTE
+        targetExp = expirations.find(exp => exp.dte >= 105 && exp.dte <= 119) ||
+                   expirations.find(exp => exp.dte >= 90 && exp.dte <= 130);
+        break;
+        
+      case 'STRANGLE':
+        // Find 90 DTE for strangles
+        targetExp = expirations.find(exp => exp.dte >= 80 && exp.dte <= 100) ||
+                   expirations.find(exp => exp.dte >= 70 && exp.dte <= 110);
+        break;
+        
+      default:
+        // Default to 30-45 DTE
+        targetExp = expirations.find(exp => exp.dte >= 30 && exp.dte <= 45) ||
+                   expirations[Math.floor(expirations.length / 2)];
+    }
+    
+    return targetExp || expirations[0];
+  }
+  
+  /**
+   * Find strikes by target delta
+   */
+  findStrikesByDelta(strikes, targetPutDelta, targetCallDelta, currentPrice) {
+    let bestPutStrike = null;
+    let bestPutDelta = null;
+    let bestCallStrike = null;
+    let bestCallDelta = null;
+    let minPutDiff = Infinity;
+    let minCallDiff = Infinity;
+    
+    for (const strike of strikes) {
+      // Check put options
+      if (strike.put && strike.put.delta !== undefined) {
+        const deltaDiff = Math.abs(strike.put.delta - targetPutDelta);
+        if (deltaDiff < minPutDiff) {
+          minPutDiff = deltaDiff;
+          bestPutStrike = strike.strike;
+          bestPutDelta = strike.put.delta;
+        }
+      }
+      
+      // Check call options
+      if (strike.call && strike.call.delta !== undefined) {
+        const deltaDiff = Math.abs(strike.call.delta - targetCallDelta);
+        if (deltaDiff < minCallDiff) {
+          minCallDiff = deltaDiff;
+          bestCallStrike = strike.strike;
+          bestCallDelta = strike.call.delta;
+        }
+      }
+    }
+    
+    // Fallback to price-based selection if no Greeks available
+    if (!bestPutStrike || !bestCallStrike) {
+      const sortedStrikes = strikes
+        .map(s => s.strike)
+        .filter(s => typeof s === 'number')
+        .sort((a, b) => a - b);
+      
+      if (sortedStrikes.length > 0) {
+        // Put strike: ~5-10% below current price
+        const targetPutPrice = currentPrice * 0.93;
+        bestPutStrike = sortedStrikes.reduce((prev, curr) => 
+          Math.abs(curr - targetPutPrice) < Math.abs(prev - targetPutPrice) ? curr : prev
+        );
+        
+        // Call strike: ~5-10% above current price
+        const targetCallPrice = currentPrice * 1.07;
+        bestCallStrike = sortedStrikes.reduce((prev, curr) => 
+          Math.abs(curr - targetCallPrice) < Math.abs(prev - targetCallPrice) ? curr : prev
+        );
+      }
+    }
+    
     return {
-      put: 'TBD - Check 5-delta',
-      call: 'TBD - Check 5-delta'
+      putStrike: bestPutStrike || Math.floor(currentPrice * 0.93),
+      callStrike: bestCallStrike || Math.ceil(currentPrice * 1.07),
+      putDelta: bestPutDelta || targetPutDelta,
+      callDelta: bestCallDelta || targetCallDelta
     };
   }
 

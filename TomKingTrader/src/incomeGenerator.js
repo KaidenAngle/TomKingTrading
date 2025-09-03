@@ -87,14 +87,12 @@ class IncomeGenerator extends EventEmitter {
     
     /**
      * Determine account phase based on balance
+     * Uses masterController's centralized phase determination
      */
     determinePhase(balance) {
-        for (const [phase, limits] of Object.entries(this.phaseTargets)) {
-            if (balance >= limits.min && balance < limits.max) {
-                return parseInt(phase);
-            }
-        }
-        return 4; // Maximum phase
+        // Use centralized phase determination from config
+        const config = require('./config');
+        return config.ConfigHelpers.getPhaseFromAccountValue(balance);
     }
     
     /**
