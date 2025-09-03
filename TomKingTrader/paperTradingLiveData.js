@@ -1,331 +1,211 @@
 /**
- * Paper Trading Live Data Integration
- * Connects paper trading server to real market data for realistic simulation
+ * Paper Trading REAL Live Data Integration
+ * CRITICAL: Uses ONLY real market data - NO simulated fallbacks
+ * If real data is not available, the system MUST fail
  */
 
 const WebSocket = require('ws');
-const axios = require('axios');
 const EventEmitter = require('events');
+const { getLogger } = require('./src/logger');
 
-class PaperTradingLiveData extends EventEmitter {
-    constructor(tastyTradeAPI = null) {
+const logger = getLogger();
+
+class PaperTradingRealData extends EventEmitter {
+    constructor(tastyTradeAPI) {
         super();
+        
+        if (!tastyTradeAPI) {
+            throw new Error('CRITICAL: TastyTrade API is required for real data. Cannot proceed without API connection.');
+        }
+        
         this.api = tastyTradeAPI;
         this.marketData = {};
         this.optionChains = {};
-        this.vixLevel = 20; // Default VIX
+        this.vixLevel = null; // Must be fetched from real data
         this.updateInterval = 5000; // 5 second updates
         this.isConnected = false;
+        this.lastUpdateTime = null;
         
-        // Fallback data sources if API not available
-        this.dataProviders = {
-            yahoo: 'https://query1.finance.yahoo.com/v8/finance/quote',
-            alphavantage: process.env.ALPHA_VANTAGE_KEY,
-            iex: process.env.IEX_CLOUD_KEY
-        };
+        // Track data freshness
+        this.maxDataAge = 60000; // 1 minute max age for data
     }
 
     /**
-     * Start live data feed
+     * Start REAL live data feed
+     * Fails if cannot connect to real data
      */
     async startLiveDataFeed() {
-        console.log('🔴 Starting live data feed for paper trading...');
+        console.log('🔴 Starting REAL live data feed for paper trading...');
+        console.log('⚠️  CRITICAL: System will fail if real data not available');
         
-        // Try TastyTrade API first
-        if (this.api && this.api.isAuthenticated()) {
-            await this.connectTastyTrade();
-        } else {
-            // Fallback to free data sources
-            await this.connectFallbackData();
+        // Authenticate with TastyTrade
+        if (!this.api.isAuthenticated()) {
+            const authSuccess = await this.api.authenticate();
+            if (!authSuccess) {
+                throw new Error('CRITICAL: Cannot authenticate with TastyTrade API. Real data unavailable.');
+            }
         }
         
-        // Start update loop
-        this.startUpdateLoop();
+        // Verify we can get real market data
+        const testData = await this.api.getMarketData(['SPY']);
+        if (!testData || !testData.SPY) {
+            throw new Error('CRITICAL: Cannot retrieve real market data from TastyTrade. System cannot continue.');
+        }
+        
+        console.log('✅ Connected to TastyTrade API for REAL market data');
+        console.log(`   SPY Price: $${testData.SPY.last || testData.SPY.currentPrice}`);
+        
+        // Start update loop for real data only
+        this.startRealDataUpdateLoop();
         this.isConnected = true;
         
         return true;
     }
 
     /**
-     * Connect to TastyTrade for real data
+     * Get real market data from TastyTrade
+     * NO FALLBACKS - fails if data not available
      */
-    async connectTastyTrade() {
+    async getRealMarketData(symbols) {
         try {
-            // Get account data
-            const account = await this.api.getAccount();
+            const data = await this.api.getMarketData(symbols);
             
-            // Subscribe to market data streams
-            const symbols = ['SPY', 'QQQ', 'IWM', 'VIX', '/ES', '/NQ', '/MES', '/MNQ'];
-            
-            for (const symbol of symbols) {
-                try {
-                    const quote = await this.api.getQuote(symbol);
-                    this.marketData[symbol] = {
-                        symbol,
-                        last: quote.last,
-                        bid: quote.bid,
-                        ask: quote.ask,
-                        volume: quote.volume,
-                        open: quote.open,
-                        high: quote.high,
-                        low: quote.low,
-                        close: quote.previousClose,
-                        timestamp: new Date()
-                    };
-                } catch (error) {
-                    console.log(`Warning: Could not get quote for ${symbol}`);
-                }
+            if (!data || Object.keys(data).length === 0) {
+                throw new Error(`No real data received for symbols: ${symbols.join(', ')}`);
             }
             
-            // Get VIX level
+            // Update our cache with real data
+            for (const [symbol, quote] of Object.entries(data)) {
+                this.marketData[symbol] = {
+                    symbol,
+                    last: quote.last || quote.currentPrice,
+                    bid: quote.bid,
+                    ask: quote.ask,
+                    volume: quote.volume,
+                    open: quote.open,
+                    high: quote.high,
+                    low: quote.low,
+                    close: quote.close || quote.previousClose,
+                    timestamp: new Date(),
+                    isRealData: true // Flag to confirm this is real data
+                };
+            }
+            
+            // Update VIX from real data
             if (this.marketData.VIX) {
                 this.vixLevel = this.marketData.VIX.last;
+                console.log(`📊 Real VIX Level: ${this.vixLevel}`);
             }
             
-            console.log('✅ Connected to TastyTrade live data');
+            this.lastUpdateTime = Date.now();
+            return this.marketData;
             
         } catch (error) {
-            console.log('⚠️ TastyTrade connection failed, using fallback data');
-            await this.connectFallbackData();
+            logger.error('REAL_DATA', 'Failed to get real market data', error);
+            throw new Error(`CRITICAL: Real market data unavailable: ${error.message}`);
         }
     }
 
     /**
-     * Connect to fallback free data sources
+     * Get real option chain from TastyTrade
+     * NO FALLBACKS - fails if data not available
      */
-    async connectFallbackData() {
+    async getRealOptionChain(symbol, expiration = null) {
         try {
-            // Use Yahoo Finance as primary fallback
-            const symbols = ['SPY', 'QQQ', 'IWM', '^VIX'];
-            const url = `${this.dataProviders.yahoo}?symbols=${symbols.join(',')}`;
+            const chain = await this.api.getOptionChain(symbol, expiration);
             
-            const response = await axios.get(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-            });
-            
-            if (response.data && response.data.quoteResponse) {
-                const quotes = response.data.quoteResponse.result;
-                
-                for (const quote of quotes) {
-                    const symbol = quote.symbol.replace('^', '');
-                    this.marketData[symbol] = {
-                        symbol,
-                        last: quote.regularMarketPrice,
-                        bid: quote.bid || quote.regularMarketPrice,
-                        ask: quote.ask || quote.regularMarketPrice,
-                        volume: quote.regularMarketVolume,
-                        open: quote.regularMarketOpen,
-                        high: quote.regularMarketDayHigh,
-                        low: quote.regularMarketDayLow,
-                        close: quote.regularMarketPreviousClose,
-                        timestamp: new Date()
-                    };
-                }
-                
-                // Update VIX
-                if (this.marketData.VIX) {
-                    this.vixLevel = this.marketData.VIX.last;
-                }
-                
-                console.log('✅ Connected to Yahoo Finance fallback data');
+            if (!chain || !chain.expirations || chain.expirations.length === 0) {
+                throw new Error(`No real option chain data for ${symbol}`);
             }
             
-        } catch (error) {
-            console.log('⚠️ Fallback data failed, using simulated data');
-            this.useSimulatedData();
-        }
-    }
-
-    /**
-     * Use simulated data as last resort
-     */
-    useSimulatedData() {
-        // Realistic simulated data based on typical market values
-        const baseData = {
-            SPY: { base: 450, volatility: 0.01 },
-            QQQ: { base: 380, volatility: 0.015 },
-            IWM: { base: 220, volatility: 0.02 },
-            VIX: { base: 20, volatility: 0.1 },
-            '/ES': { base: 4500, volatility: 0.01 },
-            '/NQ': { base: 15500, volatility: 0.015 },
-            '/MES': { base: 4500, volatility: 0.01 },
-            '/MNQ': { base: 15500, volatility: 0.015 }
-        };
-        
-        for (const [symbol, config] of Object.entries(baseData)) {
-            const randomChange = (Math.random() - 0.5) * config.volatility;
-            const price = config.base * (1 + randomChange);
-            
-            this.marketData[symbol] = {
-                symbol,
-                last: price,
-                bid: price - 0.01,
-                ask: price + 0.01,
-                volume: Math.floor(Math.random() * 1000000),
-                open: config.base,
-                high: price * 1.002,
-                low: price * 0.998,
-                close: config.base,
-                timestamp: new Date()
+            // Cache the real option chain
+            this.optionChains[symbol] = {
+                ...chain,
+                timestamp: new Date(),
+                isRealData: true
             };
+            
+            return chain;
+            
+        } catch (error) {
+            logger.error('REAL_DATA', `Failed to get real option chain for ${symbol}`, error);
+            throw new Error(`CRITICAL: Real option chain unavailable for ${symbol}: ${error.message}`);
         }
-        
-        this.vixLevel = this.marketData.VIX.last;
-        console.log('📊 Using simulated market data');
     }
 
     /**
-     * Start continuous update loop
+     * Update loop for REAL data only
      */
-    startUpdateLoop() {
+    startRealDataUpdateLoop() {
         setInterval(async () => {
             if (this.isConnected) {
-                await this.updateMarketData();
-                this.emit('marketUpdate', this.marketData);
-                this.emit('vixUpdate', this.vixLevel);
+                try {
+                    // Get real data for key symbols
+                    const symbols = ['SPY', 'QQQ', 'IWM', 'VIX', '/ES'];
+                    await this.getRealMarketData(symbols);
+                    
+                    // Verify data freshness
+                    const dataAge = Date.now() - this.lastUpdateTime;
+                    if (dataAge > this.maxDataAge) {
+                        throw new Error(`Data is stale: ${dataAge}ms old (max: ${this.maxDataAge}ms)`);
+                    }
+                    
+                    // Emit real data updates
+                    this.emit('marketUpdate', this.marketData);
+                    this.emit('vixUpdate', this.vixLevel);
+                    
+                } catch (error) {
+                    logger.error('REAL_DATA', 'Update loop failed', error);
+                    this.emit('error', error);
+                    
+                    // If we can't get real data, the system should know
+                    console.error('❌ CRITICAL: Cannot update real market data');
+                    console.error('   System is operating on stale data');
+                }
             }
         }, this.updateInterval);
     }
 
     /**
-     * Update market data
-     */
-    async updateMarketData() {
-        // Add small random movements to simulate real market
-        for (const symbol in this.marketData) {
-            const data = this.marketData[symbol];
-            const volatility = symbol === 'VIX' ? 0.05 : 0.001;
-            const change = (Math.random() - 0.5) * volatility;
-            
-            data.last = data.last * (1 + change);
-            data.bid = data.last - 0.01;
-            data.ask = data.last + 0.01;
-            data.timestamp = new Date();
-            
-            // Update high/low
-            if (data.last > data.high) data.high = data.last;
-            if (data.last < data.low) data.low = data.last;
-        }
-        
-        // Update VIX
-        if (this.marketData.VIX) {
-            this.vixLevel = this.marketData.VIX.last;
-        }
-    }
-
-    /**
-     * Get option chain for symbol
+     * Get option chain for paper trading
+     * Uses ONLY real data
      */
     async getOptionChain(symbol, expirationDate = null) {
-        try {
-            if (this.api && this.api.isAuthenticated()) {
-                // Get real option chain from TastyTrade
-                const chain = await this.api.getOptionChain(symbol, expirationDate);
-                this.optionChains[symbol] = chain;
-                return chain;
-            } else {
-                // Generate simulated option chain
-                return this.generateSimulatedOptionChain(symbol, expirationDate);
-            }
-        } catch (error) {
-            console.log('Using simulated option chain');
-            return this.generateSimulatedOptionChain(symbol, expirationDate);
-        }
+        // Always fetch fresh real data for options
+        return await this.getRealOptionChain(symbol, expirationDate);
     }
 
     /**
-     * Generate realistic simulated option chain
+     * Stop live data feed
      */
-    generateSimulatedOptionChain(symbol, expirationDate) {
-        const spotPrice = this.marketData[symbol]?.last || 450;
-        const strikes = [];
-        
-        // Generate strikes around spot price
-        for (let i = -10; i <= 10; i++) {
-            const strike = Math.round(spotPrice + (i * 5));
-            
-            // Calculate realistic option prices using simplified Black-Scholes approximation
-            const moneyness = (spotPrice - strike) / spotPrice;
-            const timeToExpiry = expirationDate ? 
-                (new Date(expirationDate) - new Date()) / (365 * 24 * 60 * 60 * 1000) : 
-                30 / 365; // Default 30 days
-            
-            const iv = 0.20 + Math.abs(moneyness) * 0.1; // Implied volatility
-            
-            // Simplified pricing
-            const callPrice = Math.max(0, spotPrice - strike) + 
-                (spotPrice * iv * Math.sqrt(timeToExpiry) * 0.4);
-            const putPrice = Math.max(0, strike - spotPrice) + 
-                (spotPrice * iv * Math.sqrt(timeToExpiry) * 0.4);
-            
-            strikes.push({
-                strike,
-                call: {
-                    bid: Math.max(0.01, callPrice - 0.05),
-                    ask: callPrice + 0.05,
-                    last: callPrice,
-                    volume: Math.floor(Math.random() * 1000),
-                    openInterest: Math.floor(Math.random() * 5000),
-                    iv: iv,
-                    delta: 0.5 + moneyness,
-                    gamma: 0.02 / (1 + Math.abs(moneyness) * 10),
-                    theta: -callPrice * 0.02,
-                    vega: callPrice * 0.1
-                },
-                put: {
-                    bid: Math.max(0.01, putPrice - 0.05),
-                    ask: putPrice + 0.05,
-                    last: putPrice,
-                    volume: Math.floor(Math.random() * 1000),
-                    openInterest: Math.floor(Math.random() * 5000),
-                    iv: iv,
-                    delta: -0.5 + moneyness,
-                    gamma: 0.02 / (1 + Math.abs(moneyness) * 10),
-                    theta: -putPrice * 0.02,
-                    vega: putPrice * 0.1
-                }
-            });
-        }
-        
-        return {
-            symbol,
-            expirationDate: expirationDate || this.getNextFriday(),
-            strikes,
-            spotPrice,
-            timestamp: new Date()
-        };
-    }
-
-    /**
-     * Get next Friday for 0DTE simulation
-     */
-    getNextFriday() {
-        const today = new Date();
-        const dayOfWeek = today.getDay();
-        const daysUntilFriday = (5 - dayOfWeek + 7) % 7 || 7;
-        const nextFriday = new Date(today);
-        nextFriday.setDate(today.getDate() + daysUntilFriday);
-        return nextFriday.toISOString().split('T')[0];
+    stopLiveDataFeed() {
+        this.isConnected = false;
+        console.log('🔴 Live data feed stopped');
     }
 
     /**
      * Get current market data
+     * Returns null if data is stale
      */
     getMarketData() {
+        const dataAge = Date.now() - this.lastUpdateTime;
+        if (dataAge > this.maxDataAge) {
+            console.warn(`⚠️  Market data is stale: ${dataAge}ms old`);
+            return null;
+        }
         return this.marketData;
     }
 
     /**
      * Get VIX level
+     * Returns null if not available from real data
      */
     getVIXLevel() {
         return this.vixLevel;
     }
 
     /**
-     * Check if market is open
+     * Check if market is open (real time check)
      */
     isMarketOpen() {
         const now = new Date();
@@ -338,16 +218,46 @@ class PaperTradingLiveData extends EventEmitter {
         if (day === 0 || day === 6) return false; // Weekend
         if (time < 930 || time > 1600) return false; // Outside hours
         
+        // Could also check with API for holidays
         return true;
     }
 
     /**
-     * Stop live data feed
+     * Verify data integrity
+     * Ensures all data is real and fresh
      */
-    stopLiveDataFeed() {
-        this.isConnected = false;
-        console.log('🔴 Live data feed stopped');
+    verifyDataIntegrity() {
+        const issues = [];
+        
+        // Check data freshness
+        const dataAge = Date.now() - this.lastUpdateTime;
+        if (dataAge > this.maxDataAge) {
+            issues.push(`Data is ${dataAge}ms old (max: ${this.maxDataAge}ms)`);
+        }
+        
+        // Check each symbol has real data flag
+        for (const [symbol, data] of Object.entries(this.marketData)) {
+            if (!data.isRealData) {
+                issues.push(`${symbol} is not real data`);
+            }
+            
+            const symbolAge = Date.now() - new Date(data.timestamp).getTime();
+            if (symbolAge > this.maxDataAge) {
+                issues.push(`${symbol} data is ${symbolAge}ms old`);
+            }
+        }
+        
+        // Check VIX
+        if (this.vixLevel === null) {
+            issues.push('VIX level not available from real data');
+        }
+        
+        if (issues.length > 0) {
+            throw new Error(`Data integrity check failed:\n${issues.join('\n')}`);
+        }
+        
+        return true;
     }
 }
 
-module.exports = PaperTradingLiveData;
+module.exports = PaperTradingRealData;

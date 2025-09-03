@@ -18,7 +18,7 @@ const DEBUG = process.env.NODE_ENV !== 'production';
 
 /**
  * Load API credentials from configuration file or environment variables
- * Priority: credentials.config.js > .env variables > error
+ * Now supports 3-mode system: sandbox, paper, real
  */
 function loadCredentials() {
   const credentialsPath = path.join(__dirname, '..', 'credentials.config.js');
@@ -26,21 +26,41 @@ function loadCredentials() {
   try {
     // First, try to load from credentials.config.js
     if (fs.existsSync(credentialsPath)) {
-      logger.debug('API', 'Loading credentials from credentials.config.js');
       const config = require(credentialsPath);
+      
+      // Display the current configuration
+      if (config.displayConfig) {
+        config.displayConfig();
+      }
+      
+      logger.debug('API', `Loading credentials for ${config.mode} mode`);
       
       // Validate required fields
       if (!config.clientId || !config.clientSecret) {
-        throw new Error('Missing required credentials in credentials.config.js: clientId and clientSecret are required');
+        throw new Error(`Missing required credentials for ${config.mode} mode: clientId and clientSecret are required`);
+      }
+      
+      // Critical: Ensure real data requirement is enforced
+      if (config.requiresRealData && config.failOnSimulatedData) {
+        logger.info('API', '✅ Real data requirement enforced - no simulated data will be used');
       }
       
       return {
+        MODE: config.mode,
         CLIENT_ID: config.clientId,
         CLIENT_SECRET: config.clientSecret,
         USERNAME: config.username || null,
         PASSWORD: config.password || null,
         REFRESH_TOKEN: config.refreshToken || null,
-        ENVIRONMENT: config.environment || 'production'
+        ENVIRONMENT: config.environment || 'production',
+        API_BASE_URL: config.apiBaseUrl,
+        OAUTH_URL: config.oauthUrl,
+        STREAMER_URL: config.streamerUrl,
+        ACCOUNT_NUMBER: config.accountNumber,
+        SIMULATED_BALANCE: config.simulatedBalance,
+        ALLOW_LIVE_TRADING: config.allowLiveTrading,
+        REQUIRES_REAL_DATA: config.requiresRealData,
+        FAIL_ON_SIMULATED: config.failOnSimulatedData
       };
     }
     
@@ -97,43 +117,56 @@ try {
   };
 }
 
-// Environment Configuration
+// Environment Configuration - Now dynamically selected based on mode
 const ENVIRONMENTS = {
   SANDBOX: {
-    API_BASE: 'https://api.cert.tastyworks.com',
-    STREAMER: 'wss://streamer.cert.tastyworks.com',
+    API_BASE: API_CREDENTIALS.API_BASE_URL || 'https://api.cert.tastyworks.com',
+    STREAMER: API_CREDENTIALS.STREAMER_URL || 'wss://streamer.cert.tastyworks.com',
+    OAUTH: API_CREDENTIALS.OAUTH_URL || 'https://api.cert.tastyworks.com/oauth/token',
     DXLINK: 'wss://tasty-openapi-ws.dxfeed.com/realtime'
   },
   PRODUCTION: {
-    API_BASE: 'https://api.tastyworks.com',
-    STREAMER: 'wss://streamer.tastyworks.com',
+    API_BASE: API_CREDENTIALS.API_BASE_URL || 'https://api.tastyworks.com',
+    STREAMER: API_CREDENTIALS.STREAMER_URL || 'wss://streamer.tastyworks.com',
+    OAUTH: API_CREDENTIALS.OAUTH_URL || 'https://api.tastyworks.com/oauth/token',
     DXLINK: 'wss://tasty-openapi-ws.dxfeed.com/realtime'
   }
 };
 
-const CURRENT_ENV = ENVIRONMENTS.PRODUCTION;
+// Select environment based on mode
+const CURRENT_ENV = API_CREDENTIALS.ENVIRONMENT === 'sandbox' 
+  ? ENVIRONMENTS.SANDBOX 
+  : ENVIRONMENTS.PRODUCTION;
+
+// Log the active mode
+if (API_CREDENTIALS.MODE) {
+  console.log(`\n🎯 TastyTrade API initialized in ${API_CREDENTIALS.MODE.toUpperCase()} mode`);
+  console.log(`   API: ${CURRENT_ENV.API_BASE}`);
+  console.log(`   Real Data Required: ${API_CREDENTIALS.REQUIRES_REAL_DATA ? '✅' : '❌'}`);
+}
 
 /**
  * OAuth2 Token Manager
  * Handles token refresh and validation
  */
 class TokenManager {
-  constructor(refreshToken, clientSecret) {
+  constructor(refreshToken, clientSecret, username = null, password = null, clientId = null) {
     this.refreshToken = refreshToken;
     this.clientSecret = clientSecret;
+    this.username = username;
+    this.password = password;
+    this.clientId = clientId;
     this.accessToken = null;
     this.tokenExpiry = null;
   }
   
   async getValidToken() {
-    const now = Date.now();
-    // Refresh 1 minute early to avoid expiration
-    if (!this.accessToken || now >= this.tokenExpiry) {
-      logger.info('API', 'Access token expired or missing, refreshing');
+    // TastyTrade tokens don't expire - only refresh if we don't have one
+    if (!this.accessToken) {
+      logger.info('API', 'Access token missing, generating new one');
       this.accessToken = await this.generateAccessToken();
-      this.tokenExpiry = now + (14 * 60 * 1000); // 14 minutes (expires in 15 per API docs)
     } else {
-      logger.debug('API', 'Using cached access token');
+      logger.debug('API', 'Using existing access token');
     }
     return this.accessToken;
   }
@@ -144,38 +177,109 @@ class TokenManager {
   }
   
   async generateAccessToken() {
-    try {
-      logger.info('API', 'Generating new OAuth2 access token', {
-        endpoint: `${CURRENT_ENV.API_BASE}/oauth/token`,
-        hasRefreshToken: !!this.refreshToken,
-        hasClientSecret: !!this.clientSecret
-      });
-      
-      const response = await fetch(`${CURRENT_ENV.API_BASE}/oauth/token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'TomKingFramework/17.0'
-        },
-        body: JSON.stringify({
-          grant_type: 'refresh_token',
-          refresh_token: this.refreshToken,
-          client_secret: this.clientSecret
-        })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`Token refresh failed: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`);
+    // First try refresh token if available
+    if (this.refreshToken) {
+      try {
+        return await this.refreshTokenAuth();
+      } catch (error) {
+        logger.warn('API', 'Refresh token failed, trying username/password', { error: error.message });
       }
-      
-      const data = await response.json();
-      logger.info('API', 'Access token refreshed successfully');
-      return data.access_token;
-    } catch (error) {
-      console.error('🚨 Token refresh failed:', error.message);
-      throw error;
     }
+    
+    // Fall back to username/password if available
+    if (this.username && this.password && this.clientId) {
+      try {
+        return await this.passwordAuth();
+      } catch (error) {
+        logger.error('API', 'Password authentication failed', { error: error.message });
+        throw error;
+      }
+    }
+    
+    throw new Error('No valid authentication method available. Need either refresh_token or username/password/clientId');
+  }
+  
+  async refreshTokenAuth() {
+    logger.info('API', 'Attempting refresh token authentication');
+    
+    const params = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: this.refreshToken,
+      client_secret: this.clientSecret
+    });
+    
+    const response = await fetch(CURRENT_ENV.OAUTH || `${CURRENT_ENV.API_BASE}/oauth/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'TomKingFramework/17.0'
+      },
+      body: params.toString()
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Token refresh failed: ${response.status} - ${errorData.error_description || errorData.error || 'Unknown error'}`);
+    }
+    
+    const data = await response.json();
+    logger.info('API', 'Refresh token authentication successful');
+    
+    // Store new refresh token if provided
+    if (data.refresh_token) {
+      this.refreshToken = data.refresh_token;
+      logger.info('API', 'New refresh token received and stored');
+    }
+    
+    return data.access_token;
+  }
+  
+  async passwordAuth() {
+    logger.info('API', 'Attempting username/password authentication');
+    
+    // Create session with username/password
+    const sessionResponse = await fetch(`${CURRENT_ENV.API_BASE}/sessions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'TomKingFramework/17.0'
+      },
+      body: JSON.stringify({
+        login: this.username,
+        password: this.password,
+        "remember-me": true  // Get remember token for future use
+      })
+    });
+    
+    if (!sessionResponse.ok) {
+      const errorData = await sessionResponse.json().catch(() => ({}));
+      throw new Error(`Session login failed: ${sessionResponse.status} - ${errorData.error?.message || 'Invalid credentials'}`);
+    }
+    
+    const sessionData = await sessionResponse.json();
+    const sessionToken = sessionData.data?.['session-token'];
+    const rememberToken = sessionData.data?.['remember-token'];
+    
+    if (!sessionToken) {
+      throw new Error('No session token received from login');
+    }
+    
+    logger.info('API', 'Session created successfully');
+    
+    // Store remember token for potential future use
+    if (rememberToken) {
+      this.rememberToken = rememberToken;
+      logger.info('API', 'Remember token received and stored for future sessions');
+    }
+    
+    // TastyTrade uses session tokens directly WITHOUT Bearer prefix!
+    // The session token IS the access token
+    logger.info('API', 'Username/password authentication successful');
+    
+    // Store this for future reference
+    this.useSessionAuth = true;  // Flag to indicate we're using session auth
+    
+    return sessionToken;
   }
 }
 
@@ -424,6 +528,9 @@ class TastyTradeAPI extends EventEmitter {
     // Use provided parameters or fall back to loaded credentials
     const finalClientSecret = clientSecret || API_CREDENTIALS.CLIENT_SECRET;
     const finalRefreshToken = refreshToken || API_CREDENTIALS.REFRESH_TOKEN;
+    const finalUsername = API_CREDENTIALS.USERNAME;
+    const finalPassword = API_CREDENTIALS.PASSWORD;
+    const finalClientId = API_CREDENTIALS.CLIENT_ID;
     const finalEnvironment = environment || API_CREDENTIALS.ENVIRONMENT || 'production';
     
     // Validate that we have the required credentials
@@ -431,13 +538,19 @@ class TastyTradeAPI extends EventEmitter {
       throw new Error('CLIENT_SECRET is required. Please check your credentials.config.js or .env file.');
     }
     
-    if (!finalRefreshToken) {
-      console.warn('⚠️ No REFRESH_TOKEN provided. You may need to authenticate manually.');
+    if (!finalRefreshToken && (!finalUsername || !finalPassword || !finalClientId)) {
+      throw new Error('Either REFRESH_TOKEN or USERNAME/PASSWORD/CLIENT_ID is required for authentication.');
     }
     
-    this.tokenManager = new TokenManager(finalRefreshToken, finalClientSecret);
-    // Map environment to production (development mode disabled for live trading)
-    this.env = 'PRODUCTION';
+    this.tokenManager = new TokenManager(
+      finalRefreshToken, 
+      finalClientSecret, 
+      finalUsername,
+      finalPassword,
+      finalClientId
+    );
+    // Set environment based on config mode
+    this.env = API_CREDENTIALS.ENVIRONMENT === 'sandbox' ? 'SANDBOX' : 'PRODUCTION';
     this.baseURL = ENVIRONMENTS[this.env].API_BASE;
     this.accountNumber = null;
     this.positions = [];
@@ -541,10 +654,13 @@ class TastyTradeAPI extends EventEmitter {
       try {
         const token = await this.tokenManager.getValidToken();
         
+        // Session tokens use different authorization format (no Bearer prefix)
+        const authHeader = this.tokenManager.useSessionAuth ? token : `Bearer ${token}`;
+        
         const response = await fetch(`${this.baseURL}${endpoint}`, {
           ...options,
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'Authorization': authHeader,
             'User-Agent': 'TomKingFramework/17.0',
             'Content-Type': 'application/json',
             ...options.headers

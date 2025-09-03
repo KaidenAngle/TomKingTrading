@@ -433,19 +433,20 @@ class EnhancedRecommendationEngine {
                     this.currentMarketData[ticker] = await this.api.marketDataCollector.getTickerData(ticker);
                 }
             } catch (error) {
-                logger.warn('ENGINE', 'API data collection failed, using simulated data');
-                this.generateSimulatedMarketData(tickers);
+                logger.error('ENGINE', 'API data collection failed - cannot proceed without real data');
+                throw new Error(`Real market data unavailable: ${error.message}`);
             }
         } else {
-            // Generate simulated market data
-            this.generateSimulatedMarketData(tickers);
+            // CRITICAL: No API means no real data
+            throw new Error('API not available - cannot get real market data for recommendations');
         }
     }
 
     /**
-     * Generate simulated market data for testing
+     * REMOVED: Simulated market data not allowed
      */
     generateSimulatedMarketData(tickers) {
+        throw new Error('Simulated market data generation not allowed. Must use real data.');
         const basePrices = {
             'ES': 5450, 'MES': 5450, 'NQ': 18500, 'MNQ': 18500, 'RTY': 2100,
             'CL': 75, 'GC': 2050, 'SI': 24, 'NG': 2.8, 'MCL': 75, 'MGC': 2050,
@@ -640,14 +641,15 @@ class EnhancedRecommendationEngine {
             }
         }
 
-        // Generate simulated option chain
-        return this.generateSimulatedOptionChain(ticker, marketData);
+        // CRITICAL: No simulated option chains
+        throw new Error(`Real option chain unavailable for ${ticker}. Cannot proceed with simulated data.`);
     }
 
     /**
-     * Generate simulated option chain for testing
+     * REMOVED: Simulated option chains not allowed
      */
     generateSimulatedOptionChain(ticker, marketData) {
+        throw new Error(`Simulated option chain generation not allowed for ${ticker}`);
         const { price, iv } = marketData;
         const strikes = [];
         

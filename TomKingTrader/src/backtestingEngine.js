@@ -1572,30 +1572,61 @@ class BacktestingEngine {
         const marketData = {};
         const dateStr = date.toISOString().split('T')[0];
         
-        for (const symbol of symbols) {
-            // This would normally fetch real data
-            // For now, return simulated data
-            marketData[symbol] = {
-                date: dateStr,
-                open: 4500 + Math.random() * 100,
-                high: 4550 + Math.random() * 100,
-                low: 4450 + Math.random() * 100,
-                close: 4500 + Math.random() * 100,
-                volume: 1000000 + Math.random() * 500000,
-                iv: 0.15 + Math.random() * 0.1,
-                ivRank: 30 + Math.random() * 40,
-                rsi: 30 + Math.random() * 40,
-                ema21: 4500,
-                sma20: 4500
-            };
+        // CRITICAL: Must use REAL historical data from TastyTrade API
+        // No simulated/random data allowed per user requirements
+        
+        try {
+            // Connect to TastyTrade API if not connected
+            if (!this.api || !this.api.isAuthenticated()) {
+                throw new Error('TastyTrade API not connected - cannot get real historical data');
+            }
+            
+            // Fetch real historical data for each symbol
+            for (const symbol of symbols) {
+                const historicalData = await this.api.getHistoricalData(symbol, dateStr, dateStr);
+                
+                if (!historicalData || historicalData.length === 0) {
+                    throw new Error(`No historical data available for ${symbol} on ${dateStr}`);
+                }
+                
+                const dayData = historicalData[0];
+                marketData[symbol] = {
+                    date: dateStr,
+                    open: dayData.open,
+                    high: dayData.high,
+                    low: dayData.low,
+                    close: dayData.close,
+                    volume: dayData.volume,
+                    iv: dayData.iv || await this.api.getHistoricalIV(symbol, dateStr),
+                    ivRank: dayData.ivRank || await this.api.getIVRank(symbol, dateStr),
+                    rsi: await this.api.getHistoricalRSI(symbol, dateStr),
+                    ema21: await this.api.getHistoricalEMA(symbol, dateStr, 21),
+                    sma20: await this.api.getHistoricalSMA(symbol, dateStr, 20),
+                    isRealData: true // Flag to confirm this is real data
+                };
+            }
+            
+            // Get real VIX data
+            const vixData = await this.api.getHistoricalData('VIX', dateStr, dateStr);
+            if (vixData && vixData.length > 0) {
+                marketData.VIX = {
+                    close: vixData[0].close,
+                    isRealData: true
+                };
+            } else {
+                throw new Error(`No VIX data available for ${dateStr}`);
+            }
+            
+            return marketData;
+            
+        } catch (error) {
+            // NO FALLBACK TO SIMULATED DATA - FAIL PROPERLY
+            console.error(`\n❌ CRITICAL: Cannot load real historical data for ${dateStr}`);
+            console.error(`   Error: ${error.message}`);
+            console.error('   Backtesting cannot proceed without real historical data\n');
+            
+            throw new Error(`Real historical data unavailable: ${error.message}`);
         }
-        
-        // Add VIX data
-        marketData.VIX = {
-            close: 15 + Math.random() * 10
-        };
-        
-        return marketData;
     }
 }
 

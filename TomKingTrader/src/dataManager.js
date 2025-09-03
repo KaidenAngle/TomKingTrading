@@ -240,16 +240,16 @@ class DataManager {
             return lastClose;
         }
         
-        // 4. Generate simulated data for testing
-        logger.debug('DATA', `Generating simulated data for ${ticker}`);
-        const simData = this.generateSimulatedData(ticker);
+        // 4. CRITICAL: No simulated data allowed - must fail if real data unavailable
+        const errorMsg = `Real market data unavailable for ${ticker}. Cannot proceed with simulated data.`;
+        logger.error('DATA', errorMsg);
         
-        // Special warning for VIX simulated data
+        // Special error for VIX - critical for risk management
         if (ticker === 'VIX') {
-            logger.warn('DATA', `VIX using simulated data! This means API call failed or market closed.`, simData);
+            throw new Error(`CRITICAL: VIX data unavailable - cannot proceed without real volatility data`);
         }
         
-        return simData;
+        throw new Error(errorMsg);
     }
 
     /**
@@ -312,38 +312,13 @@ class DataManager {
     }
 
     /**
-     * Generate simulated data for testing
+     * REMOVED: Simulated data generation not allowed
+     * All data must be real from API sources
      */
     generateSimulatedData(ticker) {
-        const basePrice = this.getBasePrice(ticker);
-        const volatility = 0.02; // 2% daily volatility
+        throw new Error(`Simulated data generation not allowed. All data must be real from API. Requested: ${ticker}`);
         
-        return {
-            ticker,
-            currentPrice: basePrice * (1 + (Math.random() - 0.5) * volatility),
-            openPrice: basePrice,
-            previousClose: basePrice * 0.995,
-            bid: basePrice * 0.999,
-            ask: basePrice * 1.001,
-            high: basePrice * 1.01,
-            low: basePrice * 0.99,
-            volume: Math.floor(Math.random() * 1000000),
-            updatedAt: new Date().toISOString(),
-            
-            // Simulated technical data
-            high5d: basePrice * 1.02,
-            low5d: basePrice * 0.98,
-            high20d: basePrice * 1.05,
-            low20d: basePrice * 0.95,
-            atr: basePrice * 0.015,
-            rsi: 50 + (Math.random() - 0.5) * 30,
-            ema8: basePrice * 0.998,
-            ema21: basePrice * 0.997,
-            vwap: basePrice * 1.001,
-            iv: 15 + Math.random() * 10,
-            ivRank: Math.random() * 100,
-            ivPercentile: Math.random() * 100
-        };
+        // Method removed - throws error if called
     }
 
     /**
@@ -392,8 +367,8 @@ class DataManager {
             }
         }
         
-        // Generate simulated option chain
-        return this.generateSimulatedOptionChain(ticker);
+        // CRITICAL: No simulated option chains - must have real data
+        throw new Error(`Real option chain data unavailable for ${ticker}. Cannot proceed with simulated data.`);
     }
 
     /**
@@ -410,9 +385,10 @@ class DataManager {
     }
 
     /**
-     * Generate simulated option chain
+     * REMOVED: Simulated option chains not allowed
      */
     generateSimulatedOptionChain(ticker) {
+        throw new Error(`Simulated option chain generation not allowed. Must use real data for ${ticker}`);
         const basePrice = this.getBasePrice(ticker);
         const strikes = [];
         
@@ -784,7 +760,8 @@ class DataManager {
                 results[ticker] = await this.getMarketData(ticker);
             } catch (error) {
                 logger.error('DATA', `Failed to get phase data for ${ticker}`, error);
-                results[ticker] = this.generateSimulatedData(ticker);
+                // No fallback to simulated data - throw error
+                throw new Error(`Real data unavailable for ${ticker}: ${error.message}`);
             }
         }
         
