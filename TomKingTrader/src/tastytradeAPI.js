@@ -1555,15 +1555,15 @@ class TastyTradeAPI extends EventEmitter {
       strikeCount: strikes.length,
       strikes: strikes,
       
-      // Volume and OI summaries (simulated)
-      totalCallVolume: Math.round(Math.random() * 10000),
-      totalPutVolume: Math.round(Math.random() * 10000),
-      totalCallOI: Math.round(Math.random() * 50000),
-      totalPutOI: Math.round(Math.random() * 50000),
+      // Volume and OI summaries - MUST use real API data
+      totalCallVolume: 0, // TODO: Fetch from real API data
+      totalPutVolume: 0,  // TODO: Fetch from real API data
+      totalCallOI: 0,     // TODO: Fetch from real API data
+      totalPutOI: 0,      // TODO: Fetch from real API data
       
-      // IV statistics (simulated)
-      avgCallIV: 15 + Math.random() * 20,
-      avgPutIV: 15 + Math.random() * 20
+      // IV statistics - MUST calculate from real option data
+      avgCallIV: 0,       // TODO: Calculate from real option data
+      avgPutIV: 0         // TODO: Calculate from real option data
     };
   }
   
@@ -1573,7 +1573,7 @@ class TastyTradeAPI extends EventEmitter {
   generateFallbackStrike(strikePrice, underlyingPrice, dte, symbol) {
     const moneyness = (strikePrice - underlyingPrice) / underlyingPrice;
     const timeToExpiry = dte / 365.25;
-    const volatility = 0.15 + Math.random() * 0.15; // 15-30% IV
+    const volatility = 0.20; // Default 20% IV - should be replaced with real market IV
     
     // Simplified Black-Scholes approximation for fallback
     const callDelta = this.approximateCallDelta(underlyingPrice, strikePrice, timeToExpiry, volatility);
@@ -1603,8 +1603,8 @@ class TastyTradeAPI extends EventEmitter {
         vega: underlyingPrice * Math.sqrt(timeToExpiry) * 0.01,
         rho: strikePrice * timeToExpiry * Math.abs(callDelta) * 0.01,
         iv: volatility * 100,
-        volume: Math.round(Math.random() * 1000),
-        openInterest: Math.round(Math.random() * 5000),
+        volume: 0, // TODO: Must fetch from real API data
+        openInterest: 0, // TODO: Must fetch from real API data
         intrinsicValue: Math.max(0, underlyingPrice - strikePrice),
         extrinsicValue: Math.max(0, callPrice - Math.max(0, underlyingPrice - strikePrice)),
         symbol: null,
@@ -1624,8 +1624,8 @@ class TastyTradeAPI extends EventEmitter {
         vega: underlyingPrice * Math.sqrt(timeToExpiry) * 0.01,
         rho: -strikePrice * timeToExpiry * Math.abs(putDelta) * 0.01,
         iv: volatility * 100,
-        volume: Math.round(Math.random() * 1000),
-        openInterest: Math.round(Math.random() * 5000),
+        volume: 0, // TODO: Must fetch from real API data
+        openInterest: 0, // TODO: Must fetch from real API data
         intrinsicValue: Math.max(0, strikePrice - underlyingPrice),
         extrinsicValue: Math.max(0, putPrice - Math.max(0, strikePrice - underlyingPrice)),
         symbol: null,
@@ -1634,9 +1634,9 @@ class TastyTradeAPI extends EventEmitter {
       
       callSymbol: null,
       putSymbol: null,
-      totalVolume: Math.round(Math.random() * 2000),
-      totalOI: Math.round(Math.random() * 10000),
-      putCallRatio: 0.5 + Math.random()
+      totalVolume: 0, // TODO: Calculate from real option chain
+      totalOI: 0, // TODO: Calculate from real option chain
+      putCallRatio: 1.0 // TODO: Calculate from real put/call volumes
     };
   }
   
@@ -2433,8 +2433,8 @@ class MarketDataCollector {
             high: parseFloat(item['day-high-price'] || item.high || currentPrice * 1.01),
             low: parseFloat(item['day-low-price'] || item.low || currentPrice * 0.99),
             iv: parseFloat(item['implied-volatility'] || this.getDefaultIV(ticker)),
-            ivRank: parseFloat(item['iv-rank'] || Math.random() * 100),
-            ivPercentile: parseFloat(item['iv-percentile'] || Math.random() * 100),
+            ivRank: parseFloat(item['iv-rank'] || 0), // No random fallback - real data only
+            ivPercentile: parseFloat(item['iv-percentile'] || 0), // No random fallback - real data only
             source: 'TastyTrade_API'
           };
           
@@ -2486,7 +2486,7 @@ class MarketDataCollector {
     };
     
     const basePrice = basePrices[ticker] || 100;
-    const variation = (Math.random() - 0.5) * 0.02; // +/- 1% variation
+    const variation = 0; // No artificial price variation - use real market prices
     const currentPrice = parseFloat((basePrice * (1 + variation)).toFixed(2));
     
     logger.warn('API', `🔧 ${ticker} using generated basic data`, { price: currentPrice });
@@ -2502,8 +2502,8 @@ class MarketDataCollector {
       high: parseFloat((currentPrice * 1.005).toFixed(2)),
       low: parseFloat((currentPrice * 0.995).toFixed(2)),
       iv: this.getDefaultIV(ticker),
-      ivRank: Math.floor(Math.random() * 100),
-      ivPercentile: Math.floor(Math.random() * 100),
+      ivRank: 0, // TODO: Must fetch from TastyTrade API
+      ivPercentile: 0, // TODO: Must fetch from TastyTrade API
       source: 'Generated_Basic_Data'
     };
   }
