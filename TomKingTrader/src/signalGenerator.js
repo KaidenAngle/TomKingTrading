@@ -4,11 +4,11 @@
  */
 
 const EventEmitter = require('events');
-const TradingStrategies = require('./strategies');
+const { TradingStrategies } = require('./strategies');
 const { EnhancedPatternAnalyzer } = require('./enhancedPatternAnalysis');
 const { PositionManager } = require('./positionManager');
 const { RiskManager } = require('./riskManager');
-const GreeksCalculator = require('./greeksCalculator');
+const { GreeksCalculator } = require('./greeksCalculator');
 
 class SignalGenerator extends EventEmitter {
     constructor(options = {}) {

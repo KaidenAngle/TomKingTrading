@@ -1136,6 +1136,56 @@ class RiskManager {
   }
   
   /**
+   * Calculate number of contracts based on BP% usage and option premium
+   * @param {Object} options - Calculation options
+   * @param {number} options.accountValue - Total account value
+   * @param {number} options.targetBPPercent - Target BP usage as percentage (0.01 = 1%)
+   * @param {number} options.optionPrice - Price per contract (x100 for actual cost)
+   * @param {number} options.vixLevel - Current VIX level
+   * @param {string} options.strategy - Strategy type
+   * @returns {Object} Contract sizing details
+   */
+  calculateContractsByBP(options = {}) {
+    const {
+      accountValue = 50000,
+      targetBPPercent = 0.02, // 2% default
+      optionPrice = 1.50, // Price per share
+      vixLevel = 20,
+      strategy = 'STRANGLE',
+      multiplier = 100 // Standard option multiplier
+    } = options;
+    
+    // Get VIX-adjusted BP limits
+    const maxBP = RiskManager.getMaxBPUsage(vixLevel) / 100;
+    
+    // Ensure target BP doesn't exceed VIX-based maximum
+    const adjustedBP = Math.min(targetBPPercent, maxBP);
+    
+    // Calculate maximum dollars to allocate
+    const maxDollars = accountValue * adjustedBP;
+    
+    // Calculate cost per contract
+    const costPerContract = optionPrice * multiplier;
+    
+    // Calculate number of contracts (round down for safety)
+    const contracts = Math.floor(maxDollars / costPerContract);
+    
+    // Calculate actual BP used
+    const actualCost = contracts * costPerContract;
+    const actualBPPercent = (actualCost / accountValue) * 100;
+    
+    return {
+      contracts: Math.max(1, contracts), // Minimum 1 contract
+      totalCost: actualCost,
+      bpUsedPercent: actualBPPercent.toFixed(2),
+      maxBPPercent: (maxBP * 100).toFixed(2),
+      targetBPPercent: (targetBPPercent * 100).toFixed(2),
+      vixRegime: VIXRegimeAnalyzer.analyzeVIXRegime(vixLevel).regime,
+      recommendation: contracts > 0 ? 'PROCEED' : 'INSUFFICIENT_CAPITAL'
+    };
+  }
+  
+  /**
    * Get correlation limit based on phase
    */
   getCorrelationLimit(phase) {
@@ -1161,7 +1211,9 @@ class RiskManager {
     };
     
     const groupCounts = {};
-    const maxPerGroup = 3; // Tom King's correlation limit
+    // Phase-based correlation limits
+    const phase = accountData?.phase || this.getAccountPhase(accountData?.netLiq || 35000);
+    const maxPerGroup = this.getCorrelationLimitByPhase(phase);
     
     // Count positions in each group
     positions.forEach(position => {
@@ -1194,6 +1246,25 @@ class RiskManager {
         `Reduce positions in: ${violations.map(v => v.group).join(', ')}` :
         'Correlation limits within acceptable range'
     };
+  }
+
+  /**
+   * Get correlation limit based on account phase
+   * Tom King's phase-based correlation limits
+   */
+  getCorrelationLimitByPhase(phase) {
+    switch(phase) {
+      case 1: // £30-40k
+        return 2; // Max 2 positions per correlation group
+      case 2: // £40-60k  
+        return 3; // Max 3 positions per group
+      case 3: // £60-75k
+        return 3; // Max 3 positions per group
+      case 4: // £75k+
+        return 4; // Max 4 positions per group (more flexibility)
+      default:
+        return 2; // Conservative default
+    }
   }
 
   /**

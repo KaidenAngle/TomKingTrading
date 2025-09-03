@@ -15,7 +15,7 @@ const fs = require('fs');
 const readline = require('readline');
 
 // Core modules
-const { strategies } = require('./src/strategies');
+const { TradingStrategies } = require('./src/strategies');
 const { RiskManager } = require('./src/riskManager');
 const { TastyTradeAPI } = require('./src/tastytradeAPI');
 
@@ -27,7 +27,7 @@ const { PositionManager } = require('./src/positionManager');
 const SignalGenerator = require('./src/signalGenerator');
 const { OrderManager } = require('./src/orderManager');
 const { BacktestingEngine } = require('./src/backtestingEngine');
-const { generateComprehensiveExcelReport } = require('./reporting/generateComprehensiveExcelReport');
+// const { generateComprehensiveExcelReport } = require('./reporting/generateComprehensiveExcelReport'); // Commented out - module not found
 const config = require('./src/config');
 const { createLogger } = require('./src/logger');
 
