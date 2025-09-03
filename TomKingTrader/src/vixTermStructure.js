@@ -42,6 +42,367 @@ class VIXTermStructureAnalyzer {
     }
 
     /**
+     * Calculate volatility surface across strikes and expirations
+     * Tom King methodology: Map implied volatility across option chain
+     */
+    async calculateVolatilitySurface(symbol = 'SPY', optionChain = null) {
+        try {
+            // Get option chain if not provided
+            if (!optionChain && this.api) {
+                optionChain = await this.api.getOptionChain(symbol);
+            }
+            
+            if (!optionChain) {
+                logger.error('VIX', 'No option chain data available for volatility surface');
+                return null;
+            }
+            
+            const surface = {
+                symbol,
+                timestamp: new Date(),
+                spotPrice: 0,
+                expirations: [],
+                strikes: new Set(),
+                surface: {},
+                skew: {},
+                termStructure: {},
+                atmVolatility: {},
+                riskReversal: {},
+                butterfly: {}
+            };
+            
+            // Get spot price
+            if (this.api) {
+                const quote = await this.api.getQuotes([symbol]);
+                surface.spotPrice = quote?.[symbol]?.last || 0;
+            }
+            
+            // Process each expiration
+            for (const [expiration, chain] of Object.entries(optionChain)) {
+                const expiryDate = new Date(expiration);
+                const dte = Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24));
+                
+                if (dte <= 0 || dte > 90) continue; // Skip expired and far-dated options
+                
+                surface.expirations.push(expiration);
+                surface.surface[expiration] = {};
+                
+                // Find ATM strike
+                const atmStrike = this.findATMStrike(surface.spotPrice, chain);
+                surface.atmVolatility[expiration] = this.getStrikeIV(chain, atmStrike);
+                
+                // Calculate volatility for each strike
+                const strikes = this.getRelevantStrikes(chain, surface.spotPrice);
+                
+                for (const strike of strikes) {
+                    surface.strikes.add(strike);
+                    
+                    const callIV = chain.CALL?.[strike]?.iv || 0;
+                    const putIV = chain.PUT?.[strike]?.iv || 0;
+                    const avgIV = (callIV + putIV) / 2;
+                    
+                    surface.surface[expiration][strike] = {
+                        strike,
+                        moneyness: strike / surface.spotPrice,
+                        callIV,
+                        putIV,
+                        avgIV,
+                        callVolume: chain.CALL?.[strike]?.volume || 0,
+                        putVolume: chain.PUT?.[strike]?.volume || 0,
+                        callOI: chain.CALL?.[strike]?.openInterest || 0,
+                        putOI: chain.PUT?.[strike]?.openInterest || 0
+                    };
+                }
+                
+                // Calculate skew metrics
+                surface.skew[expiration] = this.calculateSkewMetrics(
+                    chain,
+                    surface.spotPrice,
+                    atmStrike
+                );
+                
+                // Calculate risk reversal (25 delta)
+                surface.riskReversal[expiration] = this.calculateRiskReversal(
+                    chain,
+                    surface.spotPrice
+                );
+                
+                // Calculate butterfly spread (25 delta)
+                surface.butterfly[expiration] = this.calculateButterfly(
+                    chain,
+                    surface.spotPrice
+                );
+            }
+            
+            // Convert strikes Set to sorted array
+            surface.strikes = Array.from(surface.strikes).sort((a, b) => a - b);
+            
+            // Calculate term structure of ATM volatility
+            surface.termStructure = this.calculateATMTermStructure(surface.atmVolatility);
+            
+            // Add surface analysis
+            surface.analysis = this.analyzeSurface(surface);
+            
+            return surface;
+            
+        } catch (error) {
+            logger.error('VIX', 'Error calculating volatility surface:', error);
+            return null;
+        }
+    }
+    
+    /**
+     * Find ATM strike
+     */
+    findATMStrike(spotPrice, chain) {
+        const strikes = Object.keys(chain.CALL || {}).map(Number).sort((a, b) => a - b);
+        let atmStrike = strikes[0];
+        let minDiff = Math.abs(strikes[0] - spotPrice);
+        
+        for (const strike of strikes) {
+            const diff = Math.abs(strike - spotPrice);
+            if (diff < minDiff) {
+                minDiff = diff;
+                atmStrike = strike;
+            }
+        }
+        
+        return atmStrike;
+    }
+    
+    /**
+     * Get relevant strikes around spot price
+     */
+    getRelevantStrikes(chain, spotPrice) {
+        const allStrikes = Object.keys(chain.CALL || {}).map(Number);
+        const minStrike = spotPrice * 0.85; // 15% OTM puts
+        const maxStrike = spotPrice * 1.15; // 15% OTM calls
+        
+        return allStrikes
+            .filter(s => s >= minStrike && s <= maxStrike)
+            .sort((a, b) => a - b);
+    }
+    
+    /**
+     * Get IV for specific strike
+     */
+    getStrikeIV(chain, strike) {
+        const callIV = chain.CALL?.[strike]?.iv || 0;
+        const putIV = chain.PUT?.[strike]?.iv || 0;
+        return (callIV + putIV) / 2;
+    }
+    
+    /**
+     * Calculate skew metrics
+     */
+    calculateSkewMetrics(chain, spotPrice, atmStrike) {
+        const otmPutStrike = Math.round(spotPrice * 0.95); // 5% OTM put
+        const otmCallStrike = Math.round(spotPrice * 1.05); // 5% OTM call
+        
+        const atmIV = this.getStrikeIV(chain, atmStrike);
+        const otmPutIV = this.getStrikeIV(chain, otmPutStrike);
+        const otmCallIV = this.getStrikeIV(chain, otmCallStrike);
+        
+        return {
+            atmIV,
+            putSkew: otmPutIV - atmIV,
+            callSkew: otmCallIV - atmIV,
+            totalSkew: otmPutIV - otmCallIV,
+            skewRatio: otmPutIV / otmCallIV,
+            putPremium: otmPutIV > atmIV,
+            interpretation: this.interpretSkew(otmPutIV - otmCallIV)
+        };
+    }
+    
+    /**
+     * Calculate 25-delta risk reversal
+     */
+    calculateRiskReversal(chain, spotPrice) {
+        // Approximate 25-delta strikes
+        const put25Strike = Math.round(spotPrice * 0.93);
+        const call25Strike = Math.round(spotPrice * 1.07);
+        
+        const put25IV = this.getStrikeIV(chain, put25Strike);
+        const call25IV = this.getStrikeIV(chain, call25Strike);
+        
+        return {
+            value: call25IV - put25IV,
+            put25IV,
+            call25IV,
+            interpretation: this.interpretRiskReversal(call25IV - put25IV)
+        };
+    }
+    
+    /**
+     * Calculate 25-delta butterfly
+     */
+    calculateButterfly(chain, spotPrice) {
+        const put25Strike = Math.round(spotPrice * 0.93);
+        const call25Strike = Math.round(spotPrice * 1.07);
+        const atmStrike = this.findATMStrike(spotPrice, chain);
+        
+        const put25IV = this.getStrikeIV(chain, put25Strike);
+        const call25IV = this.getStrikeIV(chain, call25Strike);
+        const atmIV = this.getStrikeIV(chain, atmStrike);
+        
+        const butterfly = ((put25IV + call25IV) / 2) - atmIV;
+        
+        return {
+            value: butterfly,
+            interpretation: this.interpretButterfly(butterfly)
+        };
+    }
+    
+    /**
+     * Calculate ATM term structure
+     */
+    calculateATMTermStructure(atmVolatility) {
+        const expirations = Object.keys(atmVolatility).sort();
+        const structure = [];
+        
+        for (let i = 0; i < expirations.length; i++) {
+            const expiry = expirations[i];
+            const dte = Math.ceil((new Date(expiry) - new Date()) / (1000 * 60 * 60 * 24));
+            
+            structure.push({
+                expiration: expiry,
+                dte,
+                atmIV: atmVolatility[expiry],
+                annualizedVol: atmVolatility[expiry] * 100
+            });
+        }
+        
+        // Calculate contango/backwardation
+        if (structure.length >= 2) {
+            const front = structure[0].atmIV;
+            const back = structure[structure.length - 1].atmIV;
+            const slope = (back - front) / (structure.length - 1);
+            
+            return {
+                structure,
+                frontVol: front,
+                backVol: back,
+                slope,
+                isContango: back > front,
+                isBackwardation: front > back,
+                steepness: Math.abs(slope)
+            };
+        }
+        
+        return { structure };
+    }
+    
+    /**
+     * Analyze volatility surface
+     */
+    analyzeSurface(surface) {
+        const analysis = {
+            timestamp: surface.timestamp,
+            summary: '',
+            signals: [],
+            tradingOpportunities: []
+        };
+        
+        // Check term structure
+        if (surface.termStructure?.isBackwardation) {
+            analysis.signals.push('BACKWARDATION: Near-term vol > long-term vol');
+            analysis.tradingOpportunities.push('Consider calendar spreads (sell front, buy back)');
+        }
+        
+        if (surface.termStructure?.isContango && surface.termStructure.steepness > 0.02) {
+            analysis.signals.push('STEEP CONTANGO: Strong mean reversion expected');
+            analysis.tradingOpportunities.push('Consider reverse calendar spreads');
+        }
+        
+        // Check skew across expirations
+        let totalPutSkew = 0;
+        let skewCount = 0;
+        
+        for (const expiry in surface.skew) {
+            const skew = surface.skew[expiry];
+            if (skew.putSkew > 0.05) {
+                analysis.signals.push(`${expiry}: High put skew (${(skew.putSkew * 100).toFixed(1)}%)`);
+            }
+            totalPutSkew += skew.putSkew;
+            skewCount++;
+        }
+        
+        const avgPutSkew = totalPutSkew / skewCount;
+        if (avgPutSkew > 0.03) {
+            analysis.tradingOpportunities.push('Put spreads expensive - consider call spreads');
+        }
+        
+        // Check risk reversals
+        for (const expiry in surface.riskReversal) {
+            const rr = surface.riskReversal[expiry];
+            if (Math.abs(rr.value) > 0.05) {
+                analysis.signals.push(`${expiry}: Strong risk reversal (${(rr.value * 100).toFixed(1)}%)`);
+            }
+        }
+        
+        // Generate summary
+        analysis.summary = this.generateSurfaceSummary(surface, analysis);
+        
+        return analysis;
+    }
+    
+    /**
+     * Interpret skew value
+     */
+    interpretSkew(skewValue) {
+        if (skewValue > 0.08) return 'EXTREME_PUT_SKEW';
+        if (skewValue > 0.05) return 'HIGH_PUT_SKEW';
+        if (skewValue > 0.02) return 'MODERATE_PUT_SKEW';
+        if (skewValue > -0.02) return 'NEUTRAL';
+        if (skewValue > -0.05) return 'MODERATE_CALL_SKEW';
+        return 'HIGH_CALL_SKEW';
+    }
+    
+    /**
+     * Interpret risk reversal
+     */
+    interpretRiskReversal(value) {
+        if (value > 0.05) return 'STRONG_CALL_DEMAND';
+        if (value > 0.02) return 'MODERATE_CALL_DEMAND';
+        if (value > -0.02) return 'BALANCED';
+        if (value > -0.05) return 'MODERATE_PUT_DEMAND';
+        return 'STRONG_PUT_DEMAND';
+    }
+    
+    /**
+     * Interpret butterfly value
+     */
+    interpretButterfly(value) {
+        if (value > 0.03) return 'HIGH_WING_VOLATILITY';
+        if (value > 0.01) return 'ELEVATED_WINGS';
+        if (value > -0.01) return 'NORMAL_SMILE';
+        return 'INVERTED_SMILE';
+    }
+    
+    /**
+     * Generate surface summary
+     */
+    generateSurfaceSummary(surface, analysis) {
+        const parts = [];
+        
+        if (surface.termStructure?.isBackwardation) {
+            parts.push('Volatility backwardation detected');
+        } else if (surface.termStructure?.isContango) {
+            parts.push('Volatility in contango');
+        }
+        
+        if (analysis.signals.length > 0) {
+            parts.push(`${analysis.signals.length} volatility signals identified`);
+        }
+        
+        if (analysis.tradingOpportunities.length > 0) {
+            parts.push(`${analysis.tradingOpportunities.length} trading opportunities`);
+        }
+        
+        return parts.join(' | ');
+    }
+    
+    /**
      * Get current VIX term structure data from multiple sources
      */
     async getCurrentTermStructure() {
