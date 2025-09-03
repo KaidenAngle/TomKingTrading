@@ -36,6 +36,19 @@ class IncomeGenerator extends EventEmitter {
             reinvestments: []
         };
         
+        // Compounding tracker
+        this.compoundingTracker = {
+            startBalance: this.config.accountBalance,
+            currentBalance: this.config.accountBalance,
+            totalGrowth: 0,
+            monthlyGrowth: [],
+            compoundRate: this.config.monthlyGrowthTarget,
+            reinvestedAmount: 0,
+            withdrawnAmount: 0,
+            projectedBalance: {},
+            milestones: this.initializeMilestones()
+        };
+        
         // Strategy income allocation (based on Tom King's preferences)
         this.strategyAllocation = {
             'FRIDAY_0DTE': 0.35,        // 35% from Friday 0DTE
@@ -423,6 +436,268 @@ class IncomeGenerator extends EventEmitter {
     }
     
     /**
+     * Initialize milestones for tracking
+     */
+    initializeMilestones() {
+        return [
+            { amount: 40000, name: 'Phase 2', achieved: false, date: null },
+            { amount: 50000, name: 'Halfway', achieved: false, date: null },
+            { amount: 60000, name: 'Phase 3', achieved: false, date: null },
+            { amount: 75000, name: 'Phase 4', achieved: false, date: null },
+            { amount: 80000, name: 'Initial Goal', achieved: false, date: null },
+            { amount: 100000, name: 'Financial Freedom', achieved: false, date: null },
+            { amount: 150000, name: 'Wealth Building', achieved: false, date: null },
+            { amount: 250000, name: 'Quarter Million', achieved: false, date: null },
+            { amount: 500000, name: 'Half Million', achieved: false, date: null },
+            { amount: 1000000, name: 'Millionaire', achieved: false, date: null }
+        ];
+    }
+    
+    /**
+     * Update compounding tracker with new balance
+     */
+    updateCompoundingTracker(newBalance, monthlyPnL) {
+        const previousBalance = this.compoundingTracker.currentBalance;
+        const growthRate = (newBalance - previousBalance) / previousBalance;
+        
+        this.compoundingTracker.currentBalance = newBalance;
+        this.compoundingTracker.totalGrowth = (newBalance - this.compoundingTracker.startBalance) / this.compoundingTracker.startBalance;
+        
+        // Add to monthly growth history
+        this.compoundingTracker.monthlyGrowth.push({
+            month: new Date().toISOString().slice(0, 7),
+            startBalance: previousBalance,
+            endBalance: newBalance,
+            pnl: monthlyPnL,
+            growthRate: growthRate,
+            compoundedReturn: this.compoundingTracker.totalGrowth
+        });
+        
+        // Check milestones
+        this.checkMilestones(newBalance);
+        
+        // Update projections
+        this.updateProjections(newBalance);
+        
+        // Emit update event
+        this.emit('compoundingUpdate', {
+            currentBalance: newBalance,
+            totalGrowth: this.compoundingTracker.totalGrowth,
+            monthlyGrowthRate: growthRate
+        });
+    }
+    
+    /**
+     * Check and update milestones
+     */
+    checkMilestones(currentBalance) {
+        for (const milestone of this.compoundingTracker.milestones) {
+            if (!milestone.achieved && currentBalance >= milestone.amount) {
+                milestone.achieved = true;
+                milestone.date = new Date();
+                
+                logger.info('MILESTONE', `Achieved: ${milestone.name} (£${milestone.amount.toLocaleString()})`);
+                
+                this.emit('milestoneAchieved', {
+                    name: milestone.name,
+                    amount: milestone.amount,
+                    date: milestone.date
+                });
+            }
+        }
+    }
+    
+    /**
+     * Update future projections based on current performance
+     */
+    updateProjections(currentBalance) {
+        // Calculate rolling average growth rate (last 3 months)
+        const recentGrowth = this.compoundingTracker.monthlyGrowth.slice(-3);
+        const avgGrowthRate = recentGrowth.length > 0 
+            ? recentGrowth.reduce((sum, m) => sum + m.growthRate, 0) / recentGrowth.length
+            : this.config.monthlyGrowthTarget;
+        
+        // Project future balances
+        const projections = {};
+        let balance = currentBalance;
+        
+        for (let months = 1; months <= 24; months++) {
+            balance *= (1 + avgGrowthRate);
+            projections[months] = {
+                balance: Math.round(balance),
+                monthlyIncome: Math.round(balance * 0.03), // 3% monthly income
+                phase: this.determinePhase(balance)
+            };
+        }
+        
+        this.compoundingTracker.projectedBalance = projections;
+    }
+    
+    /**
+     * Calculate compound growth with reinvestment
+     */
+    calculateCompoundGrowthWithReinvestment(months, startBalance = null, customGrowthRate = null) {
+        const balance = startBalance || this.compoundingTracker.currentBalance;
+        const growthRate = customGrowthRate || this.compoundingTracker.compoundRate;
+        const reinvestRate = this.config.reinvestmentRate;
+        
+        const projections = [];
+        let currentBalance = balance;
+        let totalWithdrawn = 0;
+        let totalReinvested = 0;
+        
+        for (let month = 1; month <= months; month++) {
+            const monthlyReturn = currentBalance * growthRate;
+            const reinvested = monthlyReturn * reinvestRate;
+            const withdrawn = monthlyReturn * (1 - reinvestRate);
+            
+            totalReinvested += reinvested;
+            totalWithdrawn += withdrawn;
+            currentBalance += reinvested; // Only reinvested portion adds to balance
+            
+            projections.push({
+                month,
+                startBalance: currentBalance - reinvested,
+                endBalance: currentBalance,
+                monthlyReturn,
+                reinvested,
+                withdrawn,
+                totalWithdrawn,
+                totalReinvested,
+                phase: this.determinePhase(currentBalance),
+                monthlyIncome: currentBalance * 0.03
+            });
+        }
+        
+        return projections;
+    }
+    
+    /**
+     * Track reinvestment vs withdrawal
+     */
+    trackReinvestment(monthlyPnL) {
+        const reinvestAmount = monthlyPnL * this.config.reinvestmentRate;
+        const withdrawAmount = monthlyPnL * (1 - this.config.reinvestmentRate);
+        
+        this.compoundingTracker.reinvestedAmount += reinvestAmount;
+        this.compoundingTracker.withdrawnAmount += withdrawAmount;
+        
+        // Update balance with reinvestment
+        const newBalance = this.compoundingTracker.currentBalance + reinvestAmount;
+        this.updateCompoundingTracker(newBalance, monthlyPnL);
+        
+        // Record reinvestment
+        this.monthlyIncome.reinvestments.push({
+            date: new Date(),
+            totalPnL: monthlyPnL,
+            reinvested: reinvestAmount,
+            withdrawn: withdrawAmount,
+            newBalance: newBalance
+        });
+        
+        return {
+            reinvested: reinvestAmount,
+            withdrawn: withdrawAmount,
+            newBalance: newBalance
+        };
+    }
+    
+    /**
+     * Get compounding statistics
+     */
+    getCompoundingStats() {
+        const monthsTracked = this.compoundingTracker.monthlyGrowth.length;
+        const avgMonthlyGrowth = monthsTracked > 0
+            ? this.compoundingTracker.monthlyGrowth.reduce((sum, m) => sum + m.growthRate, 0) / monthsTracked
+            : 0;
+        
+        const achievedMilestones = this.compoundingTracker.milestones.filter(m => m.achieved);
+        const nextMilestone = this.compoundingTracker.milestones.find(m => !m.achieved);
+        
+        // Calculate months to next milestone based on average growth
+        let monthsToNext = null;
+        if (nextMilestone && avgMonthlyGrowth > 0) {
+            const needed = nextMilestone.amount - this.compoundingTracker.currentBalance;
+            monthsToNext = Math.ceil(Math.log(nextMilestone.amount / this.compoundingTracker.currentBalance) / Math.log(1 + avgMonthlyGrowth));
+        }
+        
+        return {
+            currentBalance: this.compoundingTracker.currentBalance,
+            startBalance: this.compoundingTracker.startBalance,
+            totalGrowth: this.compoundingTracker.totalGrowth,
+            totalGrowthPercent: (this.compoundingTracker.totalGrowth * 100).toFixed(2),
+            monthsTracked,
+            avgMonthlyGrowth: (avgMonthlyGrowth * 100).toFixed(2),
+            totalReinvested: this.compoundingTracker.reinvestedAmount,
+            totalWithdrawn: this.compoundingTracker.withdrawnAmount,
+            reinvestmentRatio: this.compoundingTracker.reinvestedAmount / (this.compoundingTracker.reinvestedAmount + this.compoundingTracker.withdrawnAmount),
+            achievedMilestones: achievedMilestones.map(m => ({
+                name: m.name,
+                amount: m.amount,
+                date: m.date
+            })),
+            nextMilestone: nextMilestone ? {
+                name: nextMilestone.name,
+                amount: nextMilestone.amount,
+                needed: nextMilestone.amount - this.compoundingTracker.currentBalance,
+                monthsToReach: monthsToNext
+            } : null,
+            projectedBalances: {
+                '3_months': this.compoundingTracker.projectedBalance[3],
+                '6_months': this.compoundingTracker.projectedBalance[6],
+                '12_months': this.compoundingTracker.projectedBalance[12],
+                '24_months': this.compoundingTracker.projectedBalance[24]
+            }
+        };
+    }
+    
+    /**
+     * Display compounding status
+     */
+    displayCompoundingStatus() {
+        const stats = this.getCompoundingStats();
+        
+        console.log('\n📈 COMPOUNDING TRACKER');
+        console.log('═'.repeat(50));
+        console.log(`Current Balance: £${stats.currentBalance.toLocaleString()}`);
+        console.log(`Start Balance: £${stats.startBalance.toLocaleString()}`);
+        console.log(`Total Growth: ${stats.totalGrowthPercent}%`);
+        console.log(`Avg Monthly: ${stats.avgMonthlyGrowth}%`);
+        
+        console.log('\nReinvestment Strategy:');
+        console.log(`  Total Reinvested: £${stats.totalReinvested.toFixed(0)}`);
+        console.log(`  Total Withdrawn: £${stats.totalWithdrawn.toFixed(0)}`);
+        console.log(`  Reinvestment Rate: ${(stats.reinvestmentRatio * 100).toFixed(1)}%`);
+        
+        if (stats.achievedMilestones.length > 0) {
+            console.log('\n✅ Achieved Milestones:');
+            stats.achievedMilestones.forEach(m => {
+                console.log(`  ${m.name}: £${m.amount.toLocaleString()} (${new Date(m.date).toLocaleDateString()})`);
+            });
+        }
+        
+        if (stats.nextMilestone) {
+            console.log('\n🎯 Next Milestone:');
+            console.log(`  ${stats.nextMilestone.name}: £${stats.nextMilestone.amount.toLocaleString()}`);
+            console.log(`  Needed: £${stats.nextMilestone.needed.toFixed(0)}`);
+            console.log(`  ETA: ${stats.nextMilestone.monthsToReach} months`);
+        }
+        
+        console.log('\n📊 Projections:');
+        if (stats.projectedBalances['3_months']) {
+            console.log(`  3 months: £${stats.projectedBalances['3_months'].balance.toLocaleString()} (£${stats.projectedBalances['3_months'].monthlyIncome}/month)`);
+        }
+        if (stats.projectedBalances['6_months']) {
+            console.log(`  6 months: £${stats.projectedBalances['6_months'].balance.toLocaleString()} (£${stats.projectedBalances['6_months'].monthlyIncome}/month)`);
+        }
+        if (stats.projectedBalances['12_months']) {
+            console.log(`  12 months: £${stats.projectedBalances['12_months'].balance.toLocaleString()} (£${stats.projectedBalances['12_months'].monthlyIncome}/month)`);
+        }
+        
+        console.log('═'.repeat(50));
+    }
+    
+    /**
      * Display income status
      */
     displayStatus() {
@@ -448,6 +723,9 @@ class IncomeGenerator extends EventEmitter {
         console.log(`  Monthly Income at Target: £${timeToFreedom.monthlyIncomeAtTarget.toFixed(0)}`);
         console.log(`  Status: ${timeToFreedom.achievable ? '✅ ON TRACK' : '⚠️ NEEDS ACCELERATION'}`);
         console.log('═'.repeat(50));
+        
+        // Also display compounding status
+        this.displayCompoundingStatus();
     }
 }
 

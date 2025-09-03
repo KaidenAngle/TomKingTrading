@@ -47,6 +47,14 @@ class EmergencyProtocol extends EventEmitter {
         };
         
         this.emergencyLog = [];
+        
+        // Mistake prevention system
+        this.mistakePrevention = {
+            enabled: true,
+            recentMistakes: [],
+            commonMistakes: this.initializeCommonMistakes(),
+            preventedCount: 0
+        };
     }
     
     /**
@@ -730,7 +738,478 @@ class EmergencyProtocol extends EventEmitter {
         
         console.log('✅ Emergency protocol deactivated');
     }
-}
+    
+    /**
+     * Initialize common trading mistakes database
+     */
+    initializeCommonMistakes() {
+        return [
+            // Position Sizing Mistakes
+            {
+                id: 'OVERSIZED_POSITION',
+                pattern: /position.*size.*exceed|too.*large|oversized/i,
+                check: (trade) => trade.size > trade.maxAllowedSize,
+                prevention: 'Reduce position size to maximum allowed',
+                severity: 'HIGH',
+                frequency: 0
+            },
+            {
+                id: 'ALL_IN_TRADE',
+                pattern: /all.*in|entire.*account|full.*capital/i,
+                check: (trade) => trade.bpUsage > 0.8,
+                prevention: 'Never use more than 80% of buying power',
+                severity: 'CRITICAL',
+                frequency: 0
+            },
+            
+            // Correlation Mistakes
+            {
+                id: 'CORRELATION_OVERLOAD',
+                pattern: /same.*sector|correlated|similar.*positions/i,
+                check: (trade, positions) => this.checkCorrelationMistake(trade, positions),
+                prevention: 'Exceeds correlation limit - diversify',
+                severity: 'HIGH',
+                frequency: 0
+            },
+            {
+                id: 'AUGUST_5_REPEAT',
+                pattern: /multiple.*ES|equity.*concentration/i,
+                check: (trade, positions) => this.checkAugust5Pattern(trade, positions),
+                prevention: 'August 5, 2024 pattern detected - reduce equity exposure',
+                severity: 'CRITICAL',
+                frequency: 0
+            },
+            
+            // Timing Mistakes
+            {
+                id: 'WRONG_DAY_0DTE',
+                pattern: /0dte.*not.*friday|wrong.*day.*zero/i,
+                check: (trade) => trade.strategy === '0DTE' && new Date().getDay() !== 5,
+                prevention: '0DTE only on Fridays after 10:30 AM',
+                severity: 'HIGH',
+                frequency: 0
+            },
+            {
+                id: 'EARLY_0DTE',
+                pattern: /0dte.*before.*10:30|too.*early/i,
+                check: (trade) => {
+                    if (trade.strategy !== '0DTE') return false;
+                    const now = new Date();
+                    return now.getDay() === 5 && (now.getHours() < 10 || (now.getHours() === 10 && now.getMinutes() < 30));
+                },
+                prevention: 'Wait until 10:30 AM for 0DTE entries',
+                severity: 'MEDIUM',
+                frequency: 0
+            },
+            
+            // VIX-Related Mistakes
+            {
+                id: 'LOW_VIX_OVERSIZING',
+                pattern: /low.*vix.*large.*position|complacency/i,
+                check: (trade, positions, marketData) => {
+                    const vix = marketData?.VIX?.currentPrice || 20;
+                    return vix < 15 && trade.bpUsage > 0.45;
+                },
+                prevention: 'Reduce position size in low VIX environment',
+                severity: 'MEDIUM',
+                frequency: 0
+            },
+            {
+                id: 'IGNORING_VIX_SPIKE',
+                pattern: /vix.*spike|volatility.*surge/i,
+                check: (trade, positions, marketData) => {
+                    const vix = marketData?.VIX?.currentPrice || 20;
+                    const prevVix = marketData?.VIX?.previousClose || 20;
+                    return (vix - prevVix) > 5 && trade.type === 'ENTRY';
+                },
+                prevention: 'VIX spike detected - avoid new entries',
+                severity: 'HIGH',
+                frequency: 0
+            },
+            
+            // Strategy Mistakes
+            {
+                id: 'WRONG_STRATEGY_FOR_CONDITIONS',
+                pattern: /wrong.*strategy|inappropriate.*setup/i,
+                check: (trade, positions, marketData) => this.checkStrategyAppropriateness(trade, marketData),
+                prevention: 'Strategy not appropriate for current conditions',
+                severity: 'MEDIUM',
+                frequency: 0
+            },
+            {
+                id: 'CHASING_LOSSES',
+                pattern: /revenge.*trade|chase.*loss|double.*down/i,
+                check: (trade, positions, recentTrades) => this.checkRevengeTrade(trade, recentTrades),
+                prevention: 'Potential revenge trade detected - take a break',
+                severity: 'HIGH',
+                frequency: 0
+            },
+            
+            // Risk Management Mistakes
+            {
+                id: 'NO_STOP_LOSS',
+                pattern: /no.*stop|unlimited.*risk/i,
+                check: (trade) => !trade.stopLoss && trade.strategy !== 'BOX',
+                prevention: 'Always set a stop loss',
+                severity: 'HIGH',
+                frequency: 0
+            },
+            {
+                id: 'IGNORING_21_DTE',
+                pattern: /ignore.*21.*dte|not.*managing/i,
+                check: (trade, positions) => {
+                    return positions.some(p => p.dte <= 21 && p.dte > 0 && !p.managementPlan);
+                },
+                prevention: 'Positions at 21 DTE need management',
+                severity: 'MEDIUM',
+                frequency: 0
+            },
+            
+            // Account Phase Mistakes
+            {
+                id: 'PHASE_VIOLATION',
+                pattern: /phase.*violation|not.*allowed.*phase/i,
+                check: (trade, positions, marketData, accountData) => {
+                    return !this.checkPhaseCompliance(trade, accountData);
+                },
+                prevention: 'Trade not allowed in current account phase',
+                severity: 'HIGH',
+                frequency: 0
+            },
+            
+            // Emotional Trading Mistakes
+            {
+                id: 'FOMO_TRADE',
+                pattern: /fomo|fear.*missing.*out|must.*trade.*now/i,
+                check: (trade, positions, marketData) => this.checkFOMOPattern(trade, marketData),
+                prevention: 'FOMO detected - stick to the plan',
+                severity: 'MEDIUM',
+                frequency: 0
+            },
+            {
+                id: 'PANIC_CLOSE',
+                pattern: /panic.*close|fear.*driven|emotional.*exit/i,
+                check: (trade, positions, marketData) => this.checkPanicPattern(trade, marketData),
+                prevention: 'Panic closing detected - evaluate rationally',
+                severity: 'MEDIUM',
+                frequency: 0
+            },
+            
+            // Never Trade List Violations
+            {
+                id: 'BLACKLISTED_SYMBOL',
+                pattern: /blacklist|never.*trade|forbidden/i,
+                check: (trade) => this.checkBlacklist(trade),
+                prevention: 'Symbol is on never trade list',
+                severity: 'CRITICAL',
+                frequency: 0
+            },
+            
+            // Earnings/Events Mistakes
+            {
+                id: 'EARNINGS_VIOLATION',
+                pattern: /earnings.*week|binary.*event/i,
+                check: (trade, positions, marketData) => this.checkEarningsWindow(trade, marketData),
+                prevention: 'Avoid trading during earnings week',
+                severity: 'HIGH',
+                frequency: 0
+            },
+            
+            // Overtrading Mistakes
+            {
+                id: 'OVERTRADING',
+                pattern: /too.*many.*trades|overtrad/i,
+                check: (trade, positions, marketData, accountData, recentTrades) => {
+                    const todayTrades = recentTrades?.filter(t => 
+                        new Date(t.timestamp).toDateString() === new Date().toDateString()
+                    );
+                    return todayTrades?.length > 10;
+                },
+                prevention: 'Too many trades today - quality over quantity',
+                severity: 'MEDIUM',
+                frequency: 0
+            }
+        ];
+    }
+    
+    /**
+     * Check for potential trading mistake
+     */
+    async checkForMistake(trade, context = {}) {
+        if (!this.mistakePrevention.enabled) {
+            return { allowed: true };
+        }
+        
+        const { positions = [], marketData = {}, accountData = {}, recentTrades = [] } = context;
+        const detectedMistakes = [];
+        
+        // Check each mistake pattern
+        for (const mistake of this.mistakePrevention.commonMistakes) {
+            try {
+                if (mistake.check(trade, positions, marketData, accountData, recentTrades)) {
+                    detectedMistakes.push(mistake);
+                    mistake.frequency++;
+                    
+                    logger.warn('MISTAKE_PREVENTION', `Detected: ${mistake.id}`, {
+                        trade,
+                        prevention: mistake.prevention
+                    });
+                }
+            } catch (error) {
+                // Skip if check fails
+                continue;
+            }
+        }
+        
+        // If critical mistakes detected, prevent trade
+        const criticalMistakes = detectedMistakes.filter(m => m.severity === 'CRITICAL');
+        if (criticalMistakes.length > 0) {
+            this.mistakePrevention.preventedCount++;
+            this.logMistake(criticalMistakes[0], trade);
+            
+            return {
+                allowed: false,
+                reason: criticalMistakes[0].prevention,
+                mistakeId: criticalMistakes[0].id,
+                severity: 'CRITICAL'
+            };
+        }
+        
+        // For high severity, warn but allow with confirmation
+        const highMistakes = detectedMistakes.filter(m => m.severity === 'HIGH');
+        if (highMistakes.length > 0) {
+            return {
+                allowed: 'WARNING',
+                warnings: highMistakes.map(m => ({
+                    id: m.id,
+                    message: m.prevention,
+                    severity: m.severity
+                })),
+                requiresConfirmation: true
+            };
+        }
+        
+        // For medium severity, just log
+        if (detectedMistakes.length > 0) {
+            detectedMistakes.forEach(m => this.logMistake(m, trade));
+        }
+        
+        return { allowed: true };
+    }
+    
+    /**
+     * Check correlation mistake
+     */
+    checkCorrelationMistake(trade, positions) {
+        const correlationGroups = {
+            'EQUITY': ['ES', 'MES', 'SPY', 'QQQ', 'IWM'],
+            'ENERGY': ['CL', 'MCL', 'XLE', 'XOP'],
+            'METALS': ['GC', 'MGC', 'GLD', 'SLV']
+        };
+        
+        for (const [group, symbols] of Object.entries(correlationGroups)) {
+            if (symbols.includes(trade.symbol)) {
+                const groupPositions = positions.filter(p => symbols.includes(p.symbol));
+                if (groupPositions.length >= 3) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check August 5 pattern
+     */
+    checkAugust5Pattern(trade, positions) {
+        const equitySymbols = ['ES', 'MES', 'SPY', 'QQQ', 'IWM'];
+        if (!equitySymbols.includes(trade.symbol)) return false;
+        
+        const equityPositions = positions.filter(p => equitySymbols.includes(p.symbol));
+        return equityPositions.length >= 2;
+    }
+    
+    /**
+     * Check strategy appropriateness
+     */
+    checkStrategyAppropriateness(trade, marketData) {
+        const vix = marketData?.VIX?.currentPrice || 20;
+        
+        // 0DTE needs VIX > 22
+        if (trade.strategy === '0DTE' && vix < 22) {
+            return true;
+        }
+        
+        // Avoid strangles in very low VIX
+        if (trade.strategy === 'STRANGLE' && vix < 12) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check for revenge trade pattern
+     */
+    checkRevengeTrade(trade, recentTrades) {
+        if (!recentTrades || recentTrades.length === 0) return false;
+        
+        // Look for recent loss followed by larger position
+        const lastTrade = recentTrades[recentTrades.length - 1];
+        if (lastTrade.pnl < 0 && trade.size > lastTrade.size * 1.5) {
+            return true;
+        }
+        
+        // Check for rapid succession after loss
+        const timeSinceLastTrade = Date.now() - new Date(lastTrade.timestamp).getTime();
+        if (lastTrade.pnl < 0 && timeSinceLastTrade < 600000) { // 10 minutes
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check phase compliance
+     */
+    checkPhaseCompliance(trade, accountData) {
+        const phase = accountData?.phase || 1;
+        const { PHASES } = require('./config');
+        
+        const phaseConfig = PHASES[phase];
+        if (!phaseConfig) return true;
+        
+        // Check allowed strategies
+        if (!phaseConfig.allowedStrategies.includes(trade.strategy)) {
+            return false;
+        }
+        
+        // Check allowed tickers
+        if (!phaseConfig.allowedTickers.includes(trade.symbol)) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Check FOMO pattern
+     */
+    checkFOMOPattern(trade, marketData) {
+        // Large move already happened
+        const symbol = trade.symbol;
+        const data = marketData[symbol];
+        
+        if (data) {
+            const dayChange = ((data.currentPrice - data.openPrice) / data.openPrice) * 100;
+            if (Math.abs(dayChange) > 2 && trade.direction === (dayChange > 0 ? 'CALL' : 'PUT')) {
+                return true; // Chasing the move
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check panic pattern
+     */
+    checkPanicPattern(trade, marketData) {
+        if (trade.type !== 'EXIT') return false;
+        
+        // Rapid market move
+        const vix = marketData?.VIX?.currentPrice || 20;
+        const vixChange = marketData?.VIX?.dayChange || 0;
+        
+        if (vixChange > 3 || vix > 30) {
+            return true; // Panic conditions
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check blacklist
+     */
+    checkBlacklist(trade) {
+        const { NEVER_TRADE_LIST } = require('./config');
+        const result = NEVER_TRADE_LIST.isAllowed(trade.symbol, trade.marketData);
+        return !result.allowed;
+    }
+    
+    /**
+     * Check earnings window
+     */
+    checkEarningsWindow(trade, marketData) {
+        // In production, check earnings calendar
+        // For now, simplified check
+        return false;
+    }
+    
+    /**
+     * Log mistake for analysis
+     */
+    logMistake(mistake, trade) {
+        const entry = {
+            timestamp: new Date().toISOString(),
+            mistakeId: mistake.id,
+            trade,
+            prevention: mistake.prevention,
+            severity: mistake.severity
+        };
+        
+        this.mistakePrevention.recentMistakes.push(entry);
+        
+        // Keep only last 100 mistakes
+        if (this.mistakePrevention.recentMistakes.length > 100) {
+            this.mistakePrevention.recentMistakes.shift();
+        }
+        
+        // Log to file
+        try {
+            fs.appendFile(
+                './logs/mistakes.log',
+                JSON.stringify(entry) + '\n'
+            ).catch(err => console.error('Failed to log mistake:', err));
+        } catch (error) {
+            // Ignore file errors
+        }
+    }
+    
+    /**
+     * Get mistake prevention statistics
+     */
+    getMistakeStats() {
+        const stats = {
+            preventedCount: this.mistakePrevention.preventedCount,
+            recentMistakes: this.mistakePrevention.recentMistakes.slice(-10),
+            topMistakes: []
+        };
+        
+        // Sort by frequency
+        const sorted = [...this.mistakePrevention.commonMistakes]
+            .sort((a, b) => b.frequency - a.frequency)
+            .slice(0, 5);
+        
+        stats.topMistakes = sorted.map(m => ({
+            id: m.id,
+            frequency: m.frequency,
+            prevention: m.prevention
+        }));
+        
+        return stats;
+    }
+    
+    /**
+     * Reset mistake counters (daily)
+     */
+    resetMistakeCounters() {
+        this.mistakePrevention.commonMistakes.forEach(m => {
+            m.frequency = 0;
+        });
+        
+        logger.info('MISTAKE_PREVENTION', 'Daily counters reset');
+    }
 
 // Export
 module.exports = { EmergencyProtocol };
