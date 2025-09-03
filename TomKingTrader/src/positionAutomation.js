@@ -401,39 +401,486 @@ class PositionAutomation extends EventEmitter {
     }
     
     /**
-     * Roll position to next expiration
+     * Enhanced roll management with Tom King methodology
      */
     async rollPosition(order, reason) {
         logger.info('AUTOMATION', `ROLLING: ${order.symbol} - ${reason}`);
         
-        // Find next appropriate expiration
-        const optionChain = await this.api.getOptionChain(order.symbol);
-        const nextExpiration = this.findNextExpiration(optionChain, order.strategy);
+        const rollAnalysis = await this.analyzeRollOpportunity(order);
         
-        if (!nextExpiration) {
-            logger.warn('AUTOMATION', `Cannot roll ${order.symbol} - no suitable expiration`);
-            // Fall back to closing
-            await this.closePosition(order, `${reason} (roll unavailable)`);
+        if (!rollAnalysis.shouldRoll) {
+            logger.warn('AUTOMATION', `Roll not advisable: ${rollAnalysis.reason}`);
+            if (rollAnalysis.alternativeAction === 'CLOSE') {
+                await this.closePosition(order, `${reason} (roll not optimal)`);
+            }
             return;
         }
         
-        // Prepare roll order
-        const rollOrder = {
-            closeLegs: order,
-            openLegs: {
-                ...order,
-                expiration: nextExpiration.expiration,
-                strikes: await this.orderManager.findOptimalStrikes(order.symbol, order.strategy, optionChain)
-            }
-        };
+        // Execute roll based on strategy
+        const rollOrder = await this.prepareRollOrder(order, rollAnalysis);
         
         this.emit('positionRolled', {
             order: rollOrder,
+            analysis: rollAnalysis,
             reason,
             automated: true
         });
         
         logger.info('AUTOMATION', `Position rolled: ${order.symbol}`, rollOrder);
+    }
+    
+    /**
+     * Analyze roll opportunity based on Tom King rules
+     */
+    async analyzeRollOpportunity(position) {
+        const analysis = {
+            shouldRoll: false,
+            reason: '',
+            alternativeAction: null,
+            rollType: null,
+            targetExpiration: null,
+            costBenefit: null,
+            riskReward: null
+        };
+        
+        // Get current position metrics
+        const currentDTE = this.calculateDTE(position.expiration);
+        const currentPL = position.unrealizedPL || 0;
+        const creditReceived = position.creditReceived || 0;
+        
+        // Tom King roll criteria
+        // 1. Roll at 21 DTE or when tested
+        // 2. Don't roll for a debit unless defending
+        // 3. Roll to maintain similar risk profile
+        
+        // Check if position is tested
+        const testStatus = await this.checkIfTested(position);
+        const isTested = testStatus && testStatus.tested;
+        
+        // Get market data for analysis
+        const marketData = await this.api.getMarketData([position.symbol]);
+        const vix = marketData.VIX?.last || 20;
+        
+        // Decision tree for rolling
+        if (currentDTE <= 0) {
+            analysis.shouldRoll = false;
+            analysis.reason = 'Expiration day - close instead';
+            analysis.alternativeAction = 'CLOSE';
+            return analysis;
+        }
+        
+        if (currentDTE <= 7 && !isTested) {
+            // Close profitable positions near expiration
+            if (currentPL > creditReceived * 0.25) {
+                analysis.shouldRoll = false;
+                analysis.reason = 'Profitable near expiration - take profit';
+                analysis.alternativeAction = 'CLOSE';
+                return analysis;
+            }
+        }
+        
+        // Determine roll type
+        if (isTested) {
+            analysis.rollType = 'DEFENSIVE';
+            analysis.shouldRoll = true;
+            analysis.reason = `Position tested at ${testStatus.testedSide}`;
+        } else if (currentDTE <= 21) {
+            analysis.rollType = 'MANAGEMENT';
+            analysis.shouldRoll = true;
+            analysis.reason = `21 DTE management (${currentDTE} DTE)`;
+        } else if (currentPL >= creditReceived * 0.50) {
+            analysis.rollType = 'PROFIT_CAPTURE';
+            analysis.shouldRoll = false; // Close for profit instead
+            analysis.reason = '50% profit target reached';
+            analysis.alternativeAction = 'CLOSE';
+            return analysis;
+        }
+        
+        // Find optimal roll target
+        if (analysis.shouldRoll) {
+            const rollTarget = await this.findOptimalRollTarget(position, analysis.rollType, vix);
+            
+            if (!rollTarget) {
+                analysis.shouldRoll = false;
+                analysis.reason = 'No suitable roll target found';
+                analysis.alternativeAction = 'CLOSE';
+                return analysis;
+            }
+            
+            analysis.targetExpiration = rollTarget.expiration;
+            analysis.costBenefit = rollTarget.costBenefit;
+            analysis.riskReward = rollTarget.riskReward;
+            
+            // Final check: Don't roll for excessive debit
+            if (rollTarget.netDebit > creditReceived * 0.25 && analysis.rollType !== 'DEFENSIVE') {
+                analysis.shouldRoll = false;
+                analysis.reason = 'Roll requires excessive debit';
+                analysis.alternativeAction = 'CLOSE';
+            }
+        }
+        
+        return analysis;
+    }
+    
+    /**
+     * Find optimal roll target expiration and strikes
+     */
+    async findOptimalRollTarget(position, rollType, currentVIX) {
+        const optionChain = await this.api.getOptionChain(position.symbol);
+        const expirations = Object.keys(optionChain).sort();
+        
+        let targetDTE;
+        let targetCriteria;
+        
+        // Set target based on roll type
+        switch (rollType) {
+            case 'DEFENSIVE':
+                // Roll to next monthly (30-45 DTE)
+                targetDTE = { min: 30, max: 45 };
+                targetCriteria = 'REDUCE_RISK';
+                break;
+                
+            case 'MANAGEMENT':
+                // Standard roll to 45-60 DTE
+                targetDTE = { min: 45, max: 60 };
+                targetCriteria = 'MAINTAIN_RISK';
+                break;
+                
+            default:
+                targetDTE = { min: 35, max: 50 };
+                targetCriteria = 'MAINTAIN_RISK';
+        }
+        
+        // Find suitable expirations
+        const candidates = [];
+        for (const exp of expirations) {
+            const dte = this.calculateDTE(exp);
+            if (dte >= targetDTE.min && dte <= targetDTE.max) {
+                const rollMetrics = await this.calculateRollMetrics(
+                    position,
+                    exp,
+                    optionChain[exp],
+                    targetCriteria
+                );
+                
+                if (rollMetrics) {
+                    candidates.push({
+                        expiration: exp,
+                        dte: dte,
+                        ...rollMetrics
+                    });
+                }
+            }
+        }
+        
+        // Select best candidate
+        if (candidates.length === 0) return null;
+        
+        // Score candidates based on Tom King preferences
+        candidates.forEach(c => {
+            c.score = this.scoreRollCandidate(c, rollType, currentVIX);
+        });
+        
+        // Return highest scoring candidate
+        return candidates.sort((a, b) => b.score - a.score)[0];
+    }
+    
+    /**
+     * Calculate roll metrics for a target expiration
+     */
+    async calculateRollMetrics(position, targetExpiration, chain, criteria) {
+        const metrics = {
+            netCredit: 0,
+            netDebit: 0,
+            newDelta: 0,
+            newTheta: 0,
+            widthChange: 0,
+            riskChange: 0
+        };
+        
+        // Calculate closing cost of current position
+        const closingCost = await this.calculateClosingCost(position);
+        
+        // Find new strikes based on criteria
+        const newStrikes = await this.selectRollStrikes(
+            position,
+            chain,
+            criteria
+        );
+        
+        if (!newStrikes) return null;
+        
+        // Calculate opening credit/debit for new position
+        const openingCredit = await this.calculatePositionCredit(
+            position.strategy,
+            newStrikes,
+            chain
+        );
+        
+        // Net roll cost
+        const rollCost = closingCost - openingCredit;
+        if (rollCost > 0) {
+            metrics.netDebit = rollCost;
+        } else {
+            metrics.netCredit = Math.abs(rollCost);
+        }
+        
+        // Risk metrics
+        if (position.strategy === 'STRANGLE' || position.strategy === 'IRON_CONDOR') {
+            const currentWidth = Math.abs((position.strikes?.call || 0) - (position.strikes?.put || 0));
+            const newWidth = Math.abs(newStrikes.call - newStrikes.put);
+            metrics.widthChange = newWidth - currentWidth;
+        }
+        
+        // Greeks for new position
+        if (chain.CALL && newStrikes.call) {
+            const callOption = chain.CALL[newStrikes.call];
+            metrics.newDelta += callOption?.delta || 0;
+            metrics.newTheta += callOption?.theta || 0;
+        }
+        if (chain.PUT && newStrikes.put) {
+            const putOption = chain.PUT[newStrikes.put];
+            metrics.newDelta += putOption?.delta || 0;
+            metrics.newTheta += putOption?.theta || 0;
+        }
+        
+        // Cost benefit analysis
+        metrics.costBenefit = {
+            rollCost: rollCost,
+            additionalTime: this.calculateDTE(targetExpiration) - this.calculateDTE(position.expiration),
+            thetaIncrease: metrics.newTheta - (position.theta || 0),
+            creditPerDay: openingCredit / this.calculateDTE(targetExpiration)
+        };
+        
+        // Risk/reward ratio
+        const maxRisk = this.calculateMaxRisk(position.strategy, newStrikes, openingCredit);
+        metrics.riskReward = {
+            maxProfit: openingCredit,
+            maxRisk: maxRisk,
+            ratio: openingCredit / maxRisk
+        };
+        
+        return metrics;
+    }
+    
+    /**
+     * Select new strikes for roll based on criteria
+     */
+    async selectRollStrikes(position, chain, criteria) {
+        const currentPrice = await this.getCurrentPrice(position.symbol);
+        const strikes = {
+            call: null,
+            put: null
+        };
+        
+        switch (criteria) {
+            case 'REDUCE_RISK':
+                // Move strikes further out
+                strikes.put = this.findStrikeByDelta(chain.PUT, 0.15); // 15 delta
+                strikes.call = this.findStrikeByDelta(chain.CALL, 0.15);
+                break;
+                
+            case 'MAINTAIN_RISK':
+                // Keep similar deltas
+                strikes.put = this.findStrikeByDelta(chain.PUT, 0.20); // 20 delta
+                strikes.call = this.findStrikeByDelta(chain.CALL, 0.20);
+                break;
+                
+            case 'AGGRESSIVE':
+                // Move strikes closer
+                strikes.put = this.findStrikeByDelta(chain.PUT, 0.25); // 25 delta
+                strikes.call = this.findStrikeByDelta(chain.CALL, 0.25);
+                break;
+                
+            default:
+                // Standard Tom King strikes
+                const expectedMove = currentPrice * 0.06; // Approximate 6% move
+                strikes.put = this.roundToStrike(currentPrice - expectedMove, 5);
+                strikes.call = this.roundToStrike(currentPrice + expectedMove, 5);
+        }
+        
+        return strikes;
+    }
+    
+    /**
+     * Score roll candidate based on Tom King preferences
+     */
+    scoreRollCandidate(candidate, rollType, vix) {
+        let score = 0;
+        
+        // Credit received (prefer credit over debit)
+        if (candidate.netCredit > 0) {
+            score += 30;
+            score += Math.min(20, candidate.netCredit / 10); // More credit = better
+        } else if (candidate.netDebit > 0) {
+            score -= Math.min(30, candidate.netDebit / 10); // Penalize debits
+        }
+        
+        // DTE preference (45 DTE is ideal)
+        const dteDiff = Math.abs(candidate.dte - 45);
+        score += Math.max(0, 20 - dteDiff);
+        
+        // Risk/reward ratio (prefer > 0.3)
+        if (candidate.riskReward) {
+            const ratio = candidate.riskReward.ratio;
+            if (ratio > 0.3) score += 20;
+            else if (ratio > 0.25) score += 10;
+        }
+        
+        // Theta increase (more theta = more daily decay)
+        if (candidate.newTheta > 0) {
+            score += Math.min(15, candidate.newTheta * 10);
+        }
+        
+        // VIX consideration
+        if (vix > 25 && rollType === 'DEFENSIVE') {
+            // In high VIX, prefer reducing risk
+            if (candidate.widthChange > 0) score += 10; // Wider strikes
+        } else if (vix < 15) {
+            // In low VIX, can be more aggressive
+            if (candidate.widthChange < 0) score += 5; // Tighter strikes OK
+        }
+        
+        // Additional time value
+        if (candidate.costBenefit) {
+            const additionalDays = candidate.costBenefit.additionalTime;
+            score += Math.min(10, additionalDays / 3);
+        }
+        
+        return score;
+    }
+    
+    /**
+     * Prepare the actual roll order
+     */
+    async prepareRollOrder(position, rollAnalysis) {
+        const rollOrder = {
+            type: 'ROLL',
+            symbol: position.symbol,
+            strategy: position.strategy,
+            closeLegs: [],
+            openLegs: [],
+            netCredit: rollAnalysis.costBenefit?.rollCost < 0 ? 
+                      Math.abs(rollAnalysis.costBenefit.rollCost) : 0,
+            netDebit: rollAnalysis.costBenefit?.rollCost > 0 ? 
+                     rollAnalysis.costBenefit.rollCost : 0
+        };
+        
+        // Build close legs (current position)
+        if (position.legs) {
+            rollOrder.closeLegs = position.legs.map(leg => ({
+                ...leg,
+                action: 'BUY_TO_CLOSE'
+            }));
+        }
+        
+        // Build open legs (new position)
+        const optionChain = await this.api.getOptionChain(position.symbol);
+        const targetChain = optionChain[rollAnalysis.targetExpiration];
+        
+        if (position.strategy === 'STRANGLE') {
+            rollOrder.openLegs = [
+                {
+                    strike: rollAnalysis.targetStrikes?.put,
+                    type: 'PUT',
+                    action: 'SELL_TO_OPEN',
+                    quantity: position.quantity
+                },
+                {
+                    strike: rollAnalysis.targetStrikes?.call,
+                    type: 'CALL',
+                    action: 'SELL_TO_OPEN',
+                    quantity: position.quantity
+                }
+            ];
+        }
+        
+        return rollOrder;
+    }
+    
+    // Helper methods for roll management
+    
+    async calculateClosingCost(position) {
+        const quotes = await this.api.getPositionQuotes(position);
+        let cost = 0;
+        
+        if (position.legs) {
+            position.legs.forEach(leg => {
+                const quote = quotes[leg.symbol];
+                if (quote) {
+                    // Cost to close = ask price for short positions
+                    cost += quote.ask * leg.quantity * 100;
+                }
+            });
+        }
+        
+        return cost;
+    }
+    
+    async calculatePositionCredit(strategy, strikes, chain) {
+        let credit = 0;
+        
+        switch (strategy) {
+            case 'STRANGLE':
+                if (chain.PUT && strikes.put) {
+                    credit += (chain.PUT[strikes.put]?.bid || 0) * 100;
+                }
+                if (chain.CALL && strikes.call) {
+                    credit += (chain.CALL[strikes.call]?.bid || 0) * 100;
+                }
+                break;
+                
+            case 'IRON_CONDOR':
+                // Calculate net credit for all four legs
+                // Implementation depends on specific strikes
+                break;
+        }
+        
+        return credit;
+    }
+    
+    calculateMaxRisk(strategy, strikes, credit) {
+        switch (strategy) {
+            case 'STRANGLE':
+                // Max risk is technically unlimited, use reasonable estimate
+                return credit * 3; // 3x credit as max risk estimate
+                
+            case 'IRON_CONDOR':
+                // Max risk = width of widest spread - credit
+                const width = 5 * 100; // Assuming $5 wide spreads
+                return width - credit;
+                
+            default:
+                return credit * 2;
+        }
+    }
+    
+    async getCurrentPrice(symbol) {
+        const quote = await this.api.getMarketData([symbol]);
+        return quote[symbol]?.last || 0;
+    }
+    
+    findStrikeByDelta(chain, targetDelta) {
+        if (!chain) return null;
+        
+        const strikes = Object.keys(chain).map(Number).sort((a, b) => a - b);
+        let closestStrike = strikes[0];
+        let closestDiff = Math.abs((chain[strikes[0]]?.delta || 0) - targetDelta);
+        
+        for (const strike of strikes) {
+            const delta = Math.abs(chain[strike]?.delta || 0);
+            const diff = Math.abs(delta - targetDelta);
+            if (diff < closestDiff) {
+                closestDiff = diff;
+                closestStrike = strike;
+            }
+        }
+        
+        return closestStrike;
+    }
+    
+    roundToStrike(price, increment) {
+        return Math.round(price / increment) * increment;
     }
     
     /**

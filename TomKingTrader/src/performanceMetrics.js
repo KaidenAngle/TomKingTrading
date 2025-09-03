@@ -23,7 +23,7 @@ class PerformanceMetrics extends EventEmitter {
     }
 
     /**
-     * Calculate comprehensive performance metrics
+     * Calculate comprehensive performance metrics with attribution analysis
      */
     calculateComprehensiveMetrics(trades, dailyPnL, initialCapital, benchmarkReturns = null) {
         this.logger.info('PERF-METRICS', 'Calculating comprehensive performance metrics', {
@@ -38,6 +38,12 @@ class PerformanceMetrics extends EventEmitter {
         const strategyMetrics = this.calculateStrategySpecificMetrics(trades);
         const consistencyMetrics = this.calculateConsistencyMetrics(trades, dailyPnL);
         const efficiencyMetrics = this.calculateEfficiencyMetrics(trades, dailyPnL);
+        
+        // Enhanced attribution analysis
+        const attribution = this.calculatePerformanceAttribution(trades, dailyPnL, initialCapital);
+        const factorAnalysis = this.calculateFactorAnalysis(trades, dailyPnL);
+        const executionQuality = this.calculateExecutionQuality(trades);
+        const realTimePnLAttribution = this.calculateRealTimePnLAttribution(trades);
 
         let benchmarkComparison = null;
         if (benchmarkReturns) {
@@ -52,9 +58,506 @@ class PerformanceMetrics extends EventEmitter {
             strategies: strategyMetrics,
             consistency: consistencyMetrics,
             efficiency: efficiencyMetrics,
+            attribution: attribution,
+            factors: factorAnalysis,
+            execution: executionQuality,
+            realTimePnL: realTimePnLAttribution,
             benchmark: benchmarkComparison,
             summary: this.generatePerformanceSummary(basicMetrics, riskMetrics, returnMetrics)
         };
+    }
+
+    /**
+     * Calculate detailed performance attribution
+     * Tom King methodology: Understand where P&L comes from
+     */
+    calculatePerformanceAttribution(trades, dailyPnL, initialCapital) {
+        const attribution = {
+            byStrategy: {},
+            byUnderlying: {},
+            byTimeOfDay: {},
+            byDayOfWeek: {},
+            byMarketRegime: {},
+            byHoldingPeriod: {},
+            byRiskLevel: {},
+            byGreeks: {
+                delta: 0,
+                gamma: 0,
+                theta: 0,
+                vega: 0
+            }
+        };
+
+        // Attribution by strategy
+        const strategies = [...new Set(trades.map(t => t.strategy || 'UNKNOWN'))];
+        strategies.forEach(strategy => {
+            const strategyTrades = trades.filter(t => t.strategy === strategy);
+            attribution.byStrategy[strategy] = {
+                trades: strategyTrades.length,
+                pnl: strategyTrades.reduce((sum, t) => sum + t.pnl, 0),
+                winRate: strategyTrades.filter(t => t.pnl > 0).length / strategyTrades.length,
+                avgPnL: strategyTrades.reduce((sum, t) => sum + t.pnl, 0) / strategyTrades.length,
+                percentOfTotal: (strategyTrades.reduce((sum, t) => sum + t.pnl, 0) / trades.reduce((sum, t) => sum + t.pnl, 0)) * 100
+            };
+        });
+
+        // Attribution by underlying
+        const underlyings = [...new Set(trades.map(t => t.underlying || t.symbol || 'UNKNOWN'))];
+        underlyings.forEach(underlying => {
+            const underlyingTrades = trades.filter(t => (t.underlying || t.symbol) === underlying);
+            attribution.byUnderlying[underlying] = {
+                trades: underlyingTrades.length,
+                pnl: underlyingTrades.reduce((sum, t) => sum + t.pnl, 0),
+                winRate: underlyingTrades.filter(t => t.pnl > 0).length / underlyingTrades.length,
+                avgPnL: underlyingTrades.reduce((sum, t) => sum + t.pnl, 0) / underlyingTrades.length,
+                percentOfTotal: (underlyingTrades.reduce((sum, t) => sum + t.pnl, 0) / trades.reduce((sum, t) => sum + t.pnl, 0)) * 100
+            };
+        });
+
+        // Attribution by time of day
+        const timeSlots = ['09:30-10:30', '10:30-12:00', '12:00-14:00', '14:00-16:00'];
+        timeSlots.forEach(slot => {
+            const [startTime, endTime] = slot.split('-');
+            const slotTrades = trades.filter(t => {
+                if (!t.entryTime) return false;
+                const hour = new Date(t.entryTime).getHours();
+                const minute = new Date(t.entryTime).getMinutes();
+                const time = hour * 100 + minute;
+                const [startH, startM] = startTime.split(':').map(Number);
+                const [endH, endM] = endTime.split(':').map(Number);
+                return time >= startH * 100 + startM && time < endH * 100 + endM;
+            });
+            
+            if (slotTrades.length > 0) {
+                attribution.byTimeOfDay[slot] = {
+                    trades: slotTrades.length,
+                    pnl: slotTrades.reduce((sum, t) => sum + t.pnl, 0),
+                    winRate: slotTrades.filter(t => t.pnl > 0).length / slotTrades.length,
+                    avgPnL: slotTrades.reduce((sum, t) => sum + t.pnl, 0) / slotTrades.length
+                };
+            }
+        });
+
+        // Attribution by day of week
+        const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        daysOfWeek.forEach((day, index) => {
+            const dayTrades = trades.filter(t => {
+                if (!t.entryTime) return false;
+                return new Date(t.entryTime).getDay() === index;
+            });
+            
+            if (dayTrades.length > 0) {
+                attribution.byDayOfWeek[day] = {
+                    trades: dayTrades.length,
+                    pnl: dayTrades.reduce((sum, t) => sum + t.pnl, 0),
+                    winRate: dayTrades.filter(t => t.pnl > 0).length / dayTrades.length,
+                    avgPnL: dayTrades.reduce((sum, t) => sum + t.pnl, 0) / dayTrades.length,
+                    isFriday: index === 5
+                };
+            }
+        });
+
+        // Attribution by market regime (VIX levels)
+        const vixRegimes = {
+            'LOW (<15)': t => t.vixAtEntry && t.vixAtEntry < 15,
+            'NORMAL (15-20)': t => t.vixAtEntry && t.vixAtEntry >= 15 && t.vixAtEntry <= 20,
+            'ELEVATED (20-25)': t => t.vixAtEntry && t.vixAtEntry > 20 && t.vixAtEntry <= 25,
+            'HIGH (25-30)': t => t.vixAtEntry && t.vixAtEntry > 25 && t.vixAtEntry <= 30,
+            'EXTREME (>30)': t => t.vixAtEntry && t.vixAtEntry > 30
+        };
+
+        Object.entries(vixRegimes).forEach(([regime, filter]) => {
+            const regimeTrades = trades.filter(filter);
+            if (regimeTrades.length > 0) {
+                attribution.byMarketRegime[regime] = {
+                    trades: regimeTrades.length,
+                    pnl: regimeTrades.reduce((sum, t) => sum + t.pnl, 0),
+                    winRate: regimeTrades.filter(t => t.pnl > 0).length / regimeTrades.length,
+                    avgPnL: regimeTrades.reduce((sum, t) => sum + t.pnl, 0) / regimeTrades.length
+                };
+            }
+        });
+
+        // Attribution by holding period
+        const holdingPeriods = {
+            'INTRADAY': t => t.holdingPeriod && t.holdingPeriod < 1,
+            '1-3 DAYS': t => t.holdingPeriod && t.holdingPeriod >= 1 && t.holdingPeriod <= 3,
+            '4-7 DAYS': t => t.holdingPeriod && t.holdingPeriod > 3 && t.holdingPeriod <= 7,
+            '8-14 DAYS': t => t.holdingPeriod && t.holdingPeriod > 7 && t.holdingPeriod <= 14,
+            '15-30 DAYS': t => t.holdingPeriod && t.holdingPeriod > 14 && t.holdingPeriod <= 30,
+            '>30 DAYS': t => t.holdingPeriod && t.holdingPeriod > 30
+        };
+
+        Object.entries(holdingPeriods).forEach(([period, filter]) => {
+            const periodTrades = trades.filter(filter);
+            if (periodTrades.length > 0) {
+                attribution.byHoldingPeriod[period] = {
+                    trades: periodTrades.length,
+                    pnl: periodTrades.reduce((sum, t) => sum + t.pnl, 0),
+                    winRate: periodTrades.filter(t => t.pnl > 0).length / periodTrades.length,
+                    avgPnL: periodTrades.reduce((sum, t) => sum + t.pnl, 0) / periodTrades.length,
+                    avgDays: periodTrades.reduce((sum, t) => sum + (t.holdingPeriod || 0), 0) / periodTrades.length
+                };
+            }
+        });
+
+        // Attribution by Greeks
+        trades.forEach(trade => {
+            if (trade.greeksPnL) {
+                attribution.byGreeks.delta += trade.greeksPnL.delta || 0;
+                attribution.byGreeks.gamma += trade.greeksPnL.gamma || 0;
+                attribution.byGreeks.theta += trade.greeksPnL.theta || 0;
+                attribution.byGreeks.vega += trade.greeksPnL.vega || 0;
+            }
+        });
+
+        // Calculate total Greeks contribution
+        const totalGreeksPnL = Object.values(attribution.byGreeks).reduce((sum, v) => sum + v, 0);
+        const totalPnL = trades.reduce((sum, t) => sum + t.pnl, 0);
+        
+        attribution.byGreeks.totalContribution = totalGreeksPnL;
+        attribution.byGreeks.percentOfTotal = totalPnL !== 0 ? (totalGreeksPnL / totalPnL) * 100 : 0;
+
+        return attribution;
+    }
+
+    /**
+     * Calculate factor analysis for performance
+     */
+    calculateFactorAnalysis(trades, dailyPnL) {
+        const factors = {
+            directional: { pnl: 0, contribution: 0 },
+            volatility: { pnl: 0, contribution: 0 },
+            theta: { pnl: 0, contribution: 0 },
+            gamma: { pnl: 0, contribution: 0 },
+            correlation: { pnl: 0, contribution: 0 },
+            timing: { pnl: 0, contribution: 0 },
+            selection: { pnl: 0, contribution: 0 }
+        };
+
+        const totalPnL = trades.reduce((sum, t) => sum + t.pnl, 0);
+
+        // Analyze each trade's contributing factors
+        trades.forEach(trade => {
+            // Directional component (delta-based strategies)
+            if (trade.strategy && ['LONG_CALL', 'LONG_PUT', 'COVERED_CALL'].includes(trade.strategy)) {
+                factors.directional.pnl += trade.pnl;
+            }
+
+            // Volatility component (vega-heavy strategies)
+            if (trade.strategy && ['STRADDLE', 'STRANGLE', 'IRON_CONDOR'].includes(trade.strategy)) {
+                factors.volatility.pnl += trade.pnl;
+            }
+
+            // Theta component (time decay strategies)
+            if (trade.strategy && ['CREDIT_SPREAD', 'IRON_CONDOR', 'BUTTERFLY'].includes(trade.strategy)) {
+                factors.theta.pnl += trade.pnl * 0.6; // Estimate 60% from theta
+            }
+
+            // Gamma component (0DTE and weekly strategies)
+            if (trade.dte !== undefined && trade.dte <= 7) {
+                factors.gamma.pnl += trade.pnl * 0.3; // Estimate 30% from gamma
+            }
+
+            // Timing component (entry/exit quality)
+            if (trade.entryTiming) {
+                const timingScore = trade.entryTiming === 'EXCELLENT' ? 1.2 : 
+                                  trade.entryTiming === 'GOOD' ? 1.0 : 0.8;
+                factors.timing.pnl += trade.pnl * (timingScore - 1.0);
+            }
+
+            // Selection component (underlying choice)
+            if (trade.selectionQuality) {
+                const selectionScore = trade.selectionQuality === 'EXCELLENT' ? 1.15 : 
+                                      trade.selectionQuality === 'GOOD' ? 1.0 : 0.85;
+                factors.selection.pnl += trade.pnl * (selectionScore - 1.0);
+            }
+        });
+
+        // Calculate contribution percentages
+        Object.keys(factors).forEach(factor => {
+            factors[factor].contribution = totalPnL !== 0 ? 
+                (factors[factor].pnl / totalPnL) * 100 : 0;
+        });
+
+        // Add correlation analysis
+        factors.correlation = this.analyzeCorrelationImpact(trades, dailyPnL);
+
+        return factors;
+    }
+
+    /**
+     * Analyze correlation impact on P&L
+     */
+    analyzeCorrelationImpact(trades, dailyPnL) {
+        const correlationGroups = {};
+        
+        trades.forEach(trade => {
+            const group = trade.correlationGroup || 'UNKNOWN';
+            if (!correlationGroups[group]) {
+                correlationGroups[group] = { trades: 0, pnl: 0 };
+            }
+            correlationGroups[group].trades++;
+            correlationGroups[group].pnl += trade.pnl;
+        });
+
+        // Find days with high correlation losses
+        const highCorrelationDays = dailyPnL.filter(day => {
+            return day.correlationLoss && Math.abs(day.correlationLoss) > 1000;
+        });
+
+        return {
+            groups: correlationGroups,
+            highLossDays: highCorrelationDays.length,
+            estimatedCorrelationLoss: highCorrelationDays.reduce((sum, day) => 
+                sum + (day.correlationLoss || 0), 0
+            )
+        };
+    }
+
+    /**
+     * Calculate execution quality metrics
+     */
+    calculateExecutionQuality(trades) {
+        const quality = {
+            slippage: { total: 0, average: 0, worst: 0 },
+            fillRate: { limit: 0, market: 0, stop: 0 },
+            timing: { early: 0, onTime: 0, late: 0 },
+            priceImprovement: { count: 0, total: 0, average: 0 },
+            rejections: { count: 0, reasons: {} },
+            avgTimeToFill: 0,
+            bestExecution: [],
+            worstExecution: []
+        };
+
+        let totalSlippage = 0;
+        let slippageCount = 0;
+        let totalTimeToFill = 0;
+        let timeToFillCount = 0;
+
+        trades.forEach(trade => {
+            // Slippage analysis
+            if (trade.slippage !== undefined) {
+                totalSlippage += trade.slippage;
+                slippageCount++;
+                quality.slippage.worst = Math.min(quality.slippage.worst, trade.slippage);
+            }
+
+            // Fill rate by order type
+            if (trade.orderType) {
+                const orderType = trade.orderType.toLowerCase();
+                if (orderType.includes('limit')) quality.fillRate.limit++;
+                else if (orderType.includes('market')) quality.fillRate.market++;
+                else if (orderType.includes('stop')) quality.fillRate.stop++;
+            }
+
+            // Execution timing
+            if (trade.executionTiming) {
+                if (trade.executionTiming === 'EARLY') quality.timing.early++;
+                else if (trade.executionTiming === 'ON_TIME') quality.timing.onTime++;
+                else if (trade.executionTiming === 'LATE') quality.timing.late++;
+            }
+
+            // Price improvement
+            if (trade.priceImprovement && trade.priceImprovement > 0) {
+                quality.priceImprovement.count++;
+                quality.priceImprovement.total += trade.priceImprovement;
+            }
+
+            // Time to fill
+            if (trade.timeToFill) {
+                totalTimeToFill += trade.timeToFill;
+                timeToFillCount++;
+            }
+
+            // Track best and worst executions
+            if (trade.executionScore !== undefined) {
+                if (trade.executionScore >= 90) {
+                    quality.bestExecution.push({
+                        date: trade.entryTime,
+                        symbol: trade.symbol,
+                        score: trade.executionScore,
+                        pnl: trade.pnl
+                    });
+                } else if (trade.executionScore <= 50) {
+                    quality.worstExecution.push({
+                        date: trade.entryTime,
+                        symbol: trade.symbol,
+                        score: trade.executionScore,
+                        pnl: trade.pnl
+                    });
+                }
+            }
+        });
+
+        // Calculate averages
+        quality.slippage.total = totalSlippage;
+        quality.slippage.average = slippageCount > 0 ? totalSlippage / slippageCount : 0;
+        quality.priceImprovement.average = quality.priceImprovement.count > 0 ? 
+            quality.priceImprovement.total / quality.priceImprovement.count : 0;
+        quality.avgTimeToFill = timeToFillCount > 0 ? totalTimeToFill / timeToFillCount : 0;
+
+        // Sort best/worst executions
+        quality.bestExecution.sort((a, b) => b.score - a.score);
+        quality.worstExecution.sort((a, b) => a.score - b.score);
+
+        // Keep only top 5
+        quality.bestExecution = quality.bestExecution.slice(0, 5);
+        quality.worstExecution = quality.worstExecution.slice(0, 5);
+
+        return quality;
+    }
+
+    /**
+     * Calculate real-time P&L attribution
+     */
+    calculateRealTimePnLAttribution(trades) {
+        const realTime = {
+            current: {
+                openPositions: 0,
+                unrealizedPnL: 0,
+                realizedPnL: 0,
+                dayPnL: 0
+            },
+            breakdown: {
+                byStrategy: {},
+                byUnderlying: {},
+                byGreeks: {
+                    delta: 0,
+                    gamma: 0,
+                    theta: 0,
+                    vega: 0
+                }
+            },
+            intraday: {
+                high: 0,
+                low: 0,
+                current: 0,
+                drawdown: 0
+            },
+            projected: {
+                endOfDay: 0,
+                endOfWeek: 0,
+                endOfMonth: 0
+            }
+        };
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Separate open and closed positions
+        const openTrades = trades.filter(t => !t.exitTime || new Date(t.exitTime) > today);
+        const todayClosedTrades = trades.filter(t => 
+            t.exitTime && new Date(t.exitTime) >= today
+        );
+
+        // Current status
+        realTime.current.openPositions = openTrades.length;
+        realTime.current.unrealizedPnL = openTrades.reduce((sum, t) => sum + (t.unrealizedPnL || 0), 0);
+        realTime.current.realizedPnL = todayClosedTrades.reduce((sum, t) => sum + t.pnl, 0);
+        realTime.current.dayPnL = realTime.current.unrealizedPnL + realTime.current.realizedPnL;
+
+        // Breakdown by strategy for open positions
+        openTrades.forEach(trade => {
+            const strategy = trade.strategy || 'UNKNOWN';
+            if (!realTime.breakdown.byStrategy[strategy]) {
+                realTime.breakdown.byStrategy[strategy] = {
+                    positions: 0,
+                    unrealizedPnL: 0,
+                    delta: 0,
+                    gamma: 0,
+                    theta: 0,
+                    vega: 0
+                };
+            }
+            
+            const stratBreakdown = realTime.breakdown.byStrategy[strategy];
+            stratBreakdown.positions++;
+            stratBreakdown.unrealizedPnL += trade.unrealizedPnL || 0;
+            
+            if (trade.greeks) {
+                stratBreakdown.delta += trade.greeks.delta || 0;
+                stratBreakdown.gamma += trade.greeks.gamma || 0;
+                stratBreakdown.theta += trade.greeks.theta || 0;
+                stratBreakdown.vega += trade.greeks.vega || 0;
+            }
+        });
+
+        // Breakdown by underlying
+        openTrades.forEach(trade => {
+            const underlying = trade.underlying || trade.symbol || 'UNKNOWN';
+            if (!realTime.breakdown.byUnderlying[underlying]) {
+                realTime.breakdown.byUnderlying[underlying] = {
+                    positions: 0,
+                    unrealizedPnL: 0,
+                    percentOfTotal: 0
+                };
+            }
+            
+            realTime.breakdown.byUnderlying[underlying].positions++;
+            realTime.breakdown.byUnderlying[underlying].unrealizedPnL += trade.unrealizedPnL || 0;
+        });
+
+        // Calculate percentages
+        const totalUnrealized = Math.abs(realTime.current.unrealizedPnL) || 1;
+        Object.values(realTime.breakdown.byUnderlying).forEach(item => {
+            item.percentOfTotal = (Math.abs(item.unrealizedPnL) / totalUnrealized) * 100;
+        });
+
+        // Greeks attribution for open positions
+        openTrades.forEach(trade => {
+            if (trade.greeksPnL) {
+                realTime.breakdown.byGreeks.delta += trade.greeksPnL.delta || 0;
+                realTime.breakdown.byGreeks.gamma += trade.greeksPnL.gamma || 0;
+                realTime.breakdown.byGreeks.theta += trade.greeksPnL.theta || 0;
+                realTime.breakdown.byGreeks.vega += trade.greeksPnL.vega || 0;
+            }
+        });
+
+        // Intraday tracking
+        const intradayPnLs = trades
+            .filter(t => new Date(t.entryTime || t.timestamp) >= today)
+            .map(t => t.pnl + (t.unrealizedPnL || 0));
+        
+        if (intradayPnLs.length > 0) {
+            realTime.intraday.high = Math.max(...intradayPnLs);
+            realTime.intraday.low = Math.min(...intradayPnLs);
+            realTime.intraday.current = realTime.current.dayPnL;
+            realTime.intraday.drawdown = realTime.intraday.current - realTime.intraday.high;
+        }
+
+        // Projections based on theta and current trends
+        const dailyTheta = realTime.breakdown.byGreeks.theta;
+        const currentTrend = this.calculateRecentTrend(trades, 5); // 5-day trend
+        
+        realTime.projected.endOfDay = realTime.current.dayPnL + dailyTheta;
+        realTime.projected.endOfWeek = realTime.current.dayPnL + (dailyTheta * 5) + (currentTrend * 5);
+        realTime.projected.endOfMonth = realTime.current.dayPnL + (dailyTheta * 20) + (currentTrend * 20);
+
+        return realTime;
+    }
+
+    /**
+     * Calculate recent P&L trend
+     */
+    calculateRecentTrend(trades, days) {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - days);
+        
+        const recentTrades = trades.filter(t => 
+            new Date(t.exitTime || t.entryTime) >= cutoff
+        );
+        
+        if (recentTrades.length === 0) return 0;
+        
+        const dailyPnL = {};
+        recentTrades.forEach(trade => {
+            const date = new Date(trade.exitTime || trade.entryTime).toDateString();
+            dailyPnL[date] = (dailyPnL[date] || 0) + trade.pnl;
+        });
+        
+        const pnlValues = Object.values(dailyPnL);
+        return pnlValues.reduce((sum, v) => sum + v, 0) / pnlValues.length;
     }
 
     /**
