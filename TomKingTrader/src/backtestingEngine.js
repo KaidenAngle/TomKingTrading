@@ -45,6 +45,18 @@ class BacktestingEngine {
         this.strategies = new TradingStrategies();
         this.greeksCalc = new GreeksCalculator();
         
+        // Trade replay system
+        this.tradeReplay = {
+            enabled: false,
+            speed: 1, // 1x speed by default
+            currentIndex: 0,
+            trades: [],
+            marketSnapshots: [],
+            events: [],
+            breakpoints: [],
+            isPaused: false
+        };
+        
         // Tom King specific rules
         this.tomKingRules = {
             phases: {
@@ -1627,6 +1639,466 @@ class BacktestingEngine {
             
             throw new Error(`Real historical data unavailable: ${error.message}`);
         }
+    }
+    
+    /**
+     * Initialize trade replay system
+     */
+    initializeTradeReplay(trades, marketData = null) {
+        this.tradeReplay = {
+            enabled: true,
+            speed: 1,
+            currentIndex: 0,
+            trades: trades || this.tradeHistory,
+            marketSnapshots: marketData || [],
+            events: [],
+            breakpoints: [],
+            isPaused: false,
+            startTime: null,
+            endTime: null,
+            currentTime: null
+        };
+        
+        // Sort trades by entry date
+        this.tradeReplay.trades.sort((a, b) => 
+            new Date(a.entryDate) - new Date(b.entryDate)
+        );
+        
+        if (this.tradeReplay.trades.length > 0) {
+            this.tradeReplay.startTime = new Date(this.tradeReplay.trades[0].entryDate);
+            this.tradeReplay.endTime = new Date(
+                this.tradeReplay.trades[this.tradeReplay.trades.length - 1].exitDate || 
+                this.tradeReplay.trades[this.tradeReplay.trades.length - 1].entryDate
+            );
+            this.tradeReplay.currentTime = this.tradeReplay.startTime;
+        }
+        
+        this.logger.info('TRADE_REPLAY', 'Trade replay initialized', {
+            totalTrades: this.tradeReplay.trades.length,
+            startTime: this.tradeReplay.startTime,
+            endTime: this.tradeReplay.endTime
+        });
+        
+        return this.tradeReplay;
+    }
+    
+    /**
+     * Start trade replay
+     */
+    async startTradeReplay(options = {}) {
+        if (!this.tradeReplay.enabled || this.tradeReplay.trades.length === 0) {
+            throw new Error('Trade replay not initialized or no trades to replay');
+        }
+        
+        const {
+            speed = 1,
+            onTradeEntry = () => {},
+            onTradeExit = () => {},
+            onMarketUpdate = () => {},
+            onEvent = () => {},
+            breakOnLoss = false,
+            breakOnWin = false
+        } = options;
+        
+        this.tradeReplay.speed = speed;
+        this.tradeReplay.isPaused = false;
+        
+        this.logger.info('TRADE_REPLAY', 'Starting trade replay', {
+            speed: `${speed}x`,
+            totalTrades: this.tradeReplay.trades.length
+        });
+        
+        // Process trades in sequence
+        while (this.tradeReplay.currentIndex < this.tradeReplay.trades.length && !this.tradeReplay.isPaused) {
+            const trade = this.tradeReplay.trades[this.tradeReplay.currentIndex];
+            
+            // Update current time
+            this.tradeReplay.currentTime = new Date(trade.entryDate);
+            
+            // Get market snapshot for this time
+            const marketSnapshot = this.getMarketSnapshotAtTime(this.tradeReplay.currentTime);
+            
+            // Emit trade entry event
+            await this.emitReplayEvent('TRADE_ENTRY', {
+                trade,
+                marketSnapshot,
+                index: this.tradeReplay.currentIndex,
+                totalTrades: this.tradeReplay.trades.length,
+                currentTime: this.tradeReplay.currentTime
+            });
+            
+            await onTradeEntry(trade, marketSnapshot);
+            
+            // Wait based on replay speed
+            if (this.tradeReplay.speed > 0) {
+                const waitTime = trade.exitDate 
+                    ? (new Date(trade.exitDate) - new Date(trade.entryDate)) / this.tradeReplay.speed
+                    : 1000 / this.tradeReplay.speed;
+                
+                await this.sleep(Math.min(waitTime, 5000)); // Cap at 5 seconds max wait
+            }
+            
+            // Process trade exit if exists
+            if (trade.exitDate) {
+                this.tradeReplay.currentTime = new Date(trade.exitDate);
+                const exitSnapshot = this.getMarketSnapshotAtTime(this.tradeReplay.currentTime);
+                
+                await this.emitReplayEvent('TRADE_EXIT', {
+                    trade,
+                    marketSnapshot: exitSnapshot,
+                    pnl: trade.pnl,
+                    currentTime: this.tradeReplay.currentTime
+                });
+                
+                await onTradeExit(trade, exitSnapshot);
+                
+                // Check breakpoints
+                if ((breakOnLoss && trade.pnl < 0) || (breakOnWin && trade.pnl > 0)) {
+                    this.pauseReplay();
+                    await this.emitReplayEvent('BREAKPOINT_HIT', {
+                        reason: trade.pnl < 0 ? 'LOSS' : 'WIN',
+                        trade,
+                        currentTime: this.tradeReplay.currentTime
+                    });
+                }
+            }
+            
+            // Update portfolio metrics
+            this.updateReplayMetrics(trade);
+            
+            // Move to next trade
+            this.tradeReplay.currentIndex++;
+            
+            // Emit progress update
+            await onEvent({
+                type: 'PROGRESS',
+                current: this.tradeReplay.currentIndex,
+                total: this.tradeReplay.trades.length,
+                percentComplete: (this.tradeReplay.currentIndex / this.tradeReplay.trades.length) * 100
+            });
+        }
+        
+        // Replay complete
+        await this.emitReplayEvent('REPLAY_COMPLETE', {
+            totalTrades: this.tradeReplay.trades.length,
+            finalMetrics: this.getReplayMetrics()
+        });
+        
+        return this.getReplayMetrics();
+    }
+    
+    /**
+     * Pause trade replay
+     */
+    pauseReplay() {
+        if (this.tradeReplay.enabled) {
+            this.tradeReplay.isPaused = true;
+            this.logger.info('TRADE_REPLAY', 'Replay paused', {
+                currentIndex: this.tradeReplay.currentIndex,
+                currentTime: this.tradeReplay.currentTime
+            });
+        }
+    }
+    
+    /**
+     * Resume trade replay
+     */
+    resumeReplay() {
+        if (this.tradeReplay.enabled && this.tradeReplay.isPaused) {
+            this.tradeReplay.isPaused = false;
+            this.logger.info('TRADE_REPLAY', 'Replay resumed');
+            return this.startTradeReplay(); // Continue from current index
+        }
+    }
+    
+    /**
+     * Step forward one trade
+     */
+    async stepForward() {
+        if (!this.tradeReplay.enabled || this.tradeReplay.currentIndex >= this.tradeReplay.trades.length) {
+            return null;
+        }
+        
+        const trade = this.tradeReplay.trades[this.tradeReplay.currentIndex];
+        this.tradeReplay.currentIndex++;
+        this.tradeReplay.currentTime = new Date(trade.entryDate);
+        
+        await this.emitReplayEvent('STEP_FORWARD', { trade });
+        
+        return trade;
+    }
+    
+    /**
+     * Step backward one trade
+     */
+    async stepBackward() {
+        if (!this.tradeReplay.enabled || this.tradeReplay.currentIndex <= 0) {
+            return null;
+        }
+        
+        this.tradeReplay.currentIndex--;
+        const trade = this.tradeReplay.trades[this.tradeReplay.currentIndex];
+        this.tradeReplay.currentTime = new Date(trade.entryDate);
+        
+        await this.emitReplayEvent('STEP_BACKWARD', { trade });
+        
+        return trade;
+    }
+    
+    /**
+     * Jump to specific trade index
+     */
+    jumpToTrade(index) {
+        if (!this.tradeReplay.enabled || index < 0 || index >= this.tradeReplay.trades.length) {
+            return false;
+        }
+        
+        this.tradeReplay.currentIndex = index;
+        const trade = this.tradeReplay.trades[index];
+        this.tradeReplay.currentTime = new Date(trade.entryDate);
+        
+        this.emitReplayEvent('JUMP_TO', { 
+            index,
+            trade,
+            currentTime: this.tradeReplay.currentTime
+        });
+        
+        return trade;
+    }
+    
+    /**
+     * Set replay speed
+     */
+    setReplaySpeed(speed) {
+        this.tradeReplay.speed = Math.max(0, Math.min(speed, 100)); // 0-100x speed
+        this.logger.info('TRADE_REPLAY', `Replay speed set to ${this.tradeReplay.speed}x`);
+    }
+    
+    /**
+     * Add breakpoint at specific condition
+     */
+    addBreakpoint(condition) {
+        this.tradeReplay.breakpoints.push({
+            id: Date.now(),
+            condition,
+            hits: 0
+        });
+        
+        return this.tradeReplay.breakpoints.length - 1;
+    }
+    
+    /**
+     * Get market snapshot at specific time
+     */
+    getMarketSnapshotAtTime(timestamp) {
+        if (!this.tradeReplay.marketSnapshots || this.tradeReplay.marketSnapshots.length === 0) {
+            return null;
+        }
+        
+        // Find closest market snapshot
+        const targetTime = new Date(timestamp).getTime();
+        let closest = this.tradeReplay.marketSnapshots[0];
+        let minDiff = Math.abs(new Date(closest.timestamp).getTime() - targetTime);
+        
+        for (const snapshot of this.tradeReplay.marketSnapshots) {
+            const diff = Math.abs(new Date(snapshot.timestamp).getTime() - targetTime);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closest = snapshot;
+            }
+        }
+        
+        return closest;
+    }
+    
+    /**
+     * Update replay metrics
+     */
+    updateReplayMetrics(trade) {
+        if (!this.replayMetrics) {
+            this.replayMetrics = {
+                totalTrades: 0,
+                winningTrades: 0,
+                losingTrades: 0,
+                totalPnL: 0,
+                maxWin: 0,
+                maxLoss: 0,
+                currentStreak: 0,
+                maxWinStreak: 0,
+                maxLossStreak: 0,
+                byStrategy: {},
+                bySymbol: {}
+            };
+        }
+        
+        this.replayMetrics.totalTrades++;
+        
+        if (trade.pnl > 0) {
+            this.replayMetrics.winningTrades++;
+            this.replayMetrics.maxWin = Math.max(this.replayMetrics.maxWin, trade.pnl);
+            if (this.replayMetrics.currentStreak >= 0) {
+                this.replayMetrics.currentStreak++;
+                this.replayMetrics.maxWinStreak = Math.max(
+                    this.replayMetrics.maxWinStreak,
+                    this.replayMetrics.currentStreak
+                );
+            } else {
+                this.replayMetrics.currentStreak = 1;
+            }
+        } else {
+            this.replayMetrics.losingTrades++;
+            this.replayMetrics.maxLoss = Math.min(this.replayMetrics.maxLoss, trade.pnl);
+            if (this.replayMetrics.currentStreak <= 0) {
+                this.replayMetrics.currentStreak--;
+                this.replayMetrics.maxLossStreak = Math.max(
+                    this.replayMetrics.maxLossStreak,
+                    Math.abs(this.replayMetrics.currentStreak)
+                );
+            } else {
+                this.replayMetrics.currentStreak = -1;
+            }
+        }
+        
+        this.replayMetrics.totalPnL += trade.pnl;
+        
+        // Track by strategy
+        const strategy = trade.strategy || 'UNKNOWN';
+        if (!this.replayMetrics.byStrategy[strategy]) {
+            this.replayMetrics.byStrategy[strategy] = {
+                trades: 0,
+                wins: 0,
+                pnl: 0
+            };
+        }
+        this.replayMetrics.byStrategy[strategy].trades++;
+        if (trade.pnl > 0) this.replayMetrics.byStrategy[strategy].wins++;
+        this.replayMetrics.byStrategy[strategy].pnl += trade.pnl;
+        
+        // Track by symbol
+        const symbol = trade.symbol || 'UNKNOWN';
+        if (!this.replayMetrics.bySymbol[symbol]) {
+            this.replayMetrics.bySymbol[symbol] = {
+                trades: 0,
+                wins: 0,
+                pnl: 0
+            };
+        }
+        this.replayMetrics.bySymbol[symbol].trades++;
+        if (trade.pnl > 0) this.replayMetrics.bySymbol[symbol].wins++;
+        this.replayMetrics.bySymbol[symbol].pnl += trade.pnl;
+    }
+    
+    /**
+     * Get replay metrics
+     */
+    getReplayMetrics() {
+        if (!this.replayMetrics) {
+            return null;
+        }
+        
+        const winRate = this.replayMetrics.totalTrades > 0
+            ? this.replayMetrics.winningTrades / this.replayMetrics.totalTrades
+            : 0;
+        
+        const avgWin = this.replayMetrics.winningTrades > 0
+            ? this.replayMetrics.totalPnL / this.replayMetrics.winningTrades
+            : 0;
+        
+        const avgLoss = this.replayMetrics.losingTrades > 0
+            ? this.replayMetrics.totalPnL / this.replayMetrics.losingTrades
+            : 0;
+        
+        return {
+            ...this.replayMetrics,
+            winRate,
+            avgWin,
+            avgLoss,
+            profitFactor: Math.abs(avgWin * this.replayMetrics.winningTrades) / 
+                         Math.abs(avgLoss * this.replayMetrics.losingTrades) || 0,
+            currentIndex: this.tradeReplay.currentIndex,
+            progress: (this.tradeReplay.currentIndex / this.tradeReplay.trades.length) * 100
+        };
+    }
+    
+    /**
+     * Emit replay event
+     */
+    async emitReplayEvent(type, data) {
+        const event = {
+            type,
+            timestamp: new Date(),
+            replayTime: this.tradeReplay.currentTime,
+            data
+        };
+        
+        this.tradeReplay.events.push(event);
+        
+        // Emit to any listeners
+        if (this.eventEmitter) {
+            this.eventEmitter.emit('replay-event', event);
+        }
+        
+        // Log important events
+        if (['TRADE_ENTRY', 'TRADE_EXIT', 'BREAKPOINT_HIT'].includes(type)) {
+            this.logger.debug('TRADE_REPLAY', type, data);
+        }
+    }
+    
+    /**
+     * Export replay session
+     */
+    async exportReplaySession(filepath) {
+        const fs = require('fs').promises;
+        
+        const session = {
+            config: this.config,
+            replay: {
+                trades: this.tradeReplay.trades,
+                events: this.tradeReplay.events,
+                metrics: this.getReplayMetrics()
+            },
+            exported: new Date().toISOString()
+        };
+        
+        await fs.writeFile(filepath, JSON.stringify(session, null, 2));
+        this.logger.info('TRADE_REPLAY', `Replay session exported to ${filepath}`);
+        
+        return session;
+    }
+    
+    /**
+     * Load replay session
+     */
+    async loadReplaySession(filepath) {
+        const fs = require('fs').promises;
+        
+        try {
+            const data = await fs.readFile(filepath, 'utf8');
+            const session = JSON.parse(data);
+            
+            // Initialize with loaded data
+            this.config = { ...this.config, ...session.config };
+            this.initializeTradeReplay(session.replay.trades);
+            this.tradeReplay.events = session.replay.events || [];
+            
+            this.logger.info('TRADE_REPLAY', `Replay session loaded from ${filepath}`, {
+                trades: session.replay.trades.length,
+                events: session.replay.events.length
+            });
+            
+            return session;
+            
+        } catch (error) {
+            this.logger.error('TRADE_REPLAY', `Failed to load replay session: ${error.message}`);
+            throw error;
+        }
+    }
+    
+    /**
+     * Sleep helper for replay timing
+     */
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 }
 

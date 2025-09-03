@@ -19,7 +19,13 @@ class AccountStreamer extends EventEmitter {
         this.maxReconnectAttempts = 10;
         this.reconnectDelay = 5000;
         
-        // Account data cache
+        // Multi-account support
+        this.multiAccountMode = false;
+        this.accounts = new Map(); // Map of accountNumber -> accountData
+        this.primaryAccount = null;
+        this.activeAccount = null;
+        
+        // Account data cache (for backward compatibility)
         this.accountData = {
             balance: null,
             positions: [],
@@ -42,6 +48,343 @@ class AccountStreamer extends EventEmitter {
             trades: [],
             pnl: []
         };
+    }
+    
+    /**
+     * Initialize multi-account support
+     */
+    async initializeMultiAccount(accountNumbers = []) {
+        if (!accountNumbers || accountNumbers.length === 0) {
+            logger.warn('MULTI_ACCOUNT', 'No account numbers provided');
+            return false;
+        }
+        
+        this.multiAccountMode = true;
+        this.primaryAccount = accountNumbers[0];
+        this.activeAccount = this.primaryAccount;
+        
+        logger.info('MULTI_ACCOUNT', `Initializing ${accountNumbers.length} accounts`);
+        
+        // Initialize data structure for each account
+        for (const accountNumber of accountNumbers) {
+            this.accounts.set(accountNumber, {
+                accountNumber,
+                accountType: null, // 'LIVE', 'PAPER', 'IRA', 'MARGIN'
+                balance: null,
+                positions: [],
+                orders: [],
+                greeks: {
+                    portfolio: {
+                        delta: 0,
+                        gamma: 0,
+                        theta: 0,
+                        vega: 0
+                    }
+                },
+                history: {
+                    balances: [],
+                    positions: [],
+                    trades: [],
+                    pnl: []
+                },
+                lastUpdate: null,
+                restrictions: [], // Account-specific restrictions
+                phase: 1, // Account-specific phase
+                tradingEnabled: true
+            });
+        }
+        
+        // Connect streams for all accounts
+        const connections = await Promise.allSettled(
+            accountNumbers.map(acc => this.connectAccount(acc))
+        );
+        
+        const successful = connections.filter(c => c.status === 'fulfilled').length;
+        logger.info('MULTI_ACCOUNT', `Connected to ${successful}/${accountNumbers.length} accounts`);
+        
+        return successful > 0;
+    }
+    
+    /**
+     * Connect to a specific account
+     */
+    async connectAccount(accountNumber) {
+        try {
+            const accountData = this.accounts.get(accountNumber);
+            if (!accountData) {
+                throw new Error(`Account ${accountNumber} not initialized`);
+            }
+            
+            // Get account info
+            const accountInfo = await this.api.getAccountInfo(accountNumber);
+            accountData.accountType = accountInfo.accountType || 'MARGIN';
+            accountData.restrictions = accountInfo.restrictions || [];
+            
+            // Determine phase based on balance
+            const balance = accountInfo.netLiq || accountInfo.balance || 0;
+            accountData.phase = this.determineAccountPhase(balance);
+            
+            logger.info('MULTI_ACCOUNT', `Account ${accountNumber} connected`, {
+                type: accountData.accountType,
+                phase: accountData.phase,
+                balance: balance
+            });
+            
+            return true;
+            
+        } catch (error) {
+            logger.error('MULTI_ACCOUNT', `Failed to connect account ${accountNumber}`, error);
+            return false;
+        }
+    }
+    
+    /**
+     * Determine account phase based on balance
+     */
+    determineAccountPhase(balance) {
+        if (balance < 40000) return 1;
+        if (balance < 60000) return 2;
+        if (balance < 75000) return 3;
+        return 4;
+    }
+    
+    /**
+     * Switch active account
+     */
+    switchAccount(accountNumber) {
+        if (!this.accounts.has(accountNumber)) {
+            logger.error('MULTI_ACCOUNT', `Account ${accountNumber} not found`);
+            return false;
+        }
+        
+        this.activeAccount = accountNumber;
+        
+        // Update legacy accountData for backward compatibility
+        const account = this.accounts.get(accountNumber);
+        this.accountData = {
+            balance: account.balance,
+            positions: account.positions,
+            orders: account.orders,
+            greeks: account.greeks,
+            lastUpdate: account.lastUpdate
+        };
+        
+        this.emit('account-switched', {
+            previousAccount: this.activeAccount,
+            newAccount: accountNumber,
+            accountData: account
+        });
+        
+        logger.info('MULTI_ACCOUNT', `Switched to account ${accountNumber}`);
+        return true;
+    }
+    
+    /**
+     * Get aggregated portfolio data across all accounts
+     */
+    getAggregatedPortfolio() {
+        const aggregated = {
+            totalBalance: 0,
+            totalPositions: 0,
+            totalOrders: 0,
+            combinedGreeks: {
+                delta: 0,
+                gamma: 0,
+                theta: 0,
+                vega: 0
+            },
+            accounts: [],
+            byStrategy: {},
+            byUnderlying: {},
+            correlationGroups: {}
+        };
+        
+        for (const [accountNumber, account] of this.accounts) {
+            // Add balance
+            if (account.balance) {
+                aggregated.totalBalance += account.balance.netLiq || 0;
+            }
+            
+            // Add positions
+            aggregated.totalPositions += account.positions.length;
+            
+            // Add orders
+            aggregated.totalOrders += account.orders.length;
+            
+            // Aggregate Greeks
+            if (account.greeks?.portfolio) {
+                aggregated.combinedGreeks.delta += account.greeks.portfolio.delta || 0;
+                aggregated.combinedGreeks.gamma += account.greeks.portfolio.gamma || 0;
+                aggregated.combinedGreeks.theta += account.greeks.portfolio.theta || 0;
+                aggregated.combinedGreeks.vega += account.greeks.portfolio.vega || 0;
+            }
+            
+            // Account summary
+            aggregated.accounts.push({
+                accountNumber,
+                accountType: account.accountType,
+                phase: account.phase,
+                balance: account.balance?.netLiq || 0,
+                positions: account.positions.length,
+                bpUsed: account.balance?.bpUsed || 0,
+                tradingEnabled: account.tradingEnabled
+            });
+            
+            // Aggregate by strategy and underlying
+            for (const position of account.positions) {
+                // By strategy
+                const strategy = position.strategy || 'UNDEFINED';
+                if (!aggregated.byStrategy[strategy]) {
+                    aggregated.byStrategy[strategy] = {
+                        count: 0,
+                        value: 0,
+                        pnl: 0
+                    };
+                }
+                aggregated.byStrategy[strategy].count++;
+                aggregated.byStrategy[strategy].value += position.marketValue || 0;
+                aggregated.byStrategy[strategy].pnl += position.unrealizedPL || 0;
+                
+                // By underlying
+                const underlying = position.underlyingSymbol || position.symbol;
+                if (!aggregated.byUnderlying[underlying]) {
+                    aggregated.byUnderlying[underlying] = {
+                        count: 0,
+                        accounts: new Set(),
+                        totalDelta: 0
+                    };
+                }
+                aggregated.byUnderlying[underlying].count++;
+                aggregated.byUnderlying[underlying].accounts.add(accountNumber);
+                aggregated.byUnderlying[underlying].totalDelta += position.delta || 0;
+            }
+        }
+        
+        // Check correlation violations across accounts
+        aggregated.correlationViolations = this.checkCrossAccountCorrelation(aggregated.byUnderlying);
+        
+        return aggregated;
+    }
+    
+    /**
+     * Check correlation violations across accounts
+     */
+    checkCrossAccountCorrelation(byUnderlying) {
+        const violations = [];
+        const correlationGroups = {
+            'EQUITY': ['ES', 'MES', 'SPY', 'QQQ', 'IWM'],
+            'ENERGY': ['CL', 'MCL', 'XLE', 'XOP'],
+            'METALS': ['GC', 'MGC', 'GLD', 'SLV']
+        };
+        
+        for (const [group, symbols] of Object.entries(correlationGroups)) {
+            let totalPositions = 0;
+            const accountsInvolved = new Set();
+            
+            for (const symbol of symbols) {
+                if (byUnderlying[symbol]) {
+                    totalPositions += byUnderlying[symbol].count;
+                    byUnderlying[symbol].accounts.forEach(acc => accountsInvolved.add(acc));
+                }
+            }
+            
+            // Check if exceeds limit (considering all accounts)
+            if (totalPositions > 3) {
+                violations.push({
+                    group,
+                    totalPositions,
+                    accountsInvolved: Array.from(accountsInvolved),
+                    severity: totalPositions > 5 ? 'HIGH' : 'MEDIUM'
+                });
+            }
+        }
+        
+        return violations;
+    }
+    
+    /**
+     * Get account-specific recommendations
+     */
+    getAccountRecommendations(accountNumber = null) {
+        const account = accountNumber 
+            ? this.accounts.get(accountNumber)
+            : this.accounts.get(this.activeAccount);
+            
+        if (!account) {
+            return { error: 'Account not found' };
+        }
+        
+        const recommendations = [];
+        const balance = account.balance?.netLiq || 0;
+        const bpUsed = account.balance?.bpUsed || 0;
+        const bpUsagePercent = balance > 0 ? (bpUsed / balance) * 100 : 0;
+        
+        // Phase-based recommendations
+        if (account.phase === 1 && balance > 38000) {
+            recommendations.push({
+                type: 'PHASE_UPGRADE',
+                message: 'Near Phase 2 - prepare for MES/MNQ addition',
+                action: 'Review Phase 2 strategies'
+            });
+        }
+        
+        // BP usage recommendations
+        if (bpUsagePercent > 75) {
+            recommendations.push({
+                type: 'BP_WARNING',
+                message: `BP usage high: ${bpUsagePercent.toFixed(1)}%`,
+                action: 'Consider reducing position sizes'
+            });
+        } else if (bpUsagePercent < 30 && account.positions.length < 3) {
+            recommendations.push({
+                type: 'UNDERUTILIZED',
+                message: 'Low BP utilization',
+                action: 'Consider adding positions per strategy hierarchy'
+            });
+        }
+        
+        // Account type specific
+        if (account.accountType === 'IRA') {
+            recommendations.push({
+                type: 'IRA_REMINDER',
+                message: 'IRA account - no undefined risk trades',
+                action: 'Stick to defined risk strategies only'
+            });
+        }
+        
+        return {
+            accountNumber: account.accountNumber,
+            phase: account.phase,
+            recommendations
+        };
+    }
+    
+    /**
+     * Export multi-account data
+     */
+    async exportMultiAccountData(filepath) {
+        const fs = require('fs').promises;
+        const data = {
+            aggregated: this.getAggregatedPortfolio(),
+            accounts: [],
+            exported: new Date().toISOString()
+        };
+        
+        for (const [accountNumber, account] of this.accounts) {
+            data.accounts.push({
+                accountNumber,
+                accountType: account.accountType,
+                phase: account.phase,
+                balance: account.balance,
+                positions: account.positions.length,
+                orders: account.orders.length,
+                greeks: account.greeks,
+                recentPnL: account.history.pnl.slice(-7) // Last week
+            });
+        }
+        
+        await fs.writeFile(filepath, JSON.stringify(data, null, 2));
+        logger.info('MULTI_ACCOUNT', `Multi-account data exported to ${filepath}`);
     }
 
     /**
