@@ -157,6 +157,132 @@ class PositionHealthCalculator {
     if (score >= 40) return 'POOR';
     return 'CRITICAL';
   }
+  
+  /**
+   * Generate health alerts for all positions
+   * Returns positions requiring immediate attention
+   */
+  static generateHealthAlerts(positions) {
+    const alerts = {
+      critical: [],      // Score < 20 - Immediate action required
+      urgent: [],        // Score 20-39 - Action today
+      warning: [],       // Score 40-59 - Monitor closely  
+      opportunities: []  // Score 60+ with profit > 40%
+    };
+    
+    for (const position of positions) {
+      const health = this.calculateHealthScore(position);
+      const alertData = {
+        symbol: position.symbol,
+        strategy: position.strategy,
+        dte: position.daysToExpiration,
+        pl: position.plPercent,
+        score: health.score,
+        level: health.healthLevel,
+        action: health.primaryAction,
+        warnings: health.warnings
+      };
+      
+      // Categorize by urgency
+      if (health.score < 20) {
+        alerts.critical.push({
+          ...alertData,
+          priority: 1,
+          message: `🚨 CRITICAL: ${position.symbol} - ${health.primaryAction}`,
+          reason: health.warnings[0] || 'Score below critical threshold'
+        });
+      } else if (health.score < 40) {
+        alerts.urgent.push({
+          ...alertData,
+          priority: 2,
+          message: `⚠️ URGENT: ${position.symbol} - ${health.primaryAction}`,
+          reason: health.warnings[0] || 'Position requires attention today'
+        });
+      } else if (health.score < 60) {
+        alerts.warning.push({
+          ...alertData,
+          priority: 3,
+          message: `📊 WARNING: ${position.symbol} - Monitor closely`,
+          reason: health.warnings[0] || 'Position approaching management point'
+        });
+      } else if (health.profitTarget) {
+        alerts.opportunities.push({
+          ...alertData,
+          priority: 4,
+          message: `💰 PROFIT TARGET: ${position.symbol} - Consider taking profit at ${position.plPercent.toFixed(1)}%`,
+          reason: 'Profit target reached'
+        });
+      }
+    }
+    
+    return alerts;
+  }
+  
+  /**
+   * Monitor positions continuously and trigger alerts
+   */
+  static startHealthMonitoring(positions, callback, interval = 60000) {
+    const checkHealth = () => {
+      const alerts = this.generateHealthAlerts(positions);
+      const totalAlerts = alerts.critical.length + alerts.urgent.length + 
+                         alerts.warning.length + alerts.opportunities.length;
+      
+      if (totalAlerts > 0) {
+        console.log('\n' + '='.repeat(60));
+        console.log('📊 POSITION HEALTH ALERT SUMMARY');
+        console.log('='.repeat(60));
+        
+        if (alerts.critical.length > 0) {
+          console.log('\n🚨 CRITICAL ALERTS (Immediate Action Required):');
+          alerts.critical.forEach(alert => {
+            console.log(`  • ${alert.symbol}: Score ${alert.score} - ${alert.action}`);
+            console.log(`    Reason: ${alert.reason}`);
+          });
+        }
+        
+        if (alerts.urgent.length > 0) {
+          console.log('\n⚠️ URGENT ALERTS (Action Required Today):');
+          alerts.urgent.forEach(alert => {
+            console.log(`  • ${alert.symbol}: Score ${alert.score} - ${alert.action}`);
+            console.log(`    Reason: ${alert.reason}`);
+          });
+        }
+        
+        if (alerts.warning.length > 0) {
+          console.log('\n📊 WARNING ALERTS (Monitor Closely):');
+          alerts.warning.forEach(alert => {
+            console.log(`  • ${alert.symbol}: Score ${alert.score}`);
+            console.log(`    Reason: ${alert.reason}`);
+          });
+        }
+        
+        if (alerts.opportunities.length > 0) {
+          console.log('\n💰 PROFIT OPPORTUNITIES:');
+          alerts.opportunities.forEach(alert => {
+            console.log(`  • ${alert.symbol}: P&L ${alert.pl.toFixed(1)}% - Consider closing`);
+          });
+        }
+        
+        console.log('\n' + '='.repeat(60));
+        
+        // Execute callback with alerts
+        if (callback) {
+          callback(alerts);
+        }
+      }
+      
+      return alerts;
+    };
+    
+    // Initial check
+    checkHealth();
+    
+    // Set up monitoring interval
+    const monitoringId = setInterval(checkHealth, interval);
+    
+    // Return stop function
+    return () => clearInterval(monitoringId);
+  }
 }
 
 /**

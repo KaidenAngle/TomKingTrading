@@ -870,6 +870,231 @@ class PerformanceMetrics extends EventEmitter {
     }
 
     /**
+     * Calculate Compound Growth Tracking - £35k to £80k Goal
+     * Tom King Framework: 12% monthly compound target
+     */
+    calculateCompoundGrowth(trades, initialCapital = 35000, targetCapital = 80000) {
+        const compoundData = {
+            initialCapital,
+            targetCapital,
+            currentCapital: initialCapital,
+            monthlyTarget: 0.12, // 12% monthly compound per Tom King
+            actualMonthlyReturns: [],
+            projectedPath: [],
+            actualPath: [],
+            monthsToTarget: 0,
+            progressPercent: 0,
+            onTrack: false,
+            variance: 0,
+            compoundingEffect: 0
+        };
+
+        // Calculate months to target at 12% compound rate
+        compoundData.monthsToTarget = Math.log(targetCapital / initialCapital) / Math.log(1.12);
+        
+        // Group trades by month
+        const monthlyTrades = this.groupTradesByMonth(trades);
+        let runningCapital = initialCapital;
+        
+        // Calculate actual monthly returns and compound growth
+        for (const [month, monthTrades] of Object.entries(monthlyTrades)) {
+            const monthPnL = monthTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+            const monthReturn = monthPnL / runningCapital;
+            const newCapital = runningCapital * (1 + monthReturn);
+            
+            compoundData.actualMonthlyReturns.push({
+                month,
+                startCapital: runningCapital,
+                pnl: monthPnL,
+                returnPercent: monthReturn * 100,
+                endCapital: newCapital,
+                targetReturn: 12,
+                variance: (monthReturn * 100) - 12
+            });
+            
+            compoundData.actualPath.push({
+                month,
+                capital: newCapital
+            });
+            
+            runningCapital = newCapital;
+        }
+        
+        compoundData.currentCapital = runningCapital;
+        
+        // Generate projected path at 12% monthly
+        let projectedCapital = initialCapital;
+        for (let month = 1; month <= Math.ceil(compoundData.monthsToTarget); month++) {
+            projectedCapital *= 1.12;
+            compoundData.projectedPath.push({
+                month,
+                capital: Math.min(projectedCapital, targetCapital)
+            });
+        }
+        
+        // Calculate progress and variance
+        compoundData.progressPercent = ((runningCapital - initialCapital) / (targetCapital - initialCapital)) * 100;
+        
+        // Calculate if on track
+        const monthsElapsed = compoundData.actualMonthlyReturns.length;
+        const expectedCapitalNow = initialCapital * Math.pow(1.12, monthsElapsed);
+        compoundData.variance = ((runningCapital - expectedCapitalNow) / expectedCapitalNow) * 100;
+        compoundData.onTrack = compoundData.variance >= -10; // Allow 10% below target
+        
+        // Calculate compounding effect (difference vs simple addition)
+        const simpleGrowth = initialCapital + (monthlyTrades.size * initialCapital * 0.12);
+        compoundData.compoundingEffect = runningCapital - simpleGrowth;
+        
+        // Add projections and recommendations
+        compoundData.projections = this.projectFutureGrowth(runningCapital, targetCapital);
+        compoundData.recommendations = this.generateGrowthRecommendations(compoundData);
+        
+        return compoundData;
+    }
+    
+    /**
+     * Project future growth at various rates
+     */
+    projectFutureGrowth(currentCapital, targetCapital) {
+        const projections = {
+            conservative: { rate: 0.08, months: 0 },
+            target: { rate: 0.12, months: 0 },
+            aggressive: { rate: 0.15, months: 0 }
+        };
+        
+        for (const [scenario, data] of Object.entries(projections)) {
+            data.months = Math.log(targetCapital / currentCapital) / Math.log(1 + data.rate);
+            data.monthsRounded = Math.ceil(data.months);
+            data.finalCapital = currentCapital * Math.pow(1 + data.rate, data.monthsRounded);
+        }
+        
+        return projections;
+    }
+    
+    /**
+     * Generate recommendations based on compound growth tracking
+     */
+    generateGrowthRecommendations(compoundData) {
+        const recommendations = [];
+        
+        // Check if behind schedule
+        if (compoundData.variance < -10) {
+            recommendations.push({
+                priority: 'HIGH',
+                message: `Behind target by ${Math.abs(compoundData.variance).toFixed(1)}% - Increase position sizing or frequency`,
+                action: 'INCREASE_AGGRESSION'
+            });
+        }
+        
+        // Check monthly consistency
+        const recentReturns = compoundData.actualMonthlyReturns.slice(-3);
+        const avgRecent = recentReturns.reduce((sum, r) => sum + r.returnPercent, 0) / recentReturns.length;
+        
+        if (avgRecent < 10 && recentReturns.length >= 3) {
+            recommendations.push({
+                priority: 'MEDIUM',
+                message: `Recent 3-month average ${avgRecent.toFixed(1)}% below 12% target`,
+                action: 'REVIEW_STRATEGY_MIX'
+            });
+        }
+        
+        // Check if ahead of schedule
+        if (compoundData.variance > 20) {
+            recommendations.push({
+                priority: 'LOW',
+                message: `Ahead of target by ${compoundData.variance.toFixed(1)}% - Consider banking profits`,
+                action: 'CONSIDER_RISK_REDUCTION'
+            });
+        }
+        
+        // Progress milestone notifications
+        if (compoundData.progressPercent >= 75) {
+            recommendations.push({
+                priority: 'INFO',
+                message: `${compoundData.progressPercent.toFixed(1)}% to £80k goal - Final push phase`,
+                action: 'MAINTAIN_DISCIPLINE'
+            });
+        } else if (compoundData.progressPercent >= 50) {
+            recommendations.push({
+                priority: 'INFO',
+                message: `Halfway to £80k goal - Compound effect accelerating`,
+                action: 'STAY_CONSISTENT'
+            });
+        }
+        
+        return recommendations;
+    }
+    
+    /**
+     * Group trades by calendar month
+     */
+    groupTradesByMonth(trades) {
+        const monthlyGroups = new Map();
+        
+        for (const trade of trades) {
+            const date = new Date(trade.exitDate || trade.entryDate);
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            
+            if (!monthlyGroups.has(monthKey)) {
+                monthlyGroups.set(monthKey, []);
+            }
+            monthlyGroups.get(monthKey).push(trade);
+        }
+        
+        return monthlyGroups;
+    }
+    
+    /**
+     * Calculate monthly compounding metrics
+     */
+    calculateMonthlyCompounding(monthlyReturns, initialCapital = 35000) {
+        let capital = initialCapital;
+        const compoundingMetrics = {
+            months: [],
+            finalCapital: initialCapital,
+            totalReturn: 0,
+            averageMonthlyReturn: 0,
+            bestMonth: { return: -Infinity, month: null },
+            worstMonth: { return: Infinity, month: null },
+            consistencyScore: 0
+        };
+        
+        monthlyReturns.forEach((returnPct, index) => {
+            const newCapital = capital * (1 + returnPct / 100);
+            const monthData = {
+                month: index + 1,
+                startCapital: capital,
+                returnPercent: returnPct,
+                endCapital: newCapital,
+                cumulativeReturn: ((newCapital - initialCapital) / initialCapital) * 100
+            };
+            
+            compoundingMetrics.months.push(monthData);
+            
+            if (returnPct > compoundingMetrics.bestMonth.return) {
+                compoundingMetrics.bestMonth = { return: returnPct, month: index + 1 };
+            }
+            if (returnPct < compoundingMetrics.worstMonth.return) {
+                compoundingMetrics.worstMonth = { return: returnPct, month: index + 1 };
+            }
+            
+            capital = newCapital;
+        });
+        
+        compoundingMetrics.finalCapital = capital;
+        compoundingMetrics.totalReturn = ((capital - initialCapital) / initialCapital) * 100;
+        compoundingMetrics.averageMonthlyReturn = monthlyReturns.reduce((sum, r) => sum + r, 0) / monthlyReturns.length;
+        
+        // Calculate consistency score (how close to 12% target each month)
+        const targetReturn = 12;
+        const deviations = monthlyReturns.map(r => Math.abs(r - targetReturn));
+        const avgDeviation = deviations.reduce((sum, d) => sum + d, 0) / deviations.length;
+        compoundingMetrics.consistencyScore = Math.max(0, 100 - (avgDeviation * 5)); // 5 points per 1% deviation
+        
+        return compoundingMetrics;
+    }
+
+    /**
      * Identify best performing strategy
      */
     identifyBestStrategy(strategyBreakdown) {

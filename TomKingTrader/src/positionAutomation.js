@@ -563,17 +563,374 @@ class PositionAutomation extends EventEmitter {
     }
     
     /**
+     * Automated Position Entry System
+     * Monitors for optimal entry conditions and executes trades
+     */
+    async startAutomatedEntry(config = {}) {
+        const entryConfig = {
+            enabled: config.enabled !== false,
+            strategies: config.strategies || ['0DTE', 'LT112', 'STRANGLE'],
+            maxDailyEntries: config.maxDailyEntries || 3,
+            checkInterval: config.checkInterval || 300000, // 5 minutes
+            requireVIXConfirmation: config.requireVIXConfirmation !== false,
+            requirePatternConfirmation: config.requirePatternConfirmation !== false,
+            ...config
+        };
+        
+        if (!entryConfig.enabled) {
+            console.log('⚠️ Automated entry disabled');
+            return;
+        }
+        
+        console.log('🚀 Starting automated position entry system...');
+        console.log(`  Strategies: ${entryConfig.strategies.join(', ')}`);
+        console.log(`  Max daily entries: ${entryConfig.maxDailyEntries}`);
+        
+        // Track daily entries
+        let dailyEntryCount = 0;
+        let lastResetDate = new Date().toDateString();
+        
+        // Entry monitoring function
+        const checkForEntries = async () => {
+            try {
+                // Reset daily count if new day
+                const today = new Date().toDateString();
+                if (today !== lastResetDate) {
+                    dailyEntryCount = 0;
+                    lastResetDate = today;
+                }
+                
+                // Check if we've hit daily limit
+                if (dailyEntryCount >= entryConfig.maxDailyEntries) {
+                    console.log(`📊 Daily entry limit reached (${dailyEntryCount}/${entryConfig.maxDailyEntries})`);
+                    return;
+                }
+                
+                // Get market conditions
+                const marketConditions = await this.analyzeMarketConditions();
+                
+                // Check each strategy for entry opportunities
+                for (const strategy of entryConfig.strategies) {
+                    const entry = await this.evaluateEntryOpportunity(strategy, marketConditions, entryConfig);
+                    
+                    if (entry.shouldEnter) {
+                        console.log(`\n✅ ENTRY SIGNAL: ${strategy}`);
+                        console.log(`  Symbol: ${entry.symbol}`);
+                        console.log(`  Reason: ${entry.reason}`);
+                        console.log(`  Score: ${entry.score}/100`);
+                        
+                        // Prepare the order
+                        const order = await this.prepareEntryOrder(entry);
+                        
+                        // Add to pending actions
+                        this.addPendingAction({
+                            type: 'AUTOMATED_ENTRY',
+                            strategy: entry.strategy,
+                            symbol: entry.symbol,
+                            order: order,
+                            reason: entry.reason,
+                            score: entry.score,
+                            timestamp: Date.now()
+                        });
+                        
+                        dailyEntryCount++;
+                        
+                        // Emit entry signal
+                        this.emit('entrySignal', {
+                            strategy,
+                            entry,
+                            order,
+                            automated: true
+                        });
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error in automated entry check:', error);
+            }
+        };
+        
+        // Start monitoring
+        checkForEntries(); // Initial check
+        const entryInterval = setInterval(checkForEntries, entryConfig.checkInterval);
+        
+        // Store interval ID for cleanup
+        this.entryMonitoringInterval = entryInterval;
+        
+        return () => {
+            clearInterval(entryInterval);
+            this.entryMonitoringInterval = null;
+        };
+    }
+    
+    /**
+     * Analyze current market conditions
+     */
+    async analyzeMarketConditions() {
+        const conditions = {
+            vix: null,
+            vixRegime: null,
+            marketTrend: null,
+            correlations: null,
+            buyingPowerUsed: null,
+            timestamp: Date.now()
+        };
+        
+        try {
+            // Get VIX level
+            const vixQuote = await this.api.getMarketData(['VIX']);
+            conditions.vix = vixQuote.VIX?.last || 20;
+            
+            // Determine VIX regime
+            if (conditions.vix < 12) conditions.vixRegime = 'ULTRA_LOW';
+            else if (conditions.vix < 15) conditions.vixRegime = 'LOW';
+            else if (conditions.vix < 20) conditions.vixRegime = 'NORMAL';
+            else if (conditions.vix < 25) conditions.vixRegime = 'ELEVATED';
+            else conditions.vixRegime = 'HIGH';
+            
+            // Get market trend
+            const spyQuote = await this.api.getMarketData(['SPY']);
+            const spy = spyQuote.SPY;
+            if (spy) {
+                const change = ((spy.last - spy.previousClose) / spy.previousClose) * 100;
+                if (change > 1) conditions.marketTrend = 'STRONG_UP';
+                else if (change > 0) conditions.marketTrend = 'UP';
+                else if (change > -1) conditions.marketTrend = 'DOWN';
+                else conditions.marketTrend = 'STRONG_DOWN';
+            }
+            
+            // Check correlation groups
+            conditions.correlations = await this.checkCorrelationGroups();
+            
+            // Get buying power usage
+            const account = await this.api.getAccount();
+            const bpUsed = account.buying_power_used || 0;
+            const bpTotal = account.buying_power || 1;
+            conditions.buyingPowerUsed = (bpUsed / bpTotal) * 100;
+            
+        } catch (error) {
+            console.error('Error analyzing market conditions:', error);
+        }
+        
+        return conditions;
+    }
+    
+    /**
+     * Evaluate if entry conditions are met for a strategy
+     */
+    async evaluateEntryOpportunity(strategy, marketConditions, config) {
+        const opportunity = {
+            strategy,
+            shouldEnter: false,
+            symbol: null,
+            reason: null,
+            score: 0,
+            strikes: null,
+            expiration: null
+        };
+        
+        // Strategy-specific entry rules
+        switch(strategy) {
+            case '0DTE':
+                // Only on Fridays after 10:30 AM EST
+                const now = new Date();
+                const day = now.getDay();
+                const hour = now.getHours();
+                const minute = now.getMinutes();
+                const isValidTime = day === 5 && (hour > 10 || (hour === 10 && minute >= 30));
+                
+                if (!isValidTime) {
+                    return opportunity;
+                }
+                
+                // Check VIX for 0DTE
+                if (marketConditions.vix > 30) {
+                    return opportunity; // Too high volatility for 0DTE
+                }
+                
+                opportunity.symbol = 'SPY';
+                opportunity.score = 85;
+                
+                // VIX confirmation
+                if (config.requireVIXConfirmation) {
+                    if (marketConditions.vixRegime === 'NORMAL' || marketConditions.vixRegime === 'LOW') {
+                        opportunity.score += 10;
+                    }
+                }
+                
+                // Check buying power
+                if (marketConditions.buyingPowerUsed < 30) {
+                    opportunity.score += 5;
+                }
+                
+                if (opportunity.score >= 80) {
+                    opportunity.shouldEnter = true;
+                    opportunity.reason = `Friday 0DTE optimal conditions (VIX: ${marketConditions.vix.toFixed(1)})`;
+                }
+                break;
+                
+            case 'LT112':
+                // Long-term 112 DTE trades
+                const symbols = ['ES', 'NQ', 'CL', 'GC'];
+                
+                for (const symbol of symbols) {
+                    // Check correlation group limits
+                    const group = this.getCorrelationGroup(symbol);
+                    const groupCount = marketConditions.correlations[group] || 0;
+                    
+                    if (groupCount >= 2) continue; // Skip if group limit reached
+                    
+                    opportunity.symbol = symbol;
+                    opportunity.score = 70;
+                    
+                    // VIX-based adjustment
+                    if (marketConditions.vixRegime === 'ELEVATED') {
+                        opportunity.score += 15; // Better premium in elevated VIX
+                    }
+                    
+                    // Trend confirmation
+                    if (marketConditions.marketTrend === 'UP' || marketConditions.marketTrend === 'DOWN') {
+                        opportunity.score += 10; // Clear trend is good for LT112
+                    }
+                    
+                    if (opportunity.score >= 75) {
+                        opportunity.shouldEnter = true;
+                        opportunity.reason = `LT112 setup on ${symbol} (Group: ${group}, Count: ${groupCount})`;
+                        break;
+                    }
+                }
+                break;
+                
+            case 'STRANGLE':
+                // Futures strangles
+                const futuresSymbols = ['MCL', 'MGC', 'MNQ', 'MES'];
+                
+                for (const symbol of futuresSymbols) {
+                    const group = this.getCorrelationGroup(symbol);
+                    const groupCount = marketConditions.correlations[group] || 0;
+                    
+                    if (groupCount >= 2) continue;
+                    
+                    opportunity.symbol = symbol;
+                    opportunity.score = 65;
+                    
+                    // High VIX favors strangles
+                    if (marketConditions.vix > 20) {
+                        opportunity.score += 20;
+                    }
+                    
+                    // Check buying power
+                    if (marketConditions.buyingPowerUsed < 40) {
+                        opportunity.score += 15;
+                    }
+                    
+                    if (opportunity.score >= 75) {
+                        opportunity.shouldEnter = true;
+                        opportunity.reason = `Strangle opportunity on ${symbol} (VIX: ${marketConditions.vix.toFixed(1)})`;
+                        break;
+                    }
+                }
+                break;
+        }
+        
+        return opportunity;
+    }
+    
+    /**
+     * Prepare entry order based on opportunity
+     */
+    async prepareEntryOrder(opportunity) {
+        const { orderManager } = this;
+        
+        try {
+            // Get option chain
+            const optionChain = await this.api.getOptionChain(opportunity.symbol);
+            
+            // Find optimal strikes using Greeks
+            const strikes = await orderManager.findOptimalStrikes(
+                opportunity.symbol,
+                opportunity.strategy,
+                optionChain
+            );
+            
+            // Prepare the order
+            const order = {
+                symbol: opportunity.symbol,
+                strategy: opportunity.strategy,
+                strikes: strikes,
+                expiration: strikes.expiration,
+                quantity: this.calculatePositionSize(opportunity),
+                action: 'OPEN',
+                orderType: 'LIMIT',
+                price: strikes.totalCredit,
+                reason: opportunity.reason,
+                automated: true,
+                timestamp: Date.now()
+            };
+            
+            return order;
+            
+        } catch (error) {
+            console.error('Error preparing entry order:', error);
+            return null;
+        }
+    }
+    
+    /**
+     * Calculate position size based on strategy and conditions
+     */
+    calculatePositionSize(opportunity) {
+        // Base sizes per strategy
+        const baseSizes = {
+            '0DTE': 1,      // Conservative for 0DTE
+            'LT112': 2,     // Standard for long-term
+            'STRANGLE': 1   // Start with 1 lot for strangles
+        };
+        
+        let size = baseSizes[opportunity.strategy] || 1;
+        
+        // Adjust based on score
+        if (opportunity.score > 90) {
+            size = Math.ceil(size * 1.5);
+        } else if (opportunity.score < 80) {
+            size = Math.ceil(size * 0.75);
+        }
+        
+        // Never exceed maximum position sizes
+        const maxSizes = {
+            '0DTE': 2,
+            'LT112': 5,
+            'STRANGLE': 3
+        };
+        
+        return Math.min(size, maxSizes[opportunity.strategy] || 2);
+    }
+    
+    /**
+     * Stop automated entry monitoring
+     */
+    stopAutomatedEntry() {
+        if (this.entryMonitoringInterval) {
+            clearInterval(this.entryMonitoringInterval);
+            this.entryMonitoringInterval = null;
+            console.log('⏹️ Automated entry system stopped');
+        }
+    }
+    
+    /**
      * Get automation status
      */
     getStatus() {
         return {
             enabled: this.config.enabled,
             running: this.monitoringInterval !== null,
+            entryMonitoring: this.entryMonitoringInterval !== null,
             settings: {
                 auto21DTE: this.config.auto21DTE,
                 auto50Profit: this.config.auto50Profit,
                 autoDefensive: this.config.autoDefensive,
-                autoEmergency: this.config.autoEmergency
+                autoEmergency: this.config.autoEmergency,
+                automatedEntry: this.entryMonitoringInterval !== null
             },
             pendingActions: this.pendingActions.length,
             executedToday: this.executedActions.size

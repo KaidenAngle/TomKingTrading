@@ -465,9 +465,10 @@ class BPLimitsManager {
 /**
  * August 5, 2024 Disaster Prevention System
  * Implements specific protocols to prevent correlation disasters
+ * Enhanced with comprehensive volatility spike protection
  */
 class August5DisasterPrevention {
-  static analyzeAugust5Risk(positions, phase = 1) {
+  static analyzeAugust5Risk(positions, phase = 1, marketData = {}) {
     // August 5, 2024: £308k loss from excessive correlation in ES complex
     const equityPositions = positions.filter(pos => 
       ['ES', 'MES', 'SPY', 'QQQ', 'IWM', 'SPX', 'SPXW'].includes(pos.ticker?.toUpperCase())
@@ -479,13 +480,42 @@ class August5DisasterPrevention {
     let riskLevel = 'LOW';
     let messages = [];
     let actions = [];
+    let protocolStatus = {
+      volatilitySpikeProtection: false,
+      correlationProtection: false,
+      emergencyExitReady: false,
+      hedgePositions: []
+    };
     
+    // Volatility Spike Detection
+    const vix = marketData.VIX || 0;
+    const vixChangePercent = marketData.VIXChangePercent || 0;
+    const vix5DayAvg = marketData.VIX5DayAvg || vix;
+    
+    // August 5 pattern detection - VIX spike >50% in single day
+    if (vixChangePercent > 50 || vix > 35) {
+      riskLevel = 'CRITICAL';
+      messages.push(`🚨 VOLATILITY SPIKE DETECTED: VIX ${vix.toFixed(2)} (+${vixChangePercent.toFixed(1)}%)`);
+      messages.push('⚡ August 5, 2024 pattern detected - ACTIVATE EMERGENCY PROTOCOLS');
+      actions.push('ACTIVATE_VOLATILITY_SPIKE_PROTOCOL');
+      protocolStatus.volatilitySpikeProtection = true;
+    }
+    
+    // Pre-spike warning indicators
+    const spikeIndicators = this.detectVolatilitySpikeIndicators(marketData);
+    if (spikeIndicators.risk > 0.7) {
+      messages.push(`⚠️ Pre-spike indicators: ${spikeIndicators.warningCount}/5 active`);
+      actions.push('PREPARE_DEFENSIVE_POSITIONS');
+    }
+    
+    // Correlation concentration check
     if (currentEquityCount > correlationLimit) {
       riskLevel = 'CRITICAL';
       messages.push(`🚨 AUGUST 5 RISK: ${currentEquityCount} equity positions (limit: ${correlationLimit})`);
       messages.push('💀 This exact scenario caused £308k loss on August 5, 2024');
       actions.push('CLOSE_EXCESS_POSITIONS_IMMEDIATELY');
       actions.push('NEVER_EXCEED_CORRELATION_LIMITS');
+      protocolStatus.correlationProtection = true;
     } else if (currentEquityCount === correlationLimit) {
       riskLevel = 'HIGH';
       messages.push(`⚠️ At correlation limit: ${currentEquityCount}/${correlationLimit} equity positions`);
@@ -524,6 +554,7 @@ class August5DisasterPrevention {
       totalEquityBP: totalEquityBP.toFixed(1),
       messages,
       actions,
+      protocolStatus,
       historicalReference: {
         date: '2024-08-05',
         loss: '£308,000',
@@ -537,6 +568,64 @@ class August5DisasterPrevention {
         rule4: 'Immediate exit if limits exceeded'
       }
     };
+  }
+  
+  /**
+   * Detect early warning indicators of volatility spike
+   */
+  static detectVolatilitySpikeIndicators(marketData) {
+    const indicators = {
+      vixTrending: false,
+      putCallSkew: false,
+      termStructureInversion: false,
+      volumeSpike: false,
+      correlationBreakdown: false,
+      warningCount: 0,
+      risk: 0
+    };
+    
+    // VIX trending higher (5-day moving average)
+    const vix = marketData.VIX || 0;
+    const vix5DayAvg = marketData.VIX5DayAvg || vix;
+    if (vix > vix5DayAvg * 1.15) {
+      indicators.vixTrending = true;
+      indicators.warningCount++;
+    }
+    
+    // Put/Call skew widening
+    const putCallRatio = marketData.putCallRatio || 1;
+    if (putCallRatio > 1.5) {
+      indicators.putCallSkew = true;
+      indicators.warningCount++;
+    }
+    
+    // Term structure inversion (short-term vol > long-term)
+    const vix9Day = marketData.VIX9D || vix;
+    const vix30Day = marketData.VIX || vix;
+    if (vix9Day > vix30Day) {
+      indicators.termStructureInversion = true;
+      indicators.warningCount++;
+    }
+    
+    // Volume spike detection
+    const volume = marketData.volume || 0;
+    const avgVolume = marketData.avgVolume20Day || volume;
+    if (volume > avgVolume * 1.5) {
+      indicators.volumeSpike = true;
+      indicators.warningCount++;
+    }
+    
+    // Correlation breakdown (usually precedes volatility events)
+    const correlation = marketData.sectorCorrelation || 0.5;
+    if (correlation < 0.3 || correlation > 0.8) {
+      indicators.correlationBreakdown = true;
+      indicators.warningCount++;
+    }
+    
+    // Calculate overall risk score (0-1)
+    indicators.risk = indicators.warningCount / 5;
+    
+    return indicators;
   }
   
   /**

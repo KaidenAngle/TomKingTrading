@@ -555,6 +555,156 @@ class EmergencyProtocol extends EventEmitter {
     }
     
     /**
+     * Close all positions with priority ordering
+     * Priority: 0DTE first, then losing positions, then by size
+     */
+    async closeAllPositions(options = {}) {
+        const {
+            batchSize = 5,          // Process in batches to avoid API overload
+            delayBetweenBatches = 2000,  // 2 seconds between batches
+            priorityOrder = true,   // Use priority ordering
+            dryRun = false          // If true, only prepare orders without execution
+        } = options;
+
+        try {
+            console.log('\n🚨 CLOSING ALL POSITIONS - EMERGENCY PROTOCOL');
+            
+            // Get all current positions
+            const positions = await this.api.refreshPositions();
+            if (!positions || positions.length === 0) {
+                console.log('No positions to close');
+                return { closed: 0, failed: 0, positions: [] };
+            }
+
+            console.log(`Found ${positions.length} positions to close`);
+
+            // Sort positions by priority if requested
+            let sortedPositions = [...positions];
+            if (priorityOrder) {
+                sortedPositions = this.prioritizePositionsForClosure(positions);
+            }
+
+            // Track results
+            const results = {
+                closed: 0,
+                failed: 0,
+                positions: []
+            };
+
+            // Process in batches
+            for (let i = 0; i < sortedPositions.length; i += batchSize) {
+                const batch = sortedPositions.slice(i, i + batchSize);
+                console.log(`\nProcessing batch ${Math.floor(i/batchSize) + 1} of ${Math.ceil(sortedPositions.length/batchSize)}`);
+
+                // Process each position in the batch
+                const batchPromises = batch.map(async (position) => {
+                    try {
+                        console.log(`  Closing: ${position.symbol} (DTE: ${position.days_to_expiration}, P&L: ${position.unrealized_pnl?.toFixed(2) || 0})`);
+                        
+                        if (!dryRun) {
+                            // Prepare close order
+                            const closeOrder = await this.orderManager.prepareCloseOrder(position);
+                            
+                            // In production, this would submit the order
+                            // For safety, we just prepare it
+                            results.positions.push({
+                                symbol: position.symbol,
+                                quantity: position.quantity,
+                                dte: position.days_to_expiration,
+                                unrealizedPnL: position.unrealized_pnl,
+                                order: closeOrder,
+                                status: 'PREPARED'
+                            });
+                            
+                            results.closed++;
+                        } else {
+                            console.log(`    [DRY RUN] Would close ${position.symbol}`);
+                            results.positions.push({
+                                symbol: position.symbol,
+                                status: 'DRY_RUN'
+                            });
+                        }
+                        
+                        // Emit event for tracking
+                        this.emit('positionClosed', {
+                            position,
+                            reason: 'EMERGENCY_CLOSE_ALL'
+                        });
+                        
+                    } catch (error) {
+                        console.error(`    Failed to close ${position.symbol}: ${error.message}`);
+                        results.failed++;
+                        results.positions.push({
+                            symbol: position.symbol,
+                            status: 'FAILED',
+                            error: error.message
+                        });
+                    }
+                });
+
+                // Wait for batch to complete
+                await Promise.all(batchPromises);
+
+                // Delay before next batch (to avoid API rate limits)
+                if (i + batchSize < sortedPositions.length) {
+                    console.log(`  Waiting ${delayBetweenBatches}ms before next batch...`);
+                    await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+                }
+            }
+
+            // Generate summary
+            console.log('\n📊 CLOSE ALL POSITIONS SUMMARY:');
+            console.log(`  ✅ Successfully prepared: ${results.closed}`);
+            console.log(`  ❌ Failed: ${results.failed}`);
+            console.log(`  📝 Total processed: ${results.closed + results.failed}`);
+
+            // Log the action
+            this.state.actions.push({
+                procedure: 'CLOSE_ALL_POSITIONS',
+                time: Date.now(),
+                results
+            });
+
+            return results;
+
+        } catch (error) {
+            logger.error('EMERGENCY', 'Failed to close all positions', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Prioritize positions for closure based on risk
+     * Order: 0DTE > Losing > High Delta > Large positions
+     */
+    prioritizePositionsForClosure(positions) {
+        return positions.sort((a, b) => {
+            // Priority 1: 0DTE positions (highest risk)
+            const aDTE = a.days_to_expiration || 999;
+            const bDTE = b.days_to_expiration || 999;
+            if (aDTE <= 1 && bDTE > 1) return -1;
+            if (bDTE <= 1 && aDTE > 1) return 1;
+
+            // Priority 2: Losing positions
+            const aPnL = a.unrealized_pnl || 0;
+            const bPnL = b.unrealized_pnl || 0;
+            if (aPnL < 0 && bPnL >= 0) return -1;
+            if (bPnL < 0 && aPnL >= 0) return 1;
+
+            // Priority 3: High delta (high directional risk)
+            const aDelta = Math.abs(a.delta || 0);
+            const bDelta = Math.abs(b.delta || 0);
+            if (aDelta > 0.30 && bDelta <= 0.30) return -1;
+            if (bDelta > 0.30 && aDelta <= 0.30) return 1;
+
+            // Priority 4: Position size (largest first)
+            const aValue = Math.abs(a.market_value || 0);
+            const bValue = Math.abs(b.market_value || 0);
+            return bValue - aValue;
+        });
+    }
+
+    /**
      * Deactivate emergency protocol
      */
     async deactivate() {

@@ -169,7 +169,7 @@ class Section9BStrategies {
     }
 
     /**
-     * Iron Condor Strategy
+     * Iron Condor Strategy with Advanced Management
      */
     analyzeIronCondor(marketData, accountData, currentDate) {
         const analysis = {
@@ -177,7 +177,8 @@ class Section9BStrategies {
             timestamp: currentDate,
             canTrade: false,
             score: 0,
-            setup: null
+            setup: null,
+            adjustments: []
         };
 
         const vix = marketData.VIX?.currentPrice || 0;
