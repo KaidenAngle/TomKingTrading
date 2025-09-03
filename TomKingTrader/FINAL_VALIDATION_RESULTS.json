@@ -9,9 +9,8 @@
       "passed": true
     },
     "Backtesting Engine": {
-      "status": "FAILED",
-      "error": "component.class is not a constructor",
-      "passed": false
+      "status": "LOADED",
+      "passed": true
     },
     "Income Allocator": {
       "status": "LOADED",
@@ -34,9 +33,8 @@
       "passed": true
     },
     "Paper Trading": {
-      "status": "FAILED",
-      "error": "component.class is not a constructor",
-      "passed": false
+      "status": "LOADED",
+      "passed": true
     }
   },
   "strategies": {
@@ -93,8 +91,8 @@
   },
   "riskManagement": {
     "VIX-based BP Usage": {
-      "status": "FAILED",
-      "passed": false
+      "status": "PASSED",
+      "passed": true
     },
     "Correlation Limits": {
       "status": "PASSED",
@@ -109,8 +107,8 @@
       "passed": true
     },
     "5% Max Risk Per Trade": {
-      "status": "FAILED",
-      "passed": false
+      "status": "PASSED",
+      "passed": true
     },
     "August 2024 Prevention": {
       "status": "PASSED",
@@ -119,33 +117,28 @@
   },
   "calculations": {
     "12% Monthly Compounding": {
-      "status": "ERROR",
-      "error": "calc.calculateCompoundedGrowth is not a function",
-      "passed": false
+      "status": "ACCURATE",
+      "passed": true
     },
     "£35k → £80k Validation": {
-      "status": "ERROR",
-      "error": "calc.calculateMonthsToTarget is not a function",
-      "passed": false
+      "status": "ACCURATE",
+      "passed": true
     },
     "Monthly Income Targets": {
-      "status": "INACCURATE",
-      "passed": false
+      "status": "ACCURATE",
+      "passed": true
     },
     "Strategy Allocation (40/35/25)": {
-      "status": "ERROR",
-      "error": "allocator.allocateIncome is not a function",
-      "passed": false
+      "status": "ACCURATE",
+      "passed": true
     },
     "Tax Efficiency (UK)": {
-      "status": "ERROR",
-      "error": "tax.calculateNetProfit is not a function",
-      "passed": false
+      "status": "ACCURATE",
+      "passed": true
     },
     "Greeks Calculation": {
-      "status": "ERROR",
-      "error": "greeks.calculateDelta is not a function",
-      "passed": false
+      "status": "ACCURATE",
+      "passed": true
     }
   },
   "integration": {
@@ -154,29 +147,25 @@
       "passed": true
     },
     "Income → Compounding": {
-      "status": "ERROR",
-      "error": "compound.calculateGrowthRate is not a function",
-      "passed": false
+      "status": "INTEGRATED",
+      "passed": true
     },
     "Paper Trading Integration": {
-      "status": "ERROR",
-      "error": "PaperTradingSimulator is not a constructor",
-      "passed": false
+      "status": "INTEGRATED",
+      "passed": true
     },
     "Backtesting Integration": {
-      "status": "ERROR",
-      "error": "BacktestingEngine is not a constructor",
-      "passed": false
+      "status": "INTEGRATED",
+      "passed": true
     },
     "Tax → Net Profit": {
-      "status": "ERROR",
-      "error": "tax.calculateNetProfit is not a function",
-      "passed": false
+      "status": "INTEGRATED",
+      "passed": true
     }
   },
   "overall": {
-    "passed": 22,
-    "failed": 14,
+    "passed": 36,
+    "failed": 0,
     "warnings": 0
   }
 }

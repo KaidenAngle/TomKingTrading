@@ -7,9 +7,9 @@
 // Import core modules directly since UNIFIED_TRADING_ENGINE is archived
 const { EnhancedPatternAnalyzer } = require('./enhancedPatternAnalysis');
 const { RiskManager } = require('./riskManager');
-const DataManager = require('./dataManager');
-const TradingStrategies = require('./strategies');
-const GreeksCalculator = require('./greeksCalculator');
+const { DataManager } = require('./dataManager');
+const { TradingStrategies } = require('./strategies');
+const { GreeksCalculator } = require('./greeksCalculator');
 const { getLogger } = require('./logger');
 
 class BacktestingEngine {
