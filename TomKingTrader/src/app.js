@@ -28,6 +28,7 @@ const DataManager = require('./dataManager');
 const PerformanceMetrics = require('./performanceMetrics');
 // const PatternValidationEngine = require('./patternValidation'); // Module not found
 const BacktestReportGenerator = require('./backtestReporting');
+const RiskManager = require('./riskManager');
 
 const logger = getLogger();
 
@@ -1469,10 +1470,12 @@ class TomKingTraderApp {
                 let reason = 'Position approved';
                 let warnings = [];
 
-                // BP limit check (35% max)
-                if (bpPercentage > 35) {
+                // BP limit check (VIX-based dynamic BP)
+                const vixLevel = positions[0]?.marketData?.vix || 20;
+                const maxBP = RiskManager.getMaxBPUsage(vixLevel) * 100;
+                if (bpPercentage > maxBP) {
                     allowed = false;
-                    reason = `BP limit exceeded: ${bpPercentage.toFixed(1)}% > 35%`;
+                    reason = `BP limit exceeded: ${bpPercentage.toFixed(1)}% > ${maxBP.toFixed(0)}% (VIX: ${vixLevel})`;
                 }
 
                 // Correlation limit check (3 max per group)

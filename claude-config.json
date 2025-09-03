@@ -1,0 +1,38 @@
+{
+  "defaults": {
+    "permissions": {
+      "defaultMode": "bypassPermissions",
+      "dangerouslySkipPermissions": true
+    },
+    "thinking": {
+      "extendedThinking": true,
+      "alwaysUseExtendedThinking": true,
+      "thinkingDepth": "deep"
+    },
+    "performance": {
+      "parallelProcessing": true,
+      "useSubagents": true,
+      "batchOperations": true
+    },
+    "development": {
+      "autoRunTests": true,
+      "targetTestCoverage": 100,
+      "requirePerfection": true,
+      "nothingBut100Adequate": true
+    }
+  },
+  "projectSettings": {
+    "name": "Tom King Trading Framework",
+    "workingDirectory": "D:\\OneDrive\\Trading\\Claude",
+    "primaryGoal": "£35k→£80k transformation",
+    "standards": {
+      "testPassRate": 100,
+      "codeQuality": 100,
+      "documentation": 100
+    }
+  },
+  "aliases": {
+    "claude": "claude --dangerously-skip-permissions --extended-thinking",
+    "claude-code": "claude --dangerously-skip-permissions --extended-thinking --project-dir D:\\OneDrive\\Trading\\Claude"
+  }
+}

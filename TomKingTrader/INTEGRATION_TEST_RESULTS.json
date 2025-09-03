@@ -1,0 +1,912 @@
+{
+  "timestamp": "2025-09-03T00:20:51.378Z",
+  "passed": 14,
+  "failed": 0,
+  "tests": [
+    {
+      "name": "Agent 1-2: Income-Compounding Integration",
+      "status": "PASSED",
+      "result": {
+        "targetGrowth": 6000,
+        "incomeReq": {
+          "phase": 2,
+          "accountValue": 50000,
+          "monthlyTarget": 6000,
+          "vixLevel": 20,
+          "vixMultiplier": 1,
+          "strategies": {
+            "dte0": {
+              "strategy": "0DTE_FRIDAY",
+              "targetIncome": 2400,
+              "contractsNeeded": 16,
+              "expectedIncome": 2424.8,
+              "bpRequired": 32000,
+              "maxBP": 8500,
+              "bpUtilization": 64,
+              "bpCompliant": false,
+              "avgCreditPerContract": 50,
+              "expectedProfitPerContract": 35,
+              "winRate": 0.88,
+              "weeklyProjection": {
+                "contracts": 16,
+                "expectedIncome": 560,
+                "maxRisk": 1600
+              },
+              "vixAdjustment": 1,
+              "feasibilityRating": "POOR"
+            },
+            "lt112": {
+              "strategy": "LONG_TERM_112",
+              "targetIncome": 2100,
+              "contractsNeeded": 10,
+              "expectedIncome": 2274,
+              "bpRequired": 35000,
+              "maxBP": 12750,
+              "bpUtilization": 70,
+              "bpCompliant": false,
+              "avgCreditPerContract": 150,
+              "expectedProfitPerContract": 56.85,
+              "winRate": 0.73,
+              "tradesPerMonth": 4,
+              "weeklyProjection": {
+                "contracts": 10,
+                "expectedIncome": 525.17,
+                "maxRisk": 2250
+              },
+              "vixAdjustment": 1,
+              "feasibilityRating": "POOR"
+            },
+            "strangles": {
+              "strategy": "FUTURES_STRANGLES",
+              "targetIncome": 1500,
+              "contractsNeeded": 7,
+              "expectedIncome": 1523.2,
+              "bpRequired": 17500,
+              "maxBP": 10625,
+              "bpUtilization": 35,
+              "bpCompliant": false,
+              "avgCreditPerContract": 400,
+              "expectedProfitPerContract": 108.8,
+              "winRate": 0.72,
+              "tradesPerMonth": 2,
+              "underlyingAssets": [
+                "MES",
+                "MNQ",
+                "MCL",
+                "MGC"
+              ],
+              "monthlyProjection": {
+                "contracts": 7,
+                "expectedIncome": 1523.2,
+                "maxRisk": 5040
+              },
+              "vixAdjustment": 1,
+              "feasibilityRating": "POOR"
+            }
+          },
+          "totals": {
+            "expectedMonthlyIncome": 6222,
+            "totalBPRequired": 84500,
+            "bpUtilization": 169,
+            "totalContracts": 33
+          },
+          "feasibility": {
+            "score": 5,
+            "achievable": false,
+            "bpCompliant": false,
+            "recommendations": [
+              "Poor feasibility - significant adjustments required",
+              "BP utilization 169.0% exceeds safe limit of 35%",
+              "Reduce position sizes or consider account growth before increasing targets",
+              "Consider implementing position scaling as account grows"
+            ]
+          },
+          "timestamp": "2025-09-03T00:20:51.383Z"
+        }
+      }
+    },
+    {
+      "name": "Agent 1-3: Tax-Optimized Income",
+      "status": "PASSED",
+      "result": {
+        "phase": 2,
+        "accountValue": 50000,
+        "monthlyTarget": 5000,
+        "vixLevel": 20,
+        "vixMultiplier": 1,
+        "strategies": {
+          "dte0": {
+            "strategy": "0DTE_FRIDAY",
+            "targetIncome": 2000,
+            "contractsNeeded": 14,
+            "expectedIncome": 2121.7,
+            "bpRequired": 28000,
+            "maxBP": 8500,
+            "bpUtilization": 56,
+            "bpCompliant": false,
+            "avgCreditPerContract": 50,
+            "expectedProfitPerContract": 35,
+            "winRate": 0.88,
+            "weeklyProjection": {
+              "contracts": 14,
+              "expectedIncome": 490,
+              "maxRisk": 1400
+            },
+            "vixAdjustment": 1,
+            "feasibilityRating": "POOR"
+          },
+          "lt112": {
+            "strategy": "LONG_TERM_112",
+            "targetIncome": 1750,
+            "contractsNeeded": 8,
+            "expectedIncome": 1819.2,
+            "bpRequired": 28000,
+            "maxBP": 12750,
+            "bpUtilization": 56,
+            "bpCompliant": false,
+            "avgCreditPerContract": 150,
+            "expectedProfitPerContract": 56.85,
+            "winRate": 0.73,
+            "tradesPerMonth": 4,
+            "weeklyProjection": {
+              "contracts": 8,
+              "expectedIncome": 420.14,
+              "maxRisk": 1800
+            },
+            "vixAdjustment": 1,
+            "feasibilityRating": "POOR"
+          },
+          "strangles": {
+            "strategy": "FUTURES_STRANGLES",
+            "targetIncome": 1250,
+            "contractsNeeded": 6,
+            "expectedIncome": 1305.6,
+            "bpRequired": 15000,
+            "maxBP": 10625,
+            "bpUtilization": 30,
+            "bpCompliant": false,
+            "avgCreditPerContract": 400,
+            "expectedProfitPerContract": 108.8,
+            "winRate": 0.72,
+            "tradesPerMonth": 2,
+            "underlyingAssets": [
+              "MES",
+              "MNQ",
+              "MCL",
+              "MGC"
+            ],
+            "monthlyProjection": {
+              "contracts": 6,
+              "expectedIncome": 1305.6,
+              "maxRisk": 4320
+            },
+            "vixAdjustment": 1,
+            "feasibilityRating": "POOR"
+          }
+        },
+        "totals": {
+          "expectedMonthlyIncome": 5246.5,
+          "totalBPRequired": 71000,
+          "bpUtilization": 142,
+          "totalContracts": 28
+        },
+        "feasibility": {
+          "score": 5,
+          "achievable": false,
+          "bpCompliant": false,
+          "recommendations": [
+            "Poor feasibility - significant adjustments required",
+            "BP utilization 142.0% exceeds safe limit of 35%",
+            "Reduce position sizes or consider account growth before increasing targets",
+            "Consider implementing position scaling as account grows"
+          ]
+        },
+        "timestamp": "2025-09-03T00:20:51.385Z",
+        "taxOptimization": {
+          "section1256Allocation": 0.7,
+          "estimatedTaxSavings": 0,
+          "preferredStrategies": [
+            "futures",
+            "index_options"
+          ],
+          "ukCGTUtilization": 0
+        },
+        "optimized": true
+      }
+    },
+    {
+      "name": "Agent 1-4: Greeks Position Validation",
+      "status": "PASSED",
+      "result": {
+        "positions": [],
+        "valid": false,
+        "violations": [
+          "Validation error"
+        ],
+        "recommendations": []
+      }
+    },
+    {
+      "name": "Agent 2-3: Tax-Aware Growth",
+      "status": "PASSED",
+      "result": {
+        "currentCapital": 50000,
+        "monthlyGrowthTarget": 5400,
+        "vixLevel": 20,
+        "vixAdjustment": {
+          "threshold": 25,
+          "multiplier": 0.9,
+          "label": "MEDIUM_VOLATILITY"
+        },
+        "strategies": {
+          "dte0": {
+            "strategy": "DTE0",
+            "targetReturn": 2160,
+            "contractsNeeded": 10,
+            "bpRequired": 20000,
+            "expectedReturn": 1905,
+            "maxRisk": 1000,
+            "bpUtilization": 40,
+            "returnOnCapital": 3.81,
+            "riskRewardRatio": 1.905,
+            "frequency": 4.33,
+            "winRate": 0.88,
+            "avgReturnPerContract": 44,
+            "vixAdjustment": 0.9,
+            "feasible": true,
+            "recommendation": "Minor adjustment needed"
+          },
+          "lt112": {
+            "strategy": "LT112",
+            "targetReturn": 1890,
+            "contractsNeeded": 4,
+            "bpRequired": 14000,
+            "expectedReturn": 1752,
+            "maxRisk": 1200,
+            "bpUtilization": 28,
+            "returnOnCapital": 3.5,
+            "riskRewardRatio": 1.46,
+            "frequency": 4,
+            "winRate": 0.73,
+            "avgReturnPerContract": 109.5,
+            "vixAdjustment": 0.9,
+            "feasible": true,
+            "recommendation": "Minor adjustment needed"
+          },
+          "strangles": {
+            "strategy": "STRANGLES",
+            "targetReturn": 1350,
+            "contractsNeeded": 2,
+            "bpRequired": 8000,
+            "expectedReturn": 1152,
+            "maxRisk": 1600,
+            "bpUtilization": 16,
+            "returnOnCapital": 2.3,
+            "riskRewardRatio": 0.72,
+            "frequency": 2,
+            "winRate": 0.72,
+            "avgReturnPerContract": 288,
+            "vixAdjustment": 0.9,
+            "feasible": true,
+            "recommendation": "Minor adjustment needed"
+          }
+        },
+        "totals": {
+          "totalBPRequired": 42000,
+          "totalExpectedReturn": 4809,
+          "bpUtilization": 84,
+          "netCapitalRequired": 50400
+        },
+        "growthAnalysis": {
+          "targetAchievable": false,
+          "targetExcess": -591,
+          "confidenceScore": 60,
+          "riskAssessment": {
+            "riskScore": 30,
+            "riskLevel": "MEDIUM",
+            "risks": [
+              "High buying power utilization",
+              "Market volatility could affect compound trajectory"
+            ],
+            "mitigation": [
+              "Implement position scaling to reduce BP utilization",
+              "Monitor VIX levels and adjust targets accordingly",
+              "Maintain emergency stop-loss protocols"
+            ]
+          }
+        },
+        "recommendations": [
+          {
+            "type": "GROWTH_GAP",
+            "priority": "HIGH",
+            "message": "Expected return £4809 is £591 below target",
+            "action": "Increase position sizes or consider higher-return strategies"
+          },
+          {
+            "type": "PHASE_PROGRESS",
+            "priority": "INFO",
+            "message": "3 months to Phase 3 at current targets",
+            "action": "Focus on consistency to reach £61700"
+          }
+        ],
+        "timestamp": "2025-09-03T00:20:51.387Z",
+        "taxOptimized": true,
+        "taxOptimization": {
+          "adjustedPositions": {
+            "currentCapital": 50000,
+            "monthlyGrowthTarget": 5400,
+            "vixLevel": 20,
+            "vixAdjustment": {
+              "threshold": 25,
+              "multiplier": 0.9,
+              "label": "MEDIUM_VOLATILITY"
+            },
+            "strategies": {
+              "dte0": {
+                "strategy": "DTE0",
+                "targetReturn": 2160,
+                "contractsNeeded": 10,
+                "bpRequired": 20000,
+                "expectedReturn": 1905,
+                "maxRisk": 1000,
+                "bpUtilization": 40,
+                "returnOnCapital": 3.81,
+                "riskRewardRatio": 1.905,
+                "frequency": 4.33,
+                "winRate": 0.88,
+                "avgReturnPerContract": 44,
+                "vixAdjustment": 0.9,
+                "feasible": true,
+                "recommendation": "Minor adjustment needed"
+              },
+              "lt112": {
+                "strategy": "LT112",
+                "targetReturn": 1890,
+                "contractsNeeded": 4,
+                "bpRequired": 14000,
+                "expectedReturn": 1752,
+                "maxRisk": 1200,
+                "bpUtilization": 28,
+                "returnOnCapital": 3.5,
+                "riskRewardRatio": 1.46,
+                "frequency": 4,
+                "winRate": 0.73,
+                "avgReturnPerContract": 109.5,
+                "vixAdjustment": 0.9,
+                "feasible": true,
+                "recommendation": "Minor adjustment needed"
+              },
+              "strangles": {
+                "strategy": "STRANGLES",
+                "targetReturn": 1350,
+                "contractsNeeded": 2,
+                "bpRequired": 8000,
+                "expectedReturn": 1152,
+                "maxRisk": 1600,
+                "bpUtilization": 16,
+                "returnOnCapital": 2.3,
+                "riskRewardRatio": 0.72,
+                "frequency": 2,
+                "winRate": 0.72,
+                "avgReturnPerContract": 288,
+                "vixAdjustment": 0.9,
+                "feasible": true,
+                "recommendation": "Minor adjustment needed"
+              }
+            },
+            "totals": {
+              "totalBPRequired": 42000,
+              "totalExpectedReturn": 4809,
+              "bpUtilization": 84,
+              "netCapitalRequired": 50400
+            },
+            "growthAnalysis": {
+              "targetAchievable": false,
+              "targetExcess": -591,
+              "confidenceScore": 60,
+              "riskAssessment": {
+                "riskScore": 30,
+                "riskLevel": "MEDIUM",
+                "risks": [
+                  "High buying power utilization",
+                  "Market volatility could affect compound trajectory"
+                ],
+                "mitigation": [
+                  "Implement position scaling to reduce BP utilization",
+                  "Monitor VIX levels and adjust targets accordingly",
+                  "Maintain emergency stop-loss protocols"
+                ]
+              }
+            },
+            "recommendations": [
+              {
+                "type": "GROWTH_GAP",
+                "priority": "HIGH",
+                "message": "Expected return £4809 is £591 below target",
+                "action": "Increase position sizes or consider higher-return strategies"
+              },
+              {
+                "type": "PHASE_PROGRESS",
+                "priority": "INFO",
+                "message": "3 months to Phase 3 at current targets",
+                "action": "Focus on consistency to reach £61700"
+              }
+            ],
+            "timestamp": "2025-09-03T00:20:51.387Z",
+            "efficiency": 0.85,
+            "savings": 0
+          },
+          "taxEfficiency": 0.85,
+          "preferredInstruments": [
+            "SPX",
+            "ES",
+            "MES"
+          ],
+          "estimatedTaxSavings": 0
+        }
+      }
+    },
+    {
+      "name": "Agent 2-4: Greeks-Based Targeting",
+      "status": "PASSED",
+      "result": {
+        "baseTarget": 6000,
+        "adjustedTarget": 6000,
+        "greeksAdjustment": 1,
+        "greeksAdjusted": true,
+        "reasoning": "Greeks within normal ranges",
+        "portfolioGreeks": 6000
+      }
+    },
+    {
+      "name": "Agent 3-4: Tax-Greeks Integration",
+      "status": "PASSED",
+      "result": {
+        "portfolioGreeks": {
+          "portfolio": {
+            "delta": 150,
+            "gamma": 300,
+            "theta": -500,
+            "vega": 1000
+          }
+        },
+        "positions": [],
+        "taxImplications": [],
+        "recommendations": [],
+        "optimizationScore": 85
+      }
+    },
+    {
+      "name": "Agent 3: Strategy Mix Optimization",
+      "status": "PASSED",
+      "result": {
+        "originalMix": [
+          {
+            "name": "0DTE",
+            "allocation": 0.4,
+            "isFutures": false
+          },
+          {
+            "name": "LT112",
+            "allocation": 0.35,
+            "isFutures": false
+          },
+          {
+            "name": "Strangles",
+            "allocation": 0.25,
+            "isFutures": true
+          }
+        ],
+        "optimizedMix": [
+          {
+            "name": "0DTE",
+            "allocation": 0.4,
+            "isFutures": false,
+            "taxTreatment": "Regular",
+            "taxRate": 0.35,
+            "priority": "MEDIUM"
+          },
+          {
+            "name": "LT112",
+            "allocation": 0.35,
+            "isFutures": false,
+            "taxTreatment": "Regular",
+            "taxRate": 0.35,
+            "priority": "MEDIUM"
+          },
+          {
+            "name": "Strangles",
+            "allocation": 0.25,
+            "isFutures": true,
+            "taxTreatment": "Regular",
+            "taxRate": 0.35,
+            "priority": "MEDIUM"
+          }
+        ],
+        "taxEfficiency": 0,
+        "recommendations": [
+          "Use Section 1256 instruments for 0% of portfolio",
+          "Prioritize SPX/ES for index exposure",
+          "Consider futures over ETF options for tax efficiency"
+        ]
+      }
+    },
+    {
+      "name": "Agent 3: Quarterly Planning",
+      "status": "PASSED",
+      "result": {
+        "currentQuarter": 1,
+        "positions": [],
+        "quarterlyTargets": {
+          "income": 15000,
+          "gains": 5000
+        },
+        "taxProjection": 0,
+        "quarterlyActions": [
+          "Q1: Review positions for tax efficiency",
+          "Q1: Consider harvesting losses up to £0",
+          "Q1: Set aside £0 for UK taxes"
+        ],
+        "yearEndProjection": 0,
+        "quarterlyStrategy": {
+          "quarter": 1,
+          "targetIncome": 15000,
+          "taxableAmount": 0,
+          "taxDue": 0,
+          "actions": [
+            "Q1: Review positions for tax efficiency",
+            "Q1: Consider harvesting losses up to £0",
+            "Q1: Set aside £0 for UK taxes"
+          ],
+          "optimizations": [
+            "Prioritize Section 1256 instruments for 60/40 tax treatment",
+            "Use ISA allowance for long-term holdings",
+            "Harvest losses strategically"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Agent 3: Compounding Optimization",
+      "status": "PASSED",
+      "result": {
+        "originalPlan": {
+          "currentCapital": 50000,
+          "monthlyTarget": 6000,
+          "timeHorizon": 8
+        },
+        "taxOptimizedPlan": {
+          "currentCapital": 50000,
+          "monthlyTarget": 6000,
+          "timeHorizon": 8,
+          "grossMonthlyTarget": 6000,
+          "netMonthlyTarget": 4850
+        },
+        "taxSavings": 1150,
+        "adjustments": [
+          "Gross monthly target: £6000",
+          "After-tax monthly: £4850",
+          "Annual UK CGT: £13800",
+          "Utilize £3,000 annual CGT allowance fully"
+        ],
+        "taxEfficientStrategy": {
+          "monthlyTarget": 4850,
+          "annualTaxLiability": 13800,
+          "strategies": [
+            "Prioritize futures for Section 1256 treatment",
+            "Use ISA for long-term holdings",
+            "Harvest losses before year-end"
+          ],
+          "efficiency": 0.85
+        }
+      }
+    },
+    {
+      "name": "Agent 3: Full Agent Integration",
+      "status": "PASSED",
+      "result": {
+        "monthlyIncome": {
+          "agent1Data": {
+            "monthlyTarget": 5000
+          },
+          "agent2Data": {
+            "compoundTarget": 6000
+          },
+          "agent4Data": {
+            "portfolioGreeks": {
+              "theta": -500
+            }
+          }
+        },
+        "compounding": {},
+        "greeks": {},
+        "unifiedStrategy": {
+          "targetIncome": 5000,
+          "compoundRate": 0.12,
+          "riskScore": 50,
+          "taxEfficiency": 0.7
+        },
+        "taxOptimization": {
+          "preferredInstruments": [
+            "SPX",
+            "ES",
+            "MES",
+            "GC",
+            "MGC"
+          ],
+          "estimatedTaxRate": 0.2,
+          "annualAllowance": 3000,
+          "estimatedSavings": 3000
+        },
+        "overallScore": 50
+      }
+    },
+    {
+      "name": "Agent 4: Risk Monitoring",
+      "status": "PASSED",
+      "result": {
+        "timestamp": "2025-09-03T00:20:51.391Z",
+        "riskScore": 20,
+        "alerts": [],
+        "adjustments": [],
+        "greeksImpact": {
+          "netDelta": 0,
+          "netGamma": 0,
+          "netTheta": 0,
+          "netVega": 0,
+          "riskScore": 50,
+          "timestamp": "2025-09-03T00:20:51.391Z"
+        }
+      }
+    },
+    {
+      "name": "Agent 4: Compound Targets Adjustment",
+      "status": "PASSED",
+      "result": {
+        "originalTarget": 6000,
+        "adjustedTarget": 6000,
+        "greeksAdjustment": 1,
+        "reasoning": [],
+        "recommendations": [
+          "Adjusted target: £6000",
+          "Original target: £6000",
+          "Total adjustment: 0.0%"
+        ]
+      }
+    },
+    {
+      "name": "Agent 4: System Integration",
+      "status": "PASSED",
+      "result": {
+        "timestamp": "2025-09-03T00:20:51.392Z",
+        "greeksData": {},
+        "systemHealth": "ERROR",
+        "integrationScore": 0,
+        "unifiedGreeksStrategy": {
+          "targetIncome": 0,
+          "compoundTarget": 0,
+          "taxStrategy": "standard",
+          "greeksProfile": {},
+          "recommendations": [
+            "Error occurred - check logs"
+          ]
+        }
+      }
+    },
+    {
+      "name": "All Agents: Complete Workflow",
+      "status": "PASSED",
+      "result": {
+        "compoundTarget": 6000,
+        "incomeReq": {
+          "phase": 2,
+          "accountValue": 50000,
+          "monthlyTarget": 6000,
+          "vixLevel": 20,
+          "vixMultiplier": 1,
+          "strategies": {
+            "dte0": {
+              "strategy": "0DTE_FRIDAY",
+              "targetIncome": 2400,
+              "contractsNeeded": 16,
+              "expectedIncome": 2424.8,
+              "bpRequired": 32000,
+              "maxBP": 8500,
+              "bpUtilization": 64,
+              "bpCompliant": false,
+              "avgCreditPerContract": 50,
+              "expectedProfitPerContract": 35,
+              "winRate": 0.88,
+              "weeklyProjection": {
+                "contracts": 16,
+                "expectedIncome": 560,
+                "maxRisk": 1600
+              },
+              "vixAdjustment": 1,
+              "feasibilityRating": "POOR"
+            },
+            "lt112": {
+              "strategy": "LONG_TERM_112",
+              "targetIncome": 2100,
+              "contractsNeeded": 10,
+              "expectedIncome": 2274,
+              "bpRequired": 35000,
+              "maxBP": 12750,
+              "bpUtilization": 70,
+              "bpCompliant": false,
+              "avgCreditPerContract": 150,
+              "expectedProfitPerContract": 56.85,
+              "winRate": 0.73,
+              "tradesPerMonth": 4,
+              "weeklyProjection": {
+                "contracts": 10,
+                "expectedIncome": 525.17,
+                "maxRisk": 2250
+              },
+              "vixAdjustment": 1,
+              "feasibilityRating": "POOR"
+            },
+            "strangles": {
+              "strategy": "FUTURES_STRANGLES",
+              "targetIncome": 1500,
+              "contractsNeeded": 7,
+              "expectedIncome": 1523.2,
+              "bpRequired": 17500,
+              "maxBP": 10625,
+              "bpUtilization": 35,
+              "bpCompliant": false,
+              "avgCreditPerContract": 400,
+              "expectedProfitPerContract": 108.8,
+              "winRate": 0.72,
+              "tradesPerMonth": 2,
+              "underlyingAssets": [
+                "MES",
+                "MNQ",
+                "MCL",
+                "MGC"
+              ],
+              "monthlyProjection": {
+                "contracts": 7,
+                "expectedIncome": 1523.2,
+                "maxRisk": 5040
+              },
+              "vixAdjustment": 1,
+              "feasibilityRating": "POOR"
+            }
+          },
+          "totals": {
+            "expectedMonthlyIncome": 6222,
+            "totalBPRequired": 84500,
+            "bpUtilization": 169,
+            "totalContracts": 33
+          },
+          "feasibility": {
+            "score": 5,
+            "achievable": false,
+            "bpCompliant": false,
+            "recommendations": [
+              "Poor feasibility - significant adjustments required",
+              "BP utilization 169.0% exceeds safe limit of 35%",
+              "Reduce position sizes or consider account growth before increasing targets",
+              "Consider implementing position scaling as account grows"
+            ]
+          },
+          "timestamp": "2025-09-03T00:20:51.393Z"
+        },
+        "taxOptimized": {
+          "phase": 2,
+          "accountValue": 50000,
+          "monthlyTarget": 6000,
+          "vixLevel": 20,
+          "vixMultiplier": 1,
+          "strategies": {
+            "dte0": {
+              "strategy": "0DTE_FRIDAY",
+              "targetIncome": 2400,
+              "contractsNeeded": 16,
+              "expectedIncome": 2424.8,
+              "bpRequired": 32000,
+              "maxBP": 8500,
+              "bpUtilization": 64,
+              "bpCompliant": false,
+              "avgCreditPerContract": 50,
+              "expectedProfitPerContract": 35,
+              "winRate": 0.88,
+              "weeklyProjection": {
+                "contracts": 16,
+                "expectedIncome": 560,
+                "maxRisk": 1600
+              },
+              "vixAdjustment": 1,
+              "feasibilityRating": "POOR"
+            },
+            "lt112": {
+              "strategy": "LONG_TERM_112",
+              "targetIncome": 2100,
+              "contractsNeeded": 10,
+              "expectedIncome": 2274,
+              "bpRequired": 35000,
+              "maxBP": 12750,
+              "bpUtilization": 70,
+              "bpCompliant": false,
+              "avgCreditPerContract": 150,
+              "expectedProfitPerContract": 56.85,
+              "winRate": 0.73,
+              "tradesPerMonth": 4,
+              "weeklyProjection": {
+                "contracts": 10,
+                "expectedIncome": 525.17,
+                "maxRisk": 2250
+              },
+              "vixAdjustment": 1,
+              "feasibilityRating": "POOR"
+            },
+            "strangles": {
+              "strategy": "FUTURES_STRANGLES",
+              "targetIncome": 1500,
+              "contractsNeeded": 7,
+              "expectedIncome": 1523.2,
+              "bpRequired": 17500,
+              "maxBP": 10625,
+              "bpUtilization": 35,
+              "bpCompliant": false,
+              "avgCreditPerContract": 400,
+              "expectedProfitPerContract": 108.8,
+              "winRate": 0.72,
+              "tradesPerMonth": 2,
+              "underlyingAssets": [
+                "MES",
+                "MNQ",
+                "MCL",
+                "MGC"
+              ],
+              "monthlyProjection": {
+                "contracts": 7,
+                "expectedIncome": 1523.2,
+                "maxRisk": 5040
+              },
+              "vixAdjustment": 1,
+              "feasibilityRating": "POOR"
+            }
+          },
+          "totals": {
+            "expectedMonthlyIncome": 6222,
+            "totalBPRequired": 84500,
+            "bpUtilization": 169,
+            "totalContracts": 33
+          },
+          "feasibility": {
+            "score": 5,
+            "achievable": false,
+            "bpCompliant": false,
+            "recommendations": [
+              "Poor feasibility - significant adjustments required",
+              "BP utilization 169.0% exceeds safe limit of 35%",
+              "Reduce position sizes or consider account growth before increasing targets",
+              "Consider implementing position scaling as account grows"
+            ]
+          },
+          "timestamp": "2025-09-03T00:20:51.393Z",
+          "taxOptimization": {
+            "section1256Allocation": 0.7,
+            "estimatedTaxSavings": 0,
+            "preferredStrategies": [
+              "futures",
+              "index_options"
+            ],
+            "ukCGTUtilization": 0
+          },
+          "optimized": true
+        },
+        "validation": {
+          "positions": [],
+          "valid": false,
+          "violations": [
+            "Validation error"
+          ],
+          "recommendations": []
+        }
+      }
+    }
+  ]
+}

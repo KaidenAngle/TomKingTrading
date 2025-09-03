@@ -509,10 +509,10 @@ class TradeAnalytics {
             phaseProgression: this.analyzePhaseProgression(trades)
         };
         
-        // Friday 0DTE specific - track the 92% win rate target
+        // Friday 0DTE specific - track the 88% win rate target (Tom King's actual rate)
         if (fridayODTEs.length > 0) {
-            metrics.fridayODTE.targetWinRate = 92;
-            metrics.fridayODTE.vsTarget = metrics.fridayODTE.winRate - 92;
+            metrics.fridayODTE.targetWinRate = 88;
+            metrics.fridayODTE.vsTarget = metrics.fridayODTE.winRate - 88;
         }
         
         return metrics;

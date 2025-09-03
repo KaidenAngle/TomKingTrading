@@ -171,8 +171,8 @@ class ThetaOptimizationEngine {
      */
     adjustThetaTargetsForVIX(targetDaily, vixAdjustment) {
         const baseTargets = targetDaily ? {
-            dte0: targetDaily * 0.32,      // 32% from 0DTE
-            lt112: targetDaily * 0.43,     // 43% from LT112
+            dte0: targetDaily * 0.40,      // 40% from 0DTE (Tom King's allocation)
+            lt112: targetDaily * 0.35,     // 35% from LT112
             strangles: targetDaily * 0.25, // 25% from strangles
             total: targetDaily
         } : this.config.dailyThetaTargets;

@@ -1,6 +1,89 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "statusLine": {
     "type": "command",
     "command": "printf '\\n\\e[32m%s@%s \\e[35m%s \\e[33m%s\\e[36m%s\\e[0m\\n$ ' \"$(whoami)\" \"$(hostname -s)\" \"$MSYSTEM\" \"$(pwd)\" \"$(git branch 2>/dev/null | grep '^*' | cut -c3- | sed 's/.*/(&)/' || echo '')\""
-  }
+  },
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Bash(node:*)",
+      "Bash(npm:*)",
+      "Bash(git:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(cd:*)",
+      "Bash(pwd:*)",
+      "Bash(echo:*)",
+      "Bash(test:*)",
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Bash(mv:*)",
+      "Bash(cp:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(find:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "WebSearch",
+      "WebFetch",
+      "Read",
+      "Write",
+      "Edit",
+      "MultiEdit",
+      "Glob",
+      "Grep",
+      "TodoWrite",
+      "Task",
+      "NotebookEdit",
+      "BashOutput",
+      "KillBash",
+      "ExitPlanMode"
+    ],
+    "additionalDirectories": [
+      "D:/OneDrive/Trading/Claude",
+      "D:/OneDrive/Trading/Claude/TomKingTrader"
+    ]
+  },
+  "env": {
+    "CLAUDE_EXTENDED_THINKING": "true",
+    "CLAUDE_SKIP_PERMISSIONS": "true",
+    "CLAUDE_MAX_UTILITY": "true",
+    "CLAUDE_PARALLEL_PROCESSING": "true",
+    "CLAUDE_USE_SUBAGENTS": "true",
+    "CLAUDE_AUTO_OPTIMIZE": "true",
+    "CLAUDE_REQUIRE_PERFECTION": "true",
+    "CLAUDE_PROJECT_PATH": "D:/OneDrive/Trading/Claude",
+    "CLAUDE_WORK_DIR": "D:/OneDrive/Trading/Claude/TomKingTrader",
+    "CLAUDE_STANDARD": "nothing-but-100-adequate"
+  },
+  "includeCoAuthoredBy": true,
+  "cleanupPeriodDays": 30,
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '🚀 Starting Tom King Trading Framework session with maximum utility settings'"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '⚡ Processing with extended thinking and parallel optimization enabled'"
+          }
+        ]
+      }
+    ]
+  },
+  "outputStyle": "concise"
 }

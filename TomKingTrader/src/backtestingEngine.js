@@ -1299,7 +1299,8 @@ class BacktestingEngine {
 
     getAvailableBP() {
         const usedBP = this.positions.reduce((sum, pos) => sum + this.calculateBPRequired(pos), 0);
-        return (this.currentCapital * 0.35) - usedBP; // 35% max usage
+        const maxBP = this.getMaxBPUsage(this.currentVIX || 20); // Dynamic VIX-based BP
+        return (this.currentCapital * maxBP) - usedBP; // Tom King's VIX-based BP system
     }
 
     calculateBPRequired(position) {

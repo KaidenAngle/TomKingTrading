@@ -553,12 +553,55 @@ class OrderManager {
   }
 
   /**
-   * TOM KING STRATEGY: Butterfly Spread
+   * TOM KING STRATEGY: Enhanced Section 9B Butterfly Matrix
    */
-  async placeButterfly(underlying, expiration, strikes, netDebit, quantity = 1) {
+  async placeButterfly(underlying, expiration, strikes, netDebit, quantity = 1, butterflyType = 'CALL') {
     if (DEBUG) {
-      console.log('🦋 Placing Butterfly order...');
-      console.log(`📊 ${underlying} ${this.formatExpiration(expiration)} ${strikes.lower}/${strikes.middle}/${strikes.upper} for $${netDebit} debit`);
+      console.log('🦋 Placing Section 9B Butterfly order...');
+      console.log(`📊 ${underlying} ${this.formatExpiration(expiration)} ${strikes.lower}/${strikes.middle}/${strikes.upper} ${butterflyType} for $${netDebit} debit`);
+    }
+
+    const optionType = butterflyType === 'CALL' ? 'C' : 'P';
+    
+    const order = {
+      'time-in-force': 'Day',
+      'order-type': 'Limit',
+      price: netDebit.toString(),
+      'price-effect': 'Debit',
+      source: 'TOM_KING_SECTION_9B_BUTTERFLY',
+      legs: [
+        {
+          'instrument-type': 'Equity Option',
+          symbol: this.createOptionSymbol(underlying, expiration, strikes.lower, optionType),
+          action: 'Buy to Open',
+          quantity: quantity
+        },
+        {
+          'instrument-type': 'Equity Option',
+          symbol: this.createOptionSymbol(underlying, expiration, strikes.middle, optionType),
+          action: 'Sell to Open',
+          quantity: quantity * 2
+        },
+        {
+          'instrument-type': 'Equity Option',
+          symbol: this.createOptionSymbol(underlying, expiration, strikes.upper, optionType),
+          action: 'Buy to Open',
+          quantity: quantity
+        }
+      ]
+    };
+
+    return await this.placeOrder(order);
+  }
+
+  /**
+   * TOM KING STRATEGY: Double Butterfly (Section 9B Advanced)
+   */
+  async placeDoubleButterfly(underlying, expiration, callStrikes, putStrikes, netDebit, quantity = 1) {
+    if (DEBUG) {
+      console.log('🦋🦋 Placing Double Butterfly order (Section 9B)...');
+      console.log(`📊 ${underlying} Call Fly: ${callStrikes.lower}/${callStrikes.middle}/${callStrikes.upper}`);
+      console.log(`📊 ${underlying} Put Fly: ${putStrikes.lower}/${putStrikes.middle}/${putStrikes.upper}`);
     }
 
     const order = {
@@ -566,23 +609,83 @@ class OrderManager {
       'order-type': 'Limit',
       price: netDebit.toString(),
       'price-effect': 'Debit',
-      source: 'TOM_KING_BUTTERFLY',
+      source: 'TOM_KING_DOUBLE_BUTTERFLY',
       legs: [
+        // Call butterfly
         {
           'instrument-type': 'Equity Option',
-          symbol: this.createOptionSymbol(underlying, expiration, strikes.lower, 'C'),
+          symbol: this.createOptionSymbol(underlying, expiration, callStrikes.lower, 'C'),
           action: 'Buy to Open',
           quantity: quantity
         },
         {
           'instrument-type': 'Equity Option',
-          symbol: this.createOptionSymbol(underlying, expiration, strikes.middle, 'C'),
+          symbol: this.createOptionSymbol(underlying, expiration, callStrikes.middle, 'C'),
           action: 'Sell to Open',
           quantity: quantity * 2
         },
         {
           'instrument-type': 'Equity Option',
-          symbol: this.createOptionSymbol(underlying, expiration, strikes.upper, 'C'),
+          symbol: this.createOptionSymbol(underlying, expiration, callStrikes.upper, 'C'),
+          action: 'Buy to Open',
+          quantity: quantity
+        },
+        // Put butterfly
+        {
+          'instrument-type': 'Equity Option',
+          symbol: this.createOptionSymbol(underlying, expiration, putStrikes.lower, 'P'),
+          action: 'Buy to Open',
+          quantity: quantity
+        },
+        {
+          'instrument-type': 'Equity Option',
+          symbol: this.createOptionSymbol(underlying, expiration, putStrikes.middle, 'P'),
+          action: 'Sell to Open',
+          quantity: quantity * 2
+        },
+        {
+          'instrument-type': 'Equity Option',
+          symbol: this.createOptionSymbol(underlying, expiration, putStrikes.upper, 'P'),
+          action: 'Buy to Open',
+          quantity: quantity
+        }
+      ]
+    };
+
+    return await this.placeOrder(order);
+  }
+
+  /**
+   * TOM KING STRATEGY: Broken Wing Butterfly (Section 9B)
+   */
+  async placeBrokenWingButterfly(underlying, expiration, strikes, netCredit, quantity = 1) {
+    if (DEBUG) {
+      console.log('🦋💥 Placing Broken Wing Butterfly order...');
+      console.log(`📊 ${underlying} BWB: ${strikes.lower}/${strikes.middle}/${strikes.upper} for $${netCredit} credit`);
+    }
+
+    const order = {
+      'time-in-force': 'Day',
+      'order-type': 'Limit',
+      price: netCredit.toString(),
+      'price-effect': 'Credit',
+      source: 'TOM_KING_BROKEN_WING_BUTTERFLY',
+      legs: [
+        {
+          'instrument-type': 'Equity Option',
+          symbol: this.createOptionSymbol(underlying, expiration, strikes.lower, 'P'),
+          action: 'Buy to Open',
+          quantity: quantity
+        },
+        {
+          'instrument-type': 'Equity Option',
+          symbol: this.createOptionSymbol(underlying, expiration, strikes.middle, 'P'),
+          action: 'Sell to Open',
+          quantity: quantity * 2
+        },
+        {
+          'instrument-type': 'Equity Option',
+          symbol: this.createOptionSymbol(underlying, expiration, strikes.upper, 'P'),
           action: 'Buy to Open',
           quantity: quantity
         }

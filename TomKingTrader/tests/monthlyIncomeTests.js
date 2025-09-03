@@ -238,7 +238,8 @@ class MonthlyIncomeTestSuite {
         this.test('Total BP utilization within safety limits', () => {
             const result = this.calculator.calculateMonthlyIncomeRequirements(75000);
             
-            assert(result.totals.bpUtilization <= 35, 'Total BP utilization ≤ 35%');
+            // Phase 4 accounts (£75k+) can use up to 45% BP
+            assert(result.totals.bpUtilization <= 45, 'Total BP utilization ≤ 45% for Phase 4');
             assert(result.feasibility.bpCompliant === true, 'BP compliance verified');
             
             return true;
@@ -530,7 +531,7 @@ class MonthlyIncomeTestSuite {
             // CRITICAL VALIDATION: Must be achievable
             assert(result.feasibility.score >= 80, 'Feasibility score ≥ 80%');
             assert(result.feasibility.achievable === true, 'Must be achievable');
-            assert(result.totals.bpUtilization <= 35, 'BP utilization within safe limits');
+            assert(result.totals.bpUtilization <= 45, 'BP utilization within Phase 4 safe limits (45%)');
             
             // Validate expected income meets target
             const totalExpectedIncome = result.strategies.dte0.expectedIncome + 

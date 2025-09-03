@@ -539,13 +539,105 @@ class August5DisasterPrevention {
     };
   }
   
-  static checkEmergencyProtocols(positions, vixLevel, phase) {
+  /**
+   * Enhanced Volatility Spike Protection System
+   * Implements automatic position reduction during extreme market events
+   */
+  static analyzeVolatilitySpikeRisk(positions, vixLevel, vixChange24h, accountValue) {
+    const analysis = {
+      spikeDetected: false,
+      severity: 'NONE',
+      autoReductions: [],
+      manualActions: [],
+      protectionLevel: 0
+    };
+    
+    // Detect spike conditions
+    const vixSpike = vixChange24h > 30; // 30% VIX increase in 24h
+    const extremeVix = vixLevel > 35;
+    const rapidSpike = vixChange24h > 50; // 50% VIX increase = extreme event
+    
+    if (rapidSpike || (vixSpike && extremeVix)) {
+      analysis.spikeDetected = true;
+      analysis.severity = rapidSpike ? 'EXTREME' : 'HIGH';
+      
+      // Calculate automatic position reductions
+      const reductionFactor = rapidSpike ? 0.5 : 0.7; // 50% or 30% reduction
+      
+      positions.forEach(pos => {
+        if (pos.type === 'SHORT_OPTION' || pos.strategy === 'STRANGLE') {
+          analysis.autoReductions.push({
+            position: pos.symbol,
+            currentSize: pos.quantity,
+            reduceTo: Math.floor(pos.quantity * reductionFactor),
+            reason: `Volatility spike protection - ${analysis.severity}`,
+            priority: pos.delta > 0.3 ? 'IMMEDIATE' : 'HIGH'
+          });
+        }
+      });
+      
+      // Manual actions required
+      analysis.manualActions = [
+        'Close all 0DTE positions immediately',
+        'Reduce futures strangles by 50%',
+        'Exit any positions showing >2x loss',
+        'Suspend new entries for 48 hours',
+        'Monitor correlation groups for concentration'
+      ];
+      
+      // Protection level (0-100)
+      analysis.protectionLevel = rapidSpike ? 100 : 75;
+    } else if (vixLevel > 30) {
+      // Elevated protection mode
+      analysis.severity = 'ELEVATED';
+      analysis.protectionLevel = 50;
+      analysis.manualActions = [
+        'Review all positions for correlation risk',
+        'Consider reducing position sizes by 25%',
+        'No new aggressive positions'
+      ];
+    }
+    
+    // Add historical context
+    analysis.historicalContext = {
+      august2024: {
+        vixSpike: '65% in one day',
+        portfolioImpact: '-£308,000',
+        lessonLearned: 'Correlation kills during spikes'
+      },
+      protectionThresholds: {
+        warningLevel: 'VIX > 25 or +20% daily',
+        actionLevel: 'VIX > 30 or +30% daily',
+        emergencyLevel: 'VIX > 35 or +50% daily'
+      }
+    };
+    
+    return analysis;
+  }
+  
+  static checkEmergencyProtocols(positions, vixLevel, phase, vixChange24h = 0, accountValue = 30000) {
     const august5Risk = this.analyzeAugust5Risk(positions, phase);
     const vixAnalysis = VIXRegimeAnalyzer.analyzeVIXRegime(vixLevel);
+    const spikeProtection = this.analyzeVolatilitySpikeRisk(positions, vixLevel, vixChange24h, accountValue);
     
     const protocols = [];
     
-    // Protocol 1: Correlation Emergency
+    // Protocol 1: Volatility Spike Protection (NEW - ENHANCED)
+    if (spikeProtection.spikeDetected) {
+      protocols.push({
+        type: 'VOLATILITY_SPIKE_PROTECTION',
+        severity: spikeProtection.severity,
+        immediate: true,
+        actions: [
+          ...spikeProtection.autoReductions.map(r => `AUTO-REDUCE: ${r.position} to ${r.reduceTo} contracts`),
+          ...spikeProtection.manualActions
+        ],
+        protectionLevel: spikeProtection.protectionLevel,
+        message: `🚨 VOLATILITY SPIKE DETECTED - ${spikeProtection.severity} SEVERITY`
+      });
+    }
+    
+    // Protocol 2: Correlation Emergency (EXISTING)
     if (august5Risk.riskLevel === 'CRITICAL') {
       protocols.push({
         type: 'CORRELATION_EMERGENCY',

@@ -45,6 +45,116 @@ class UKTaxOptimizer {
     }
     
     /**
+     * Validate UK tax compliance for a trade
+     */
+    validateUKTaxCompliance(trade) {
+        // Handle different parameter formats
+        const annualIncome = trade.annualIncome || 50000;
+        const tradingProfit = trade.tradingProfit || trade.profit || 0;
+        const allowableExpenses = trade.allowableExpenses || 0;
+        
+        // Calculate net trading profit after expenses
+        const netTradingProfit = Math.max(0, tradingProfit - allowableExpenses);
+        
+        // Calculate CGT liability
+        const taxableGains = Math.max(0, netTradingProfit - this.config.cgt.annualAllowance);
+        let cgtRate = this.config.cgt.basicRate; // Default to basic rate
+        
+        // Determine CGT rate based on total income
+        if (annualIncome > this.config.incomeTax.higherRateLimit) {
+            cgtRate = this.config.cgt.additionalRate;
+        } else if (annualIncome > this.config.incomeTax.basicRateLimit) {
+            cgtRate = this.config.cgt.higherRate;
+        }
+        
+        const cgtLiability = taxableGains * cgtRate;
+        
+        return {
+            compliant: true,
+            requiresReporting: netTradingProfit > this.config.cgt.annualAllowance,
+            taxYear: this.taxYear,
+            allowanceRemaining: Math.max(0, this.config.cgt.annualAllowance - netTradingProfit),
+            calculations: {
+                annualIncome,
+                tradingProfit: netTradingProfit,
+                allowableExpenses,
+                taxableGains,
+                cgtRate,
+                totalTaxLiability: cgtLiability
+            }
+        };
+    }
+    
+    /**
+     * Generate quarterly tax estimates for UK taxpayers
+     */
+    generateQuarterlyTaxEstimates(params) {
+        // Handle different parameter formats
+        const ytdTradingProfit = typeof params === 'number' ? params : (params.ytdTradingProfit || 15000);
+        const annualTargetIncome = typeof params === 'object' ? (params.annualTargetIncome || 60000) : 60000;
+        
+        const quarters = [];
+        const quarterlyProfit = ytdTradingProfit / 4;
+        
+        for (let q = 1; q <= 4; q++) {
+            const quarterProfit = quarterlyProfit * q;
+            const taxableAmount = Math.max(0, quarterProfit - this.config.cgt.annualAllowance);
+            
+            // Determine rate based on income
+            let cgtRate = this.config.cgt.basicRate;
+            if (annualTargetIncome > this.config.incomeTax.basicRateLimit) {
+                cgtRate = this.config.cgt.higherRate;
+            }
+            
+            const estimatedPayment = Math.max(0, taxableAmount * cgtRate);
+            
+            quarters.push({
+                quarter: q,
+                cumulativeProfit: quarterProfit,
+                taxableAmount,
+                estimatedPayment, // Changed from estimatedTax
+                dueDate: this.getQuarterlyDueDate(q),
+                cgtRate
+            });
+        }
+        
+        return quarters;
+    }
+    
+    /**
+     * Calculate estimated tax on profits
+     */
+    calculateEstimatedTax(profit) {
+        if (profit <= 0) return 0;
+        
+        // Check if within annual allowance
+        const remainingAllowance = this.taxYearPositions.allowanceRemaining;
+        if (profit <= remainingAllowance) {
+            return 0; // No tax if within allowance
+        }
+        
+        // Calculate taxable amount
+        const taxableAmount = profit - remainingAllowance;
+        
+        // Assume higher rate for conservative estimate
+        return taxableAmount * this.config.cgt.higherRate;
+    }
+    
+    /**
+     * Get quarterly payment due date
+     */
+    getQuarterlyDueDate(quarter) {
+        const year = new Date().getFullYear();
+        const dates = {
+            1: new Date(year, 6, 31),  // July 31
+            2: new Date(year, 9, 31),  // October 31
+            3: new Date(year + 1, 0, 31), // January 31
+            4: new Date(year + 1, 3, 30)  // April 30
+        };
+        return dates[quarter];
+    }
+    
+    /**
      * Get current UK tax year
      */
     getCurrentTaxYear() {

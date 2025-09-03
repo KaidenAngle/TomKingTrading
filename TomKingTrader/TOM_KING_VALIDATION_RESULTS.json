@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-09-02T21:45:07.499Z",
+  "timestamp": "2025-09-03T01:03:38.057Z",
   "tomKingValidation": {
     "winRateValidation": {
       "tests": [
@@ -7,25 +7,25 @@
           "name": "0DTE Friday 88% Win Rate",
           "passed": false,
           "error": "0DTE expected profit calculation incorrect: expected 0.32, got 35",
-          "executionTime": 0.2441000000000031
+          "executionTime": 0.3202999999999747
         },
         {
           "name": "LT112 73% Win Rate",
           "passed": false,
           "error": "LT112 expected profit calculation incorrect",
-          "executionTime": 0.12649999999996453
+          "executionTime": 0.19519999999999982
         },
         {
           "name": "Futures Strangles 72% Win Rate",
           "passed": true,
           "details": "Win rate: 0.72, Expected profit per contract: $108.80",
-          "executionTime": 0.04899999999997817
+          "executionTime": 0.10120000000006257
         },
         {
           "name": "Win Rate Consistency",
           "passed": true,
           "details": "Win rates consistent across all account sizes: 35000, 50000, 75000, 100000",
-          "executionTime": 0.26109999999994216
+          "executionTime": 0.5096999999999525
         }
       ],
       "passed": 2,
@@ -37,13 +37,13 @@
           "name": "40/35/25 Allocation Accuracy",
           "passed": true,
           "details": "Allocations - 0DTE: 39.3%, LT112: 35.4%, Strangles: 25.4%",
-          "executionTime": 0.11959999999999127
+          "executionTime": 0.2556999999999334
         },
         {
           "name": "Allocation Consistency Across Phases",
           "passed": true,
           "details": "Allocation consistent across all phases: 1, 2, 3, 4",
-          "executionTime": 0.4379000000000133
+          "executionTime": 0.5955999999999904
         }
       ],
       "passed": 2,
@@ -54,20 +54,20 @@
         {
           "name": "35% BP Limit Enforcement",
           "passed": false,
-          "error": "BP utilization exceeds 35% for £35000 account: 124.29%",
-          "executionTime": 0.16879999999991924
+          "error": "BP utilization exceeds 35% for £35000 account: 90.57%",
+          "executionTime": 0.21039999999993597
         },
         {
           "name": "5% Max Risk Per Trade",
           "passed": true,
           "details": "Max risk per trade: £3000 (5% of £60000)",
-          "executionTime": 0.11879999999996471
+          "executionTime": 0.23220000000003438
         },
         {
           "name": "Safety Margins Applied",
           "passed": false,
           "error": "Safety margins not applied: BP required undefined > safe max 14875",
-          "executionTime": 0.16399999999998727
+          "executionTime": 0.17070000000001073
         }
       ],
       "passed": 1,
@@ -79,19 +79,19 @@
           "name": "Correlation Group Limits",
           "passed": false,
           "error": "this.riskManager.validateCorrelationGroups is not a function",
-          "executionTime": 0.10079999999993561
+          "executionTime": 0.13210000000003674
         },
         {
           "name": "August 2024 Scenario Prevention",
           "passed": false,
           "error": "this.riskManager.checkAugust2024Prevention is not a function",
-          "executionTime": 0.11449999999990723
+          "executionTime": 0.17709999999999582
         },
         {
           "name": "Max 2 Equity Futures Rule",
           "passed": false,
           "error": "this.riskManager.validateEquityFuturesLimit is not a function",
-          "executionTime": 0.0947999999999638
+          "executionTime": 0.09619999999995343
         }
       ],
       "passed": 0,
@@ -103,13 +103,13 @@
           "name": "Phase Determination Accuracy",
           "passed": true,
           "details": "Phase determination accurate for all 11 test cases",
-          "executionTime": 0.4633000000000038
+          "executionTime": 0.5735999999999422
         },
         {
           "name": "Phase Target Accuracy",
           "passed": true,
           "details": "Phase targets accurate: P1=£3k, P2=£5k, P3=£7.5k, P4=£10k",
-          "executionTime": 0.19990000000007058
+          "executionTime": 0.23300000000006094
         }
       ],
       "passed": 2,
@@ -117,7 +117,7 @@
     }
   },
   "performanceMetrics": {
-    "totalExecutionTime": 4.479100000000017
+    "totalExecutionTime": 6.740199999999959
   },
   "criticalValidations": {
     "winRatesAccurate": false,
