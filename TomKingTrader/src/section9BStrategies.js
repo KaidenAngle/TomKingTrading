@@ -35,6 +35,8 @@ class Section9BStrategies {
         const diagonalAnalysis = this.analyzeDiagonalSpreads(marketData, accountData, currentDate);
         const ratioAnalysis = this.analyzeRatioSpreads(marketData, accountData, currentDate);
         const brokenWingAnalysis = this.analyzeBrokenWingButterfly(marketData, accountData, currentDate);
+        const batmanAnalysis = this.analyzeBatmanSpread(marketData, accountData, currentDate);
+        const brokenWingCondorAnalysis = this.analyzeBrokenWingCondor(marketData, accountData, currentDate);
 
         // Compile all opportunities
         if (butterflyAnalysis.canTrade) analysis.opportunities.push(butterflyAnalysis);
@@ -42,6 +44,8 @@ class Section9BStrategies {
         if (diagonalAnalysis.canTrade) analysis.opportunities.push(diagonalAnalysis);
         if (ratioAnalysis.canTrade) analysis.opportunities.push(ratioAnalysis);
         if (brokenWingAnalysis.canTrade) analysis.opportunities.push(brokenWingAnalysis);
+        if (batmanAnalysis.canTrade) analysis.opportunities.push(batmanAnalysis);
+        if (brokenWingCondorAnalysis.canTrade) analysis.opportunities.push(brokenWingCondorAnalysis);
 
         // Sort by score and select best opportunities
         analysis.opportunities.sort((a, b) => b.score - a.score);
@@ -256,7 +260,8 @@ class Section9BStrategies {
     }
 
     /**
-     * Diagonal Spread Strategy
+     * Enhanced Diagonal Spread Strategy with IV Skew Analysis
+     * Tom King methodology: Focus on IV term structure and skew opportunities
      */
     analyzeDiagonalSpreads(marketData, accountData, currentDate) {
         const analysis = {
@@ -264,72 +269,154 @@ class Section9BStrategies {
             timestamp: currentDate,
             canTrade: false,
             score: 0,
-            setup: null
+            setup: null,
+            ivAnalysis: null
         };
 
         const vix = marketData.VIX?.currentPrice || 0;
         const spy = marketData.SPY || {};
+        const currentPrice = spy.currentPrice || 0;
 
-        // Diagonals work well in moderate volatility
-        if (vix < 15 || vix > 30) {
-            analysis.recommendation = `VIX not ideal for diagonals: ${vix}`;
+        // Tom King's diagonal entry criteria
+        // Best between VIX 15-28 with IV backwardation
+        if (vix < 15) {
+            analysis.recommendation = `VIX too low for diagonals: ${vix} (need >15)`;
+            return analysis;
+        }
+        if (vix > 35) {
+            analysis.recommendation = `VIX too high for diagonals: ${vix} (prefer <35)`;
             return analysis;
         }
 
         const optionChain = marketData.optionChain?.SPY || {};
         const expirations = Object.keys(optionChain).sort();
 
-        if (expirations.length < 2) {
-            analysis.recommendation = 'Need multiple expirations for diagonal';
+        if (expirations.length < 3) {
+            analysis.recommendation = 'Need at least 3 expirations for proper diagonal analysis';
             return analysis;
         }
 
-        // Front month: 7-14 DTE, Back month: 35-45 DTE
-        const frontExpiration = this.findNearestExpiration(expirations, 10);
-        const backExpiration = this.findNearestExpiration(expirations, 40);
+        // Tom King's optimal DTE selection
+        // Front: 7-14 DTE (weekly decay acceleration)
+        // Back: 35-50 DTE (monthly stability)
+        const frontDTE = vix > 25 ? 7 : 10;  // Shorter front in high vol
+        const backDTE = vix > 25 ? 35 : 45;  // Shorter back in high vol
+        
+        const frontExpiration = this.findNearestExpiration(expirations, frontDTE);
+        const backExpiration = this.findNearestExpiration(expirations, backDTE);
 
         if (!frontExpiration || !backExpiration) {
-            analysis.recommendation = 'Cannot find suitable expirations';
+            analysis.recommendation = 'Cannot find suitable expirations for diagonal';
             return analysis;
         }
 
-        const atmStrike = this.roundToStrike(spy.currentPrice, 1);
-        
-        // Calculate diagonal spread value
-        const diagonalSetup = this.calculateDiagonalSpread(
-            optionChain[frontExpiration],
-            optionChain[backExpiration],
-            atmStrike,
-            'CALL' // Can be CALL or PUT diagonal
+        // Analyze IV term structure
+        const ivTermStructure = this.analyzeIVTermStructure(
+            optionChain,
+            frontExpiration,
+            backExpiration,
+            currentPrice
         );
 
-        if (!diagonalSetup) {
-            analysis.recommendation = 'Cannot calculate diagonal prices';
+        if (!ivTermStructure || !ivTermStructure.hasBackwardation) {
+            analysis.recommendation = 'No IV backwardation - diagonal not optimal';
+            analysis.ivAnalysis = ivTermStructure;
             return analysis;
         }
 
-        const score = this.scoreDiagonal(diagonalSetup, vix);
+        // Determine diagonal type based on market bias
+        const marketBias = this.detectMarketBias(marketData);
+        const diagonalType = this.selectDiagonalType(marketBias, vix, ivTermStructure);
+        
+        // Strike selection based on Tom King rules
+        const strikeSelection = this.selectDiagonalStrikes(
+            currentPrice,
+            diagonalType,
+            marketBias,
+            vix
+        );
 
-        if (score >= 60) {
-            const maxPositions = Math.floor((accountData.netLiq * 0.05) / diagonalSetup.maxRisk);
-            const positions = Math.min(maxPositions, 10);
+        // Calculate both CALL and PUT diagonal opportunities
+        const callDiagonal = this.calculateEnhancedDiagonal(
+            optionChain[frontExpiration],
+            optionChain[backExpiration],
+            strikeSelection.callStrike,
+            'CALL',
+            ivTermStructure
+        );
 
-            analysis.canTrade = true;
-            analysis.score = score;
-            analysis.setup = {
-                type: 'CALL Diagonal',
-                strike: atmStrike,
-                frontExpiration,
-                backExpiration,
-                netDebit: diagonalSetup.netDebit,
-                maxRisk: diagonalSetup.maxRisk,
-                positions,
-                requiredBP: diagonalSetup.maxRisk * positions
-            };
+        const putDiagonal = this.calculateEnhancedDiagonal(
+            optionChain[frontExpiration],
+            optionChain[backExpiration],
+            strikeSelection.putStrike,
+            'PUT',
+            ivTermStructure
+        );
 
-            analysis.recommendation = `ENTER ${positions}x Call Diagonal ${atmStrike} ` +
-                `${frontExpiration}/${backExpiration}`;
+        // Select best diagonal based on scores
+        const callScore = callDiagonal ? this.scoreEnhancedDiagonal(callDiagonal, vix, marketBias) : 0;
+        const putScore = putDiagonal ? this.scoreEnhancedDiagonal(putDiagonal, vix, marketBias) : 0;
+
+        const bestDiagonal = callScore >= putScore ? callDiagonal : putDiagonal;
+        const bestScore = Math.max(callScore, putScore);
+        const bestType = callScore >= putScore ? 'CALL' : 'PUT';
+        const bestStrike = callScore >= putScore ? strikeSelection.callStrike : strikeSelection.putStrike;
+
+        if (!bestDiagonal || bestScore < 65) {
+            analysis.recommendation = `Diagonal score too low: ${bestScore}/100`;
+            analysis.ivAnalysis = ivTermStructure;
+            return analysis;
         }
+
+        // Tom King position sizing: 5-8% per diagonal spread
+        const riskPerSpread = bestDiagonal.maxRisk;
+        const maxRiskAllocation = accountData.netLiq * 0.08;
+        const maxPositions = Math.floor(maxRiskAllocation / riskPerSpread);
+        const positions = Math.min(maxPositions, 10);
+
+        // Additional filters for high-probability setups
+        const canEnter = this.validateDiagonalEntry(
+            bestDiagonal,
+            ivTermStructure,
+            marketBias,
+            vix,
+            currentDate
+        );
+
+        if (!canEnter.valid) {
+            analysis.recommendation = canEnter.reason;
+            analysis.ivAnalysis = ivTermStructure;
+            return analysis;
+        }
+
+        analysis.canTrade = true;
+        analysis.score = bestScore;
+        analysis.ivAnalysis = ivTermStructure;
+        analysis.setup = {
+            type: `${bestType} Diagonal`,
+            strike: bestStrike,
+            frontExpiration,
+            backExpiration,
+            frontDTE: frontDTE,
+            backDTE: backDTE,
+            netDebit: bestDiagonal.netDebit,
+            maxRisk: bestDiagonal.maxRisk,
+            maxProfit: bestDiagonal.maxProfit,
+            positions,
+            requiredBP: bestDiagonal.maxRisk * positions,
+            ivDifferential: bestDiagonal.ivDifferential,
+            thetaCapture: bestDiagonal.thetaCapture,
+            vegaExposure: bestDiagonal.vegaExposure,
+            profitTarget: bestDiagonal.profitTarget,
+            stopLoss: bestDiagonal.stopLoss,
+            adjustmentTriggers: bestDiagonal.adjustmentTriggers,
+            marketBias: marketBias
+        };
+
+        analysis.recommendation = `ENTER ${positions}x ${bestType} Diagonal ${bestStrike} ` +
+            `${frontExpiration}/${backExpiration} | ` +
+            `IV Diff: ${(bestDiagonal.ivDifferential * 100).toFixed(1)}% | ` +
+            `Target: £${(bestDiagonal.profitTarget * positions).toFixed(0)}`;
 
         return analysis;
     }
@@ -493,6 +580,230 @@ class Section9BStrategies {
         return analysis;
     }
 
+    /**
+     * Batman Spread Strategy (Wide Condor with skewed risk)
+     * Named for its profit diagram resembling Batman's logo
+     * Tom King variation: Use on high volatility Fridays
+     */
+    analyzeBatmanSpread(marketData, accountData, currentDate) {
+        const analysis = {
+            strategy: 'Batman Spread',
+            timestamp: currentDate,
+            canTrade: false,
+            score: 0,
+            setup: null,
+            description: 'Wide condor with Batman-shaped P&L diagram'
+        };
+
+        const day = currentDate.getDay();
+        const hour = currentDate.getHours();
+        const vix = marketData.VIX?.currentPrice || 0;
+        const spy = marketData.SPY || marketData.ES || {};
+
+        // Batman spreads work best on volatile Fridays
+        if (day !== 5) {
+            analysis.recommendation = 'Batman spreads preferred on Fridays';
+            return analysis;
+        }
+
+        // Need high volatility for Batman spreads
+        if (vix < 22) {
+            analysis.recommendation = `VIX too low for Batman: ${vix} (need 22+)`;
+            return analysis;
+        }
+
+        if (!spy.currentPrice) {
+            analysis.recommendation = 'Missing SPY/ES data';
+            return analysis;
+        }
+
+        const optionChain = marketData.optionChain?.SPY || {};
+        const expirations = Object.keys(optionChain);
+        
+        // Batman spreads use 7-14 DTE
+        const targetDTE = 10;
+        const expiration = this.findNearestExpiration(expirations, targetDTE);
+
+        if (!expiration) {
+            analysis.recommendation = 'No suitable expiration for Batman spread';
+            return analysis;
+        }
+
+        const atmStrike = this.roundToStrike(spy.currentPrice, 1);
+        
+        // Batman structure: Very wide condor with specific ratios
+        // Inner wings narrow, outer wings very wide (creates the Batman ears)
+        const innerWidth = 5;  // Narrow body
+        const outerWidth = 20; // Wide wings (Batman ears)
+        
+        const strikes = {
+            farPut: atmStrike - outerWidth,
+            nearPut: atmStrike - innerWidth,
+            nearCall: atmStrike + innerWidth,
+            farCall: atmStrike + outerWidth
+        };
+
+        // Calculate Batman spread prices
+        const batmanSetup = this.calculateBatmanSpread(
+            optionChain[expiration],
+            strikes.farPut,
+            strikes.nearPut,
+            strikes.nearCall,
+            strikes.farCall
+        );
+
+        if (!batmanSetup || batmanSetup.netCredit < 1.50) {
+            analysis.recommendation = `Insufficient credit: $${batmanSetup?.netCredit || 0} (need $1.50+)`;
+            return analysis;
+        }
+
+        // Score the Batman setup
+        const score = this.scoreBatmanSpread(batmanSetup, vix, spy.currentPrice, atmStrike);
+
+        if (score >= 75) {
+            const maxPositions = Math.floor((accountData.netLiq * 0.06) / batmanSetup.maxLoss);
+            const positions = Math.min(maxPositions, 5);
+
+            analysis.canTrade = true;
+            analysis.score = score;
+            analysis.setup = {
+                strikes: strikes,
+                expiration,
+                netCredit: batmanSetup.netCredit,
+                maxLoss: batmanSetup.maxLoss,
+                maxProfit: batmanSetup.maxProfit,
+                positions,
+                requiredBP: batmanSetup.maxLoss * positions,
+                profitZones: batmanSetup.profitZones
+            };
+
+            analysis.recommendation = `ENTER ${positions}x Batman Spread ` +
+                `${strikes.farPut}/${strikes.nearPut}/${strikes.nearCall}/${strikes.farCall} @ ${expiration}`;
+        } else {
+            analysis.recommendation = `Batman score too low: ${score}/100 (need 75+)`;
+        }
+
+        return analysis;
+    }
+
+    /**
+     * Broken Wing Iron Condor Strategy
+     * Asymmetric condor with different wing widths for skewed risk/reward
+     */
+    analyzeBrokenWingCondor(marketData, accountData, currentDate) {
+        const analysis = {
+            strategy: 'Broken Wing Iron Condor',
+            timestamp: currentDate,
+            canTrade: false,
+            score: 0,
+            setup: null,
+            description: 'Asymmetric iron condor with directional bias'
+        };
+
+        const vix = marketData.VIX?.currentPrice || 0;
+        const spy = marketData.SPY || marketData.ES || {};
+
+        // Broken wing condors work in moderate-high volatility
+        if (vix < 16 || vix > 35) {
+            analysis.recommendation = `VIX outside range: ${vix} (ideal: 16-35)`;
+            return analysis;
+        }
+
+        if (!spy.currentPrice || !spy.open) {
+            analysis.recommendation = 'Missing market data';
+            return analysis;
+        }
+
+        // Determine market bias
+        const dayMove = ((spy.currentPrice - spy.open) / spy.open) * 100;
+        const marketBias = dayMove > 0 ? 'BULLISH' : 'BEARISH';
+
+        const optionChain = marketData.optionChain?.SPY || {};
+        const expirations = Object.keys(optionChain);
+        
+        // 21-35 DTE for broken wing condors
+        const targetDTE = 28;
+        const expiration = this.findNearestExpiration(expirations, targetDTE);
+
+        if (!expiration) {
+            analysis.recommendation = 'No suitable expiration';
+            return analysis;
+        }
+
+        const atmStrike = this.roundToStrike(spy.currentPrice, 1);
+        const expectedMove = spy.currentPrice * (vix / 100) * Math.sqrt(targetDTE / 365);
+        
+        // Asymmetric strikes based on market bias
+        let strikes;
+        if (marketBias === 'BULLISH') {
+            // Wider put spread, narrower call spread (bullish bias)
+            strikes = {
+                putLong: atmStrike - expectedMove * 1.5,  // Wider put side
+                putShort: atmStrike - expectedMove * 1.0,
+                callShort: atmStrike + expectedMove * 0.8, // Narrower call side
+                callLong: atmStrike + expectedMove * 1.0
+            };
+        } else {
+            // Wider call spread, narrower put spread (bearish bias)
+            strikes = {
+                putLong: atmStrike - expectedMove * 1.0,  // Narrower put side
+                putShort: atmStrike - expectedMove * 0.8,
+                callShort: atmStrike + expectedMove * 1.0,
+                callLong: atmStrike + expectedMove * 1.5  // Wider call side
+            };
+        }
+
+        // Round strikes
+        Object.keys(strikes).forEach(key => {
+            strikes[key] = this.roundToStrike(strikes[key], 1);
+        });
+
+        // Calculate broken wing condor prices
+        const condorSetup = this.calculateBrokenWingCondor(
+            optionChain[expiration],
+            strikes.putLong,
+            strikes.putShort,
+            strikes.callShort,
+            strikes.callLong,
+            marketBias
+        );
+
+        if (!condorSetup || condorSetup.netCredit < 1.20) {
+            analysis.recommendation = `Insufficient credit: $${condorSetup?.netCredit || 0} (need $1.20+)`;
+            return analysis;
+        }
+
+        // Score the setup
+        const score = this.scoreBrokenWingCondor(condorSetup, vix, marketBias, Math.abs(dayMove));
+
+        if (score >= 70) {
+            const maxPositions = Math.floor((accountData.netLiq * 0.08) / condorSetup.maxLoss);
+            const positions = Math.min(maxPositions, 6);
+
+            analysis.canTrade = true;
+            analysis.score = score;
+            analysis.setup = {
+                type: `${marketBias} Broken Wing Condor`,
+                strikes: strikes,
+                expiration,
+                netCredit: condorSetup.netCredit,
+                maxLoss: condorSetup.maxLoss,
+                positions,
+                requiredBP: condorSetup.maxLoss * positions,
+                putSpreadWidth: strikes.putShort - strikes.putLong,
+                callSpreadWidth: strikes.callLong - strikes.callShort,
+                bias: marketBias
+            };
+
+            analysis.recommendation = `ENTER ${positions}x ${marketBias} Broken Wing Condor ` +
+                `${strikes.putLong}/${strikes.putShort}/${strikes.callShort}/${strikes.callLong} @ ${expiration}`;
+        } else {
+            analysis.recommendation = `Score too low: ${score}/100 (need 70+)`;
+        }
+
+        return analysis;
+    }
+
     // Helper Methods
 
     roundToStrike(price, increment) {
@@ -597,6 +908,280 @@ class Section9BStrategies {
             frontIV: frontOption.iv || 0,
             backIV: backOption.iv || 0
         };
+    }
+
+    /**
+     * Enhanced diagonal calculation with Greeks and profit targets
+     */
+    calculateEnhancedDiagonal(frontChain, backChain, strike, type, ivTermStructure) {
+        if (!frontChain || !backChain) return null;
+
+        const frontOption = frontChain[type]?.[strike];
+        const backOption = backChain[type]?.[strike];
+
+        if (!frontOption || !backOption) return null;
+
+        // Calculate net debit (buy back month, sell front month)
+        const backMid = (backOption.bid + backOption.ask) / 2;
+        const frontMid = (frontOption.bid + frontOption.ask) / 2;
+        const netDebit = backOption.ask - frontOption.bid;
+        const maxRisk = netDebit * 100;
+
+        // IV differential is key for diagonal profitability
+        const frontIV = frontOption.iv || frontMid / 100;
+        const backIV = backOption.iv || backMid / 100;
+        const ivDifferential = frontIV - backIV;
+
+        // Calculate Greeks differential
+        const thetaCapture = Math.abs(frontOption.theta || 0) - Math.abs(backOption.theta || 0);
+        const vegaExposure = (backOption.vega || 0) - (frontOption.vega || 0);
+        const deltaExposure = (backOption.delta || 0) - (frontOption.delta || 0);
+
+        // Tom King profit targets
+        // Target 25-35% of max risk for diagonals
+        const profitTarget = maxRisk * 0.30;
+        const maxProfit = frontMid * 100; // If front expires worthless
+
+        // Stop loss at 50% of debit paid
+        const stopLoss = maxRisk * 0.50;
+
+        // Adjustment triggers
+        const adjustmentTriggers = {
+            frontDTE: 3, // Roll front when 3 DTE
+            profitPercent: 25, // Take profit at 25%
+            lossPercent: 30, // Adjust at 30% loss
+            ivCollapse: -0.05, // Adjust if IV diff collapses
+            deltaThreshold: 0.30 // Adjust if delta gets too high
+        };
+
+        return {
+            netDebit,
+            maxRisk,
+            maxProfit,
+            profitTarget,
+            stopLoss,
+            frontIV,
+            backIV,
+            ivDifferential,
+            thetaCapture,
+            vegaExposure,
+            deltaExposure,
+            adjustmentTriggers,
+            frontStrike: strike,
+            backStrike: strike,
+            type
+        };
+    }
+
+    /**
+     * Analyze IV term structure for diagonal opportunities
+     */
+    analyzeIVTermStructure(optionChain, frontExpiration, backExpiration, currentPrice) {
+        if (!optionChain || !frontExpiration || !backExpiration) return null;
+
+        const atmStrike = this.roundToStrike(currentPrice, 1);
+        const frontChain = optionChain[frontExpiration];
+        const backChain = optionChain[backExpiration];
+
+        if (!frontChain || !backChain) return null;
+
+        // Check ATM IVs
+        const frontATMCall = frontChain.CALL?.[atmStrike];
+        const backATMCall = backChain.CALL?.[atmStrike];
+        const frontATMPut = frontChain.PUT?.[atmStrike];
+        const backATMPut = backChain.PUT?.[atmStrike];
+
+        if (!frontATMCall || !backATMCall) return null;
+
+        const frontATMIV = (frontATMCall.iv + frontATMPut.iv) / 2;
+        const backATMIV = (backATMCall.iv + backATMPut.iv) / 2;
+
+        // Calculate IV skew
+        const otmCallStrike = atmStrike + 5;
+        const otmPutStrike = atmStrike - 5;
+
+        const frontCallSkew = frontChain.CALL?.[otmCallStrike]?.iv - frontATMCall.iv;
+        const frontPutSkew = frontChain.PUT?.[otmPutStrike]?.iv - frontATMPut.iv;
+        const backCallSkew = backChain.CALL?.[otmCallStrike]?.iv - backATMCall.iv;
+        const backPutSkew = backChain.PUT?.[otmPutStrike]?.iv - backATMPut.iv;
+
+        return {
+            frontATMIV,
+            backATMIV,
+            ivDifferential: frontATMIV - backATMIV,
+            hasBackwardation: frontATMIV > backATMIV,
+            frontCallSkew,
+            frontPutSkew,
+            backCallSkew,
+            backPutSkew,
+            skewDifferential: {
+                call: frontCallSkew - backCallSkew,
+                put: frontPutSkew - backPutSkew
+            },
+            termStructureSlope: (backATMIV - frontATMIV) / (backExpiration - frontExpiration)
+        };
+    }
+
+    /**
+     * Detect market bias for diagonal selection
+     */
+    detectMarketBias(marketData) {
+        const spy = marketData.SPY || {};
+        const ema8 = spy.ema8 || spy.currentPrice;
+        const ema21 = spy.ema21 || spy.currentPrice;
+        const vwap = spy.vwap || spy.currentPrice;
+        const currentPrice = spy.currentPrice;
+
+        let bias = 'NEUTRAL';
+        let strength = 0;
+
+        // Price vs EMAs
+        if (currentPrice > ema8 && ema8 > ema21) {
+            bias = 'BULLISH';
+            strength += 2;
+        } else if (currentPrice < ema8 && ema8 < ema21) {
+            bias = 'BEARISH';
+            strength += 2;
+        }
+
+        // Price vs VWAP
+        if (currentPrice > vwap * 1.005) strength += 1;
+        else if (currentPrice < vwap * 0.995) strength -= 1;
+
+        // RSI bias
+        const rsi = spy.rsi || 50;
+        if (rsi > 60) {
+            if (bias !== 'BEARISH') bias = 'BULLISH';
+            strength += 1;
+        } else if (rsi < 40) {
+            if (bias !== 'BULLISH') bias = 'BEARISH';
+            strength += 1;
+        }
+
+        return { bias, strength: Math.min(5, Math.abs(strength)) };
+    }
+
+    /**
+     * Select diagonal type based on conditions
+     */
+    selectDiagonalType(marketBias, vix, ivTermStructure) {
+        // Tom King preference: PUT diagonals in high VIX
+        if (vix > 25) return 'PUT';
+        
+        // CALL diagonals in bullish markets
+        if (marketBias.bias === 'BULLISH' && marketBias.strength >= 3) return 'CALL';
+        
+        // PUT diagonals in bearish markets
+        if (marketBias.bias === 'BEARISH' && marketBias.strength >= 3) return 'PUT';
+        
+        // Default based on skew advantage
+        if (ivTermStructure?.skewDifferential?.put > ivTermStructure?.skewDifferential?.call) {
+            return 'PUT';
+        }
+        
+        return 'CALL';
+    }
+
+    /**
+     * Select strikes for diagonal based on Tom King rules
+     */
+    selectDiagonalStrikes(currentPrice, diagonalType, marketBias, vix) {
+        const atmStrike = this.roundToStrike(currentPrice, 1);
+        
+        // Tom King strike selection:
+        // - Slightly OTM for directional bias
+        // - ATM for neutral markets
+        // - Adjust for VIX levels
+        
+        let callStrike = atmStrike;
+        let putStrike = atmStrike;
+        
+        if (marketBias.bias === 'BULLISH') {
+            // Slightly OTM calls, slightly ITM puts
+            callStrike = atmStrike + (vix > 20 ? 2 : 1);
+            putStrike = atmStrike + (vix > 20 ? 1 : 0);
+        } else if (marketBias.bias === 'BEARISH') {
+            // Slightly ITM calls, slightly OTM puts
+            callStrike = atmStrike - (vix > 20 ? 1 : 0);
+            putStrike = atmStrike - (vix > 20 ? 2 : 1);
+        }
+        
+        return { callStrike, putStrike, atmStrike };
+    }
+
+    /**
+     * Enhanced scoring for diagonal spreads
+     */
+    scoreEnhancedDiagonal(setup, vix, marketBias) {
+        let score = 0;
+
+        // IV differential (most important for diagonals)
+        const ivDiff = setup.ivDifferential;
+        if (ivDiff > 0.08) score += 35;
+        else if (ivDiff > 0.05) score += 25;
+        else if (ivDiff > 0.02) score += 15;
+        else if (ivDiff > 0) score += 10;
+
+        // VIX environment
+        if (vix >= 18 && vix <= 28) score += 20;
+        else if (vix >= 15 && vix <= 32) score += 15;
+        else if (vix >= 12 && vix <= 35) score += 10;
+
+        // Theta capture potential
+        if (setup.thetaCapture > 0.15) score += 15;
+        else if (setup.thetaCapture > 0.10) score += 10;
+        else if (setup.thetaCapture > 0.05) score += 5;
+
+        // Net debit relative to potential profit
+        const profitRatio = setup.maxProfit / setup.maxRisk;
+        if (profitRatio > 1.5) score += 15;
+        else if (profitRatio > 1.2) score += 10;
+        else if (profitRatio > 1.0) score += 5;
+
+        // Market bias alignment
+        if (setup.type === 'CALL' && marketBias.bias === 'BULLISH') score += 10;
+        else if (setup.type === 'PUT' && marketBias.bias === 'BEARISH') score += 10;
+
+        // Vega exposure (prefer positive in low VIX)
+        if (vix < 20 && setup.vegaExposure > 0) score += 5;
+        else if (vix > 25 && setup.vegaExposure < 0) score += 5;
+
+        return Math.min(100, score);
+    }
+
+    /**
+     * Validate diagonal entry conditions
+     */
+    validateDiagonalEntry(diagonal, ivTermStructure, marketBias, vix, currentDate) {
+        const hour = currentDate.getHours();
+        const dayOfWeek = currentDate.getDay();
+
+        // Tom King timing rules
+        if (hour < 10 || hour >= 15) {
+            return { valid: false, reason: 'Outside optimal hours (10 AM - 3 PM)' };
+        }
+
+        // Avoid Mondays and Fridays for new diagonals
+        if (dayOfWeek === 1 || dayOfWeek === 5) {
+            return { valid: false, reason: 'Avoid diagonal entry on Monday/Friday' };
+        }
+
+        // IV differential minimum
+        if (diagonal.ivDifferential < 0.02) {
+            return { valid: false, reason: 'IV differential too small (<2%)' };
+        }
+
+        // Risk/reward check
+        if (diagonal.maxProfit / diagonal.maxRisk < 0.8) {
+            return { valid: false, reason: 'Risk/reward ratio too low' };
+        }
+
+        // Theta capture minimum
+        if (diagonal.thetaCapture < 0.03) {
+            return { valid: false, reason: 'Insufficient theta capture' };
+        }
+
+        return { valid: true, reason: 'All diagonal entry conditions met' };
     }
 
     calculateRatioSpread(chain, longStrike, shortStrike, longQty, shortQty) {
@@ -754,6 +1339,141 @@ class Section9BStrategies {
 
         // Base score
         score += 15;
+
+        return Math.min(100, score);
+    }
+
+    /**
+     * Calculate Batman spread prices and structure
+     */
+    calculateBatmanSpread(chain, farPut, nearPut, nearCall, farCall) {
+        if (!chain || !chain.PUT || !chain.CALL) return null;
+
+        const farPutOpt = chain.PUT[farPut];
+        const nearPutOpt = chain.PUT[nearPut];
+        const nearCallOpt = chain.CALL[nearCall];
+        const farCallOpt = chain.CALL[farCall];
+
+        if (!farPutOpt || !nearPutOpt || !nearCallOpt || !farCallOpt) return null;
+
+        // Batman: Sell near strikes, buy far strikes (wide iron condor variant)
+        const putSpreadCredit = nearPutOpt.bid - farPutOpt.ask;
+        const callSpreadCredit = nearCallOpt.bid - farCallOpt.ask;
+        const netCredit = putSpreadCredit + callSpreadCredit;
+
+        const putSpreadWidth = nearPut - farPut;
+        const callSpreadWidth = farCall - nearCall;
+        const maxLoss = Math.max(putSpreadWidth, callSpreadWidth) * 100 - netCredit * 100;
+        const maxProfit = netCredit * 100;
+
+        // Calculate profit zones (Batman ears)
+        const profitZones = [
+            { start: farPut, end: nearPut - netCredit },
+            { start: nearCall + netCredit, end: farCall }
+        ];
+
+        return {
+            netCredit,
+            maxLoss,
+            maxProfit,
+            profitZones
+        };
+    }
+
+    /**
+     * Calculate broken wing condor prices
+     */
+    calculateBrokenWingCondor(chain, putLong, putShort, callShort, callLong, bias) {
+        if (!chain || !chain.PUT || !chain.CALL) return null;
+
+        const putLongOpt = chain.PUT[putLong];
+        const putShortOpt = chain.PUT[putShort];
+        const callShortOpt = chain.CALL[callShort];
+        const callLongOpt = chain.CALL[callLong];
+
+        if (!putLongOpt || !putShortOpt || !callShortOpt || !callLongOpt) return null;
+
+        // Calculate credits for each spread
+        const putSpreadCredit = putShortOpt.bid - putLongOpt.ask;
+        const callSpreadCredit = callShortOpt.bid - callLongOpt.ask;
+        const netCredit = putSpreadCredit + callSpreadCredit;
+
+        // Max loss depends on bias and wing widths
+        const putSpreadWidth = putShort - putLong;
+        const callSpreadWidth = callLong - callShort;
+        
+        let maxLoss;
+        if (bias === 'BULLISH') {
+            // Wider put spread = higher risk on put side
+            maxLoss = putSpreadWidth * 100 - netCredit * 100;
+        } else {
+            // Wider call spread = higher risk on call side
+            maxLoss = callSpreadWidth * 100 - netCredit * 100;
+        }
+
+        return {
+            netCredit,
+            maxLoss,
+            putSpreadWidth,
+            callSpreadWidth
+        };
+    }
+
+    /**
+     * Score Batman spread setup
+     */
+    scoreBatmanSpread(setup, vix, currentPrice, atmStrike) {
+        let score = 0;
+
+        // High VIX requirement (22+)
+        if (vix >= 25) score += 35;
+        else if (vix >= 22) score += 25;
+        else return 0; // Don't trade Batman below VIX 22
+
+        // Net credit (need good premium)
+        if (setup.netCredit >= 2.0) score += 30;
+        else if (setup.netCredit >= 1.5) score += 20;
+
+        // Risk/reward ratio
+        const rrRatio = setup.maxProfit / setup.maxLoss;
+        if (rrRatio >= 0.4) score += 25;
+        else if (rrRatio >= 0.3) score += 15;
+
+        // Price position relative to ATM (prefer when near center)
+        const priceDistance = Math.abs(currentPrice - atmStrike) / atmStrike;
+        if (priceDistance < 0.01) score += 10; // Within 1% of ATM
+
+        return Math.min(100, score);
+    }
+
+    /**
+     * Score broken wing condor setup
+     */
+    scoreBrokenWingCondor(setup, vix, bias, dayMovePercent) {
+        let score = 0;
+
+        // VIX range (16-35)
+        if (vix >= 20 && vix <= 30) score += 30;
+        else if (vix >= 16 && vix <= 35) score += 20;
+
+        // Net credit
+        if (setup.netCredit >= 1.5) score += 25;
+        else if (setup.netCredit >= 1.2) score += 15;
+
+        // Day move alignment with bias
+        if ((bias === 'BULLISH' && dayMovePercent > 0.5) ||
+            (bias === 'BEARISH' && dayMovePercent > 0.5)) {
+            score += 20; // Direction confirmed by movement
+        }
+
+        // Wing asymmetry (should be meaningfully different)
+        const wingDiff = Math.abs(setup.putSpreadWidth - setup.callSpreadWidth);
+        if (wingDiff >= 10) score += 15;
+        else if (wingDiff >= 5) score += 10;
+
+        // Risk/reward assessment
+        const creditToRisk = setup.netCredit / (setup.maxLoss / 100);
+        if (creditToRisk >= 0.35) score += 10;
 
         return Math.min(100, score);
     }

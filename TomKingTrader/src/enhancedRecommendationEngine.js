@@ -14,6 +14,8 @@
 
 const { TastyTradeAPI } = require('./tastytradeAPI');
 const { getLogger } = require('./logger');
+const Section9BStrategies = require('./section9BStrategies');
+const Calendarized112Strategy = require('./calendarized112Strategy');
 
 const logger = getLogger();
 
@@ -24,6 +26,10 @@ class EnhancedRecommendationEngine {
         this.optionChains = {};
         this.greeksData = {};
         this.patternSignals = {};
+        
+        // Initialize Section 9B strategies
+        this.section9BStrategies = new Section9BStrategies();
+        this.calendarized112Strategy = null; // Initialized when API is available
         
         // Tom King Phase System (PDF Pages 13-24)
         this.phaseRequirements = {
@@ -85,7 +91,11 @@ class EnhancedRecommendationEngine {
             try {
                 this.api = new TastyTradeAPI();
                 await this.api.initialize();
-                logger.info('ENGINE', 'API connected for enhanced recommendations');
+                
+                // Initialize calendarized 1-1-2 strategy with API
+                this.calendarized112Strategy = new Calendarized112Strategy(this.api, null);
+                
+                logger.info('ENGINE', 'API connected for enhanced recommendations with Section 9B strategies');
                 return true;
             } catch (error) {
                 logger.error('ENGINE', 'API connection required - no simulated data allowed');
@@ -148,12 +158,18 @@ class EnhancedRecommendationEngine {
                 recommendations.strikeRecommendations = await this.optimizeStrikes(recommendations.qualifiedTickers, userData, recommendations.greeksAnalysis);
             }
 
-            // Step 6: Portfolio optimization and diversification
-            logger.debug('ENGINE', 'Step 6: Portfolio Optimization');
+            // Step 6: Analyze Section 9B advanced strategies (Phase 2+)
+            if (userData.phase >= 2) {
+                logger.debug('ENGINE', 'Step 6: Section 9B Advanced Strategies Analysis');
+                recommendations.section9BAnalysis = await this.analyzeSection9BOpportunities(userData, recommendations);
+            }
+
+            // Step 7: Portfolio optimization and diversification
+            logger.debug('ENGINE', 'Step 7: Portfolio Optimization');
             recommendations.portfolioOptimization = await this.optimizePortfolioWithGreeks(userData, recommendations);
 
-            // Step 7: Generate final action items
-            logger.debug('ENGINE', 'Step 7: Final Recommendations');
+            // Step 8: Generate final action items
+            logger.debug('ENGINE', 'Step 8: Final Recommendations');
             recommendations.actionItems = await this.generateActionItems(recommendations, userData);
 
             // Summary
@@ -1285,6 +1301,149 @@ class EnhancedRecommendationEngine {
         }
         
         return `${strategy} - See Greeks analysis for details`;
+    }
+
+    /**
+     * Analyze Section 9B advanced strategy opportunities
+     */
+    async analyzeSection9BOpportunities(userData, recommendations) {
+        const analysis = {
+            opportunities: [],
+            calendarized112: null,
+            butterflies: [],
+            brokenWings: [],
+            diagonals: [],
+            ratioSpreads: []
+        };
+
+        try {
+            // Get market data for analysis
+            const marketData = {};
+            for (const tickerObj of recommendations.qualifiedTickers || []) {
+                marketData[tickerObj.ticker] = this.currentMarketData[tickerObj.ticker];
+            }
+
+            // Run Section 9B analysis
+            const section9BResult = this.section9BStrategies.analyzeSection9B(
+                marketData, 
+                userData, 
+                new Date()
+            );
+
+            // Process opportunities
+            if (section9BResult.opportunities && section9BResult.opportunities.length > 0) {
+                analysis.opportunities = section9BResult.opportunities;
+                
+                // Categorize by type
+                section9BResult.opportunities.forEach(opp => {
+                    switch (opp.strategy) {
+                        case 'Enhanced Butterfly':
+                            analysis.butterflies.push(opp);
+                            break;
+                        case 'Iron Condor':
+                            // Already handled in main analysis
+                            break;
+                        case 'Broken Wing Butterfly':
+                            analysis.brokenWings.push(opp);
+                            break;
+                        case 'Diagonal Spread':
+                            analysis.diagonals.push(opp);
+                            break;
+                        case 'Ratio Spread':
+                            analysis.ratioSpreads.push(opp);
+                            break;
+                    }
+                });
+            }
+
+            // Analyze calendarized 1-1-2 if available
+            if (this.calendarized112Strategy && userData.phase >= 2) {
+                const calendarizedAnalysis = await this.analyzeCalendarized112(userData, marketData);
+                if (calendarizedAnalysis) {
+                    analysis.calendarized112 = calendarizedAnalysis;
+                }
+            }
+
+            logger.debug('ENGINE', `Section 9B analysis found ${analysis.opportunities.length} opportunities`);
+            
+        } catch (error) {
+            logger.error('ENGINE', 'Section 9B analysis error:', error);
+        }
+
+        return analysis;
+    }
+
+    /**
+     * Analyze calendarized 1-1-2 opportunities
+     */
+    async analyzeCalendarized112(userData, marketData) {
+        try {
+            // Focus on high-liquidity underlyings for calendarized strategies
+            const eligibleTickers = ['ES', 'SPY', 'QQQ', 'IWM'];
+            const opportunities = [];
+
+            for (const ticker of eligibleTickers) {
+                if (!marketData[ticker]) continue;
+
+                // Check if we can build a calendarized 1-1-2
+                const analysis = {
+                    ticker,
+                    viable: false,
+                    structure: {},
+                    expectedReturn: 0,
+                    riskReward: 0,
+                    confidence: 0
+                };
+
+                // Need option chains with multiple expirations
+                if (this.api) {
+                    try {
+                        const expirations = await this.api.getExpirations(ticker);
+                        if (expirations && expirations.length >= 3) {
+                            // Find suitable expirations for calendarized structure
+                            const shortExpiry = this.findExpiration(expirations, 30, 45);
+                            const mediumExpiry = this.findExpiration(expirations, 45, 60);
+                            const longExpiry = this.findExpiration(expirations, 60, 90);
+
+                            if (shortExpiry && mediumExpiry && longExpiry) {
+                                analysis.viable = true;
+                                analysis.structure = {
+                                    shortPut: { expiry: shortExpiry, dte: shortExpiry.dte },
+                                    longPut1: { expiry: mediumExpiry, dte: mediumExpiry.dte },
+                                    longPut2: { expiry: longExpiry, dte: longExpiry.dte }
+                                };
+                                analysis.confidence = 70; // Base confidence for viable structure
+                                
+                                // Adjust confidence based on VIX
+                                const vixLevel = userData.vixLevel || 16;
+                                if (vixLevel > 20) analysis.confidence += 10;
+                                if (vixLevel > 25) analysis.confidence += 5;
+                                
+                                opportunities.push(analysis);
+                            }
+                        }
+                    } catch (error) {
+                        logger.error('ENGINE', `Failed to analyze calendarized 1-1-2 for ${ticker}:`, error);
+                    }
+                }
+            }
+
+            return opportunities.length > 0 ? opportunities[0] : null; // Return best opportunity
+            
+        } catch (error) {
+            logger.error('ENGINE', 'Calendarized 1-1-2 analysis error:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Find expiration within DTE range
+     */
+    findExpiration(expirations, minDTE, maxDTE) {
+        return expirations.find(exp => {
+            const dte = exp.daysToExpiration || exp.dte;
+            return dte >= minDTE && dte <= maxDTE;
+        });
     }
 }
 
