@@ -9,9 +9,9 @@ const path = require('path');
 // Import existing modules - only those that exist
 const { TradingStrategies } = require('./src/strategies');
 const Calendarized112Strategy = require('./src/calendarized112Strategy');
-const RiskManager = require('./src/riskManager');
-const BacktestingEngine = require('./src/backtestingEngine');
-const PaperTradingSimulator = require('./paperTradingSimulator');
+const { RiskManager } = require('./src/riskManager');
+const { BacktestingEngine } = require('./src/backtestingEngine');
+const { PaperTradingSimulator } = require('./paperTradingSimulator');
 
 class StrategyValidator {
     constructor() {
@@ -131,14 +131,14 @@ class StrategyValidator {
         console.log('📋 Checking Implementation Status');
         console.log('-'.repeat(40));
         
-        // Check Friday 0DTE
-        if (typeof this.strategies.analyzeFriday0DTE === 'function') {
+        // Check Friday 0DTE (method is named analyze0DTE)
+        if (typeof this.strategies.analyze0DTE === 'function') {
             this.requiredStrategies['0DTE_FRIDAY'].implemented = true;
             this.results.strategiesFound.push('Friday 0DTE');
         }
         
-        // Check Long-Term 112
-        if (typeof this.strategies.analyzeLongTerm112 === 'function') {
+        // Check Long-Term 112 (method is named analyzeLT112)
+        if (typeof this.strategies.analyzeLT112 === 'function') {
             this.requiredStrategies['LONG_112'].implemented = true;
             this.results.strategiesFound.push('Long-Term 112');
         }
@@ -350,10 +350,10 @@ class StrategyValidator {
             
             switch(strategyKey) {
                 case '0DTE_FRIDAY':
-                    result = this.strategies.analyzeFriday0DTE(marketData, accountData);
+                    result = this.strategies.analyze0DTE(marketData, accountData);
                     break;
                 case 'LONG_112':
-                    result = this.strategies.analyzeLongTerm112(marketData, accountData);
+                    result = this.strategies.analyzeLT112(marketData, accountData);
                     break;
                 case 'CALENDARIZED_112':
                     result = this.calendarized.analyzeOpportunity(marketData, {});

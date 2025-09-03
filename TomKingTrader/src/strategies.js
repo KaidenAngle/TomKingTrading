@@ -1166,6 +1166,160 @@ class TradingStrategies {
         
         return date.getDate() === secondTuesday.getDate() && date.getDay() === 2;
     }
+
+    /**
+     * Strategy 6: Butterfly Matrix (Section 9B Advanced)
+     * Tom King's butterfly strategy for high probability income
+     */
+    analyzeButterfly(marketData, accountData, currentDate = null) {
+        const strategy = this.strategies['BUTTERFLY'];
+        const analysis = {
+            strategy: strategy.name,
+            canTrade: false,
+            signals: [],
+            recommendation: null
+        };
+
+        // Butterfly entry: Friday 10:35 AM after market movement
+        const now = currentDate || new Date();
+        const day = now.toLocaleDateString('en-US', { weekday: 'long' });
+        const time = now.getHours() * 100 + now.getMinutes();
+        
+        if (day !== 'Friday') {
+            analysis.recommendation = 'Butterfly entry on Friday only (10:35 AM after ES movement)';
+            return analysis;
+        }
+
+        // Check account phase (butterflies for phase 3+)
+        if (accountData.phase < 3) {
+            analysis.recommendation = 'Butterflies require Phase 3+ account (£55k+)';
+            return analysis;
+        }
+
+        // Check VIX for butterfly conditions
+        const vixLevel = (marketData.VIX && marketData.VIX.currentPrice) || 16;
+        if (vixLevel > 35) {
+            analysis.recommendation = `VIX too high for butterflies: ${vixLevel.toFixed(1)} (skip above 35)`;
+            return analysis;
+        }
+
+        // Check ES movement for butterfly trigger
+        const esData = marketData['/ES'] || marketData['ES'] || marketData['SPX'];
+        if (!esData) {
+            analysis.recommendation = 'No ES/SPX data for butterfly analysis';
+            return analysis;
+        }
+
+        // Calculate intraday movement
+        const dayMove = ((esData.currentPrice - esData.open) / esData.open) * 100;
+        
+        // Tom King rule: Enter butterfly after 1% move in either direction
+        if (Math.abs(dayMove) < 1.0) {
+            analysis.recommendation = `Insufficient ES movement: ${dayMove.toFixed(2)}% (need 1%+)`;
+            return analysis;
+        }
+
+        // Determine butterfly type based on movement
+        const butterflyType = dayMove > 0 ? 'PUT' : 'CALL';
+        const centerStrike = this.calculateButterflyCenter(esData, butterflyType);
+        const wingWidth = 10; // Standard 10-point wings for SPX
+        
+        const butterfly = {
+            product: 'SPX',
+            type: butterflyType,
+            centerStrike,
+            lowerStrike: centerStrike - wingWidth,
+            upperStrike: centerStrike + wingWidth,
+            expiry: this.getNextFriday(new Date()),
+            maxRisk: Math.min(400, accountData.accountValue * 0.003), // 0.3% max risk
+            estimatedCredit: this.estimateButterflyCredit(esData, centerStrike, wingWidth),
+            contracts: 1 // Start with 1 butterfly
+        };
+
+        // Calculate position sizing
+        const maxContracts = Math.floor(butterfly.maxRisk / (wingWidth * 100));
+        butterfly.contracts = Math.min(maxContracts, 5); // Max 5 butterflies
+
+        // Score the opportunity
+        const score = this.scoreButterflyOpportunity(esData, butterfly, vixLevel);
+        
+        if (score >= 60) {
+            analysis.canTrade = true;
+            analysis.signals.push({
+                type: 'BUTTERFLY',
+                ticker: 'SPX',
+                setup: butterfly,
+                score,
+                requiredBP: butterfly.maxRisk
+            });
+            
+            analysis.recommendation = `ENTER ${butterfly.type} BUTTERFLY: ` +
+                `${butterfly.lowerStrike}/${butterfly.centerStrike}/${butterfly.upperStrike} ` +
+                `for ${butterfly.estimatedCredit.toFixed(2)} credit (${butterfly.contracts} contracts)`;
+        } else {
+            analysis.recommendation = `Butterfly setup score too low: ${score}/100 (need 60+)`;
+        }
+
+        return analysis;
+    }
+
+    /**
+     * Calculate butterfly center strike
+     */
+    calculateButterflyCenter(esData, type) {
+        const currentPrice = esData.currentPrice;
+        
+        if (type === 'PUT') {
+            // After up move, center butterfly below current price
+            return Math.round((currentPrice - 10) / 5) * 5;
+        } else {
+            // After down move, center butterfly above current price
+            return Math.round((currentPrice + 10) / 5) * 5;
+        }
+    }
+
+    /**
+     * Estimate butterfly credit
+     */
+    estimateButterflyCredit(data, centerStrike, wingWidth) {
+        // Simplified credit estimation
+        const distance = Math.abs(data.currentPrice - centerStrike);
+        const baseCredit = wingWidth * 0.15; // 15% of wing width base
+        const distanceAdjustment = Math.exp(-distance / (wingWidth * 2));
+        return baseCredit * distanceAdjustment;
+    }
+
+    /**
+     * Score butterfly opportunity
+     */
+    scoreButterflyOpportunity(esData, butterfly, vixLevel) {
+        let score = 0;
+
+        // Movement magnitude (bigger move = better)
+        const dayMove = Math.abs((esData.currentPrice - esData.open) / esData.open * 100);
+        if (dayMove > 2) score += 30;
+        else if (dayMove > 1.5) score += 20;
+        else if (dayMove > 1) score += 10;
+
+        // VIX level (moderate VIX best)
+        if (vixLevel >= 18 && vixLevel <= 25) score += 25;
+        else if (vixLevel >= 15 && vixLevel <= 30) score += 15;
+
+        // Time of day (10:35 AM ideal)
+        const now = new Date();
+        const timeScore = now.getHours() === 10 && now.getMinutes() >= 35 ? 20 : 10;
+        score += timeScore;
+
+        // Credit received
+        if (butterfly.estimatedCredit > 1) score += 20;
+        else if (butterfly.estimatedCredit > 0.5) score += 10;
+
+        // Risk/reward ratio
+        const rrRatio = butterfly.estimatedCredit / (butterfly.maxRisk / 100);
+        if (rrRatio > 0.25) score += 15;
+
+        return Math.min(100, score);
+    }
 }
 
 module.exports = { TradingStrategies };
