@@ -1477,6 +1477,251 @@ class Section9BStrategies {
 
         return Math.min(100, score);
     }
+
+    /**
+     * Get available Section 9B strategies based on account phase and market conditions
+     */
+    getAvailableStrategies(accountData = {}, marketData = {}) {
+        const phase = accountData.phase || this.determinePhase(accountData.balance || 35000);
+        const vix = marketData.vix || 20;
+        const isMarketHours = this.isMarketHours();
+        
+        const strategies = [
+            {
+                name: 'Enhanced Butterfly',
+                type: 'BUTTERFLY',
+                phase: 3, // Phase 3+
+                enabled: phase >= 3,
+                vixRange: [15, 35],
+                suitable: vix >= 15 && vix <= 35 && phase >= 3,
+                description: 'Tom King butterfly matrix with dynamic wing adjustment',
+                riskLevel: 'MEDIUM',
+                capitalEfficiency: 'HIGH',
+                avgWinRate: 75,
+                avgReturn: 25,
+                timeframe: '10-21 DTE'
+            },
+            {
+                name: 'Iron Condor',
+                type: 'IRON_CONDOR',
+                phase: 3,
+                enabled: phase >= 3,
+                vixRange: [18, 40],
+                suitable: vix >= 18 && vix <= 40 && phase >= 3,
+                description: 'High probability OTM iron condor with 70% profit target',
+                riskLevel: 'MEDIUM',
+                capitalEfficiency: 'HIGH',
+                avgWinRate: 70,
+                avgReturn: 35,
+                timeframe: '30-45 DTE'
+            },
+            {
+                name: 'Diagonal Spreads',
+                type: 'DIAGONAL',
+                phase: 2,
+                enabled: phase >= 2,
+                vixRange: [12, 30],
+                suitable: vix >= 12 && vix <= 30 && phase >= 2,
+                description: 'Time-based diagonal calendar spreads',
+                riskLevel: 'LOW',
+                capitalEfficiency: 'MEDIUM',
+                avgWinRate: 65,
+                avgReturn: 20,
+                timeframe: '21-60 DTE'
+            },
+            {
+                name: 'Ratio Spreads',
+                type: 'RATIO',
+                phase: 3,
+                enabled: phase >= 3,
+                vixRange: [20, 45],
+                suitable: vix >= 20 && vix <= 45 && phase >= 3 && isMarketHours,
+                description: 'Ratio call/put spreads with unlimited upside potential',
+                riskLevel: 'HIGH',
+                capitalEfficiency: 'VERY_HIGH',
+                avgWinRate: 60,
+                avgReturn: 45,
+                timeframe: '14-30 DTE'
+            },
+            {
+                name: 'Broken Wing Butterfly',
+                type: 'BROKEN_WING_BUTTERFLY',
+                phase: 4,
+                enabled: phase >= 4,
+                vixRange: [25, 50],
+                suitable: vix >= 25 && vix <= 50 && phase >= 4,
+                description: 'Asymmetric butterfly with skewed risk/reward',
+                riskLevel: 'HIGH',
+                capitalEfficiency: 'VERY_HIGH',
+                avgWinRate: 55,
+                avgReturn: 60,
+                timeframe: '7-21 DTE'
+            },
+            {
+                name: 'Batman Spread',
+                type: 'BATMAN',
+                phase: 4,
+                enabled: phase >= 4,
+                vixRange: [30, 60],
+                suitable: vix >= 30 && vix <= 60 && phase >= 4 && isMarketHours,
+                description: 'Complex multi-leg spread for high volatility environments',
+                riskLevel: 'VERY_HIGH',
+                capitalEfficiency: 'EXTREME',
+                avgWinRate: 45,
+                avgReturn: 80,
+                timeframe: '5-14 DTE'
+            },
+            {
+                name: 'Broken Wing Condor',
+                type: 'BROKEN_WING_CONDOR',
+                phase: 4,
+                enabled: phase >= 4,
+                vixRange: [22, 40],
+                suitable: vix >= 22 && vix <= 40 && phase >= 4,
+                description: 'Asymmetric iron condor with enhanced profit potential',
+                riskLevel: 'HIGH',
+                capitalEfficiency: 'VERY_HIGH',
+                avgWinRate: 50,
+                avgReturn: 70,
+                timeframe: '14-35 DTE'
+            }
+        ];
+
+        // Filter strategies based on suitability
+        const availableStrategies = strategies.filter(strategy => strategy.enabled);
+        const suitableStrategies = strategies.filter(strategy => strategy.suitable);
+        
+        // Add market condition assessment
+        const marketCondition = this.assessMarketCondition(vix);
+        
+        // Generate strategy recommendations
+        const recommendations = this.generateStrategyRecommendations(suitableStrategies, marketCondition, phase);
+
+        return {
+            timestamp: new Date().toISOString(),
+            accountPhase: phase,
+            currentVIX: vix,
+            marketCondition,
+            isMarketHours,
+            totalStrategies: strategies.length,
+            availableStrategies: availableStrategies.length,
+            suitableStrategies: suitableStrategies.length,
+            strategies: strategies,
+            available: availableStrategies,
+            suitable: suitableStrategies,
+            recommendations,
+            summary: {
+                phase: `Phase ${phase} Account`,
+                strategiesUnlocked: availableStrategies.length,
+                currentOpportunities: suitableStrategies.length,
+                topRecommendation: recommendations.length > 0 ? recommendations[0].name : 'None suitable',
+                marketAssessment: `VIX ${vix} - ${marketCondition} volatility environment`
+            }
+        };
+    }
+
+    /**
+     * Determine account phase from balance
+     */
+    determinePhase(balance) {
+        if (balance >= 75000) return 4;
+        if (balance >= 60000) return 3;
+        if (balance >= 40000) return 2;
+        return 1;
+    }
+
+    /**
+     * Check if market is currently open
+     */
+    isMarketHours() {
+        const now = new Date();
+        const hour = now.getHours();
+        const day = now.getDay();
+        
+        // Market hours: Mon-Fri, 9:30 AM - 4:00 PM EST
+        const isWeekday = day >= 1 && day <= 5;
+        const isDuringMarket = hour >= 9 && hour < 16;
+        
+        return isWeekday && isDuringMarket;
+    }
+
+    /**
+     * Assess market condition based on VIX
+     */
+    assessMarketCondition(vix) {
+        if (vix < 15) return 'LOW';
+        if (vix < 20) return 'NORMAL';
+        if (vix < 25) return 'ELEVATED';
+        if (vix < 35) return 'HIGH';
+        return 'EXTREME';
+    }
+
+    /**
+     * Generate strategy recommendations based on current conditions
+     */
+    generateStrategyRecommendations(suitableStrategies, marketCondition, phase) {
+        const recommendations = [];
+        
+        // Sort by risk-adjusted return potential
+        const sorted = suitableStrategies.sort((a, b) => {
+            const aScore = (a.avgWinRate * a.avgReturn) / 100;
+            const bScore = (b.avgWinRate * b.avgReturn) / 100;
+            return bScore - aScore;
+        });
+
+        // Add top 3 recommendations with reasoning
+        sorted.slice(0, 3).forEach((strategy, index) => {
+            const priority = index === 0 ? 'HIGH' : index === 1 ? 'MEDIUM' : 'LOW';
+            
+            recommendations.push({
+                rank: index + 1,
+                name: strategy.name,
+                type: strategy.type,
+                priority,
+                reason: this.generateRecommendationReason(strategy, marketCondition, phase),
+                expectedReturn: strategy.avgReturn,
+                winRate: strategy.avgWinRate,
+                riskLevel: strategy.riskLevel,
+                timeframe: strategy.timeframe,
+                capitalEfficiency: strategy.capitalEfficiency
+            });
+        });
+
+        return recommendations;
+    }
+
+    /**
+     * Generate recommendation reasoning
+     */
+    generateRecommendationReason(strategy, marketCondition, phase) {
+        const reasons = [];
+        
+        if (strategy.type === 'BUTTERFLY' && marketCondition === 'NORMAL') {
+            reasons.push('Ideal low-volatility butterfly conditions');
+        }
+        
+        if (strategy.type === 'IRON_CONDOR' && ['ELEVATED', 'HIGH'].includes(marketCondition)) {
+            reasons.push('High IV environment favors credit spreads');
+        }
+        
+        if (strategy.type === 'RATIO' && marketCondition === 'HIGH') {
+            reasons.push('High volatility creates ratio spread opportunities');
+        }
+        
+        if (strategy.phase === phase) {
+            reasons.push('Perfect phase alignment for this strategy');
+        }
+        
+        if (strategy.capitalEfficiency === 'HIGH' || strategy.capitalEfficiency === 'VERY_HIGH') {
+            reasons.push('Excellent capital efficiency');
+        }
+        
+        if (strategy.avgWinRate >= 70) {
+            reasons.push('High probability setup');
+        }
+
+        return reasons.length > 0 ? reasons.join('; ') : 'Suitable for current market conditions';
+    }
 }
 
 module.exports = { Section9BStrategies };

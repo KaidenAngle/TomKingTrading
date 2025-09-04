@@ -22,7 +22,7 @@ class IncomeGenerator extends EventEmitter {
             accountBalance: config.accountBalance || 35000,
             monthlyGrowthTarget: config.monthlyGrowthTarget || 0.12, // 12% monthly
             withdrawalRate: config.withdrawalRate || 0.03, // 3% monthly withdrawal
-            reinvestmentRate: config.reinvestmentRate || 0.75, // 75% reinvest, 25% withdraw
+            reinvestmentRate: config.reinvestmentRate || this.getDefaultReinvestmentRate(config.accountBalance || 35000),
             ...config
         };
         
@@ -60,7 +60,7 @@ class IncomeGenerator extends EventEmitter {
         
         // Phase-based income targets
         this.phaseTargets = {
-            1: { min: 30000, max: 40000, monthlyIncome: 1200, strategies: ['FRIDAY_0DTE', 'LONG_TERM_112'] },
+            1: { min: 30000, max: 40000, monthlyIncome: 0, strategies: ['FRIDAY_0DTE', 'LONG_TERM_112'] }, // Compound only
             2: { min: 40000, max: 60000, monthlyIncome: 2400, strategies: ['FRIDAY_0DTE', 'LONG_TERM_112', 'FUTURES_STRANGLES'] },
             3: { min: 60000, max: 75000, monthlyIncome: 4500, strategies: ['ALL'] },
             4: { min: 75000, max: Infinity, monthlyIncome: 10000, strategies: ['ALL_ENHANCED'] }
@@ -86,6 +86,24 @@ class IncomeGenerator extends EventEmitter {
         this.riskManager = new RiskManager();
         this.performanceMetrics = new PerformanceMetrics();
         this.tradeJournal = new TradeJournal();
+    }
+
+    /**
+     * Get default reinvestment rate based on account phase
+     * Phase 1-2: Full reinvestment (no withdrawals during capital building)
+     * Phase 3+: Balanced approach with some withdrawals
+     */
+    getDefaultReinvestmentRate(accountBalance) {
+        const phase = this.determinePhase(accountBalance);
+        
+        // Tom King methodology: Full compounding in early phases
+        if (phase <= 2) {
+            return 1.0; // 100% reinvestment for Phase 1-2 (capital building)
+        } else if (phase === 3) {
+            return 0.75; // 75% reinvestment for Phase 3 (balanced)
+        } else {
+            return 0.50; // 50% reinvestment for Phase 4+ (income focus)
+        }
     }
     
     /**

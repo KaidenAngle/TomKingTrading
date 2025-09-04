@@ -15,7 +15,7 @@ const fs = require('fs').promises;
 // Import TomKingTrader modules
 const { TomKingTrader, TomKingUtils } = require('./index');
 const SignalGenerator = require('./signalGenerator');
-const GreeksCalculator = require('./greeksCalculator');
+const { GreeksCalculator } = require('./greeksCalculator');
 const { getLogger } = require('./logger');
 const config = require('./config');
 
@@ -23,7 +23,7 @@ const config = require('./config');
 const { UnifiedTradingSystem } = require('./tradingSystemIntegration');
 
 // Import backtesting modules
-const BacktestingEngine = require('./backtestingEngine');
+const { BacktestingEngine } = require('./backtestingEngine');
 const DataManager = require('./dataManager');
 const PerformanceMetrics = require('./performanceMetrics');
 // const PatternValidationEngine = require('./patternValidation'); // Module not found

@@ -4,7 +4,7 @@
  * Based on Tom King Trading Framework v17 specifications
  */
 
-const MarketDataStreamer = require('./marketDataStreamer');
+const { MarketDataStreamer } = require('./marketDataStreamer');
 const { OrderManager } = require('./orderManager');
 const { getLogger } = require('./logger');
 const fs = require('fs');
@@ -566,6 +566,9 @@ class TastyTradeAPI extends EventEmitter {
     // Initialize order manager
     this.orderManager = new OrderManager(this);
     this.ordersEnabled = false;
+    
+    // Connection state tracking
+    this.connected = false;
   }
   
   /**
@@ -633,6 +636,8 @@ class TastyTradeAPI extends EventEmitter {
       await this.refreshPositions();
       await this.refreshBalance();
       
+      // Mark as connected
+      this.connected = true;
       logger.info('API', 'Initialization complete');
       return true;
     } catch (error) {

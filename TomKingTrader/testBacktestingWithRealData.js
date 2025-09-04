@@ -3,7 +3,7 @@
  */
 
 const { TastyTradeAPI } = require('./src/tastytradeAPI');
-const BacktestingEngine = require('./src/backtestingEngine');
+const { BacktestingEngine } = require('./src/backtestingEngine');
 
 async function testBacktestingWithRealData() {
     console.log('\n' + '='.repeat(70));

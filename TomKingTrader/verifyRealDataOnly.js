@@ -5,8 +5,8 @@
 
 const { TastyTradeAPI } = require('./src/tastytradeAPI');
 const DataManager = require('./src/dataManager');
-const GreeksCalculator = require('./src/greeksCalculator');
-const BacktestingEngine = require('./src/backtestingEngine');
+const { GreeksCalculator } = require('./src/greeksCalculator');
+const { BacktestingEngine } = require('./src/backtestingEngine');
 const Calendarized112Strategy = require('./src/calendarized112Strategy');
 
 async function verifyRealDataOnly() {

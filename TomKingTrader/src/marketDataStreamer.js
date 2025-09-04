@@ -893,4 +893,4 @@ class MarketDataStreamer extends EventEmitter {
   }
 }
 
-module.exports = MarketDataStreamer;
+module.exports = { MarketDataStreamer };

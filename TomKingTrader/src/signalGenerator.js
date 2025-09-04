@@ -1208,4 +1208,4 @@ class SignalGenerator extends EventEmitter {
     }
 }
 
-module.exports = SignalGenerator;
+module.exports = { SignalGenerator };

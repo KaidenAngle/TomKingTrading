@@ -2102,4 +2102,4 @@ class BacktestingEngine {
     }
 }
 
-module.exports = BacktestingEngine;
+module.exports = { BacktestingEngine };

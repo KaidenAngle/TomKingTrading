@@ -384,7 +384,7 @@ class ProductionValidationSuite {
      * Benchmark Greeks calculation
      */
     async benchmarkGreeks() {
-        const GreeksCalculator = require('../src/greeksCalculator');
+        const { GreeksCalculator } = require('../src/greeksCalculator');
         const calculator = new GreeksCalculator();
         
         const testPosition = {
