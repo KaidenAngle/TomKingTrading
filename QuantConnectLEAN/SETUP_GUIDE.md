@@ -1,156 +1,136 @@
-# QuantConnect LEAN Setup Guide for Tom King Trading
+# QuantConnect LEAN Setup Guide - Tom King Trading Framework v17
 
-## 📚 Available Documentation
+## Quick Start Installation
 
-### PDFs We Have:
-1. **Quantconnect-Writing-Algorithms-Python.pdf** - Algorithm development guide
-2. **Quantconnect-Local-Platform-Python.pdf** - Local setup and development
+### Prerequisites
+- Windows 10/11, macOS, or Linux
+- Python 3.8+ installed
+- Docker Desktop
+- QuantConnect account (free)
+- TastyTrade account for live trading
 
-### Recommended PDFs to Download:
-1. **LEAN CLI Documentation**
-   - URL: https://www.quantconnect.com/docs/v2/lean-cli
-   - Click "Download PDF" button on the page
-   - Contains complete CLI setup instructions
+---
 
-2. **TastyTrade Integration Guide**
-   - GitHub: https://github.com/QuantConnect/Lean.Brokerages.Tastytrade
-   - Contains implementation details and setup
+## 1. Docker Desktop Installation
 
-3. **Algorithm Framework Guide**
-   - URL: https://www.quantconnect.com/docs/v2/writing-algorithms/algorithm-framework
-   - Covers options strategies implementation
+### Windows/Mac:
+1. Download Docker Desktop: https://www.docker.com/products/docker-desktop/
+2. Install and restart system
+3. Start Docker Desktop
+4. Verify installation:
+   ```bash
+   docker --version
+   docker-compose --version
+   ```
 
-## 🚀 Step-by-Step Setup Instructions
-
-### Step 1: Install Prerequisites
+### Linux (Ubuntu):
 ```bash
-# Install Python 3.11+
-python --version
+# Remove old versions
+sudo apt-get remove docker docker-engine docker.io containerd runc
 
-# Install pip
-pip --version
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
 
-# Install .NET 6.0 SDK (required for LEAN)
-# Download from: https://dotnet.microsoft.com/download/dotnet/6.0
+# Add user to docker group
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Verify
+docker --version
 ```
 
-### Step 2: Install LEAN CLI
+---
+
+## 2. LEAN CLI Installation
+
+### Install LEAN CLI:
 ```bash
-# Install LEAN CLI via pip
 pip install lean
-
-# Verify installation
-lean --version
-
-# Login to QuantConnect (create account first at quantconnect.com)
-lean login
-# Enter your QuantConnect user ID and API token
 ```
 
-### Step 3: Initialize Project
+### Verify Installation:
 ```bash
-# Navigate to our new project folder
-cd D:/OneDrive/Trading/Claude/QuantConnectLEAN
+lean --version
+# Should show: LEAN CLI version X.X.X
+```
+
+### Initialize LEAN Project:
+```bash
+# Navigate to your trading directory
+cd D:\OneDrive\Trading\Claude\QuantConnectLEAN
 
 # Initialize LEAN project
 lean init
 
-# Create new algorithm
-lean project-create "TomKingTrading" --language python
+# This creates:
+# - config/
+# - data/
+# - library/
+# - notebooks/
+# - README.md
 ```
 
-### Step 4: Configure TastyTrade
+---
+
+## 3. QuantConnect Account Setup
+
+### Create Account:
+1. Visit: https://www.quantconnect.com/
+2. Sign up for free account
+3. Verify email address
+4. Note your User ID and API Token
+
+### Configure Authentication:
 ```bash
-# Pull cloud configuration
-lean cloud pull
+# Set up QuantConnect credentials
+lean login
 
-# Configure live trading with TastyTrade
-lean live deploy "TomKingTrading"
-# Select option 17: TastyTrade
-# Enter TastyTrade credentials when prompted
+# Enter your:
+# - User ID (from QuantConnect profile)
+# - API Token (from QuantConnect profile)
 ```
 
-### Step 5: Local Development Setup
-```python
-# config.json configuration for TastyTrade
+### Alternative Manual Config:
+Edit `~/.lean/credentials` file:
+```json
 {
-    "environment": "live-tastytrade",
-    "algorithm-type-name": "TomKingTradingAlgorithm",
-    "algorithm-language": "Python",
-    "algorithm-location": "../../../Algorithm.Python/TomKingTradingAlgorithm.py",
-    
-    "live-mode-brokerage": "TastyTradeBrokerage",
-    "data-queue-handler": "TastyTradeBrokerage",
-    
-    "setup-handler": "QuantConnect.Lean.Engine.Setup.BrokerageSetupHandler",
-    "result-handler": "QuantConnect.Lean.Engine.Results.LiveTradingResultHandler",
-    "data-feed-handler": "QuantConnect.Lean.Engine.DataFeeds.LiveTradingDataFeed",
-    "real-time-handler": "QuantConnect.Lean.Engine.RealTime.LiveTradingRealTimeHandler",
-    "transaction-handler": "QuantConnect.Lean.Engine.TransactionHandlers.BrokerageTransactionHandler",
-    
-    "tastytrade-username": "your-username",
-    "tastytrade-password": "your-password",
-    "tastytrade-account-number": "your-account",
-    "tastytrade-use-sandbox": false
+  "quantconnect-user-id": "YOUR_USER_ID",
+  "quantconnect-api-token": "YOUR_API_TOKEN"
 }
 ```
 
-### Step 6: Test Connection
-```python
-# test_connection.py
-from lean.components.api.api_client import APIClient
+---
 
-def test_tastytrade_connection():
-    """Test TastyTrade API connection"""
-    client = APIClient()
-    
-    # Authenticate
-    response = client.authenticate()
-    print(f"Authentication: {response}")
-    
-    # Get account info
-    accounts = client.get_accounts()
-    print(f"Accounts: {accounts}")
-    
-    # Get market data
-    quote = client.get_quote("SPY")
-    print(f"SPY Quote: {quote}")
+## 4. TastyTrade Connection Setup
 
-if __name__ == "__main__":
-    test_tastytrade_connection()
+### Get TastyTrade Credentials:
+1. Log into TastyTrade account
+2. Navigate to API section
+3. Generate API credentials
+4. Note: Username, Password, and Account Number
+
+### Configure Brokerage:
+```bash
+# Set up TastyTrade connection
+lean config set default-brokerage tastyworks
+
+# Configure credentials
+lean config set tastyworks-username "YOUR_USERNAME"
+lean config set tastyworks-password "YOUR_PASSWORD"
+lean config set tastyworks-account-number "YOUR_ACCOUNT_NUMBER"
 ```
 
-### Step 7: Backtest Locally
+### Security Note:
+Store sensitive credentials in environment variables:
 ```bash
-# Run backtest on local LEAN engine
-lean backtest "TomKingTrading" \
-    --start 20230101 \
-    --end 20250101 \
-    --cash 35000 \
-    --data-provider "TastyTrade"
+# Windows
+set TASTYWORKS_USERNAME=your_username
+set TASTYWORKS_PASSWORD=your_password
 
-# View results
-lean report
-```
-
-### Step 8: Paper Trading
-```bash
-# Deploy for paper trading
-lean live deploy "TomKingTrading" \
-    --brokerage "QuantConnectPaperTrading" \
-    --data-feed "TastyTrade" \
-    --notify-email "your-email@example.com"
-```
-
-### Step 9: Live Trading
-```bash
-# Deploy for live trading (after successful paper trading)
-lean live deploy "TomKingTrading" \
-    --brokerage "TastyTrade" \
-    --data-feed "TastyTrade" \
-    --node "L-MICRO" \
-    --auto-restart yes \
-    --notify-email "your-email@example.com"
+# Linux/Mac
+export TASTYWORKS_USERNAME=your_username
+export TASTYWORKS_PASSWORD=your_password
 ```
 
 ## 📝 Configuration Files

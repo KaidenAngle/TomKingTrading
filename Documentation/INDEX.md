@@ -7,16 +7,23 @@
    - `QuantConnect/Quantconnect-Local-Platform-Python.pdf` - Local development setup
    - `QuantConnect/Quantconnect-Writing-Algorithms-Python.pdf` - Algorithm development
    - `/QuantConnectLEAN/SETUP_GUIDE.md` - Our custom setup guide
+   - `/QuantConnectLEAN/QUANTCONNECT_MIGRATION_PLAN.md` - 30-day migration timeline
 
 2. 🎯 **Tom King Strategies**
    - `TomKingMethodology/TOM KING TRADING FRAMEWORK v17.txt` - Complete framework
    - `TomKingMethodology/Tom King Complete Trading System Documentation 2025 Updated.txt` - Latest strategies
    - `TomKingMethodology/Comprehensive Tom King Trading Research Report.txt` - Research analysis
+   - `TomKingMethodology/CORE_FRAMEWORK.txt` - Core framework components
+   - `TomKingMethodology/ADVANCED_STRATEGIES.txt` - Section 9B strategies
+   - `TomKingMethodology/HTML_DASHBOARD.txt` - Dashboard implementation
 
 3. 🔗 **TastyTrade Integration**
    - `TastyTrade/Getting Started.txt` - Initial setup
    - `TastyTrade/The 0Auth 2.0 Authorization Framework.txt` - Authentication
+   - `TastyTrade/API_INTEGRATION.txt` - Integration guide
    - `TastyTrade/API_Reference/` - Complete API documentation
+   - `TastyTrade/tastytrade-api-js-master/` - JavaScript SDK
+   - `TastyTrade/tastytrade-sdk-python-master/` - Python SDK
 
 ---
 
@@ -77,34 +84,45 @@ Documentation/
 │   ├── Streaming Market Data.txt
 │   ├── TastyTrade API OverView.txt
 │   ├── The 0Auth 2.0 Authorization Framework.txt
+│   ├── API_INTEGRATION.txt
 │   ├── Websites to search for further information.txt
+│   ├── tastytrade-api-js-master/      # JavaScript SDK
+│   ├── tastytrade-sdk-python-master/  # Python SDK
 │   └── API_Reference/
+│       ├── 0auth2.txt
+│       ├── Account Balances.txt
+│       ├── Account Positions.txt
+│       ├── Account Status.txt
+│       ├── Account Transactions.txt
 │       ├── account-status.json
 │       ├── accounts-and-customers.json
 │       ├── BackTesting API.txt
 │       ├── balances-and-positions_20240430.json
+│       ├── Customer Account Info.txt
 │       ├── instruments_20250714.json
+│       ├── Instruments.txt
 │       ├── margin-requirements.json
+│       ├── Margin Requirements.txt
 │       ├── Market Data.txt
 │       ├── market-metrics.json
 │       ├── market-sessions.json
 │       ├── Net Liquidating Value History.txt
 │       ├── orders_20250812.json
 │       ├── risk-parameters.json
+│       ├── Sessions.txt
 │       ├── symbol-search.json
 │       ├── Tastytrade Api.postman_collection.json
 │       ├── Tastytrade API Setup Reference.txt
 │       ├── transactions.json
 │       └── watchlists.json
 │
-├── TomKingMethodology/
-│   ├── Comprehensive Tom King Trading Research Report.txt
-│   ├── TOM KING TRADING FRAMEWORK v17.txt
-│   └── Tom King Complete Trading System Documentation 2025 Updated.txt
-│
-├── APIs/                     # General API docs (if needed)
-├── Strategies/               # Strategy implementations
-└── Backtesting/              # Test results
+└── TomKingMethodology/
+    ├── Comprehensive Tom King Trading Research Report.txt
+    ├── TOM KING TRADING FRAMEWORK v17.txt
+    ├── Tom King Complete Trading System Documentation 2025 Updated.txt
+    ├── CORE_FRAMEWORK.txt
+    ├── ADVANCED_STRATEGIES.txt
+    └── HTML_DASHBOARD.txt
 ```
 
 ---
