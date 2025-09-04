@@ -118,11 +118,11 @@ class IncomeGenerator extends EventEmitter {
         // Calculate projected income
         await this.calculateProjectedIncome();
         
-        console.log('💰 Income Generation System Initialized');
-        console.log(`   Current Phase: ${this.currentPhase}`);
-        console.log(`   Account Balance: £${this.config.accountBalance.toLocaleString()}`);
-        console.log(`   Monthly Target: £${this.monthlyIncome.target.toLocaleString()}`);
-        console.log(`   Projected Income: £${this.monthlyIncome.projected.toLocaleString()}`);
+        logger.info('SYSTEM', '💰 Income Generation System Initialized');
+        logger.info('SYSTEM', `   Current Phase: ${this.currentPhase}`);
+        logger.info('SYSTEM', `   Account Balance: £${this.config.accountBalance.toLocaleString()}`);
+        logger.info('SYSTEM', `   Monthly Target: £${this.monthlyIncome.target.toLocaleString()}`);
+        logger.info('SYSTEM', `   Projected Income: £${this.monthlyIncome.projected.toLocaleString()}`);
         
         this.emit('initialized', {
             phase: this.currentPhase,
@@ -330,10 +330,10 @@ class IncomeGenerator extends EventEmitter {
             await this.transitionPhase(newPhase);
         }
         
-        console.log('\n💵 MONTHLY INCOME WITHDRAWAL PROCESSED');
-        console.log(`   Withdrawal: £${withdrawalAmount.toFixed(2)}`);
-        console.log(`   Reinvested: £${reinvestAmount.toFixed(2)}`);
-        console.log(`   New Balance: £${this.config.accountBalance.toFixed(2)}`);
+        logger.info('SYSTEM', '\n💵 MONTHLY INCOME WITHDRAWAL PROCESSED');
+        logger.info('SYSTEM', `   Withdrawal: £${withdrawalAmount.toFixed(2)}`);
+        logger.info('SYSTEM', `   Reinvested: £${reinvestAmount.toFixed(2)}`);
+        logger.info('SYSTEM', `   New Balance: £${this.config.accountBalance.toFixed(2)}`);
         
         this.emit('withdrawalProcessed', withdrawal);
         
@@ -353,10 +353,10 @@ class IncomeGenerator extends EventEmitter {
         const oldPhase = this.currentPhase;
         this.currentPhase = newPhase;
         
-        console.log('\n🎯 ACCOUNT PHASE TRANSITION');
-        console.log(`   From Phase ${oldPhase} to Phase ${newPhase}`);
-        console.log(`   New Strategies Available: ${this.phaseTargets[newPhase].strategies.join(', ')}`);
-        console.log(`   New Monthly Target: £${this.phaseTargets[newPhase].monthlyIncome}`);
+        logger.info('SYSTEM', '\n🎯 ACCOUNT PHASE TRANSITION');
+        logger.info('SYSTEM', `   From Phase ${oldPhase} to Phase ${newPhase}`);
+        logger.info('SYSTEM', `   New Strategies Available: ${this.phaseTargets[newPhase].strategies.join(', ')}`);
+        logger.info('SYSTEM', `   New Monthly Target: £${this.phaseTargets[newPhase].monthlyIncome}`);
         
         // Update targets and allocations
         this.updateMonthlyTargets();
@@ -690,44 +690,44 @@ class IncomeGenerator extends EventEmitter {
     displayCompoundingStatus() {
         const stats = this.getCompoundingStats();
         
-        console.log('\n📈 COMPOUNDING TRACKER');
-        console.log('═'.repeat(50));
-        console.log(`Current Balance: £${stats.currentBalance.toLocaleString()}`);
-        console.log(`Start Balance: £${stats.startBalance.toLocaleString()}`);
-        console.log(`Total Growth: ${stats.totalGrowthPercent}%`);
-        console.log(`Avg Monthly: ${stats.avgMonthlyGrowth}%`);
+        logger.info('SYSTEM', '\n📈 COMPOUNDING TRACKER');
+        logger.info('SYSTEM', '═'.repeat(50));
+        logger.info('SYSTEM', `Current Balance: £${stats.currentBalance.toLocaleString()}`);
+        logger.info('SYSTEM', `Start Balance: £${stats.startBalance.toLocaleString()}`);
+        logger.info('SYSTEM', `Total Growth: ${stats.totalGrowthPercent}%`);
+        logger.info('SYSTEM', `Avg Monthly: ${stats.avgMonthlyGrowth}%`);
         
-        console.log('\nReinvestment Strategy:');
-        console.log(`  Total Reinvested: £${stats.totalReinvested.toFixed(0)}`);
-        console.log(`  Total Withdrawn: £${stats.totalWithdrawn.toFixed(0)}`);
-        console.log(`  Reinvestment Rate: ${(stats.reinvestmentRatio * 100).toFixed(1)}%`);
+        logger.info('SYSTEM', '\nReinvestment Strategy:');
+        logger.info('SYSTEM', `  Total Reinvested: £${stats.totalReinvested.toFixed(0)}`);
+        logger.info('SYSTEM', `  Total Withdrawn: £${stats.totalWithdrawn.toFixed(0)}`);
+        logger.info('SYSTEM', `  Reinvestment Rate: ${(stats.reinvestmentRatio * 100).toFixed(1)}%`);
         
         if (stats.achievedMilestones.length > 0) {
-            console.log('\n✅ Achieved Milestones:');
+            logger.info('SYSTEM', '\n✅ Achieved Milestones:');
             stats.achievedMilestones.forEach(m => {
-                console.log(`  ${m.name}: £${m.amount.toLocaleString()} (${new Date(m.date).toLocaleDateString()})`);
+                logger.info('SYSTEM', `  ${m.name}: £${m.amount.toLocaleString()} (${new Date(m.date).toLocaleDateString()})`);
             });
         }
         
         if (stats.nextMilestone) {
-            console.log('\n🎯 Next Milestone:');
-            console.log(`  ${stats.nextMilestone.name}: £${stats.nextMilestone.amount.toLocaleString()}`);
-            console.log(`  Needed: £${stats.nextMilestone.needed.toFixed(0)}`);
-            console.log(`  ETA: ${stats.nextMilestone.monthsToReach} months`);
+            logger.info('SYSTEM', '\n🎯 Next Milestone:');
+            logger.info('SYSTEM', `  ${stats.nextMilestone.name}: £${stats.nextMilestone.amount.toLocaleString()}`);
+            logger.info('SYSTEM', `  Needed: £${stats.nextMilestone.needed.toFixed(0)}`);
+            logger.info('SYSTEM', `  ETA: ${stats.nextMilestone.monthsToReach} months`);
         }
         
-        console.log('\n📊 Projections:');
+        logger.info('SYSTEM', '\n📊 Projections:');
         if (stats.projectedBalances['3_months']) {
-            console.log(`  3 months: £${stats.projectedBalances['3_months'].balance.toLocaleString()} (£${stats.projectedBalances['3_months'].monthlyIncome}/month)`);
+            logger.info('SYSTEM', `  3 months: £${stats.projectedBalances['3_months'].balance.toLocaleString()} (£${stats.projectedBalances['3_months'].monthlyIncome}/month)`);
         }
         if (stats.projectedBalances['6_months']) {
-            console.log(`  6 months: £${stats.projectedBalances['6_months'].balance.toLocaleString()} (£${stats.projectedBalances['6_months'].monthlyIncome}/month)`);
+            logger.info('SYSTEM', `  6 months: £${stats.projectedBalances['6_months'].balance.toLocaleString()} (£${stats.projectedBalances['6_months'].monthlyIncome}/month)`);
         }
         if (stats.projectedBalances['12_months']) {
-            console.log(`  12 months: £${stats.projectedBalances['12_months'].balance.toLocaleString()} (£${stats.projectedBalances['12_months'].monthlyIncome}/month)`);
+            logger.info('SYSTEM', `  12 months: £${stats.projectedBalances['12_months'].balance.toLocaleString()} (£${stats.projectedBalances['12_months'].monthlyIncome}/month)`);
         }
         
-        console.log('═'.repeat(50));
+        logger.info('SYSTEM', '═'.repeat(50));
     }
     
     /**
@@ -1224,26 +1224,26 @@ class IncomeGenerator extends EventEmitter {
     displayStatus() {
         const timeToFreedom = this.calculateTimeToFreedom();
         
-        console.log('\n💰 INCOME GENERATION STATUS');
-        console.log('═'.repeat(50));
-        console.log(`Phase: ${this.currentPhase} | Balance: £${this.config.accountBalance.toLocaleString()}`);
-        console.log(`Monthly Target: £${this.monthlyIncome.target.toLocaleString()}`);
-        console.log(`Current Month: £${this.monthlyIncome.actual.toLocaleString()} (${((this.monthlyIncome.actual / this.monthlyIncome.target) * 100).toFixed(1)}%)`);
-        console.log(`Projected: £${this.monthlyIncome.projected.toLocaleString()}`);
-        console.log('\nStrategy Allocation:');
+        logger.info('SYSTEM', '\n💰 INCOME GENERATION STATUS');
+        logger.info('SYSTEM', '═'.repeat(50));
+        logger.info('SYSTEM', `Phase: ${this.currentPhase} | Balance: £${this.config.accountBalance.toLocaleString()}`);
+        logger.info('SYSTEM', `Monthly Target: £${this.monthlyIncome.target.toLocaleString()}`);
+        logger.info('SYSTEM', `Current Month: £${this.monthlyIncome.actual.toLocaleString()} (${((this.monthlyIncome.actual / this.monthlyIncome.target) * 100).toFixed(1)}%)`);
+        logger.info('SYSTEM', `Projected: £${this.monthlyIncome.projected.toLocaleString()}`);
+        logger.info('SYSTEM', '\nStrategy Allocation:');
         
         for (const [strategy, data] of Object.entries(this.monthlyIncome.strategies)) {
             if (data.allocation > 0) {
-                console.log(`  ${strategy}: ${data.allocation.toFixed(0)}% (£${data.expectedReturn.toFixed(0)}/month)`);
+                logger.info('SYSTEM', `  ${strategy}: ${data.allocation.toFixed(0)}% (£${data.expectedReturn.toFixed(0)}/month)`);
             }
         }
         
-        console.log('\nPath to Financial Freedom:');
-        console.log(`  Time to £100k: ${timeToFreedom.monthsToFreedom} months`);
-        console.log(`  Target Date: ${timeToFreedom.targetDate.toLocaleDateString()}`);
-        console.log(`  Monthly Income at Target: £${timeToFreedom.monthlyIncomeAtTarget.toFixed(0)}`);
-        console.log(`  Status: ${timeToFreedom.achievable ? '✅ ON TRACK' : '⚠️ NEEDS ACCELERATION'}`);
-        console.log('═'.repeat(50));
+        logger.info('SYSTEM', '\nPath to Financial Freedom:');
+        logger.info('SYSTEM', `  Time to £100k: ${timeToFreedom.monthsToFreedom} months`);
+        logger.info('SYSTEM', `  Target Date: ${timeToFreedom.targetDate.toLocaleDateString()}`);
+        logger.info('SYSTEM', `  Monthly Income at Target: £${timeToFreedom.monthlyIncomeAtTarget.toFixed(0)}`);
+        logger.info('SYSTEM', `  Status: ${timeToFreedom.achievable ? '✅ ON TRACK' : '⚠️ NEEDS ACCELERATION'}`);
+        logger.info('SYSTEM', '═'.repeat(50));
         
         // Also display compounding status
         this.displayCompoundingStatus();
@@ -1266,15 +1266,15 @@ if (require.main === module) {
         incomeGen.displayStatus();
         
         // Show compound growth projection
-        console.log('\n📈 8-MONTH PROJECTION:');
+        logger.info('SYSTEM', '\n📈 8-MONTH PROJECTION:');
         const projections = incomeGen.calculateCompoundGrowth(8);
         
         projections.forEach(p => {
-            console.log(`Month ${p.month}: £${p.startBalance.toFixed(0)} → £${p.endBalance.toFixed(0)} (Phase ${p.phase}, Income: £${p.monthlyIncome})`);
+            logger.info('SYSTEM', `Month ${p.month}: £${p.startBalance.toFixed(0)} → £${p.endBalance.toFixed(0)} (Phase ${p.phase}, Income: £${p.monthlyIncome})`);
         });
         
         // Simulate some trades
-        console.log('\n🎯 Simulating trades...');
+        logger.info('SYSTEM', '\n🎯 Simulating trades...');
         
         setTimeout(() => {
             incomeGen.recordTradeIncome({

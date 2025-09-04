@@ -381,6 +381,25 @@ class MarketDataStreamer extends EventEmitter {
   }
 
   /**
+   * Subscribe to symbols (alias for subscribeToQuotes)
+   * @param {string|Array} symbols - Symbol or array of symbols to subscribe to
+   * @param {Object} options - Subscription options
+   * @returns {Promise<boolean>} Success status
+   */
+  async subscribe(symbols, options = {}) {
+    return await this.subscribeToQuotes(symbols);
+  }
+
+  /**
+   * Unsubscribe from symbols (alias for unsubscribeFromQuotes)
+   * @param {string|Array} symbols - Symbol or array of symbols to unsubscribe from
+   * @returns {Promise<boolean>} Success status
+   */
+  async unsubscribe(symbols) {
+    return await this.unsubscribeFromQuotes(symbols);
+  }
+
+  /**
    * Subscribe to real-time quotes for symbols
    */
   async subscribeToQuotes(symbols) {

@@ -5,6 +5,7 @@
  */
 
 const { EventEmitter } = require('events');
+const { RISK_LIMITS } = require('./config');
 const { getLogger } = require('./logger');
 const { WebFetch } = require('../utils/webUtils');
 
@@ -65,7 +66,7 @@ const PROTECTION_RULES = {
         durationHours: 48,
         actions: ['REDUCE_SIZE', 'WIDEN_STRIKES', 'INCREASE_HEDGING'],
         restrictedStrategies: ['0DTE', 'WEEKLY_SHORT'],
-        maxBPUsage: 0.60, // Reduce from normal 65-80%
+        maxBPUsage: 'DYNAMIC_REDUCED', // 75% of normal VIX-based BP limit
         correlation: {
             maxDirectPositions: 1,      // Only 1 TLT/bond position
             maxHighCorr: 2,             // Limit rate-sensitive positions
@@ -79,7 +80,7 @@ const PROTECTION_RULES = {
         actions: ['PAUSE_ENTRIES', 'MONITOR_CLOSELY', 'PREPARE_EXITS'],
         restrictedStrategies: ['ALL_NEW_ENTRIES'],
         emergencyThreshold: 0.015, // 1.5% move triggers emergency protocol
-        maxNewBP: 0.20, // Only 20% new buying power allocation
+        maxNewBP: 'DYNAMIC_QUARTER', // 25% of VIX-based BP for new allocations
         monitoring: {
             interval: 30000, // Check every 30 seconds
             volatilityThreshold: 2.0, // 2x normal volatility

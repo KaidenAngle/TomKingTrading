@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-09-04T13:39:12.012Z",
+  "framework": "Tom King Trading Framework v17",
+  "totalTests": 1,
+  "passed": 1,
+  "failed": 0,
+  "errors": 0,
+  "timeouts": 0,
+  "totalDuration": 51,
+  "results": [
+    {
+      "name": "complete-auth",
+      "file": "testCompleteAuth.js",
+      "status": "PASSED",
+      "error": null,
+      "duration": 51,
+      "output": "Testing complete authentication flow...\n\n",
+      "stderr": "Error: Cannot find module './credentials.config.js'\nRequire stack:\n- D:\\OneDrive\\Trading\\Claude\\TomKingTrader\\tests\\testCompleteAuth.js\n    at Function._resolveFilename (node:internal/modules/cjs/loader:1383:15)\n    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)\n    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)\n    at Function._load (node:internal/modules/cjs/loader:1192:37)\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)\n    at Module.require (node:internal/modules/cjs/loader:1463:12)\n    at require (node:internal/modules/helpers:147:16)\n    at testCompleteAuth (D:\\OneDrive\\Trading\\Claude\\TomKingTrader\\tests\\testCompleteAuth.js:8:20)\n    at Object.<anonymous> (D:\\OneDrive\\Trading\\Claude\\TomKingTrader\\tests\\testCompleteAuth.js:150:1) {\n  code: 'MODULE_NOT_FOUND',\n  requireStack: [\n    'D:\\\\OneDrive\\\\Trading\\\\Claude\\\\TomKingTrader\\\\tests\\\\testCompleteAuth.js'\n  ]\n}\n",
+      "exitCode": 0
+    }
+  ]
+}

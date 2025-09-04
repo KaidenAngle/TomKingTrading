@@ -1147,7 +1147,26 @@
                 this.monthlyChart.update();
             }
 
+            // Deterministic mock data generator for reproducible demo data
+            initMockGen() {
+                this.mockGen = {
+                    seed: 55555,
+                    next() {
+                        this.seed = (this.seed * 1103515245 + 12345) % (2**31);
+                        return this.seed / (2**31);
+                    },
+                    between(min, max) {
+                        return min + (this.next() * (max - min));
+                    },
+                    choice(array) {
+                        return array[Math.floor(this.next() * array.length)];
+                    }
+                };
+            }
+
             startDataSimulation() {
+                // Initialize deterministic generator
+                this.initMockGen();
                 // Simulate some trading activity for demo
                 let dayCounter = 0;
                 
@@ -1156,7 +1175,7 @@
                     this.dayCount = dayCounter;
                     
                     // Simulate random P&L
-                    const randomPnL = (Math.random() - 0.3) * 500; // Slightly positive bias
+                    const randomPnL = (this.mockGen.next() - 0.3) * 500; // Slightly positive bias
                     this.accountBalance += randomPnL;
                     
                     // Add to daily P&L
@@ -1167,7 +1186,7 @@
                     });
                     
                     // Simulate occasional trades
-                    if (Math.random() > 0.8) {
+                    if (this.mockGen.next() > 0.8) {
                         this.simulateTradeExecution();
                     }
                     
@@ -1179,9 +1198,9 @@
             simulateTradeExecution() {
                 const strategies = ['Zero DTE', 'LT112', 'Strangles'];
                 const symbols = ['ES', 'NQ', 'RTY', 'GLD', 'TLT'];
-                const strategy = strategies[Math.floor(Math.random() * strategies.length)];
-                const symbol = symbols[Math.floor(Math.random() * symbols.length)];
-                const pnl = (Math.random() - 0.3) * 200;
+                const strategy = this.mockGen.choice(strategies);
+                const symbol = this.mockGen.choice(symbols);
+                const pnl = (this.mockGen.next() - 0.3) * 200;
                 
                 this.handleTradeExecution({
                     strategy: strategy,
@@ -1194,12 +1213,12 @@
                     symbol: symbol,
                     strategy: strategy,
                     pnl: pnl,
-                    dte: Math.floor(Math.random() * 60) + 1
+                    dte: Math.floor(this.mockGen.between(1, 61))
                 });
                 
                 // Remove positions randomly to simulate closing
-                if (Math.random() > 0.7 && this.positions.length > 0) {
-                    this.positions.splice(Math.floor(Math.random() * this.positions.length), 1);
+                if (this.mockGen.next() > 0.7 && this.positions.length > 0) {
+                    this.positions.splice(Math.floor(this.mockGen.next() * this.positions.length), 1);
                 }
                 
                 this.renderPositions();

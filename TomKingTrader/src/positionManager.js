@@ -229,42 +229,42 @@ class PositionHealthCalculator {
                          alerts.warning.length + alerts.opportunities.length;
       
       if (totalAlerts > 0) {
-        console.log('\n' + '='.repeat(60));
-        console.log('📊 POSITION HEALTH ALERT SUMMARY');
-        console.log('='.repeat(60));
+        logger.info('SYSTEM', '\n' + '='.repeat(60));
+        logger.info('SYSTEM', '📊 POSITION HEALTH ALERT SUMMARY');
+        logger.info('SYSTEM', '='.repeat(60));
         
         if (alerts.critical.length > 0) {
-          console.log('\n🚨 CRITICAL ALERTS (Immediate Action Required):');
+          logger.info('SYSTEM', '\n🚨 CRITICAL ALERTS (Immediate Action Required):');
           alerts.critical.forEach(alert => {
-            console.log(`  • ${alert.symbol}: Score ${alert.score} - ${alert.action}`);
-            console.log(`    Reason: ${alert.reason}`);
+            logger.info('SYSTEM', `  • ${alert.symbol}: Score ${alert.score} - ${alert.action}`);
+            logger.info('SYSTEM', `    Reason: ${alert.reason}`);
           });
         }
         
         if (alerts.urgent.length > 0) {
-          console.log('\n⚠️ URGENT ALERTS (Action Required Today):');
+          logger.info('SYSTEM', '\n⚠️ URGENT ALERTS (Action Required Today):');
           alerts.urgent.forEach(alert => {
-            console.log(`  • ${alert.symbol}: Score ${alert.score} - ${alert.action}`);
-            console.log(`    Reason: ${alert.reason}`);
+            logger.info('SYSTEM', `  • ${alert.symbol}: Score ${alert.score} - ${alert.action}`);
+            logger.info('SYSTEM', `    Reason: ${alert.reason}`);
           });
         }
         
         if (alerts.warning.length > 0) {
-          console.log('\n📊 WARNING ALERTS (Monitor Closely):');
+          logger.info('SYSTEM', '\n📊 WARNING ALERTS (Monitor Closely):');
           alerts.warning.forEach(alert => {
-            console.log(`  • ${alert.symbol}: Score ${alert.score}`);
-            console.log(`    Reason: ${alert.reason}`);
+            logger.info('SYSTEM', `  • ${alert.symbol}: Score ${alert.score}`);
+            logger.info('SYSTEM', `    Reason: ${alert.reason}`);
           });
         }
         
         if (alerts.opportunities.length > 0) {
-          console.log('\n💰 PROFIT OPPORTUNITIES:');
+          logger.info('SYSTEM', '\n💰 PROFIT OPPORTUNITIES:');
           alerts.opportunities.forEach(alert => {
-            console.log(`  • ${alert.symbol}: P&L ${alert.pl.toFixed(1)}% - Consider closing`);
+            logger.info('SYSTEM', `  • ${alert.symbol}: P&L ${alert.pl.toFixed(1)}% - Consider closing`);
           });
         }
         
-        console.log('\n' + '='.repeat(60));
+        logger.info('SYSTEM', '\n' + '='.repeat(60));
         
         // Execute callback with alerts
         if (callback) {
@@ -759,8 +759,8 @@ class PositionManager {
     this.lastUpdate = new Date();
     
     if (DEBUG) {
-      console.log(`📊 Updated ${this.positions.length} positions`);
-      console.log(`⚠️ Positions needing action: ${this.positions.filter(p => p.exitEvaluation.urgentAction).length}`);
+      logger.info('SYSTEM', `📊 Updated ${this.positions.length} positions`);
+      logger.info('SYSTEM', `⚠️ Positions needing action: ${this.positions.filter(p => p.exitEvaluation.urgentAction).length}`);
     }
   }
   
@@ -826,7 +826,7 @@ class PositionManager {
       };
       
     } catch (error) {
-      console.warn('Enhanced sector analysis failed:', error.message);
+      logger.warn('WARN', 'Enhanced sector analysis failed:', error.message);
       return {
         sectorRotation: null,
         enhancedCorrelation: { violations: [], overallRisk: 'UNKNOWN' },
@@ -1026,7 +1026,7 @@ class PositionManager {
       };
       
     } catch (error) {
-      console.warn('Enhanced sector check failed:', error.message);
+      logger.warn('WARN', 'Enhanced sector check failed:', error.message);
       return basicCheck; // Fall back to basic check
     }
   }
@@ -1143,6 +1143,28 @@ class PositionManager {
     
     return recommendations;
   }
+
+  /**
+   * Get all current positions
+   * @returns {Array} Array of current positions
+   */
+  getPositions() {
+    return this.positions.map(position => ({
+      ticker: position.ticker || position.symbol,
+      strategy: position.strategy,
+      quantity: position.quantity || 1,
+      pl: position.pl || 0,
+      plPercent: position.plPercent || position.pl || 0,
+      dte: position.dte || position.daysToExpiration || 0,
+      daysToExpiration: position.daysToExpiration || position.dte || 0,
+      entry: position.entry || position.entryPrice,
+      current: position.current || position.currentPrice,
+      healthScore: position.healthScore?.score || 50,
+      correlationGroup: position.correlationGroup,
+      exitEvaluation: position.exitEvaluation,
+      lastUpdate: position.lastUpdate || new Date().toISOString()
+    }));
+  }
 }
 
 // Export all classes and functions
@@ -1154,3 +1176,6 @@ module.exports = {
   ExitManager,
   CORRELATION_GROUPS
 };
+const { getLogger } = require('./logger');
+const logger = getLogger();
+

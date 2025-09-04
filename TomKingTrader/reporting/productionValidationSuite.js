@@ -509,11 +509,12 @@ class ProductionValidationSuite {
             const configBackup = path.join(backupDir, 'config_backup.json');
             results.configBackup = fs.existsSync(configBackup);
             
-            // Check state recovery mechanism
-            const StateManager = require('../src/stateManager');
-            const stateManager = new StateManager();
-            results.stateRecovery = typeof stateManager.saveState === 'function' &&
-                                   typeof stateManager.restoreState === 'function';
+            // Check state recovery mechanism - DISABLED: stateManager module not found
+            // const StateManager = require('../src/stateManager');
+            // const stateManager = new StateManager();
+            results.stateRecovery = false; // Module not available
+            // results.stateRecovery = typeof stateManager.saveState === 'function' &&
+            //                        typeof stateManager.restoreState === 'function';
             
             if (!results.dataBackup) {
                 this.validationResults.warnings.push('No backup directory found');
@@ -549,9 +550,11 @@ class ProductionValidationSuite {
             results.logging = typeof logger.getLogger === 'function';
             
             // Check alert system
-            const AlertManager = require('../src/alertManager');
-            const alertManager = new AlertManager();
-            results.alerts = typeof alertManager.sendAlert === 'function';
+            // DISABLED: alertManager module not found
+            // const AlertManager = require('../src/alertManager');
+            // const alertManager = new AlertManager();
+            results.alerts = false; // Module not available
+            // results.alerts = typeof alertManager.sendAlert === 'function';
             
             // Check metrics collection
             const PerformanceMetrics = require('../src/performanceMetrics');

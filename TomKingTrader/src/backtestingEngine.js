@@ -5,12 +5,13 @@
  */
 
 // Import core modules directly since UNIFIED_TRADING_ENGINE is archived
-const { EnhancedPatternAnalyzer } = require('./enhancedPatternAnalysis');
-const { RiskManager } = require('./riskManager');
+// Removed EnhancedPatternAnalyzer import to avoid circular dependency
+const { RiskManager, BPLimitsManager } = require('./riskManager');
 const { DataManager } = require('./dataManager');
 const { TradingStrategies } = require('./strategies');
 const { GreeksCalculator } = require('./greeksCalculator');
 const { getLogger } = require('./logger');
+const { generatePositionId } = require('../utils/idGenerator');
 
 class BacktestingEngine {
     constructor(options = {}) {
@@ -31,7 +32,8 @@ class BacktestingEngine {
         
         // Initialize pattern analyzer and risk manager for backtest mode
         // This ensures exact same logic as live trading
-        this.patternAnalyzer = new EnhancedPatternAnalyzer();
+        // Use lazy loading to avoid circular dependency
+        this.patternAnalyzer = null;
         this.riskManager = new RiskManager();
         
         // Initialize tracking
@@ -221,13 +223,6 @@ class BacktestingEngine {
      * Get maximum buying power usage based on VIX level
      * Implements Tom King's dynamic BP system
      */
-    getMaxBPUsage(vixLevel) {
-        if (vixLevel < 13) return 0.45; // 45% for VIX <13
-        if (vixLevel < 18) return 0.65; // 65% for VIX 13-18
-        if (vixLevel < 25) return 0.75; // 75% for VIX 18-25
-        if (vixLevel < 30) return 0.50; // 50% for VIX 25-30
-        return 0.80; // 80% for VIX >30 (puts only)
-    }
 
     /**
      * Initialize backtest state
@@ -425,7 +420,7 @@ class BacktestingEngine {
         const accountData = {
             phase: this.currentPhase,
             capital: this.currentCapital,
-            buyingPower: this.currentCapital * this.getMaxBPUsage(this.currentVIX || 20), // Dynamic BP based on VIX
+            buyingPower: this.currentCapital * this.riskManager.getMaxBPUsage(this.currentVIX || 20), // Dynamic BP based on VIX
             positions: this.positions.filter(p => p.status === 'OPEN')
         };
 
@@ -1145,7 +1140,7 @@ class BacktestingEngine {
         };
 
         // Check buying power
-        const bpRequired = this.calculateBPRequired(position);
+        const bpRequired = BPLimitsManager.estimatePositionBP(position);
         if (bpRequired > this.getAvailableBP()) {
             this.logger.warn('BACKTEST', 'Insufficient buying power', { required: bpRequired, available: this.getAvailableBP() });
             return;
@@ -1305,33 +1300,17 @@ class BacktestingEngine {
     }
 
     getUsedBPPercent() {
-        const totalBP = this.positions.reduce((sum, pos) => sum + this.calculateBPRequired(pos), 0);
+        const totalBP = this.positions.reduce((sum, pos) => sum + BPLimitsManager.estimatePositionBP(pos), 0);
         return (totalBP / this.currentCapital) * 100;
     }
 
     getAvailableBP() {
-        const usedBP = this.positions.reduce((sum, pos) => sum + this.calculateBPRequired(pos), 0);
-        const maxBP = this.getMaxBPUsage(this.currentVIX || 20); // Dynamic VIX-based BP
+        const usedBP = this.positions.reduce((sum, pos) => sum + BPLimitsManager.estimatePositionBP(pos), 0);
+        const maxBP = this.riskManager.getMaxBPUsage(this.currentVIX || 20); // Dynamic VIX-based BP
         return (this.currentCapital * maxBP) - usedBP; // Tom King's VIX-based BP system
     }
 
-    calculateBPRequired(position) {
-        // Simplified BP calculation - real implementation would be more complex
-        switch (position.type) {
-            case 'CALL_SPREAD':
-            case 'PUT_SPREAD':
-                return Math.abs(position.longStrike - position.shortStrike) * position.contracts * this.getContractMultiplier(position.underlying);
-            case 'IRON_CONDOR':
-                return Math.max(
-                    Math.abs(position.putLong - position.putShort),
-                    Math.abs(position.callLong - position.callShort)
-                ) * position.contracts * this.getContractMultiplier(position.underlying);
-            case 'SHORT_STRANGLE':
-                return Math.abs(position.entryValue) * 2; // Rough estimate
-            default:
-                return Math.abs(position.entryValue);
-        }
-    }
+    // Removed duplicate calculateBPRequired - now using BPLimitsManager.estimatePositionBP from riskManager.js
 
     getContractMultiplier(symbol) {
         const multipliers = {
@@ -1391,7 +1370,7 @@ class BacktestingEngine {
     }
 
     generatePositionId() {
-        return `pos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        return generatePositionId();
     }
 
     isExpiration(expirationDate) {
@@ -1633,9 +1612,9 @@ class BacktestingEngine {
             
         } catch (error) {
             // NO FALLBACK TO SIMULATED DATA - FAIL PROPERLY
-            console.error(`\n❌ CRITICAL: Cannot load real historical data for ${dateStr}`);
-            console.error(`   Error: ${error.message}`);
-            console.error('   Backtesting cannot proceed without real historical data\n');
+            logger.error('ERROR', `\n❌ CRITICAL: Cannot load real historical data for ${dateStr}`);
+            logger.error('ERROR', `   Error: ${error.message}`);
+            logger.error('ERROR', '   Backtesting cannot proceed without real historical data\n');
             
             throw new Error(`Real historical data unavailable: ${error.message}`);
         }

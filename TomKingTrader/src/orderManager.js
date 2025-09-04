@@ -7,6 +7,11 @@
 
 const fs = require('fs');
 const path = require('path');
+const { BPLimitsManager } = require('./riskManager');
+const { generateOrderId } = require('../utils/idGenerator');
+const { getLogger } = require('./logger');
+
+const logger = getLogger();
 
 const DEBUG = process.env.NODE_ENV !== 'production';
 
@@ -29,11 +34,8 @@ class OrderManager {
       maxPositionSize: 0.05, // 5% of account per trade (Tom King rule)
       maxBPUsage: 'DYNAMIC', // VIX-based: 45-80% per Tom King
       getMaxBPUsage: (vixLevel) => {
-        if (vixLevel < 13) return 0.45; // 45% for VIX <13
-        if (vixLevel < 18) return 0.65; // 65% for VIX 13-18
-        if (vixLevel < 25) return 0.75; // 75% for VIX 18-25
-        if (vixLevel < 30) return 0.50; // 50% for VIX 25-30
-        return 0.80; // 80% for VIX >30 (puts only)
+        const { RISK_LIMITS } = require('./config');
+        return RISK_LIMITS.getMaxBPUsage(vixLevel);
       },
       maxCorrelatedPositions: 3, // Max 3 positions per correlation group
       dailyOrderLimit: 50    // Safety limit
@@ -63,7 +65,7 @@ class OrderManager {
       fs.mkdirSync(logDir, { recursive: true });
     }
 
-    if (DEBUG) console.log('📋 OrderManager initialized');
+    logger.info('ORDER', 'OrderManager initialized');
   }
 
   /**
@@ -71,7 +73,7 @@ class OrderManager {
    */
   initialize(accountNumber) {
     this.accountNumber = accountNumber;
-    if (DEBUG) console.log(`📋 OrderManager linked to account: ${accountNumber}`);
+    logger.info('ORDER', `OrderManager linked to account: ${accountNumber}`);
   }
 
   /**
@@ -163,7 +165,12 @@ class OrderManager {
       }
     }
 
-    return validations;
+    // Return validation result object for consistency with tests
+    return {
+      isValid: validations.length === 0,
+      errors: validations,
+      errorCount: validations.length
+    };
   }
   
   /**
@@ -180,11 +187,11 @@ class OrderManager {
     
     try {
       // 1. Basic order validation
-      const validationErrors = this.validateOrder(order);
-      if (validationErrors.length > 0) {
+      const validationResult = this.validateOrder(order);
+      if (!validationResult.isValid) {
         checks.failed.push({
           type: 'VALIDATION',
-          errors: validationErrors,
+          errors: validationResult.errors,
           severity: 'CRITICAL'
         });
         checks.canExecute = false;
@@ -312,7 +319,7 @@ class OrderManager {
       }
       
     } catch (error) {
-      console.error('Execution check error:', error);
+      logger.error('ORDER', 'Execution check error', error);
       checks.failed.push({
         type: 'SYSTEM_ERROR',
         error: error.message,
@@ -723,14 +730,13 @@ class OrderManager {
   async dryRun(order) {
     try {
       if (DEBUG) {
-        console.log('🧪 Running dry-run validation...');
-        console.log('📋 Order:', JSON.stringify(order, null, 2));
+        logger.debug('ORDER', 'Running dry-run validation', { order });
       }
 
       // Validate order structure
-      const validationErrors = this.validateOrder(order);
-      if (validationErrors.length > 0) {
-        throw new Error(`Order validation failed: ${validationErrors.join(', ')}`);
+      const validationResult = this.validateOrder(order);
+      if (!validationResult.isValid) {
+        throw new Error(`Order validation failed: ${validationResult.errors.join(', ')}`);
       }
 
       // Call TastyTrade dry-run API
@@ -741,9 +747,9 @@ class OrderManager {
       const response = await this.api.request(endpoint, 'POST', order);
 
       if (DEBUG) {
-        console.log('✅ Dry-run successful');
+        logger.debug('ORDER', 'Dry-run successful');
         if (response.warnings?.length > 0) {
-          console.warn('⚠️ Dry-run warnings:', response.warnings);
+          logger.warn('ORDER', 'Dry-run warnings', response.warnings);
         }
       }
 
@@ -756,10 +762,10 @@ class OrderManager {
       };
 
     } catch (error) {
-      console.error('❌ Dry-run failed:', error.message);
+      logger.error('ORDER', 'Dry-run failed', error);
       
       // Fall back to local validation when API is unavailable
-      console.log('🔄 Falling back to local validation...');
+      logger.info('ORDER', 'Falling back to local validation');
       return this.localDryRun(order);
     }
   }
@@ -772,7 +778,7 @@ class OrderManager {
     const warnings = [];
     const errors = [];
 
-    console.log('🧪 Running local dry-run validation...');
+    logger.debug('ORDER', 'Running local dry-run validation');
 
     // 1. Basic Order Structure Validation
     if (!order.legs || order.legs.length === 0) {
@@ -833,9 +839,9 @@ class OrderManager {
       };
     }
 
-    console.log('✅ Local validation passed');
+    logger.debug('ORDER', 'Local validation passed');
     if (warnings.length > 0) {
-      console.warn('⚠️ Local validation warnings:', warnings);
+      logger.warn('ORDER', 'Local validation warnings', warnings);
     }
 
     return {
@@ -862,8 +868,7 @@ class OrderManager {
       }
 
       if (DEBUG) {
-        console.log('🚀 Placing live order...');
-        console.log('📋 Account:', this.accountNumber);
+        logger.info('ORDER', 'Placing live order', { account: this.accountNumber });
       }
 
       // ALWAYS run dry-run first for live orders
@@ -903,7 +908,7 @@ class OrderManager {
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           if (DEBUG && attempt > 1) {
-            console.log(`🔄 Order attempt ${attempt}/${maxRetries}`);
+            logger.debug('ORDER', `Order attempt ${attempt}/${maxRetries}`);
           }
 
           const response = await this.api.request(endpoint, 'POST', enrichedOrder);
@@ -918,9 +923,8 @@ class OrderManager {
           });
 
           if (DEBUG) {
-            console.log('✅ Order placed successfully');
-            console.log(`📋 Order ID: ${orderId}`);
-            console.log(`💰 Estimated fees: $${dryRunResult.estimatedFees.map(f => f.amount).reduce((a, b) => a + b, 0).toFixed(2)}`);
+            const totalFees = dryRunResult.estimatedFees.map(f => f.amount).reduce((a, b) => a + b, 0).toFixed(2);
+            logger.info('ORDER', 'Order placed successfully', { orderId, estimatedFees: totalFees });
           }
 
           return {
@@ -936,7 +940,7 @@ class OrderManager {
           
           if (error.response?.status === 422 && attempt < maxRetries) {
             // Validation error - wait and retry
-            if (DEBUG) console.warn(`⚠️ Validation error, retrying in ${1000 * attempt}ms...`);
+            logger.warn('ORDER', `Validation error, retrying in ${1000 * attempt}ms`);
             await this.sleep(1000 * attempt);
             continue;
           }
@@ -944,7 +948,7 @@ class OrderManager {
           if (error.response?.status >= 500 && attempt < maxRetries) {
             // Server error - exponential backoff
             const delay = 2000 * Math.pow(2, attempt - 1);
-            if (DEBUG) console.warn(`⚠️ Server error, retrying in ${delay}ms...`);
+            logger.warn('ORDER', `Server error, retrying in ${delay}ms`);
             await this.sleep(delay);
             continue;
           }
@@ -956,7 +960,7 @@ class OrderManager {
       throw lastError;
 
     } catch (error) {
-      console.error('❌ Order placement failed:', error);
+      logger.error('ERROR', '❌ Order placement failed:', error);
       return {
         success: false,
         error: error.message,
@@ -970,7 +974,7 @@ class OrderManager {
    */
   async placeIronCondor(underlying, expiration, strikes, netCredit, quantity = 1) {
     if (DEBUG) {
-      console.log('🦅 Placing Iron Condor order...');
+      logger.info('SYSTEM', '🦅 Placing Iron Condor order...');
     }
 
     // Handle both strike formats: {longPut, shortPut, shortCall, longCall} or {putSpread: [long, short], callSpread: [short, long]}
@@ -991,7 +995,7 @@ class OrderManager {
     }
 
     if (DEBUG) {
-      console.log(`📊 ${underlying} ${this.formatExpiration(expiration)} strikes: ${longPut}/${shortPut}/${shortCall}/${longCall}`);
+      logger.info('SYSTEM', `📊 ${underlying} ${this.formatExpiration(expiration)} strikes: ${longPut}/${shortPut}/${shortCall}/${longCall}`);
     }
 
     const order = {
@@ -1036,8 +1040,8 @@ class OrderManager {
    */
   async placeShortStrangle(underlying, expiration, putStrike, callStrike, netCredit, quantity = 1) {
     if (DEBUG) {
-      console.log('🎯 Placing Short Strangle order...');
-      console.log(`📊 ${underlying} ${this.formatExpiration(expiration)} ${putStrike}P/${callStrike}C for $${netCredit} credit`);
+      logger.info('SYSTEM', '🎯 Placing Short Strangle order...');
+      logger.info('SYSTEM', `📊 ${underlying} ${this.formatExpiration(expiration)} ${putStrike}P/${callStrike}C for $${netCredit} credit`);
     }
 
     const order = {
@@ -1070,8 +1074,8 @@ class OrderManager {
    */
   async place0DTE(underlying, expiration, strike, optionType, premium, quantity = 1) {
     if (DEBUG) {
-      console.log('⚡ Placing 0DTE order...');
-      console.log(`📊 ${underlying} ${this.formatExpiration(expiration)} ${strike}${optionType} for $${premium} credit`);
+      logger.info('SYSTEM', '⚡ Placing 0DTE order...');
+      logger.info('SYSTEM', `📊 ${underlying} ${this.formatExpiration(expiration)} ${strike}${optionType} for $${premium} credit`);
     }
 
     // Validate 0DTE timing
@@ -1108,8 +1112,8 @@ class OrderManager {
    */
   async placeButterfly(underlying, expiration, strikes, netDebit, quantity = 1, butterflyType = 'CALL') {
     if (DEBUG) {
-      console.log('🦋 Placing Section 9B Butterfly order...');
-      console.log(`📊 ${underlying} ${this.formatExpiration(expiration)} ${strikes.lower}/${strikes.middle}/${strikes.upper} ${butterflyType} for $${netDebit} debit`);
+      logger.info('SYSTEM', '🦋 Placing Section 9B Butterfly order...');
+      logger.info('SYSTEM', `📊 ${underlying} ${this.formatExpiration(expiration)} ${strikes.lower}/${strikes.middle}/${strikes.upper} ${butterflyType} for $${netDebit} debit`);
     }
 
     const optionType = butterflyType === 'CALL' ? 'C' : 'P';
@@ -1150,9 +1154,9 @@ class OrderManager {
    */
   async placeDoubleButterfly(underlying, expiration, callStrikes, putStrikes, netDebit, quantity = 1) {
     if (DEBUG) {
-      console.log('🦋🦋 Placing Double Butterfly order (Section 9B)...');
-      console.log(`📊 ${underlying} Call Fly: ${callStrikes.lower}/${callStrikes.middle}/${callStrikes.upper}`);
-      console.log(`📊 ${underlying} Put Fly: ${putStrikes.lower}/${putStrikes.middle}/${putStrikes.upper}`);
+      logger.info('SYSTEM', '🦋🦋 Placing Double Butterfly order (Section 9B)...');
+      logger.info('SYSTEM', `📊 ${underlying} Call Fly: ${callStrikes.lower}/${callStrikes.middle}/${callStrikes.upper}`);
+      logger.info('SYSTEM', `📊 ${underlying} Put Fly: ${putStrikes.lower}/${putStrikes.middle}/${putStrikes.upper}`);
     }
 
     const order = {
@@ -1211,8 +1215,8 @@ class OrderManager {
    */
   async placeBrokenWingButterfly(underlying, expiration, strikes, netCredit, quantity = 1) {
     if (DEBUG) {
-      console.log('🦋💥 Placing Broken Wing Butterfly order...');
-      console.log(`📊 ${underlying} BWB: ${strikes.lower}/${strikes.middle}/${strikes.upper} for $${netCredit} credit`);
+      logger.info('SYSTEM', '🦋💥 Placing Broken Wing Butterfly order...');
+      logger.info('SYSTEM', `📊 ${underlying} BWB: ${strikes.lower}/${strikes.middle}/${strikes.upper} for $${netCredit} credit`);
     }
 
     const order = {
@@ -1265,7 +1269,7 @@ class OrderManager {
 
       return response;
     } catch (error) {
-      console.error(`❌ Failed to get order status for ${orderId}:`, error);
+      logger.error('ERROR', `❌ Failed to get order status for ${orderId}:`, error);
       return null;
     }
   }
@@ -1279,12 +1283,12 @@ class OrderManager {
       const response = await this.api.request(endpoint);
       
       if (DEBUG) {
-        console.log(`📋 Retrieved ${response.items?.length || 0} live orders`);
+        logger.info('SYSTEM', `📋 Retrieved ${response.items?.length || 0} live orders`);
       }
 
       return response.items || [];
     } catch (error) {
-      console.error('❌ Failed to get live orders:', error);
+      logger.error('ERROR', '❌ Failed to get live orders:', error);
       return [];
     }
   }
@@ -1294,7 +1298,7 @@ class OrderManager {
    */
   async cancelOrder(orderId) {
     try {
-      if (DEBUG) console.log(`❌ Cancelling order ${orderId}...`);
+      logger.debug('SYSTEM', `❌ Cancelling order ${orderId}...`);
       
       const endpoint = `/accounts/${this.accountNumber}/orders/${orderId}`;
       const response = await this.api.request(endpoint, 'DELETE');
@@ -1302,7 +1306,7 @@ class OrderManager {
       // Remove from active orders
       this.activeOrders.delete(orderId);
       
-      if (DEBUG) console.log(`✅ Order ${orderId} cancelled`);
+      logger.debug('SYSTEM', `✅ Order ${orderId} cancelled`);
       
       return {
         success: true,
@@ -1310,7 +1314,7 @@ class OrderManager {
         response
       };
     } catch (error) {
-      console.error(`❌ Failed to cancel order ${orderId}:`, error);
+      logger.error('ERROR', `❌ Failed to cancel order ${orderId}:`, error);
       return {
         success: false,
         error: error.message
@@ -1327,7 +1331,7 @@ class OrderManager {
     let attempts = 0;
     const maxAttempts = 300; // 5 minutes at 1 second intervals
 
-    if (DEBUG) console.log(`👁️ Monitoring order ${orderId}...`);
+    logger.debug('SYSTEM', `👁️ Monitoring order ${orderId}...`);
 
     while (!terminalStatuses.includes(status) && attempts < maxAttempts) {
       await this.sleep(1000);
@@ -1338,7 +1342,7 @@ class OrderManager {
         status = order.status;
         
         if (DEBUG) {
-          console.log(`📊 Order ${orderId} status: ${status}`);
+          logger.info('SYSTEM', `📊 Order ${orderId} status: ${status}`);
         }
         
         if (callback) {
@@ -1348,7 +1352,7 @@ class OrderManager {
     }
 
     if (attempts >= maxAttempts) {
-      console.warn(`⚠️ Order monitoring timeout for ${orderId}`);
+      logger.warn('WARN', `⚠️ Order monitoring timeout for ${orderId}`);
     }
 
     return status;
@@ -1359,14 +1363,14 @@ class OrderManager {
    * Validates all safety rules before presenting to user
    */
   async prepareOrder(orderDetails, userData) {
-    console.log('\n📝 PREPARING ORDER FOR MANUAL EXECUTION');
-    console.log('================================================================================');
+    logger.info('SYSTEM', '\n📝 PREPARING ORDER FOR MANUAL EXECUTION');
+    logger.info('SYSTEM', '================================================================================');
     
     // Step 1: Validate order
     const validation = await this.validateOrderPreparation(orderDetails, userData);
     if (!validation.valid) {
-      console.log('❌ ORDER VALIDATION FAILED');
-      validation.errors.forEach(error => console.log(`   • ${error}`));
+      logger.info('SYSTEM', '❌ ORDER VALIDATION FAILED');
+      validation.errors.forEach(error => logger.info('SYSTEM', `   • ${error}`));
       return { success: false, errors: validation.errors };
     }
     
@@ -1376,8 +1380,8 @@ class OrderManager {
     // Step 3: Check risk limits
     const riskCheck = this.checkRiskLimits(orderParams, userData);
     if (!riskCheck.passed) {
-      console.log('⚠️ RISK LIMITS EXCEEDED');
-      riskCheck.warnings.forEach(warning => console.log(`   • ${warning}`));
+      logger.info('SYSTEM', '⚠️ RISK LIMITS EXCEEDED');
+      riskCheck.warnings.forEach(warning => logger.info('SYSTEM', `   • ${warning}`));
       if (!orderDetails.overrideRisk) {
         return { success: false, errors: riskCheck.warnings };
       }
@@ -1407,13 +1411,13 @@ class OrderManager {
     
     // Step 6: If execution is enabled, prepare for submission
     if (this.executionEnabled && orderDetails.autoExecute) {
-      console.log('\n⚠️ AUTO-EXECUTION IS ENABLED');
-      console.log('Order would be submitted to TastyTrade API');
+      logger.info('SYSTEM', '\n⚠️ AUTO-EXECUTION IS ENABLED');
+      logger.info('SYSTEM', 'Order would be submitted to TastyTrade API');
       // Future: await this.api.submitOrder(tastytradeOrder);
     } else {
-      console.log('\n📋 MANUAL EXECUTION REQUIRED');
-      console.log('Copy the following details to TastyTrade platform:');
-      console.log('────────────────────────────────────────────────');
+      logger.info('SYSTEM', '\n📋 MANUAL EXECUTION REQUIRED');
+      logger.info('SYSTEM', 'Copy the following details to TastyTrade platform:');
+      logger.info('SYSTEM', '────────────────────────────────────────────────');
       this.displayManualInstructions(preparedOrder);
     }
     
@@ -1497,7 +1501,7 @@ class OrderManager {
     const { accountValue, phase } = userData;
     
     // Calculate position size based on phase and strategy
-    const bpRequired = this.calculateBPRequired(strategy, ticker, phase);
+    const bpRequired = BPLimitsManager.estimatePositionBP({ strategy, ticker, phase });
     const maxRisk = accountValue * this.safetyLimits.maxRiskPerTrade;
     
     // Calculate exact strikes if not provided
@@ -1599,20 +1603,20 @@ class OrderManager {
    * Display order summary
    */
   displayOrderSummary(order) {
-    console.log('\n📊 ORDER SUMMARY');
-    console.log('────────────────────────────────────────────────');
-    console.log(`Order ID:     ${order.id}`);
-    console.log(`Strategy:     ${order.strategy}`);
-    console.log(`Ticker:       ${order.ticker}`);
-    console.log(`Quantity:     ${order.quantity}`);
-    console.log(`BP Required:  ${order.bpRequired}%`);
-    console.log(`Max Risk:     £${order.maxRisk?.toFixed(2) || 'N/A'}`);
-    console.log(`Est. Credit:  £${order.estimatedCredit?.toFixed(2) || 'N/A'}`);
+    logger.info('SYSTEM', '\n📊 ORDER SUMMARY');
+    logger.info('SYSTEM', '────────────────────────────────────────────────');
+    logger.info('SYSTEM', `Order ID:     ${order.id}`);
+    logger.info('SYSTEM', `Strategy:     ${order.strategy}`);
+    logger.info('SYSTEM', `Ticker:       ${order.ticker}`);
+    logger.info('SYSTEM', `Quantity:     ${order.quantity}`);
+    logger.info('SYSTEM', `BP Required:  ${order.bpRequired}%`);
+    logger.info('SYSTEM', `Max Risk:     £${order.maxRisk?.toFixed(2) || 'N/A'}`);
+    logger.info('SYSTEM', `Est. Credit:  £${order.estimatedCredit?.toFixed(2) || 'N/A'}`);
     
     if (order.strikes) {
-      console.log('\nStrikes:');
+      logger.info('SYSTEM', '\nStrikes:');
       Object.entries(order.strikes).forEach(([type, strike]) => {
-        console.log(`  ${type}: ${strike}`);
+        logger.info('SYSTEM', `  ${type}: ${strike}`);
       });
     }
   }
@@ -1623,38 +1627,38 @@ class OrderManager {
   displayManualInstructions(order) {
     const { strategy, ticker, strikes, quantity } = order;
     
-    console.log('\n📋 TASTYTRADE MANUAL ENTRY INSTRUCTIONS:');
-    console.log('════════════════════════════════════════════════');
+    logger.info('SYSTEM', '\n📋 TASTYTRADE MANUAL ENTRY INSTRUCTIONS:');
+    logger.info('SYSTEM', '════════════════════════════════════════════════');
     
     if (strategy === 'STRANGLE') {
-      console.log('1. Go to Trade tab');
-      console.log(`2. Search for: ${ticker}`);
-      console.log('3. Select expiration: 45-90 DTE');
-      console.log('4. Create strangle order:');
-      console.log(`   • SELL ${quantity} PUT at strike ${strikes?.put || '[5-delta strike]'}`);
-      console.log(`   • SELL ${quantity} CALL at strike ${strikes?.call || '[5-delta strike]'}`);
-      console.log('5. Set order type: NET CREDIT');
-      console.log('6. Review and submit');
+      logger.info('SYSTEM', '1. Go to Trade tab');
+      logger.info('SYSTEM', `2. Search for: ${ticker}`);
+      logger.info('SYSTEM', '3. Select expiration: 45-90 DTE');
+      logger.info('SYSTEM', '4. Create strangle order:');
+      logger.info('SYSTEM', `   • SELL ${quantity} PUT at strike ${strikes?.put || '[5-delta strike]'}`);
+      logger.info('SYSTEM', `   • SELL ${quantity} CALL at strike ${strikes?.call || '[5-delta strike]'}`);
+      logger.info('SYSTEM', '5. Set order type: NET CREDIT');
+      logger.info('SYSTEM', '6. Review and submit');
     } else if (strategy === '0DTE') {
-      console.log('1. Go to Trade tab');
-      console.log(`2. Search for: ${ticker}`);
-      console.log('3. Select expiration: Today (0 DTE)');
-      console.log('4. Create spread based on market direction');
-      console.log('5. Use 30-point wide spreads');
-      console.log('6. Target 50% profit or 2x stop loss');
+      logger.info('SYSTEM', '1. Go to Trade tab');
+      logger.info('SYSTEM', `2. Search for: ${ticker}`);
+      logger.info('SYSTEM', '3. Select expiration: Today (0 DTE)');
+      logger.info('SYSTEM', '4. Create spread based on market direction');
+      logger.info('SYSTEM', '5. Use 30-point wide spreads');
+      logger.info('SYSTEM', '6. Target 50% profit or 2x stop loss');
     } else if (strategy === 'LT112') {
-      console.log('1. Go to Trade tab');
-      console.log(`2. Search for: ${ticker}`);
-      console.log('3. Select expiration: 120 DTE (112-120 acceptable)');
-      console.log('4. SELL naked puts at support');
-      console.log('5. Week 2-4: Add call spreads');
+      logger.info('SYSTEM', '1. Go to Trade tab');
+      logger.info('SYSTEM', `2. Search for: ${ticker}`);
+      logger.info('SYSTEM', '3. Select expiration: 120 DTE (112-120 acceptable)');
+      logger.info('SYSTEM', '4. SELL naked puts at support');
+      logger.info('SYSTEM', '5. Week 2-4: Add call spreads');
     }
     
-    console.log('\n⚠️ IMPORTANT REMINDERS:');
-    console.log('   • Verify BP usage before submission');
-    console.log('   • Check correlation groups');
-    console.log('   • Set GTC orders for 50% profit target');
-    console.log('   • Note position in tracking spreadsheet');
+    logger.info('SYSTEM', '\n⚠️ IMPORTANT REMINDERS:');
+    logger.info('SYSTEM', '   • Verify BP usage before submission');
+    logger.info('SYSTEM', '   • Check correlation groups');
+    logger.info('SYSTEM', '   • Set GTC orders for 50% profit target');
+    logger.info('SYSTEM', '   • Note position in tracking spreadsheet');
   }
 
   /**
@@ -1676,9 +1680,9 @@ class OrderManager {
       }
       
       fs.writeFileSync(this.logFile, JSON.stringify(orders, null, 2));
-      console.log(`\n✅ Order logged: ${order.id}`);
+      logger.info('SYSTEM', `\n✅ Order logged: ${order.id}`);
     } catch (error) {
-      console.error('Failed to log order:', error.message);
+      logger.error('ERROR', 'Failed to log order:', error.message);
     }
   }
 
@@ -1693,7 +1697,7 @@ class OrderManager {
         return orders.slice(-limit);
       }
     } catch (error) {
-      console.error('Failed to read order log:', error.message);
+      logger.error('ERROR', 'Failed to read order log:', error.message);
     }
     return [];
   }
@@ -1716,22 +1720,7 @@ class OrderManager {
     return 'OTHER';
   }
 
-  /**
-   * Calculate BP required for a strategy
-   */
-  calculateBPRequired(strategy, ticker, phase) {
-    const isMicro = ticker.startsWith('M') || ['MCL', 'MGC'].includes(ticker);
-    
-    const bpMap = {
-      'STRANGLE': isMicro ? 2.5 : 3.5,
-      'LT112': ticker === 'ES' ? 6 : ticker === 'MES' ? 3 : 4,
-      'IPMCC': 8,
-      '0DTE': 2,
-      'BUTTERFLY': 0.5
-    };
-    
-    return bpMap[strategy] || 3;
-  }
+  // Removed duplicate calculateBPRequired - now using BPLimitsManager.estimatePositionBP from riskManager.js
 
   /**
    * Estimate credit for a strategy
@@ -2003,7 +1992,7 @@ class OrderManager {
    * Generate unique order ID
    */
   generateOrderId() {
-    return `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return generateOrderId();
   }
 
   /**
@@ -2060,7 +2049,7 @@ class OrderManager {
     this.allOrders.push(order);
 
     // Log order submission
-    console.log(`📤 Order submitted: ${order.id}`, {
+    logger.info('SYSTEM', `📤 Order submitted: ${order.id}`, {
       symbol: order.symbol,
       side: order.side,
       quantity: order.quantity,
@@ -2077,7 +2066,7 @@ class OrderManager {
       } catch (error) {
         order.status = 'FAILED';
         order.error = error.message;
-        console.error(`❌ Order submission failed: ${error.message}`);
+        logger.error('ERROR', `❌ Order submission failed: ${error.message}`);
       }
     } else {
       // Simulate successful submission in test mode

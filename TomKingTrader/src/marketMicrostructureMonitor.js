@@ -46,7 +46,7 @@ class MarketMicrostructureMonitor extends EventEmitter {
     }
 
     async initializeMicrostructureMonitoring() {
-        console.log('📊 Initializing Market Microstructure Monitor');
+        logger.info('SYSTEM', '📊 Initializing Market Microstructure Monitor');
         
         try {
             // Initialize gap detection for key symbols
@@ -58,17 +58,17 @@ class MarketMicrostructureMonitor extends EventEmitter {
             // Start real-time monitoring
             await this.startRealTimeMonitoring();
             
-            console.log('✅ Market Microstructure Monitor initialized');
+            logger.info('SYSTEM', '✅ Market Microstructure Monitor initialized');
             this.emit('systemReady');
             
         } catch (error) {
-            console.error('❌ Failed to initialize Market Microstructure Monitor:', error);
+            logger.error('ERROR', '❌ Failed to initialize Market Microstructure Monitor:', error);
             this.emit('systemError', error);
         }
     }
 
     async initializeGapDetection() {
-        console.log('🔍 Initializing gap detection for key symbols...');
+        logger.info('SYSTEM', '🔍 Initializing gap detection for key symbols...');
         
         const symbols = MONITORED_SYMBOLS.concat(['SPY', 'QQQ', 'IWM', 'VIX']);
         
@@ -83,7 +83,7 @@ class MarketMicrostructureMonitor extends EventEmitter {
                     
                     if (gap) {
                         this.activeGaps.set(symbol, gap);
-                        console.log(`📈 Detected ${gap.type} gap for ${symbol}:`, gap);
+                        logger.info('SYSTEM', `📈 Detected ${gap.type} gap for ${symbol}:`, gap);
                         
                         this.emit('gapDetected', {
                             symbol: symbol,
@@ -94,7 +94,7 @@ class MarketMicrostructureMonitor extends EventEmitter {
                 }
                 
             } catch (error) {
-                console.error(`Failed to initialize gap detection for ${symbol}:`, error);
+                logger.error('ERROR', `Failed to initialize gap detection for ${symbol}:`, error);
             }
         }
     }
@@ -191,7 +191,7 @@ class MarketMicrostructureMonitor extends EventEmitter {
     }
 
     async loadHistoricalMicrostructure() {
-        console.log('📚 Loading historical microstructure data...');
+        logger.info('SYSTEM', '📚 Loading historical microstructure data...');
         
         const symbols = ['SPY', 'QQQ', 'IWM'];
         
@@ -209,14 +209,14 @@ class MarketMicrostructureMonitor extends EventEmitter {
                     const volumeProfile = this.buildVolumeProfile(intradayData);
                     this.volumeProfiles.set(symbol, volumeProfile);
                     
-                    console.log(`📊 Loaded microstructure for ${symbol}:`, {
+                    logger.info('SYSTEM', `📊 Loaded microstructure for ${symbol}:`, {
                         levels: levels.length,
                         volumeProfile: volumeProfile.totalVolume
                     });
                 }
                 
             } catch (error) {
-                console.error(`Failed to load microstructure for ${symbol}:`, error);
+                logger.error('ERROR', `Failed to load microstructure for ${symbol}:`, error);
             }
         }
     }
@@ -429,7 +429,7 @@ class MarketMicrostructureMonitor extends EventEmitter {
     }
 
     async startRealTimeMonitoring() {
-        console.log('🔄 Starting real-time microstructure monitoring...');
+        logger.info('SYSTEM', '🔄 Starting real-time microstructure monitoring...');
         
         this.monitoringActive = true;
         
@@ -493,7 +493,7 @@ class MarketMicrostructureMonitor extends EventEmitter {
             await this.detectOrderFlowAnomalies(symbol, tickData);
             
         } catch (error) {
-            console.error('Error processing tick data:', error);
+            logger.error('ERROR', 'Error processing tick data:', error);
         }
     }
 
@@ -512,7 +512,7 @@ class MarketMicrostructureMonitor extends EventEmitter {
                 gap.filled = true;
                 gap.fillTime = new Date();
                 
-                console.log(`✅ Gap filled for ${symbol}: ${gap.type} - ${fillPercentage.toFixed(1)}%`);
+                logger.info('SYSTEM', `✅ Gap filled for ${symbol}: ${gap.type} - ${fillPercentage.toFixed(1)}%`);
                 
                 this.emit('gapFilled', {
                     symbol: symbol,
@@ -537,7 +537,7 @@ class MarketMicrostructureMonitor extends EventEmitter {
                     timestamp: new Date()
                 });
                 
-                console.log(`📊 Gap 50% filled for ${symbol}: ${fillPercentage.toFixed(1)}%`);
+                logger.info('SYSTEM', `📊 Gap 50% filled for ${symbol}: ${fillPercentage.toFixed(1)}%`);
             }
         }
     }
@@ -595,7 +595,7 @@ class MarketMicrostructureMonitor extends EventEmitter {
                 level.touches++;
                 level.lastTouch = new Date();
                 
-                console.log(`🎯 Level interaction for ${symbol}: ${interaction.interaction} at $${level.price}`);
+                logger.info('SYSTEM', `🎯 Level interaction for ${symbol}: ${interaction.interaction} at $${level.price}`);
             }
         }
     }
@@ -691,7 +691,7 @@ class MarketMicrostructureMonitor extends EventEmitter {
                     await this.checkGapFillProgress(symbol, currentQuote.last);
                 }
             } catch (error) {
-                console.error(`Error updating gap status for ${symbol}:`, error);
+                logger.error('ERROR', `Error updating gap status for ${symbol}:`, error);
             }
         }
     }
@@ -715,13 +715,13 @@ class MarketMicrostructureMonitor extends EventEmitter {
                 }
                 
             } catch (error) {
-                console.error(`Error updating microstructure for ${symbol}:`, error);
+                logger.error('ERROR', `Error updating microstructure for ${symbol}:`, error);
             }
         }
     }
 
     async runComprehensiveMicrostructureAnalysis() {
-        console.log('🔄 Running comprehensive microstructure analysis...');
+        logger.info('SYSTEM', '🔄 Running comprehensive microstructure analysis...');
         
         try {
             const analysis = {
@@ -736,7 +736,7 @@ class MarketMicrostructureMonitor extends EventEmitter {
             this.emit('comprehensiveAnalysisComplete', analysis);
             
         } catch (error) {
-            console.error('Error in comprehensive microstructure analysis:', error);
+            logger.error('ERROR', 'Error in comprehensive microstructure analysis:', error);
         }
     }
 
@@ -993,3 +993,6 @@ const GAP_FILL_PATTERNS = {
 };
 
 module.exports = MarketMicrostructureMonitor;
+const { getLogger } = require('./logger');
+const logger = getLogger();
+

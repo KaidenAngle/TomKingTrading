@@ -1025,13 +1025,13 @@ class PositionAutomation extends EventEmitter {
         };
         
         if (!entryConfig.enabled) {
-            console.log('⚠️ Automated entry disabled');
+            logger.info('SYSTEM', '⚠️ Automated entry disabled');
             return;
         }
         
-        console.log('🚀 Starting automated position entry system...');
-        console.log(`  Strategies: ${entryConfig.strategies.join(', ')}`);
-        console.log(`  Max daily entries: ${entryConfig.maxDailyEntries}`);
+        logger.info('SYSTEM', '🚀 Starting automated position entry system...');
+        logger.info('SYSTEM', `  Strategies: ${entryConfig.strategies.join(', ')}`);
+        logger.info('SYSTEM', `  Max daily entries: ${entryConfig.maxDailyEntries}`);
         
         // Track daily entries
         let dailyEntryCount = 0;
@@ -1049,7 +1049,7 @@ class PositionAutomation extends EventEmitter {
                 
                 // Check if we've hit daily limit
                 if (dailyEntryCount >= entryConfig.maxDailyEntries) {
-                    console.log(`📊 Daily entry limit reached (${dailyEntryCount}/${entryConfig.maxDailyEntries})`);
+                    logger.info('SYSTEM', `📊 Daily entry limit reached (${dailyEntryCount}/${entryConfig.maxDailyEntries})`);
                     return;
                 }
                 
@@ -1061,10 +1061,10 @@ class PositionAutomation extends EventEmitter {
                     const entry = await this.evaluateEntryOpportunity(strategy, marketConditions, entryConfig);
                     
                     if (entry.shouldEnter) {
-                        console.log(`\n✅ ENTRY SIGNAL: ${strategy}`);
-                        console.log(`  Symbol: ${entry.symbol}`);
-                        console.log(`  Reason: ${entry.reason}`);
-                        console.log(`  Score: ${entry.score}/100`);
+                        logger.info('SYSTEM', `\n✅ ENTRY SIGNAL: ${strategy}`);
+                        logger.info('SYSTEM', `  Symbol: ${entry.symbol}`);
+                        logger.info('SYSTEM', `  Reason: ${entry.reason}`);
+                        logger.info('SYSTEM', `  Score: ${entry.score}/100`);
                         
                         // Prepare the order
                         const order = await this.prepareEntryOrder(entry);
@@ -1093,7 +1093,7 @@ class PositionAutomation extends EventEmitter {
                 }
                 
             } catch (error) {
-                console.error('Error in automated entry check:', error);
+                logger.error('ERROR', 'Error in automated entry check:', error);
             }
         };
         
@@ -1156,7 +1156,7 @@ class PositionAutomation extends EventEmitter {
             conditions.buyingPowerUsed = (bpUsed / bpTotal) * 100;
             
         } catch (error) {
-            console.error('Error analyzing market conditions:', error);
+            logger.error('ERROR', 'Error analyzing market conditions:', error);
         }
         
         return conditions;
@@ -1318,7 +1318,7 @@ class PositionAutomation extends EventEmitter {
             return order;
             
         } catch (error) {
-            console.error('Error preparing entry order:', error);
+            logger.error('ERROR', 'Error preparing entry order:', error);
             return null;
         }
     }
@@ -1360,7 +1360,7 @@ class PositionAutomation extends EventEmitter {
         if (this.entryMonitoringInterval) {
             clearInterval(this.entryMonitoringInterval);
             this.entryMonitoringInterval = null;
-            console.log('⏹️ Automated entry system stopped');
+            logger.info('SYSTEM', '⏹️ Automated entry system stopped');
         }
     }
     

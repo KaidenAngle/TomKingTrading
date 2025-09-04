@@ -6,7 +6,9 @@
  */
 
 const { EventEmitter } = require('events');
+const { RISK_LIMITS } = require('./config');
 const { getLogger } = require('./logger');
+const { RiskManager } = require('./riskManager');
 
 class PerformanceMetrics extends EventEmitter {
     constructor(options = {}) {
@@ -3152,11 +3154,16 @@ class Friday0DTETracker {
  */
 class BuyingPowerTracker {
     constructor(options = {}) {
-        this.targetUsage = options.targetUsage || 35; // Target 35% BP usage
+        this.riskManager = new RiskManager();
+        this.targetUsage = options.targetUsage || this.getDynamicBPTarget(); // Dynamic VIX-based BP usage
         this.maxUsage = options.maxUsage || 50; // Maximum 50% BP usage
         this.accountSize = options.accountSize || 35000; // Starting account size
         this.currentUsage = 0;
         this.history = [];
+    }
+    
+    getDynamicBPTarget() {
+        return this.riskManager.getMaxBPUsage(20) * 100; // Convert to percentage
     }
     
     /**
@@ -4349,12 +4356,14 @@ class TomKingTracker extends EventEmitter {
             });
         }
         
-        // Check buying power
-        if (balance.bpUsedPercent > 65) {
+        // Check buying power (VIX-based limit)
+        const currentVIX = marketData?.vixLevel || 20; // Default to 20 if not provided
+        const maxBPPercent = RISK_LIMITS.getMaxBPUsage(currentVIX) * 100;
+        if (balance.bpUsedPercent > maxBPPercent) {
             recommendations.push({
                 type: 'RISK',
                 priority: 'HIGH',
-                message: `Buying power usage ${balance.bpUsedPercent}% exceeds recommended 65%`,
+                message: `Buying power usage ${balance.bpUsedPercent}% exceeds VIX-based limit of ${maxBPPercent.toFixed(0)}% (VIX: ${currentVIX})`,
                 action: 'Consider reducing position sizes or closing profitable trades'
             });
         }

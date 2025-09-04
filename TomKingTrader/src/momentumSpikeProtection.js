@@ -203,6 +203,9 @@ class MomentumSpikeProtection extends EventEmitter {
             lastMomentumSpike: null
         };
         
+        // Initialize data manager if needed
+        this.initializeDataManager();
+        
         logger.info('MOMENTUM_PROTECTION', 'Momentum Spike Protection initialized', {
             fifteenMinuteRule: this.config.rules.FIFTEEN_MINUTE_RULE.enabled,
             trackedSymbols: this.config.trackedSymbols.length,
@@ -593,9 +596,9 @@ class MomentumSpikeProtection extends EventEmitter {
         const warningAlerts = alerts.filter(a => a.protection.level === 3);
         
         if (this.config.debug || criticalAlerts.length > 0) {
-            console.log('\n' + '='.repeat(70));
-            console.log('⚡ MOMENTUM SPIKE PROTECTION ALERTS');
-            console.log('='.repeat(70));
+            logger.info('SYSTEM', '\n' + '='.repeat(70));
+            logger.info('SYSTEM', '⚡ MOMENTUM SPIKE PROTECTION ALERTS');
+            logger.info('SYSTEM', '='.repeat(70));
             
             for (const alert of alerts.slice(0, 10)) { // Top 10 alerts
                 const icon = this.getProtectionIcon(alert.protection.name);
@@ -603,17 +606,17 @@ class MomentumSpikeProtection extends EventEmitter {
                 const changeStr = momentum ? 
                     `${momentum.changePercent > 0 ? '+' : ''}${(momentum.changePercent * 100).toFixed(2)}%` : 'N/A';
                 
-                console.log(`\n${icon} ${alert.symbol} - ${alert.protection.name} (Level ${alert.protection.level})`);
-                console.log(`   15-Min Move: ${changeStr} | Regime: ${alert.analysis.regime}`);
-                console.log(`   Triggers: ${alert.analysis.triggers.join(', ')}`);
-                console.log(`   Actions: ${alert.protection.actions.join(', ')}`);
+                logger.info('SYSTEM', `\n${icon} ${alert.symbol} - ${alert.protection.name} (Level ${alert.protection.level})`);
+                logger.info('SYSTEM', `   15-Min Move: ${changeStr} | Regime: ${alert.analysis.regime}`);
+                logger.info('SYSTEM', `   Triggers: ${alert.analysis.triggers.join(', ')}`);
+                logger.info('SYSTEM', `   Actions: ${alert.protection.actions.join(', ')}`);
                 
                 if (alert.analysis.volume) {
-                    console.log(`   Volume: ${alert.analysis.volume.multiplier.toFixed(1)}x average`);
+                    logger.info('SYSTEM', `   Volume: ${alert.analysis.volume.multiplier.toFixed(1)}x average`);
                 }
             }
             
-            console.log('\n' + '='.repeat(70));
+            logger.info('SYSTEM', '\n' + '='.repeat(70));
         }
         
         // Store alerts
@@ -779,27 +782,49 @@ class MomentumSpikeProtection extends EventEmitter {
         }
     }
     
-    // Mock data method (would use real API)
-    
     async getCurrentPrice(symbol) {
-        // Mock price data with realistic movements
-        const basePrices = {
-            'SPY': 450, 'QQQ': 350, 'IWM': 200, 'DIA': 340,
-            'ES': 4500, 'MES': 4500, 'NQ': 15000, 'MNQ': 15000,
-            'AAPL': 175, 'MSFT': 380, 'TSLA': 220, 'AMZN': 140,
-            'TLT': 95, 'GLD': 185, 'VIX': 16
-        };
-        
-        const basePrice = basePrices[symbol] || 100;
-        const movement = (Math.random() - 0.5) * 0.02; // +/- 1%
-        const volume = Math.floor(Math.random() * 1000000) + 100000;
-        
-        return {
-            symbol: symbol,
-            price: basePrice * (1 + movement),
-            volume: volume,
-            timestamp: new Date()
-        };
+        try {
+            // Use real API data if available
+            if (this.api && this.api.getQuote) {
+                const quote = await this.api.getQuote(symbol);
+                if (quote && (quote.price || quote.last || quote.close)) {
+                    return {
+                        symbol: symbol,
+                        price: quote.price || quote.last || quote.close,
+                        volume: quote.volume || quote.totalVolume || 0,
+                        timestamp: new Date()
+                    };
+                }
+            }
+            
+            // Fallback to DataManager for real cached data
+            if (this.dataManager) {
+                const marketData = await this.dataManager.getCurrentPrice(symbol);
+                if (marketData && marketData.price) {
+                    return {
+                        symbol: symbol,
+                        price: marketData.price,
+                        volume: marketData.volume || 0,
+                        timestamp: new Date()
+                    };
+                }
+            }
+            
+            // No synthetic data generation - return null if no real data available
+            logger.error('MOMENTUM_PROTECTION', `No real market data available for ${symbol}`);
+            return null;
+        } catch (error) {
+            logger.error('MOMENTUM_PROTECTION', `Failed to get price for ${symbol}:`, error);
+            return null;
+        }
+    }
+    
+    // Constructor should initialize dataManager if not provided
+    initializeDataManager() {
+        if (!this.dataManager && !this.api) {
+            const DataManager = require('./dataManager');
+            this.dataManager = new DataManager(this.api);
+        }
     }
     
     // Public interface methods

@@ -7,7 +7,7 @@ const EventEmitter = require('events');
 const { TradingStrategies } = require('./strategies');
 const { EnhancedPatternAnalyzer } = require('./enhancedPatternAnalysis');
 const { PositionManager } = require('./positionManager');
-const { RiskManager } = require('./riskManager');
+const { RiskManager, BPLimitsManager } = require('./riskManager');
 const { GreeksCalculator } = require('./greeksCalculator');
 
 class SignalGenerator extends EventEmitter {
@@ -38,7 +38,7 @@ class SignalGenerator extends EventEmitter {
      * Start real-time signal monitoring
      */
     startMonitoring(intervalMs = 60000) { // Default 1 minute
-        console.log('Starting signal monitoring...');
+        logger.info('SYSTEM', 'Starting signal monitoring...');
         
         this.monitoringInterval = setInterval(() => {
             this.generateSignals();
@@ -55,7 +55,7 @@ class SignalGenerator extends EventEmitter {
         if (this.monitoringInterval) {
             clearInterval(this.monitoringInterval);
             this.monitoringInterval = null;
-            console.log('Signal monitoring stopped');
+            logger.info('SYSTEM', 'Signal monitoring stopped');
         }
     }
 
@@ -117,7 +117,7 @@ class SignalGenerator extends EventEmitter {
             return this.getSignalReport();
             
         } catch (error) {
-            console.error('Signal generation error:', error);
+            logger.error('ERROR', 'Signal generation error:', error);
             this.addAlert('ERROR', `Signal generation failed: ${error.message}`);
             return this.getSignalReport();
         }
@@ -236,7 +236,7 @@ class SignalGenerator extends EventEmitter {
             return analysis;
             
         } catch (error) {
-            console.error('Pre-market analysis error:', error);
+            logger.error('ERROR', 'Pre-market analysis error:', error);
             analysis.alerts.push({
                 type: 'ERROR',
                 severity: 'LOW',
@@ -1022,7 +1022,7 @@ class SignalGenerator extends EventEmitter {
         
         signals.forEach(signal => {
             // Check buying power
-            const bpRequired = this.calculateBPRequired(signal);
+            const bpRequired = BPLimitsManager.estimatePositionBP(signal);
             if (accountData.availableBP < bpRequired) {
                 signal.blocked = true;
                 signal.blockReason = 'Insufficient buying power';
@@ -1067,23 +1067,7 @@ class SignalGenerator extends EventEmitter {
         });
     }
 
-    /**
-     * Calculate BP required for signal
-     */
-    calculateBPRequired(signal) {
-        const bpMap = {
-            '0DTE': 4,
-            'LT112': 3,
-            'STRANGLE': 3,
-            'IPMCC': 8,
-            'LEAP': 5,
-            'BUTTERFLY': 1.5,
-            'RATIO': 2,
-            'DIAGONAL': 4
-        };
-        
-        return bpMap[signal.strategy] || 3;
-    }
+    // Removed duplicate calculateBPRequired - now using BPLimitsManager.estimatePositionBP from riskManager.js
 
     /**
      * Check correlation limits
@@ -1209,3 +1193,6 @@ class SignalGenerator extends EventEmitter {
 }
 
 module.exports = { SignalGenerator };
+const { getLogger } = require('./logger');
+const logger = getLogger();
+

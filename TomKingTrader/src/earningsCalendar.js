@@ -247,36 +247,36 @@ class EarningsCalendar extends EventEmitter {
         // Sort by risk score
         risks.sort((a, b) => b.risk.score - a.risk.score);
         
-        console.log('\n' + '='.repeat(60));
-        console.log('📊 EARNINGS RISK ALERT');
-        console.log('='.repeat(60));
+        logger.info('SYSTEM', '\n' + '='.repeat(60));
+        logger.info('SYSTEM', '📊 EARNINGS RISK ALERT');
+        logger.info('SYSTEM', '='.repeat(60));
         
         for (const item of risks) {
             const icon = item.risk.level === 'CRITICAL' ? '🚨' :
                         item.risk.level === 'HIGH' ? '⚠️' :
                         item.risk.level === 'MEDIUM' ? '📊' : '📌';
             
-            console.log(`\n${icon} ${item.position.symbol} - ${item.risk.level} RISK`);
-            console.log(`   Earnings: ${item.earnings.date} ${item.earnings.time}`);
+            logger.info('SYSTEM', `\n${icon} ${item.position.symbol} - ${item.risk.level} RISK`);
+            logger.info('SYSTEM', `   Earnings: ${item.earnings.date} ${item.earnings.time}`);
             
             if (item.hoursUntil) {
-                console.log(`   Time until: ${item.hoursUntil.toFixed(1)} hours`);
+                logger.info('SYSTEM', `   Time until: ${item.hoursUntil.toFixed(1)} hours`);
             } else if (item.hoursAfter) {
-                console.log(`   Time since: ${item.hoursAfter.toFixed(1)} hours ago`);
+                logger.info('SYSTEM', `   Time since: ${item.hoursAfter.toFixed(1)} hours ago`);
             }
             
-            console.log(`   Risk Score: ${item.risk.score}/100`);
+            logger.info('SYSTEM', `   Risk Score: ${item.risk.score}/100`);
             
             for (const message of item.risk.messages) {
-                console.log(`   • ${message}`);
+                logger.info('SYSTEM', `   • ${message}`);
             }
             
             if (item.risk.actions.length > 0) {
-                console.log(`   Actions: ${item.risk.actions.join(', ')}`);
+                logger.info('SYSTEM', `   Actions: ${item.risk.actions.join(', ')}`);
             }
         }
         
-        console.log('\n' + '='.repeat(60));
+        logger.info('SYSTEM', '\n' + '='.repeat(60));
         
         // Emit high-risk earnings positions
         const criticalRisks = risks.filter(r => r.risk.level === 'CRITICAL');

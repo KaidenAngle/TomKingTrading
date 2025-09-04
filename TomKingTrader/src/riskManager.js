@@ -7,235 +7,13 @@
 const DEBUG = process.env.NODE_ENV !== 'production';
 const { FedAnnouncementProtection } = require('./fedAnnouncementProtection');
 const { EarningsCalendar } = require('./earningsCalendar');
+const { ConfigHelpers, RISK_LIMITS } = require('./config');
 
 /**
  * VIX Regime Analyzer
  * Analyzes VIX levels and adjusts position sizing accordingly (PDF Page 12)
  */
-class VIXRegimeAnalyzer {
-  static analyzeVIXRegime(vixLevel) {
-    if (vixLevel == null || isNaN(vixLevel)) {
-      return {
-        regime: 'UNKNOWN',
-        bpLimits: { min: 40, max: 50 },
-        warning: 'VIX data required for regime analysis',
-        recommendations: ['Obtain VIX data before trading']
-      };
-    }
-    
-    let regime, bpLimits, warning, recommendations, characteristics;
-    
-    if (vixLevel < 13) {
-      regime = 'LOW';
-      bpLimits = { min: 30, max: 45 }; // Tom King: 45% max BP for VIX <13
-      warning = '⚠️ Complacency regime - premium scarce, reduce exposure';
-      recommendations = [
-        'Reduce position sizes significantly',
-        'Focus on highest probability setups only',
-        'Prepare for volatility expansion',
-        'Consider buying protection'
-      ];
-      characteristics = {
-        premiumEnvironment: 'VERY_POOR',
-        riskLevel: 'HIGH', // Paradoxically high risk due to complacency
-        expectedDuration: 'SHORT_TERM',
-        historicalReturn: 'POOR'
-      };
-    } else if (vixLevel < 18) {
-      regime = 'NORMAL';
-      bpLimits = { min: 50, max: 65 }; // Tom King: 65% max BP for VIX 13-18
-      warning = '📉 Low volatility - premium collection challenging';
-      recommendations = [
-        'Selective premium selling',
-        'Focus on shorter duration trades',
-        'Monitor for VIX expansion signals',
-        'Maintain conservative sizing'
-      ];
-      characteristics = {
-        premiumEnvironment: 'POOR',
-        riskLevel: 'MEDIUM_HIGH',
-        expectedDuration: 'MEDIUM_TERM',
-        historicalReturn: 'BELOW_AVERAGE'
-      };
-    } else if (vixLevel < 25) {
-      regime = 'ELEVATED';
-      bpLimits = { min: 60, max: 75 }; // Tom King: 75% max BP for VIX 18-25
-      warning = null;
-      recommendations = [
-        'Optimal environment for premium selling',
-        'Deploy full strategy arsenal',
-        'Focus on 45-90 DTE strategies',
-        'Maintain standard position sizing'
-      ];
-      characteristics = {
-        premiumEnvironment: 'GOOD',
-        riskLevel: 'MEDIUM',
-        expectedDuration: 'LONG_TERM',
-        historicalReturn: 'GOOD'
-      };
-    } else if (vixLevel < 30) {
-      regime = 'HIGH';
-      bpLimits = { min: 40, max: 50 }; // Tom King: 50% max BP for VIX 25-30
-      warning = '⚠️ Elevated volatility - increased risk environment';
-      recommendations = [
-        'Rich premium environment - excellent for selling',
-        'Monitor positions more closely',
-        'Consider defensive adjustments earlier',
-        'Prepare for potential volatility spikes'
-      ];
-      characteristics = {
-        premiumEnvironment: 'VERY_GOOD',
-        riskLevel: 'MEDIUM_HIGH',
-        expectedDuration: 'SHORT_MEDIUM',
-        historicalReturn: 'GOOD'
-      };
-    } else if (vixLevel < 35) {
-      regime = 'HIGH';
-      bpLimits = { min: 40, max: 50 }; // Keep 50% for VIX 30-35
-      warning = '🚨 High volatility regime - significant risk present';
-      recommendations = [
-        'Excellent premium selling opportunities',
-        'Reduce position sizes due to higher gamma risk',
-        'Shorter duration strategies preferred',
-        'Active position management required',
-        'Consider put-selling focus'
-      ];
-      characteristics = {
-        premiumEnvironment: 'EXCELLENT',
-        riskLevel: 'HIGH',
-        expectedDuration: 'SHORT_TERM',
-        historicalReturn: 'EXCELLENT'
-      };
-    } else {
-      regime = 'EXTREME';
-      bpLimits = { min: 70, max: 80 }; // Tom King: 80% BP for VIX >30 (puts only)
-      warning = '🚨🚨 CRISIS MODE - Generational opportunity but extreme risk';
-      recommendations = [
-        '💰 GENERATIONAL OPPORTUNITY - Deploy capital aggressively',
-        'Focus on put selling in quality underlyings',
-        'Avoid call spreads - stick to puts',
-        'Use smallest position sizes due to extreme gamma',
-        'Expect 15-25% monthly returns during normalization',
-        'Monitor positions minute-by-minute if possible'
-      ];
-      characteristics = {
-        premiumEnvironment: 'HISTORIC',
-        riskLevel: 'EXTREME',
-        expectedDuration: 'VERY_SHORT',
-        historicalReturn: 'HISTORIC',
-        opportunity: 'GENERATIONAL'
-      };
-    }
-    
-    return {
-      regime,
-      vixLevel,
-      bpLimits,
-      warning,
-      recommendations,
-      characteristics,
-      timestamp: new Date().toISOString(),
-      
-      // Additional analysis
-      trend: this.analyzeVIXTrend(vixLevel),
-      seasonality: this.getVIXSeasonality(),
-      historicalContext: this.getHistoricalContext(vixLevel)
-    };
-  }
-  
-  static analyzeVIXTrend(currentVIX, historicalVIX = []) {
-    if (historicalVIX.length < 5) {
-      return {
-        direction: 'UNKNOWN',
-        momentum: 'UNKNOWN',
-        reliability: 'LOW'
-      };
-    }
-    
-    const recent = historicalVIX.slice(-5);
-    const avg = recent.reduce((sum, val) => sum + val, 0) / recent.length;
-    
-    let direction = 'SIDEWAYS';
-    if (currentVIX > avg * 1.1) {
-      direction = 'RISING';
-    } else if (currentVIX < avg * 0.9) {
-      direction = 'FALLING';
-    }
-    
-    // Calculate momentum
-    const momentum = recent.slice(-2).reduce((sum, val, idx) => {
-      if (idx === 0) return sum;
-      return sum + (val - recent[idx - 1]);
-    }, 0);
-    
-    return {
-      direction,
-      momentum: momentum > 1 ? 'STRONG' : momentum < -1 ? 'STRONG_DOWN' : 'WEAK',
-      reliability: 'MEDIUM',
-      recentAvg: avg.toFixed(2)
-    };
-  }
-  
-  static getVIXSeasonality() {
-    const month = new Date().getMonth(); // 0-11
-    const seasonalFactors = {
-      // Based on historical VIX seasonality patterns
-      0: { factor: 1.1, note: 'January - Higher volatility start of year' },
-      1: { factor: 0.9, note: 'February - Typically calmer' },
-      2: { factor: 1.0, note: 'March - Quarter end volatility' },
-      3: { factor: 0.9, note: 'April - Spring calm period' },
-      4: { factor: 0.8, note: 'May - Historically lowest volatility' },
-      5: { factor: 0.9, note: 'June - Summer doldrums begin' },
-      6: { factor: 0.8, note: 'July - Vacation month, low volume' },
-      7: { factor: 0.9, note: 'August - Can be volatile (Flash crashes)' },
-      8: { factor: 1.1, note: 'September - Historically volatile month' },
-      9: { factor: 1.2, note: 'October - Crash month historically' },
-      10: { factor: 1.0, note: 'November - Election/earnings season' },
-      11: { factor: 0.9, note: 'December - Year-end positioning' }
-    };
-    
-    return seasonalFactors[month] || { factor: 1.0, note: 'Unknown seasonality' };
-  }
-  
-  static getHistoricalContext(vixLevel) {
-    // Historical VIX context for perspective
-    const contexts = [
-      { level: 9, event: '2017 Historic Low', note: 'Post-election euphoria' },
-      { level: 12, event: '2019-2020 Pre-COVID', note: 'Normal market conditions' },
-      { level: 16, event: 'Long-term Average', note: 'Historical mean VIX level' },
-      { level: 20, event: '2018 Volmageddon', note: 'Vol targeting strategies blew up' },
-      { level: 25, event: '2015 China Devaluation', note: 'Emerging market stress' },
-      { level: 30, event: '2008 Crisis Begin', note: 'Financial crisis threshold' },
-      { level: 40, event: '2020 COVID Spike', note: 'Pandemic uncertainty' },
-      { level: 50, event: '2008 Lehman Weekend', note: 'System stress extreme' },
-      { level: 80, event: '2008 Crisis Peak', note: 'Maximum fear reading' }
-    ];
-    
-    // Find closest historical context
-    const closest = contexts.reduce((prev, curr) => 
-      Math.abs(curr.level - vixLevel) < Math.abs(prev.level - vixLevel) ? curr : prev
-    );
-    
-    return {
-      closestEvent: closest,
-      percentile: this.calculateVIXPercentile(vixLevel),
-      interpretation: vixLevel > 30 ? 'CRISIS_TERRITORY' : 
-                     vixLevel > 20 ? 'STRESSED_MARKET' :
-                     vixLevel > 16 ? 'NORMAL_RANGE' : 'LOW_VOLATILITY'
-    };
-  }
-  
-  static calculateVIXPercentile(vixLevel) {
-    // Approximate percentile based on historical VIX distribution
-    if (vixLevel < 12) return '<20th';
-    if (vixLevel < 16) return '20th-40th';
-    if (vixLevel < 20) return '40th-60th';
-    if (vixLevel < 25) return '60th-80th';
-    if (vixLevel < 30) return '80th-90th';
-    if (vixLevel < 40) return '90th-95th';
-    return '>95th';
-  }
-}
+// VIXRegimeAnalyzer REMOVED - Use ConfigHelpers.getVIXRegime() and RISK_LIMITS.getMaxBPUsage() from config.js instead
 
 /**
  * Buying Power Limits Manager
@@ -285,7 +63,9 @@ class BPLimitsManager {
   
   static calculateOptimalBP(phase, vixRegime, accountValue, currentPositions = []) {
     const phaseLimits = this.getPhaseBPLimits(phase, accountValue);
-    const vixAnalysis = VIXRegimeAnalyzer.analyzeVIXRegime(vixRegime.currentLevel);
+    const maxBP = RISK_LIMITS.getMaxBPUsage(vixRegime.currentLevel);
+    const regime = ConfigHelpers.getVIXRegime(vixRegime.currentLevel);
+    const vixAnalysis = { regime, bpLimits: { min: maxBP * 0.7, max: maxBP } };
     
     // Combine phase and VIX limits
     const adjustedMin = Math.max(phaseLimits.min, vixAnalysis.bpLimits.min);
@@ -627,7 +407,7 @@ class August5DisasterPrevention {
         }
       } catch (error) {
         // Fallback to basic analysis if advanced fails
-        console.debug('Advanced VIX analysis unavailable, using basic term structure');
+        logger.debug('RISK', 'Advanced VIX analysis unavailable, using basic term structure');
       }
     }
     
@@ -730,7 +510,9 @@ class August5DisasterPrevention {
   
   static checkEmergencyProtocols(positions, vixLevel, phase, vixChange24h = 0, accountValue = 30000) {
     const august5Risk = this.analyzeAugust5Risk(positions, phase);
-    const vixAnalysis = VIXRegimeAnalyzer.analyzeVIXRegime(vixLevel);
+    const maxBP = RISK_LIMITS.getMaxBPUsage(vixLevel);
+    const regime = ConfigHelpers.getVIXRegime(vixLevel);
+    const vixAnalysis = { regime, bpLimits: { min: maxBP * 0.7, max: maxBP } };
     const spikeProtection = this.analyzeVolatilitySpikeRisk(positions, vixLevel, vixChange24h, accountValue);
     
     const protocols = [];
@@ -832,7 +614,9 @@ class RiskManager {
     const timestamp = new Date();
     
     // Core analyses
-    const vixAnalysis = VIXRegimeAnalyzer.analyzeVIXRegime(vixLevel);
+    const maxBP = RISK_LIMITS.getMaxBPUsage(vixLevel);
+    const regime = ConfigHelpers.getVIXRegime(vixLevel);
+    const vixAnalysis = { regime, bpLimits: { min: maxBP * 0.7, max: maxBP } };
     const bpOptimization = BPLimitsManager.calculateOptimalBP(
       phase, 
       { currentLevel: vixLevel }, 
@@ -891,7 +675,7 @@ class RiskManager {
     };
     
     if (DEBUG && newAlerts.length > 0) {
-      console.log(`🚨 ${newAlerts.length} new risk alerts generated`);
+      logger.info('SYSTEM', `🚨 ${newAlerts.length} new risk alerts generated`);
     }
     
     return {
@@ -1183,9 +967,9 @@ class RiskManager {
   setEmergencyMode(enabled, reason = null) {
     this.emergencyMode = enabled;
     if (enabled && reason) {
-      console.log(`🚨 EMERGENCY MODE ACTIVATED: ${reason}`);
+      logger.info('SYSTEM', `🚨 EMERGENCY MODE ACTIVATED: ${reason}`);
     } else if (!enabled) {
-      console.log('✅ Emergency mode deactivated');
+      logger.info('SYSTEM', '✅ Emergency mode deactivated');
     }
   }
   
@@ -1309,10 +1093,8 @@ class RiskManager {
    * Implements Tom King's dynamic BP system
    */
   static getMaxBPUsage(vixLevel) {
-    if (vixLevel < 13) return 0.45; // 45% for VIX <13
-    if (vixLevel < 18) return 0.65; // 65% for VIX 13-18
-    if (vixLevel < 25) return 0.75; // 75% for VIX 18-25
-    return 0.80; // 80% for VIX 25+ (Tom King's max)
+    const { RISK_LIMITS } = require('./config');
+    return RISK_LIMITS.getMaxBPUsage(vixLevel);
   }
   
   /**
@@ -1348,7 +1130,8 @@ class RiskManager {
     }
     
     // Adjust for VIX regime
-    const vixRegime = VIXRegimeAnalyzer.analyzeVIXRegime(vixLevel);
+    const regime = ConfigHelpers.getVIXRegime(vixLevel);
+    const vixRegime = { regime };
     const vixAdjustment = this.getVIXPositionAdjustment(vixRegime.regime);
     baseSize *= vixAdjustment;
     
@@ -1822,7 +1605,7 @@ class RiskManager {
       bpUsedPercent: actualBPPercent.toFixed(2),
       maxBPPercent: (maxBP * 100).toFixed(2),
       targetBPPercent: (targetBPPercent * 100).toFixed(2),
-      vixRegime: VIXRegimeAnalyzer.analyzeVIXRegime(vixLevel).regime,
+      vixRegime: ConfigHelpers.getVIXRegime(vixLevel),
       recommendation: contracts > 0 ? 'PROCEED' : 'INSUFFICIENT_CAPITAL'
     };
   }
@@ -2802,7 +2585,9 @@ class RiskManager {
 // Export all classes and functions
 module.exports = {
   RiskManager,
-  VIXRegimeAnalyzer,
   BPLimitsManager,
   August5DisasterPrevention
 };
+const { getLogger } = require('./logger');
+const logger = getLogger();
+

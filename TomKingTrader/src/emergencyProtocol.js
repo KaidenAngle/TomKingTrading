@@ -84,10 +84,10 @@ class EmergencyProtocol extends EventEmitter {
             // Set up monitoring
             this.setupMonitoring();
             
-            console.log('🚨 Emergency Protocol System Initialized');
-            console.log(`   Max Drawdown: ${this.triggers.maxDrawdown * 100}%`);
-            console.log(`   VIX Spike: ${this.triggers.vixSpike} points`);
-            console.log(`   Rapid Loss: ${this.triggers.rapidLoss * 100}% per hour`);
+            logger.info('SYSTEM', '🚨 Emergency Protocol System Initialized');
+            logger.info('SYSTEM', `   Max Drawdown: ${this.triggers.maxDrawdown * 100}%`);
+            logger.info('SYSTEM', `   VIX Spike: ${this.triggers.vixSpike} points`);
+            logger.info('SYSTEM', `   Rapid Loss: ${this.triggers.rapidLoss * 100}% per hour`);
             
         } catch (error) {
             logger.error('EMERGENCY', 'Failed to initialize emergency system', error);
@@ -267,7 +267,7 @@ class EmergencyProtocol extends EventEmitter {
      * Manually trigger emergency protocol
      */
     async manualTrigger(reason = 'MANUAL') {
-        console.log(`\n🚨 EMERGENCY PROTOCOL MANUALLY TRIGGERED: ${reason}`);
+        logger.info('SYSTEM', `\n🚨 EMERGENCY PROTOCOL MANUALLY TRIGGERED: ${reason}`);
         await this.activate({
             type: 'MANUAL',
             value: reason,
@@ -284,10 +284,10 @@ class EmergencyProtocol extends EventEmitter {
             return;
         }
         
-        console.log('\n' + '🚨'.repeat(20));
-        console.log('EMERGENCY PROTOCOL ACTIVATED');
-        console.log(`Trigger: ${trigger.type} - Value: ${trigger.value}`);
-        console.log('🚨'.repeat(20) + '\n');
+        logger.info('SYSTEM', '\n' + '🚨'.repeat(20));
+        logger.info('SYSTEM', 'EMERGENCY PROTOCOL ACTIVATED');
+        logger.info('SYSTEM', `Trigger: ${trigger.type} - Value: ${trigger.value}`);
+        logger.info('SYSTEM', '🚨'.repeat(20) + '\n');
         
         this.state.active = true;
         this.state.triggered = trigger;
@@ -317,7 +317,7 @@ class EmergencyProtocol extends EventEmitter {
         
         for (const procedure of procedures) {
             try {
-                console.log(`\n📌 Executing: ${procedure}`);
+                logger.info('SYSTEM', `\n📌 Executing: ${procedure}`);
                 
                 switch(procedure) {
                     case 'STOP_NEW_TRADES':
@@ -346,7 +346,7 @@ class EmergencyProtocol extends EventEmitter {
                     status: 'COMPLETED'
                 });
                 
-                console.log(`   ✅ ${procedure} completed`);
+                logger.info('SYSTEM', `   ✅ ${procedure} completed`);
                 
             } catch (error) {
                 logger.error('EMERGENCY', `Failed to execute ${procedure}`, error);
@@ -359,7 +359,7 @@ class EmergencyProtocol extends EventEmitter {
             }
         }
         
-        console.log('\n✅ Emergency procedures completed');
+        logger.info('SYSTEM', '\n✅ Emergency procedures completed');
         await this.generateReport();
     }
     
@@ -495,10 +495,10 @@ class EmergencyProtocol extends EventEmitter {
      * Notify operator
      */
     async notifyOperator() {
-        console.log('\n📧 OPERATOR NOTIFICATION SENT');
-        console.log('   Email: emergency@tradingsystem.com');
-        console.log('   Phone: System administrator notified');
-        console.log('   Slack: #emergency-alerts');
+        logger.info('SYSTEM', '\n📧 OPERATOR NOTIFICATION SENT');
+        logger.info('SYSTEM', '   Email: emergency@tradingsystem.com');
+        logger.info('SYSTEM', '   Phone: System administrator notified');
+        logger.info('SYSTEM', '   Slack: #emergency-alerts');
         
         // In production, this would send actual notifications
         logger.warn('EMERGENCY', 'OPERATOR NOTIFICATION REQUIRED');
@@ -544,8 +544,8 @@ class EmergencyProtocol extends EventEmitter {
             status: 'EMERGENCY_ACTIVE'
         };
         
-        console.log('\n📊 EMERGENCY REPORT:');
-        console.log(JSON.stringify(report, null, 2));
+        logger.info('SYSTEM', '\n📊 EMERGENCY REPORT:');
+        logger.info('SYSTEM', JSON.stringify(report, null, 2));
         
         // Save report
         try {
@@ -593,16 +593,16 @@ class EmergencyProtocol extends EventEmitter {
         } = options;
 
         try {
-            console.log('\n🚨 CLOSING ALL POSITIONS - EMERGENCY PROTOCOL');
+            logger.info('SYSTEM', '\n🚨 CLOSING ALL POSITIONS - EMERGENCY PROTOCOL');
             
             // Get all current positions
             const positions = await this.api.refreshPositions();
             if (!positions || positions.length === 0) {
-                console.log('No positions to close');
+                logger.info('SYSTEM', 'No positions to close');
                 return { closed: 0, failed: 0, positions: [] };
             }
 
-            console.log(`Found ${positions.length} positions to close`);
+            logger.info('SYSTEM', `Found ${positions.length} positions to close`);
 
             // Sort positions by priority if requested
             let sortedPositions = [...positions];
@@ -620,12 +620,12 @@ class EmergencyProtocol extends EventEmitter {
             // Process in batches
             for (let i = 0; i < sortedPositions.length; i += batchSize) {
                 const batch = sortedPositions.slice(i, i + batchSize);
-                console.log(`\nProcessing batch ${Math.floor(i/batchSize) + 1} of ${Math.ceil(sortedPositions.length/batchSize)}`);
+                logger.info('SYSTEM', `\nProcessing batch ${Math.floor(i/batchSize) + 1} of ${Math.ceil(sortedPositions.length/batchSize)}`);
 
                 // Process each position in the batch
                 const batchPromises = batch.map(async (position) => {
                     try {
-                        console.log(`  Closing: ${position.symbol} (DTE: ${position.days_to_expiration}, P&L: ${position.unrealized_pnl?.toFixed(2) || 0})`);
+                        logger.info('SYSTEM', `  Closing: ${position.symbol} (DTE: ${position.days_to_expiration}, P&L: ${position.unrealized_pnl?.toFixed(2) || 0})`);
                         
                         if (!dryRun) {
                             // Prepare close order
@@ -644,7 +644,7 @@ class EmergencyProtocol extends EventEmitter {
                             
                             results.closed++;
                         } else {
-                            console.log(`    [DRY RUN] Would close ${position.symbol}`);
+                            logger.info('SYSTEM', `    [DRY RUN] Would close ${position.symbol}`);
                             results.positions.push({
                                 symbol: position.symbol,
                                 status: 'DRY_RUN'
@@ -658,7 +658,7 @@ class EmergencyProtocol extends EventEmitter {
                         });
                         
                     } catch (error) {
-                        console.error(`    Failed to close ${position.symbol}: ${error.message}`);
+                        logger.error('ERROR', `    Failed to close ${position.symbol}: ${error.message}`);
                         results.failed++;
                         results.positions.push({
                             symbol: position.symbol,
@@ -673,16 +673,16 @@ class EmergencyProtocol extends EventEmitter {
 
                 // Delay before next batch (to avoid API rate limits)
                 if (i + batchSize < sortedPositions.length) {
-                    console.log(`  Waiting ${delayBetweenBatches}ms before next batch...`);
+                    logger.info('SYSTEM', `  Waiting ${delayBetweenBatches}ms before next batch...`);
                     await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
                 }
             }
 
             // Generate summary
-            console.log('\n📊 CLOSE ALL POSITIONS SUMMARY:');
-            console.log(`  ✅ Successfully prepared: ${results.closed}`);
-            console.log(`  ❌ Failed: ${results.failed}`);
-            console.log(`  📝 Total processed: ${results.closed + results.failed}`);
+            logger.info('SYSTEM', '\n📊 CLOSE ALL POSITIONS SUMMARY:');
+            logger.info('SYSTEM', `  ✅ Successfully prepared: ${results.closed}`);
+            logger.info('SYSTEM', `  ❌ Failed: ${results.failed}`);
+            logger.info('SYSTEM', `  📝 Total processed: ${results.closed + results.failed}`);
 
             // Log the action
             this.state.actions.push({
@@ -738,7 +738,7 @@ class EmergencyProtocol extends EventEmitter {
             return;
         }
         
-        console.log('\n✅ Deactivating emergency protocol...');
+        logger.info('SYSTEM', '\n✅ Deactivating emergency protocol...');
         
         this.state.active = false;
         global.EMERGENCY_STOP = false;
@@ -747,7 +747,7 @@ class EmergencyProtocol extends EventEmitter {
         
         this.emit('deactivated');
         
-        console.log('✅ Emergency protocol deactivated');
+        logger.info('SYSTEM', '✅ Emergency protocol deactivated');
     }
     
     /**
@@ -819,7 +819,9 @@ class EmergencyProtocol extends EventEmitter {
                 pattern: /low.*vix.*large.*position|complacency/i,
                 check: (trade, positions, marketData) => {
                     const vix = marketData?.VIX?.currentPrice || 20;
-                    return vix < 15 && trade.bpUsage > 0.45;
+                    const { RiskManager } = require('./riskManager');
+                    const maxBP = RiskManager.getMaxBPUsage(vix);
+                    return vix < 15 && trade.bpUsage > maxBP;
                 },
                 prevention: 'Reduce position size in low VIX environment',
                 severity: 'MEDIUM',
@@ -1181,7 +1183,7 @@ class EmergencyProtocol extends EventEmitter {
             fs.appendFile(
                 './logs/mistakes.log',
                 JSON.stringify(entry) + '\n'
-            ).catch(err => console.error('Failed to log mistake:', err));
+            ).catch(err => logger.error('ERROR', 'Failed to log mistake:', err));
         } catch (error) {
             // Ignore file errors
         }
@@ -1806,11 +1808,11 @@ class EmergencyProtocol extends EventEmitter {
             this.state.tradingLocked = true;
             
             // Alert user
-            console.log('\n' + '='.repeat(60));
-            console.log('🚨🚨🚨 CRITICAL SYSTEM FAILURE 🚨🚨🚨');
-            console.log('ALL POSITIONS CLOSED - TRADING LOCKED');
-            console.log('MANUAL INTERVENTION REQUIRED');
-            console.log('='.repeat(60) + '\n');
+            logger.info('SYSTEM', '\n' + '='.repeat(60));
+            logger.info('SYSTEM', '🚨🚨🚨 CRITICAL SYSTEM FAILURE 🚨🚨🚨');
+            logger.info('SYSTEM', 'ALL POSITIONS CLOSED - TRADING LOCKED');
+            logger.info('SYSTEM', 'MANUAL INTERVENTION REQUIRED');
+            logger.info('SYSTEM', '='.repeat(60) + '\n');
             
             // Save final state
             await this.createRecoveryPoint('LAST_RESORT');
@@ -2030,6 +2032,21 @@ class EmergencyProtocol extends EventEmitter {
     }
     
     /**
+     * Cleanup method to prevent memory leaks
+     */
+    cleanup() {
+        if (this.monitoringInterval) {
+            clearInterval(this.monitoringInterval);
+            this.monitoringInterval = null;
+        }
+        if (this.backupInterval) {
+            clearInterval(this.backupInterval);
+            this.backupInterval = null;
+        }
+        logger.info('EMERGENCY_PROTOCOL', 'Cleanup completed - intervals cleared');
+    }
+
+    /**
      * Utility: delay function
      */
     delay(ms) {
@@ -2042,16 +2059,16 @@ module.exports = { EmergencyProtocol };
 
 // Test if run directly
 if (require.main === module) {
-    console.log('🧪 Testing Emergency Protocol System...\n');
+    logger.info('SYSTEM', '🧪 Testing Emergency Protocol System...\n');
     
     const emergency = new EmergencyProtocol();
     
     emergency.initialize().then(() => {
-        console.log('\nEmergency system ready. Press Ctrl+C to trigger manual emergency.');
+        logger.info('SYSTEM', '\nEmergency system ready. Press Ctrl+C to trigger manual emergency.');
         
         // Test trigger after 5 seconds
         setTimeout(() => {
-            console.log('\n🧪 Simulating emergency trigger...');
+            logger.info('SYSTEM', '\n🧪 Simulating emergency trigger...');
             emergency.activate({
                 type: 'TEST',
                 value: 'Simulated emergency',

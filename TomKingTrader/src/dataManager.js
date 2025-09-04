@@ -9,6 +9,8 @@ const path = require('path');
 const { getLogger } = require('./logger');
 const logger = getLogger();
 
+// Removed synthetic data generator - using only real API data
+
 class DataManager {
     constructor(api = null, options = {}) {
         this.api = api;
@@ -429,67 +431,17 @@ class DataManager {
     }
 
     /**
-     * REMOVED: Simulated option chains not allowed
+     * REMOVED: No synthetic option chain generation - real API data only
      */
     generateSimulatedOptionChain(ticker) {
-        throw new Error(`Simulated option chain generation not allowed. Must use real data for ${ticker}`);
-        const basePrice = this.getBasePrice(ticker);
-        const strikes = [];
-        
-        // Generate strikes around current price
-        for (let i = -10; i <= 10; i++) {
-            const strike = Math.round(basePrice * (1 + i * 0.01));
-            strikes.push({
-                strike,
-                delta: 0.5 - (i * 0.05), // Approximate delta
-                bid: Math.abs(i) * 0.5,
-                ask: Math.abs(i) * 0.5 + 0.1,
-                iv: 20 + Math.random() * 5,
-                gamma: 0.01 * Math.exp(-Math.abs(i) / 5),
-                theta: -0.05 * Math.exp(-Math.abs(i) / 5),
-                vega: 0.1 * Math.exp(-Math.abs(i) / 5)
-            });
-        }
-        
-        return {
-            ticker,
-            expirations: this.generateExpirations(),
-            strikes,
-            currentPrice: basePrice
-        };
+        throw new Error(`Synthetic option chain generation not allowed. Must use real API data for ${ticker}`);
     }
 
     /**
-     * Generate expiration dates
+     * REMOVED: No synthetic expiration generation - real API data only
      */
     generateExpirations() {
-        const expirations = [];
-        const today = new Date();
-        
-        // Add weekly expirations for next 4 weeks
-        for (let i = 1; i <= 4; i++) {
-            const exp = new Date(today);
-            exp.setDate(exp.getDate() + (i * 7));
-            // Adjust to Friday
-            const dayOfWeek = exp.getDay();
-            const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
-            exp.setDate(exp.getDate() + daysUntilFriday);
-            expirations.push(exp.toISOString().split('T')[0]);
-        }
-        
-        // Add monthly expirations
-        for (let i = 1; i <= 3; i++) {
-            const exp = new Date(today);
-            exp.setMonth(exp.getMonth() + i);
-            // Third Friday of the month
-            exp.setDate(15);
-            while (exp.getDay() !== 5) {
-                exp.setDate(exp.getDate() + 1);
-            }
-            expirations.push(exp.toISOString().split('T')[0]);
-        }
-        
-        return expirations;
+        throw new Error('Synthetic expiration generation not allowed. Must use real API data.');
     }
 
     /**
@@ -582,10 +534,9 @@ class DataManager {
             }
         }
         
-        // Fallback to generated data
-        const data = await this.generateHistoricalData(symbol, startDate, endDate, interval);
-        this.cache.set(cacheKey, { data, timestamp: Date.now() });
-        return data;
+        // No synthetic data generation - return empty if no real data
+        logger.error('DATA', `No real historical data available for ${symbol}`);
+        return [];
     }
     
     /**
@@ -704,68 +655,10 @@ class DataManager {
     }
     
     /**
-     * Generate historical data using market characteristics
+     * REMOVED: No synthetic historical data generation - real API data only
      */
     async generateHistoricalData(symbol, startDate, endDate, interval) {
-        try {
-            logger.info('DATA', `Generating historical data for ${symbol}`);
-            
-            let basePrice = this.getBasePrice(symbol);
-            const data = [];
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-            
-            let currentPrice = basePrice;
-            const volatility = this.getSymbolVolatility(symbol);
-            
-            for (let i = 0; i < days; i++) {
-                const date = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
-                
-                // Skip weekends for stock data
-                if (!this.isFuturesSymbol(symbol) && (date.getDay() === 0 || date.getDay() === 6)) {
-                    continue;
-                }
-                
-                const dailyMove = (Math.random() - 0.5) * volatility * currentPrice;
-                const open = currentPrice;
-                const close = currentPrice + dailyMove;
-                const high = Math.max(open, close) * (1 + Math.random() * 0.01);
-                const low = Math.min(open, close) * (1 - Math.random() * 0.01);
-                
-                data.push({
-                    date: date.toISOString().split('T')[0],
-                    open: parseFloat(open.toFixed(2)),
-                    high: parseFloat(high.toFixed(2)),
-                    low: parseFloat(low.toFixed(2)),
-                    close: parseFloat(close.toFixed(2)),
-                    volume: Math.floor(Math.random() * 1000000 + 500000),
-                    source: 'generated'
-                });
-                
-                currentPrice = close;
-            }
-            
-            return data;
-            
-        } catch (error) {
-            logger.error('DATA', `Historical data generation failed for ${symbol}`, error);
-            throw new Error(`Failed to generate historical data: ${error.message}`);
-        }
-    }
-    
-    /**
-     * Get symbol volatility for data generation
-     */
-    getSymbolVolatility(symbol) {
-        const volatilities = {
-            'SPY': 0.015, 'QQQ': 0.020, 'IWM': 0.025,
-            'VIX': 0.10, 'TLT': 0.012, 'GLD': 0.015,
-            'ES': 0.018, 'MES': 0.018, 'NQ': 0.025, 'MNQ': 0.025,
-            'CL': 0.035, 'MCL': 0.035, 'GC': 0.020, 'MGC': 0.020,
-            'SLV': 0.030, 'XLE': 0.025, 'XOP': 0.030
-        };
-        return volatilities[symbol] || 0.020;
+        throw new Error(`Synthetic historical data generation not allowed. Must use real API data for ${symbol}`);
     }
     
     /**

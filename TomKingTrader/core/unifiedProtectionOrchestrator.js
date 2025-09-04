@@ -7,7 +7,7 @@ const MomentumSpikeProtection = require('../src/momentumSpikeProtection');
 const FridayPsychologyProtection = require('../src/fridayPsychologyProtection');
 const EconomicDataCalendar = require('../src/economicDataCalendar');
 const OptionsFlowAnomalyDetector = require('../src/optionsFlowAnomalyDetector');
-const MarketMicrostructure = require('../src/marketMicrostructure');
+const MarketMicrostructure = require('../src/marketMicrostructureMonitor');
 
 class UnifiedProtectionOrchestrator extends EventEmitter {
     constructor() {
@@ -480,13 +480,13 @@ class UnifiedProtectionOrchestrator extends EventEmitter {
         let criticalCount = 0;
         let highCount = 0;
         
-        for (const eval of evaluations) {
-            const weight = weights[eval.type] || 0.1;
-            weightedScore += eval.riskScore * weight;
-            maxScore = Math.max(maxScore, eval.riskScore);
+        for (const evaluation of evaluations) {
+            const weight = weights[evaluation.type] || 0.1;
+            weightedScore += evaluation.riskScore * weight;
+            maxScore = Math.max(maxScore, evaluation.riskScore);
             
-            if (eval.riskLevel === 'CRITICAL') criticalCount++;
-            if (eval.riskLevel === 'HIGH') highCount++;
+            if (evaluation.riskLevel === 'CRITICAL') criticalCount++;
+            if (evaluation.riskLevel === 'HIGH') highCount++;
         }
         
         // Determine overall risk level
@@ -519,13 +519,13 @@ class UnifiedProtectionOrchestrator extends EventEmitter {
         this.protectionState.restrictions.clear();
         
         // Add active protections
-        for (const eval of evaluations) {
-            if (eval.riskScore > 30) {
-                this.protectionState.activeProtections.set(eval.type, {
-                    type: eval.type,
-                    level: eval.riskLevel,
-                    score: eval.riskScore,
-                    factors: eval.factors
+        for (const evaluation of evaluations) {
+            if (evaluation.riskScore > 30) {
+                this.protectionState.activeProtections.set(evaluation.type, {
+                    type: evaluation.type,
+                    level: evaluation.riskLevel,
+                    score: evaluation.riskScore,
+                    factors: evaluation.factors
                 });
             }
         }
@@ -595,32 +595,32 @@ class UnifiedProtectionOrchestrator extends EventEmitter {
         const protectedPositions = [];
         
         for (const position of positions) {
-            const protected = { ...position };
+            const protectedPosition = { ...position };
             
             // Apply stop loss adjustments
-            if (protected.stopLoss) {
-                protected.adjustedStopLoss = protected.stopLoss * adjustments.stopLoss;
+            if (protectedPosition.stopLoss) {
+                protectedPosition.adjustedStopLoss = protectedPosition.stopLoss * adjustments.stopLoss;
             }
             
             // Apply profit target adjustments
-            if (protected.profitTarget) {
-                protected.adjustedProfitTarget = protected.profitTarget * adjustments.profitTarget;
+            if (protectedPosition.profitTarget) {
+                protectedPosition.adjustedProfitTarget = protectedPosition.profitTarget * adjustments.profitTarget;
             }
             
             // Check position-specific risks
             if (position.daysToExpiration <= 7) {
-                protected.warnings = protected.warnings || [];
-                protected.warnings.push('Approaching expiration');
+                protectedPosition.warnings = protectedPosition.warnings || [];
+                protectedPosition.warnings.push('Approaching expiration');
             }
             
             // Add protection recommendations
-            protected.protectionRecommendations = this.getPositionRecommendations(
+            protectedPosition.protectionRecommendations = this.getPositionRecommendations(
                 position,
                 this.protectionState.activeProtections,
                 marketData
             );
             
-            protectedPositions.push(protected);
+            protectedPositions.push(protectedPosition);
         }
         
         return protectedPositions;
@@ -663,14 +663,14 @@ class UnifiedProtectionOrchestrator extends EventEmitter {
         }
         
         // Individual system alerts
-        for (const eval of evaluations) {
-            if (eval.riskLevel === 'CRITICAL' || eval.riskLevel === 'HIGH') {
+        for (const evaluation of evaluations) {
+            if (evaluation.riskLevel === 'CRITICAL' || evaluation.riskLevel === 'HIGH') {
                 alerts.push({
-                    priority: eval.riskLevel === 'CRITICAL' ? this.PRIORITY.CRITICAL : this.PRIORITY.HIGH,
-                    message: `${eval.type}: ${eval.factors.join(', ')}`,
+                    priority: evaluation.riskLevel === 'CRITICAL' ? this.PRIORITY.CRITICAL : this.PRIORITY.HIGH,
+                    message: `${evaluation.type}: ${evaluation.factors.join(', ')}`,
                     timestamp: new Date(),
-                    type: eval.type,
-                    riskScore: eval.riskScore
+                    type: evaluation.type,
+                    riskScore: evaluation.riskScore
                 });
             }
         }

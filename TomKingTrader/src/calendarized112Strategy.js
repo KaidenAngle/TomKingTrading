@@ -51,8 +51,8 @@ class Calendarized112Strategy {
     }
 
     async analyzeSetup(ticker = 'SPY') {
-        console.log('\n📊 CALENDARIZED 1-1-2 ANALYSIS');
-        console.log('='.repeat(50));
+        logger.info('SYSTEM', '\n📊 CALENDARIZED 1-1-2 ANALYSIS');
+        logger.info('SYSTEM', '='.repeat(50));
         
         try {
             // Get current market data
@@ -61,8 +61,8 @@ class Calendarized112Strategy {
             const spotPrice = parseFloat(quote.last);
             const vixLevel = parseFloat(vixQuote.last);
             
-            console.log(`\n${ticker} Price: $${spotPrice}`);
-            console.log(`VIX Level: ${vixLevel}`);
+            logger.info('SYSTEM', `\n${ticker} Price: $${spotPrice}`);
+            logger.info('SYSTEM', `VIX Level: ${vixLevel}`);
             
             // Get option chain
             const optionChain = await this.api.getOptionChain(ticker);
@@ -73,14 +73,14 @@ class Calendarized112Strategy {
             // Find appropriate expirations for each leg
             const expirations = this.findCalendarExpirations(optionChain);
             if (!expirations) {
-                console.log('❌ Could not find suitable expirations');
+                logger.info('SYSTEM', '❌ Could not find suitable expirations');
                 return null;
             }
             
-            console.log('\n📅 Calendar Expirations:');
-            console.log(`  Short Put: ${expirations.shortPut.date} (${expirations.shortPut.dte} DTE)`);
-            console.log(`  Long Put 1: ${expirations.longPut1.date} (${expirations.longPut1.dte} DTE)`);
-            console.log(`  Long Put 2: ${expirations.longPut2.date} (${expirations.longPut2.dte} DTE)`);
+            logger.info('SYSTEM', '\n📅 Calendar Expirations:');
+            logger.info('SYSTEM', `  Short Put: ${expirations.shortPut.date} (${expirations.shortPut.dte} DTE)`);
+            logger.info('SYSTEM', `  Long Put 1: ${expirations.longPut1.date} (${expirations.longPut1.dte} DTE)`);
+            logger.info('SYSTEM', `  Long Put 2: ${expirations.longPut2.date} (${expirations.longPut2.dte} DTE)`);
             
             // Calculate strikes with VIX adjustment
             const strikeWidth = this.getVixAdjustedWidth(vixLevel);
@@ -90,10 +90,10 @@ class Calendarized112Strategy {
                 longPut2: Math.round(spotPrice + (this.config.strikes.longPut2 * strikeWidth))
             };
             
-            console.log('\n🎯 Strike Selection:');
-            console.log(`  SELL 1x ${strikes.shortPut} Put (${expirations.shortPut.dte} DTE)`);
-            console.log(`  BUY 1x ${strikes.longPut1} Put (${expirations.longPut1.dte} DTE)`);
-            console.log(`  BUY 2x ${strikes.longPut2} Put (${expirations.longPut2.dte} DTE)`);
+            logger.info('SYSTEM', '\n🎯 Strike Selection:');
+            logger.info('SYSTEM', `  SELL 1x ${strikes.shortPut} Put (${expirations.shortPut.dte} DTE)`);
+            logger.info('SYSTEM', `  BUY 1x ${strikes.longPut1} Put (${expirations.longPut1.dte} DTE)`);
+            logger.info('SYSTEM', `  BUY 2x ${strikes.longPut2} Put (${expirations.longPut2.dte} DTE)`);
             
             // Find actual options and calculate prices
             const setup = await this.calculateSetupMetrics(
@@ -104,24 +104,24 @@ class Calendarized112Strategy {
             );
             
             if (setup) {
-                console.log('\n💰 Setup Metrics:');
-                console.log(`  Net Credit: $${setup.netCredit.toFixed(2)}`);
-                console.log(`  Max Risk: $${setup.maxRisk.toFixed(2)}`);
-                console.log(`  Break-even: $${setup.breakeven.toFixed(2)}`);
-                console.log(`  Profit Zone: ${setup.profitZone}`);
+                logger.info('SYSTEM', '\n💰 Setup Metrics:');
+                logger.info('SYSTEM', `  Net Credit: $${setup.netCredit.toFixed(2)}`);
+                logger.info('SYSTEM', `  Max Risk: $${setup.maxRisk.toFixed(2)}`);
+                logger.info('SYSTEM', `  Break-even: $${setup.breakeven.toFixed(2)}`);
+                logger.info('SYSTEM', `  Profit Zone: ${setup.profitZone}`);
                 
                 // Calculate Greeks
-                console.log('\n📈 Position Greeks:');
-                console.log(`  Net Delta: ${setup.greeks.delta.toFixed(2)}`);
-                console.log(`  Net Theta: ${setup.greeks.theta.toFixed(2)}`);
-                console.log(`  Net Vega: ${setup.greeks.vega.toFixed(2)}`);
+                logger.info('SYSTEM', '\n📈 Position Greeks:');
+                logger.info('SYSTEM', `  Net Delta: ${setup.greeks.delta.toFixed(2)}`);
+                logger.info('SYSTEM', `  Net Theta: ${setup.greeks.theta.toFixed(2)}`);
+                logger.info('SYSTEM', `  Net Vega: ${setup.greeks.vega.toFixed(2)}`);
                 
                 // Risk assessment
                 const riskScore = this.assessRisk(setup, vixLevel);
-                console.log('\n⚠️ Risk Assessment:');
-                console.log(`  VIX Regime: ${riskScore.regime}`);
-                console.log(`  Setup Quality: ${riskScore.quality}`);
-                console.log(`  Recommendation: ${riskScore.recommendation}`);
+                logger.info('SYSTEM', '\n⚠️ Risk Assessment:');
+                logger.info('SYSTEM', `  VIX Regime: ${riskScore.regime}`);
+                logger.info('SYSTEM', `  Setup Quality: ${riskScore.quality}`);
+                logger.info('SYSTEM', `  Recommendation: ${riskScore.recommendation}`);
                 
                 return {
                     ticker,
@@ -136,7 +136,7 @@ class Calendarized112Strategy {
             }
             
         } catch (error) {
-            console.error('❌ Analysis failed:', error.message);
+            logger.error('ERROR', '❌ Analysis failed:', error.message);
             return null;
         }
     }
@@ -386,7 +386,7 @@ class Calendarized112Strategy {
 
     async generateTradeOrder(analysis) {
         if (!analysis || !analysis.riskScore.recommendation.includes('✅')) {
-            console.log('⚠️ Trade not recommended based on current conditions');
+            logger.info('SYSTEM', '⚠️ Trade not recommended based on current conditions');
             return null;
         }
         
@@ -398,7 +398,7 @@ class Calendarized112Strategy {
         );
         
         if (!canTrade.allowed) {
-            console.log(`❌ Risk check failed: ${canTrade.reason}`);
+            logger.info('SYSTEM', `❌ Risk check failed: ${canTrade.reason}`);
             return null;
         }
         
@@ -446,16 +446,16 @@ class Calendarized112Strategy {
             }
         };
         
-        console.log('\n📋 Order Generated (NOT SUBMITTED):');
-        console.log(JSON.stringify(order, null, 2));
+        logger.info('SYSTEM', '\n📋 Order Generated (NOT SUBMITTED):');
+        logger.info('SYSTEM', JSON.stringify(order, null, 2));
         
         return order;
     }
 
     async backtest(startDate, endDate) {
-        console.log('\n📊 CALENDARIZED 1-1-2 BACKTEST');
-        console.log('='.repeat(50));
-        console.log(`Period: ${startDate} to ${endDate}`);
+        logger.info('SYSTEM', '\n📊 CALENDARIZED 1-1-2 BACKTEST');
+        logger.info('SYSTEM', '='.repeat(50));
+        logger.info('SYSTEM', `Period: ${startDate} to ${endDate}`);
         
         // This would integrate with the backtesting engine
         // For now, return estimated performance based on Tom King's results
@@ -483,14 +483,17 @@ class Calendarized112Strategy {
             ]
         };
         
-        console.log('\n📈 Backtest Results:');
-        console.log(`  Win Rate: ${results.metrics.winRate}%`);
-        console.log(`  Profit Factor: ${results.metrics.profitFactor}`);
-        console.log(`  Expected Value: $${results.metrics.expectedValue}`);
-        console.log(`  Total P&L: $${results.metrics.totalProfit}`);
+        logger.info('SYSTEM', '\n📈 Backtest Results:');
+        logger.info('SYSTEM', `  Win Rate: ${results.metrics.winRate}%`);
+        logger.info('SYSTEM', `  Profit Factor: ${results.metrics.profitFactor}`);
+        logger.info('SYSTEM', `  Expected Value: $${results.metrics.expectedValue}`);
+        logger.info('SYSTEM', `  Total P&L: $${results.metrics.totalProfit}`);
         
         return results;
     }
 }
 
 module.exports = Calendarized112Strategy;
+const { getLogger } = require('./logger');
+const logger = getLogger();
+

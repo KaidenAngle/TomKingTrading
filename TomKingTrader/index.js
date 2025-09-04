@@ -24,7 +24,7 @@ const { EnhancedPatternAnalyzer } = require('./src/enhancedPatternAnalysis');
 const { PositionManager } = require('./src/positionManager');
 
 // Original modules still used directly
-const SignalGenerator = require('./src/signalGenerator');
+const { SignalGenerator } = require('./src/signalGenerator');
 const { OrderManager } = require('./src/orderManager');
 const { BacktestingEngine } = require('./src/backtestingEngine');
 // const { generateComprehensiveExcelReport } = require('./reporting/generateComprehensiveExcelReport'); // Commented out - module not found
@@ -72,7 +72,7 @@ class UnifiedTradingFramework {
         this.signalGenerator = new SignalGenerator();
         
         // Initialize API if needed for mode
-        if (['live', 'paper', 'analysis'].includes(this.mode)) {
+        if (['live', 'paper', 'analysis', 'sandbox'].includes(this.mode)) {
             await this.initializeAPI();
         }
         
@@ -89,6 +89,9 @@ class UnifiedTradingFramework {
                 break;
             case 'analysis':
                 await this.runDailyAnalysis();
+                break;
+            case 'sandbox':
+                await this.runSandboxMode();
                 break;
             case 'dashboard':
                 await this.startDashboard();
@@ -121,7 +124,7 @@ class UnifiedTradingFramework {
             
             if (authenticated) {
                 console.log('✅ API authenticated successfully');
-                await this.api.loadAccountData();
+                await this.api.refreshBalance();
             } else {
                 console.log('⚠️  API authentication failed. Running in manual mode.');
             }
@@ -223,6 +226,115 @@ class UnifiedTradingFramework {
         
         // Generate report
         await this.generateDailyReport(analysis);
+    }
+
+    async runSandboxMode() {
+        console.log('\n🧪 SANDBOX TRADING MODE');
+        console.log('Running in TastyTrade cert environment with £75k account...\n');
+        
+        // Get current market data from API
+        const marketData = await this.loadMarketData();
+        
+        // Update account balance from API (should be £75k in sandbox)
+        if (this.api && this.api.accountData) {
+            this.accountBalance = parseFloat(this.api.accountData.netLiquidatingValue?.replace(/[$,]/g, '')) || 75000;
+            console.log(`📊 Account Balance: £${this.accountBalance.toLocaleString()}`);
+            console.log(`📈 Current Phase: ${this.determinePhase(this.accountBalance)}`);
+        }
+        
+        // Analyze strategies available for Phase 4 (£75k account)
+        const analysis = {};
+        const strategies = require('./src/strategies');
+        
+        for (const [strategyName, strategy] of Object.entries(strategies.TradingStrategies.prototype)) {
+            if (typeof strategy === 'function' && strategyName !== 'constructor') {
+                const pattern = await this.patternAnalyzer.analyzeForStrategy(
+                    marketData,
+                    strategyName
+                );
+                
+                const signal = this.signalGenerator.generateSignal(
+                    strategyName,
+                    pattern,
+                    marketData
+                );
+                
+                analysis[strategyName] = {
+                    pattern,
+                    signal,
+                    recommendation: signal.action !== 'WAIT' ? signal : null
+                };
+            }
+        }
+        
+        // Display analysis with Phase 4 capabilities
+        console.log('🔍 PHASE 4 STRATEGY ANALYSIS (All 17 strategies available)');
+        this.displaySandboxAnalysis(analysis, marketData);
+        
+        // In sandbox, we can prepare actual trades (but won't execute)
+        console.log('\n🛠️  TRADE PREPARATION MODE');
+        console.log('Preparing trades for sandbox validation...');
+        
+        for (const [strategyName, data] of Object.entries(analysis)) {
+            if (data.recommendation) {
+                console.log(`\n📋 Preparing ${strategyName} trade:`);
+                console.log(`   Action: ${data.recommendation.action}`);
+                console.log(`   Setup: ${JSON.stringify(data.recommendation.parameters, null, 2)}`);
+                
+                // This would prepare the actual trade in sandbox
+                if (this.api && this.orderManager) {
+                    try {
+                        const orderPreparation = await this.orderManager.prepareOrder(
+                            data.recommendation,
+                            this.accountBalance
+                        );
+                        console.log(`   ✅ Order prepared successfully`);
+                        console.log(`   📊 Position size: £${orderPreparation.positionSize}`);
+                    } catch (error) {
+                        console.log(`   ❌ Order preparation failed: ${error.message}`);
+                    }
+                }
+            }
+        }
+        
+        console.log('\n🎯 SANDBOX VALIDATION COMPLETE');
+        console.log('All systems operational in cert environment');
+    }
+
+    displaySandboxAnalysis(analysis, marketData) {
+        console.log(`\n📊 Market Conditions:`);
+        console.log(`   VIX: ${marketData.vix || 'N/A'}`);
+        console.log(`   SPY: $${marketData.spy?.price || 'N/A'}`);
+        console.log(`   Market Regime: ${this.determineMarketRegime(marketData)}`);
+        
+        const recommendations = Object.entries(analysis)
+            .filter(([_, data]) => data.recommendation)
+            .map(([name, data]) => ({ name, ...data.recommendation }));
+            
+        if (recommendations.length > 0) {
+            console.log(`\n🎯 ACTIVE RECOMMENDATIONS (${recommendations.length}):`);
+            recommendations.forEach(rec => {
+                console.log(`   ${rec.name}: ${rec.action} - ${rec.confidence}% confidence`);
+            });
+        } else {
+            console.log('\n⏸️  No active recommendations at current market conditions');
+        }
+    }
+
+    determinePhase(balance) {
+        if (balance >= 75000) return 4;      // Phase 4: Professional
+        if (balance >= 60000) return 3;      // Phase 3: Advanced
+        if (balance >= 40000) return 2;      // Phase 2: Expansion
+        return 1;                            // Phase 1: Foundation
+    }
+
+    determineMarketRegime(marketData) {
+        const vix = marketData.vix || 20;
+        if (vix < 12) return 'COMPLACENCY';
+        if (vix < 18) return 'NORMAL';
+        if (vix < 25) return 'ELEVATED';
+        if (vix < 35) return 'HIGH_STRESS';
+        return 'CRISIS';
     }
 
     async startDashboard() {

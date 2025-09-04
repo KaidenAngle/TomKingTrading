@@ -40,7 +40,7 @@ class TomKingLogger {
             await fs.mkdir(this.logDir, { recursive: true });
             this.currentLogFile = path.join(this.logDir, `tomking-${new Date().toISOString().split('T')[0]}.log`);
         } catch (error) {
-            console.error('Failed to initialize log file:', error);
+            console.error('[ERROR] Failed to initialize log file:', error);
             this.logToFile = false;
             this.currentLogFile = null;
         }
@@ -100,7 +100,7 @@ class TomKingLogger {
             await fs.rename(this.currentLogFile, rotatedFile);
             await this.initializeLogFile();
         } catch (error) {
-            console.error('Failed to rotate log file:', error);
+            console.error('[ERROR] Failed to rotate log file:', error);
         }
     }
     

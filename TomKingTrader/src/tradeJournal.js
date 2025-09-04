@@ -5,7 +5,10 @@
 
 const fs = require('fs').promises;
 const path = require('path');
+const { RISK_LIMITS } = require('./config');
 const { getLogger } = require('./logger');
+const { PerformanceMetrics } = require('./performanceMetrics');
+const { generateJournalId } = require('../utils/idGenerator');
 
 const logger = getLogger();
 
@@ -173,7 +176,7 @@ class TradeJournal {
             
             // Risk management checks
             riskManagement: {
-                buyingPowerUsage: { checked: false, current: null, max: 0.65, withinLimits: null },
+                buyingPowerUsage: { checked: false, current: null, max: 'DYNAMIC', withinLimits: null }, // Uses RISK_LIMITS.getMaxBPUsage(vix)
                 dailyLossLimit: { checked: false, current: null, max: null, breached: false },
                 positionSizing: { checked: false, violations: [] },
                 emergencyProtocol: { triggered: false, reason: null, action: null }
@@ -560,7 +563,7 @@ class TradeJournal {
      */
     async recordTrade(trade) {
         const tradeEntry = {
-            id: `TRADE_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            id: generateJournalId(),
             timestamp: new Date().toISOString(),
             entryTime: trade.entryTime || new Date().toISOString(),
             exitTime: trade.exitTime || null,
@@ -620,7 +623,16 @@ class TradeJournal {
                 ? (tradeEntry.exitPrice - tradeEntry.entryPrice) * tradeEntry.quantity * 100
                 : (tradeEntry.entryPrice - tradeEntry.exitPrice) * tradeEntry.quantity * 100;
             
-            tradeEntry.netPnL = grossPnL - tradeEntry.commission;
+            // Use centralized P&L calculator to ensure consistency
+            const plCalculator = new PerformanceMetrics();
+            const plResult = plCalculator.calculatePositionPL({
+                entryPrice: tradeEntry.entryPrice,
+                currentPrice: tradeEntry.exitPrice,
+                quantity: tradeEntry.quantity,
+                commission: tradeEntry.commission,
+                multiplier: tradeEntry.strategy && tradeEntry.strategy.includes('OPTIONS') ? 100 : 1
+            });
+            tradeEntry.netPnL = plResult.dollarPL;
             tradeEntry.realizedPnL = tradeEntry.netPnL;
             
             // Determine result
@@ -1084,7 +1096,7 @@ if (require.main === module) {
         bpUsed: 2000,
         notes: 'Test trade'
     }).then(trade => {
-        console.log('Trade recorded:', trade.id);
+        logger.info('SYSTEM', 'Trade recorded:', trade.id);
         
         // Simulate closing trade
         setTimeout(() => {
@@ -1093,13 +1105,13 @@ if (require.main === module) {
                 exitPrice: 448,
                 exitTime: new Date().toISOString()
             }).then(() => {
-                console.log('Trade closed');
-                console.log('Statistics:', journal.getStatistics());
+                logger.info('SYSTEM', 'Trade closed');
+                logger.info('SYSTEM', 'Statistics:', journal.getStatistics());
                 
                 // Generate report
                 journal.generateReport().then(report => {
-                    console.log('\nPerformance Report:');
-                    console.log(JSON.stringify(report, null, 2));
+                    logger.info('SYSTEM', '\nPerformance Report:');
+                    logger.info('SYSTEM', JSON.stringify(report, null, 2));
                 });
             });
         }, 2000);

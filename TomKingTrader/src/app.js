@@ -12,9 +12,11 @@ const WebSocket = require('ws');
 const path = require('path');
 const fs = require('fs').promises;
 
-// Import TomKingTrader modules
-const { TomKingTrader, TomKingUtils } = require('./index');
-const SignalGenerator = require('./signalGenerator');
+// Import TomKingTrader modules - Remove circular dependency
+const { TradingStrategies } = require('./strategies');
+const { RiskManager } = require('./riskManager');
+const { PositionManager } = require('./positionManager');
+const { SignalGenerator } = require('./signalGenerator');
 const { GreeksCalculator } = require('./greeksCalculator');
 const { getLogger } = require('./logger');
 const config = require('./config');
@@ -26,9 +28,10 @@ const { UnifiedTradingSystem } = require('./tradingSystemIntegration');
 const { BacktestingEngine } = require('./backtestingEngine');
 const DataManager = require('./dataManager');
 const PerformanceMetrics = require('./performanceMetrics');
-// const PatternValidationEngine = require('./patternValidation'); // Module not found
-const BacktestReportGenerator = require('./backtestReporting');
-const RiskManager = require('./riskManager');
+const { PatternValidationEngine } = require('./patternValidation');
+const { generateComprehensiveExcelReport } = require('../reporting/generateComprehensiveExcelReport');
+const EnhancedRecommendationEngine = require('./enhancedRecommendationEngine');
+// RiskManager already imported above
 
 const logger = getLogger();
 
@@ -176,7 +179,7 @@ class TomKingTraderApp {
         
         // Error handling middleware
         this.app.use((error, req, res, next) => {
-            console.error('🚨 Express Error:', error);
+            logger.error('ERROR', '🚨 Express Error:', error);
             res.status(500).json({
                 success: false,
                 error: error.message,
@@ -267,7 +270,7 @@ class TomKingTraderApp {
                 });
                 
             } catch (error) {
-                console.error('🚨 Initialize error:', error);
+                logger.error('ERROR', '🚨 Initialize error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -332,7 +335,7 @@ class TomKingTraderApp {
                 });
                 
             } catch (error) {
-                console.error('🚨 Analysis error:', error);
+                logger.error('ERROR', '🚨 Analysis error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -372,7 +375,7 @@ class TomKingTraderApp {
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {
-                console.error('🚨 Signals error:', error);
+                logger.error('ERROR', '🚨 Signals error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -402,7 +405,7 @@ class TomKingTraderApp {
                 });
                 
             } catch (error) {
-                console.error('🚨 Market data error:', error);
+                logger.error('ERROR', '🚨 Market data error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message
@@ -431,7 +434,7 @@ class TomKingTraderApp {
                 });
                 
             } catch (error) {
-                console.error('🚨 Positions error:', error);
+                logger.error('ERROR', '🚨 Positions error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message
@@ -458,7 +461,7 @@ class TomKingTraderApp {
                 });
                 
             } catch (error) {
-                console.error('🚨 Report error:', error);
+                logger.error('ERROR', '🚨 Report error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message
@@ -511,7 +514,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Portfolio Greeks error:', error);
+                logger.error('ERROR', '🚨 Portfolio Greeks error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -550,7 +553,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Option Greeks error:', error);
+                logger.error('ERROR', '🚨 Option Greeks error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -590,7 +593,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 5-Delta strikes error:', error);
+                logger.error('ERROR', '🚨 5-Delta strikes error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -620,7 +623,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Greeks update error:', error);
+                logger.error('ERROR', '🚨 Greeks update error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -652,7 +655,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Greeks history error:', error);
+                logger.error('ERROR', '🚨 Greeks history error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -682,7 +685,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Greeks alerts error:', error);
+                logger.error('ERROR', '🚨 Greeks alerts error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -717,7 +720,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Greeks status error:', error);
+                logger.error('ERROR', '🚨 Greeks status error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -764,7 +767,7 @@ class TomKingTraderApp {
                     }
                 });
             } catch (error) {
-                console.error('🚨 Health check error:', error);
+                logger.error('ERROR', '🚨 Health check error:', error);
                 res.status(500).json({
                     status: 'ERROR',
                     error: error.message,
@@ -793,7 +796,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Streaming enable error:', error);
+                logger.error('ERROR', '🚨 Streaming enable error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -821,7 +824,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Streaming disable error:', error);
+                logger.error('ERROR', '🚨 Streaming disable error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -860,7 +863,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Streaming subscribe error:', error);
+                logger.error('ERROR', '🚨 Streaming subscribe error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -899,7 +902,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Real-time quotes error:', error);
+                logger.error('ERROR', '🚨 Real-time quotes error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -927,7 +930,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Streaming status error:', error);
+                logger.error('ERROR', '🚨 Streaming status error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -966,7 +969,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Dry-run order error:', error);
+                logger.error('ERROR', '🚨 Dry-run order error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1003,7 +1006,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Place order error:', error);
+                logger.error('ERROR', '🚨 Place order error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1049,7 +1052,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Iron Condor order error:', error);
+                logger.error('ERROR', '🚨 Iron Condor order error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1094,7 +1097,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Short Strangle order error:', error);
+                logger.error('ERROR', '🚨 Short Strangle order error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1139,7 +1142,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 0DTE order error:', error);
+                logger.error('ERROR', '🚨 0DTE order error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1183,7 +1186,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Butterfly order error:', error);
+                logger.error('ERROR', '🚨 Butterfly order error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1214,7 +1217,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Get live orders error:', error);
+                logger.error('ERROR', '🚨 Get live orders error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1250,7 +1253,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Get order status error:', error);
+                logger.error('ERROR', '🚨 Get order status error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1279,7 +1282,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Cancel order error:', error);
+                logger.error('ERROR', '🚨 Cancel order error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1307,7 +1310,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Get order stats error:', error);
+                logger.error('ERROR', '🚨 Get order stats error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1430,7 +1433,7 @@ class TomKingTraderApp {
                 res.json(result);
 
             } catch (error) {
-                console.error('🚨 Strategy analysis error:', error);
+                logger.error('ERROR', '🚨 Strategy analysis error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1543,7 +1546,7 @@ class TomKingTraderApp {
                 res.json(result);
 
             } catch (error) {
-                console.error('🚨 Risk check error:', error);
+                logger.error('ERROR', '🚨 Risk check error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1567,9 +1570,9 @@ class TomKingTraderApp {
                 const account = accountValue || this.config.accountValue || 30000;
                 const phase = this.config.phase || 1;
                 
-                // Calculate position size using TomKingUtils
-                const { TomKingUtils } = require('./index');
-                const positionSize = TomKingUtils.calculatePositionSize(account, strategy, phase);
+                // Calculate position size using RiskManager
+                const riskManager = new RiskManager();
+                const positionSize = riskManager.calculatePositionSize(account, strategy, phase);
 
                 // Strategy-specific calculations
                 let contracts = 1;
@@ -1657,7 +1660,7 @@ class TomKingTraderApp {
                 res.json(result);
 
             } catch (error) {
-                console.error('🚨 Position calculation error:', error);
+                logger.error('ERROR', '🚨 Position calculation error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1680,8 +1683,8 @@ class TomKingTraderApp {
         // Testing Framework Endpoints
         this.app.get('/api/test/scenarios', async (req, res) => {
             try {
-                const TomKingTestingFramework = require('./testingFramework');
-                const framework = new TomKingTestingFramework();
+                // BacktestingEngine already imported at top
+                const framework = new BacktestingEngine();
                 await framework.initialize(false);
                 
                 res.json({
@@ -1697,7 +1700,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Get scenarios error:', error);
+                logger.error('ERROR', '🚨 Get scenarios error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1718,8 +1721,8 @@ class TomKingTraderApp {
                     });
                 }
 
-                const TomKingTestingFramework = require('./testingFramework');
-                const framework = new TomKingTestingFramework();
+                // BacktestingEngine already imported at top
+                const framework = new BacktestingEngine();
                 await framework.initialize(useAPI);
                 
                 const result = await framework.runSpecificTest(scenarioName);
@@ -1745,7 +1748,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Run test error:', error);
+                logger.error('ERROR', '🚨 Run test error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1758,8 +1761,8 @@ class TomKingTraderApp {
             try {
                 const { useAPI = false, phases = [1, 2, 3, 4] } = req.body;
 
-                const TomKingTestingFramework = require('./testingFramework');
-                const framework = new TomKingTestingFramework();
+                // BacktestingEngine already imported at top
+                const framework = new BacktestingEngine();
                 await framework.initialize(useAPI);
                 
                 // Filter scenarios by requested phases
@@ -1796,7 +1799,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Run all tests error:', error);
+                logger.error('ERROR', '🚨 Run all tests error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1820,13 +1823,13 @@ class TomKingTraderApp {
 
                 // Use enhanced recommendation engine if requested
                 if (includePatterns || includeGreeks) {
-                    const EnhancedRecommendationEngine = require('./enhancedRecommendationEngine');
+                    // EnhancedRecommendationEngine already imported at top
                     const engine = new EnhancedRecommendationEngine();
                     await engine.initialize(this.isInitialized);
                     
                     // Parse input using testing framework
-                    const TomKingTestingFramework = require('./testingFramework');
-                    const framework = new TomKingTestingFramework();
+                    // BacktestingEngine already imported at top
+                    const framework = new BacktestingEngine();
                     const userData = framework.parseUserInput(input);
                     
                     // Generate enhanced recommendations
@@ -1853,8 +1856,8 @@ class TomKingTraderApp {
 
                 } else {
                     // Use basic testing framework
-                    const TomKingTestingFramework = require('./testingFramework');
-                    const framework = new TomKingTestingFramework();
+                    // BacktestingEngine already imported at top
+                    const framework = new BacktestingEngine();
                     await framework.initialize(this.isInitialized);
                     
                     const customScenario = {
@@ -1880,7 +1883,7 @@ class TomKingTraderApp {
                 }
 
             } catch (error) {
-                console.error('🚨 Manual input test error:', error);
+                logger.error('ERROR', '🚨 Manual input test error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1901,7 +1904,7 @@ class TomKingTraderApp {
                     });
                 }
 
-                const EnhancedRecommendationEngine = require('./enhancedRecommendationEngine');
+                // EnhancedRecommendationEngine already imported at top
                 const engine = new EnhancedRecommendationEngine();
                 await engine.initialize(this.isInitialized);
                 
@@ -1917,7 +1920,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Enhanced analysis error:', error);
+                logger.error('ERROR', '🚨 Enhanced analysis error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1938,7 +1941,7 @@ class TomKingTraderApp {
                     });
                 }
 
-                const EnhancedRecommendationEngine = require('./enhancedRecommendationEngine');
+                // EnhancedRecommendationEngine already imported at top
                 const engine = new EnhancedRecommendationEngine();
                 await engine.initialize(this.isInitialized);
                 
@@ -1974,7 +1977,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Pattern analysis error:', error);
+                logger.error('ERROR', '🚨 Pattern analysis error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -1995,7 +1998,7 @@ class TomKingTraderApp {
                     });
                 }
 
-                const EnhancedRecommendationEngine = require('./enhancedRecommendationEngine');
+                // EnhancedRecommendationEngine already imported at top
                 const engine = new EnhancedRecommendationEngine();
                 await engine.initialize(this.isInitialized);
                 
@@ -2027,7 +2030,7 @@ class TomKingTraderApp {
                 });
 
             } catch (error) {
-                console.error('🚨 Greeks optimization error:', error);
+                logger.error('ERROR', '🚨 Greeks optimization error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -2089,7 +2092,7 @@ class TomKingTraderApp {
                 logger.info('QUICK-ANALYSIS', 'User data prepared', userData);
                 
                 // Run enhanced analysis
-                const EnhancedRecommendationEngine = require('./enhancedRecommendationEngine');
+                // EnhancedRecommendationEngine already imported at top
                 const engine = new EnhancedRecommendationEngine();
                 await engine.initialize(true);
                 
@@ -2339,7 +2342,8 @@ class TomKingTraderApp {
 
                 this.logger.info('BACKTEST', 'Generating comprehensive report');
 
-                const reportGenerator = new BacktestReportGenerator({
+                // Use function directly instead of class instantiation
+                const reportResult = await generateComprehensiveExcelReport({
                     outputDir: path.join(__dirname, '..', 'reports')
                 });
 
@@ -2504,7 +2508,7 @@ class TomKingTraderApp {
                     ...status
                 });
             } catch (error) {
-                console.error('🚨 System status error:', error);
+                logger.error('ERROR', '🚨 System status error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -2523,7 +2527,7 @@ class TomKingTraderApp {
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {
-                console.error('🚨 Dashboard error:', error);
+                logger.error('ERROR', '🚨 Dashboard error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -2538,7 +2542,7 @@ class TomKingTraderApp {
                 const html = this.unifiedSystem.generateHTMLDashboard();
                 res.type('html').send(html);
             } catch (error) {
-                console.error('🚨 HTML dashboard error:', error);
+                logger.error('ERROR', '🚨 HTML dashboard error:', error);
                 res.status(500).send(`
                     <html>
                         <body>
@@ -2567,7 +2571,7 @@ class TomKingTraderApp {
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {
-                console.error('🚨 Positions error:', error);
+                logger.error('ERROR', '🚨 Positions error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -2586,7 +2590,7 @@ class TomKingTraderApp {
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {
-                console.error('🚨 Add position error:', error);
+                logger.error('ERROR', '🚨 Add position error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -2604,7 +2608,7 @@ class TomKingTraderApp {
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {
-                console.error('🚨 Update position error:', error);
+                logger.error('ERROR', '🚨 Update position error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -2623,7 +2627,7 @@ class TomKingTraderApp {
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {
-                console.error('🚨 Close position error:', error);
+                logger.error('ERROR', '🚨 Close position error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -2642,7 +2646,7 @@ class TomKingTraderApp {
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {
-                console.error('🚨 Current P&L error:', error);
+                logger.error('ERROR', '🚨 Current P&L error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -2660,7 +2664,7 @@ class TomKingTraderApp {
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {
-                console.error('🚨 Analytics error:', error);
+                logger.error('ERROR', '🚨 Analytics error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -2679,7 +2683,7 @@ class TomKingTraderApp {
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {
-                console.error('🚨 Tom King metrics error:', error);
+                logger.error('ERROR', '🚨 Tom King metrics error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -2699,7 +2703,7 @@ class TomKingTraderApp {
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {
-                console.error('🚨 Export trades error:', error);
+                logger.error('ERROR', '🚨 Export trades error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -2718,7 +2722,7 @@ class TomKingTraderApp {
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {
-                console.error('🚨 Export analytics error:', error);
+                logger.error('ERROR', '🚨 Export analytics error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -2737,7 +2741,7 @@ class TomKingTraderApp {
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {
-                console.error('🚨 Comprehensive report error:', error);
+                logger.error('ERROR', '🚨 Comprehensive report error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -2757,7 +2761,7 @@ class TomKingTraderApp {
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {
-                console.error('🚨 Market data update error:', error);
+                logger.error('ERROR', '🚨 Market data update error:', error);
                 res.status(500).json({
                     success: false,
                     error: error.message,
@@ -2892,7 +2896,7 @@ class TomKingTraderApp {
                     const data = JSON.parse(message);
                     this.handleWebSocketMessage(ws, data);
                 } catch (error) {
-                    console.error('🚨 WebSocket message error:', error);
+                    logger.error('ERROR', '🚨 WebSocket message error:', error);
                     ws.send(JSON.stringify({
                         type: 'error',
                         data: { error: 'Invalid message format' }
@@ -2908,7 +2912,7 @@ class TomKingTraderApp {
             
             // Handle errors
             ws.on('error', (error) => {
-                console.error('🚨 WebSocket error:', error);
+                logger.error('ERROR', '🚨 WebSocket error:', error);
                 this.wsConnections.delete(ws);
             });
         });
@@ -2976,7 +2980,7 @@ class TomKingTraderApp {
                         ws.send(messageStr);
                     }
                 } catch (error) {
-                    console.error('🚨 Broadcast error:', error);
+                    logger.error('ERROR', '🚨 Broadcast error:', error);
                     this.wsConnections.delete(ws);
                 }
             } else {
@@ -3060,7 +3064,7 @@ class TomKingTraderApp {
                     logger.info('SCHEDULER', 'Scheduled analysis complete');
                 }
             } catch (error) {
-                console.error('🚨 Scheduled analysis error:', error);
+                logger.error('ERROR', '🚨 Scheduled analysis error:', error);
                 
                 this.broadcast({
                     type: 'scheduler_error',
@@ -3175,7 +3179,7 @@ class TomKingTraderApp {
         this.registerNotificationChannel('console', {
             send: (notification) => {
                 const icon = this.getNotificationIcon(notification.priority);
-                console.log(`${icon} [${notification.priority}] ${notification.message}`);
+                logger.info('SYSTEM', `${icon} [${notification.priority}] ${notification.message}`);
             },
             enabled: true
         });
@@ -3192,7 +3196,7 @@ class TomKingTraderApp {
                         JSON.stringify(logEntry) + '\n'
                     );
                 } catch (error) {
-                    console.error('Failed to write notification to file:', error);
+                    logger.error('ERROR', 'Failed to write notification to file:', error);
                 }
             },
             enabled: true
@@ -3483,12 +3487,12 @@ process.on('SIGTERM', async () => {
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-    console.error('🚨 Uncaught Exception:', error);
+    logger.error('ERROR', '🚨 Uncaught Exception:', error);
     process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('🚨 Unhandled Rejection at:', promise, 'reason:', reason);
+    logger.error('ERROR', '🚨 Unhandled Rejection at:', promise, 'reason:', reason);
     process.exit(1);
 });
 
@@ -3499,5 +3503,5 @@ module.exports = {
 
 // If running directly, start the application
 if (require.main === module) {
-    createApp().catch(console.error);
+    createApp().catch(error => logger.error('ERROR', 'Application startup failed', error));
 }

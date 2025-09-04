@@ -437,13 +437,13 @@ const RISK_LIMITS = {
     MAX_BP_USAGE: 'DYNAMIC', // VIX-based: 45-80% per Tom King system
     MAX_CORRELATION_EXPOSURE: 0.25, // 25% per correlation group
     
-    // Tom King's VIX-based BP system
+    // Tom King's VIX-based BP system (corrected per documentation)
     getMaxBPUsage: (vixLevel) => {
-        if (vixLevel < 13) return 0.45; // 45% for VIX <13
-        if (vixLevel < 18) return 0.65; // 65% for VIX 13-18
-        if (vixLevel < 25) return 0.75; // 75% for VIX 18-25
-        if (vixLevel < 30) return 0.50; // 50% for VIX 25-30
-        return 0.80; // 80% for VIX >30 (puts only)
+        if (vixLevel < 15) return 0.45; // 45% for VIX <15
+        if (vixLevel < 20) return 0.52; // 52% for VIX 15-20
+        if (vixLevel < 25) return 0.65; // 65% for VIX 20-25
+        if (vixLevel < 35) return 0.75; // 75% for VIX 25-35
+        return 0.80; // 80% for VIX >35
     },
     
     // VIX-based adjustments
@@ -964,15 +964,15 @@ const ConfigHelpers = {
         }
         
         process.env.TOM_KING_MODE = mode;
-        console.log(`🎯 Trading mode set to: ${mode.toUpperCase()}`);
-        console.log(`📊 Environment: ${this.getEnvironmentConfig(mode).description}`);
+        logger.info('SYSTEM', `🎯 Trading mode set to: ${mode.toUpperCase()}`);
+        logger.info('SYSTEM', `📊 Environment: ${this.getEnvironmentConfig(mode).description}`);
         
         if (mode === 'sandbox') {
-            console.log(`💡 Sandbox Features:`);
-            console.log(`   • Market orders fill at $1.00`);
-            console.log(`   • Limit orders ≤$3 fill immediately`);
-            console.log(`   • $100k simulated balance`);
-            console.log(`   • Real market data, simulated executions`);
+            logger.info('SYSTEM', `💡 Sandbox Features:`);
+            logger.info('SYSTEM', `   • Market orders fill at $1.00`);
+            logger.info('SYSTEM', `   • Limit orders ≤$3 fill immediately`);
+            logger.info('SYSTEM', `   • $100k simulated balance`);
+            logger.info('SYSTEM', `   • Real market data, simulated executions`);
         }
         
         return this.getEnvironmentConfig(mode);
@@ -1522,3 +1522,6 @@ module.exports = {
         RISK_LIMITS
     }
 };
+const { getLogger } = require('./logger');
+const logger = getLogger();
+

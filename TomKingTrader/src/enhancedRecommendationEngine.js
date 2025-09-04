@@ -13,7 +13,9 @@
  */
 
 const { TastyTradeAPI } = require('./tastytradeAPI');
+const { RISK_LIMITS } = require('./config');
 const { getLogger } = require('./logger');
+const { GreeksCalculator } = require('./greeksCalculator');
 const Section9BStrategies = require('./section9BStrategies');
 const Calendarized112Strategy = require('./calendarized112Strategy');
 
@@ -26,6 +28,7 @@ class EnhancedRecommendationEngine {
         this.optionChains = {};
         this.greeksData = {};
         this.patternSignals = {};
+        this.greeksCalculator = new GreeksCalculator();
         
         // Initialize Section 9B strategies
         this.section9BStrategies = new Section9BStrategies();
@@ -190,7 +193,7 @@ class EnhancedRecommendationEngine {
             return recommendations;
 
         } catch (error) {
-            console.error('❌ Enhanced analysis error:', error);
+            logger.error('ERROR', '❌ Enhanced analysis error:', error);
             recommendations.warnings.push({
                 severity: 'ERROR',
                 message: `Analysis failed: ${error.message}`,
@@ -326,7 +329,10 @@ class EnhancedRecommendationEngine {
         }
 
         // Check buying power availability
-        const availableBP = Math.max(0, 65 - userData.bpUsed); // Tom King max 65% rule
+        // Get dynamic max BP based on current VIX level
+        const currentVIX = userData.currentVIX || 20; // Default to 20 if not provided
+        const maxBP = RISK_LIMITS.getMaxBPUsage(currentVIX) * 100; // Convert to percentage
+        const availableBP = Math.max(0, maxBP - userData.bpUsed); // Dynamic VIX-based BP
         const estimatedBPRequired = this.estimateBPRequirement(ticker, phaseConfig);
         
         if (availableBP < estimatedBPRequired) {
@@ -472,21 +478,22 @@ class EnhancedRecommendationEngine {
 
         tickers.forEach(ticker => {
             const basePrice = basePrices[ticker] || 100;
-            const volatility = Math.random() * 0.4 + 0.1; // 10-50% volatility
+            logger.error('ENGINE', `Cannot generate volatility for ${ticker} - real market data required`);
+            throw new Error(`Real volatility data required for ${ticker}`);
             
             this.currentMarketData[ticker] = {
-                price: basePrice + (Math.random() - 0.5) * basePrice * volatility * 0.1,
-                volume: Math.floor(Math.random() * 100000) + 10000,
+                price: null, // Real price data required
+                volume: null, // Real volume data required
                 iv: volatility * 100,
-                ivRank: Math.random() * 100,
-                delta: Math.random() * 0.6 + 0.2,
-                gamma: Math.random() * 0.05,
-                theta: -(Math.random() * 0.1 + 0.01),
-                vega: Math.random() * 0.5 + 0.1,
+                ivRank: null, // Real IV Rank required
+                delta: null, // Real Greeks required
+                gamma: null, // Real Greeks required
+                theta: null, // Real Greeks required
+                vega: null, // Real Greeks required
                 bidAskSpread: basePrice * 0.001,
-                liquidity: Math.random() > 0.3 ? 'Good' : 'Limited',
-                trend: Math.random() > 0.5 ? 'Bullish' : 'Bearish',
-                momentum: Math.random() > 0.6 ? 'Strong' : Math.random() > 0.3 ? 'Moderate' : 'Weak'
+                liquidity: 'Unknown', // Real liquidity assessment required
+                trend: 'Unknown', // Real trend analysis required
+                momentum: 'Unknown' // Real momentum analysis required
             };
         });
     }
@@ -677,18 +684,27 @@ class EnhancedRecommendationEngine {
             
             // Calculate approximate Greeks
             const timeToExpiry = 0.25; // 90 days
-            const delta = this.calculateApproximateDelta(moneyness, timeToExpiry, iv);
+            // Calculate proper Greeks using centralized calculator
+            const greeksResult = this.greeksCalculator.calculateGreeks({
+                price: price,
+                strike: strike,
+                timeToExpiry: timeToExpiry,
+                riskFreeRate: 0.05,
+                volatility: iv / 100,
+                optionType: 'call'
+            });
+            const delta = { call: greeksResult.delta, put: greeksResult.delta - 1 };
             
             strikes.push({
                 strike,
-                delta: delta.call,
-                gamma: Math.abs(delta.call - delta.put) * 0.1,
-                theta: -0.05 * Math.sqrt(timeToExpiry),
-                vega: 0.3 * Math.sqrt(timeToExpiry) * (iv / 100),
-                bid: Math.max(0.01, (price - strike) * 0.1 + Math.random() * 2),
-                ask: Math.max(0.02, (price - strike) * 0.1 + Math.random() * 2 + 0.01),
-                volume: Math.floor(Math.random() * 1000) + 10,
-                openInterest: Math.floor(Math.random() * 5000) + 100
+                delta: greeksResult.delta,
+                gamma: greeksResult.gamma,
+                theta: greeksResult.theta,
+                vega: greeksResult.vega,
+                bid: null, // Real bid data required
+                ask: null, // Real ask data required
+                volume: null, // Real volume required
+                openInterest: null // Real open interest required
             });
         }
 
@@ -698,18 +714,6 @@ class EnhancedRecommendationEngine {
     /**
      * Calculate approximate Delta using simplified Black-Scholes
      */
-    calculateApproximateDelta(moneyness, timeToExpiry, iv) {
-        const d1 = (Math.log(moneyness) + 0.5 * Math.pow(iv / 100, 2) * timeToExpiry) / 
-                   (iv / 100 * Math.sqrt(timeToExpiry));
-        
-        // Simplified normal CDF approximation
-        const normCDF = (x) => 0.5 * (1 + Math.sign(x) * Math.sqrt(1 - Math.exp(-2 * x * x / Math.PI)));
-        
-        return {
-            call: normCDF(d1),
-            put: normCDF(d1) - 1
-        };
-    }
 
     /**
      * Analyze Greeks for specific ticker
@@ -912,7 +916,7 @@ class EnhancedRecommendationEngine {
                 short: atmStrike.strike + (volumeBias === 'BULLISH' ? -30 : 30),
                 long: atmStrike.strike + (volumeBias === 'BULLISH' ? -60 : 60)
             },
-            credit: 3.0 + Math.random() * 2
+            credit: null // Real credit calculation required from API data
         };
     }
 

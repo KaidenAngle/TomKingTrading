@@ -411,28 +411,28 @@ class AssignmentRiskMonitor extends EventEmitter {
         // Sort by risk score
         alerts.sort((a, b) => b.score - a.score);
         
-        console.log('\n' + '='.repeat(60));
-        console.log('⚠️ ASSIGNMENT RISK ALERTS');
-        console.log('='.repeat(60));
+        logger.info('SYSTEM', '\n' + '='.repeat(60));
+        logger.info('SYSTEM', '⚠️ ASSIGNMENT RISK ALERTS');
+        logger.info('SYSTEM', '='.repeat(60));
         
         for (const alert of alerts) {
             const icon = alert.level === 'CRITICAL' ? '🚨' : 
                         alert.level === 'HIGH' ? '⚠️' : 
                         alert.level === 'MEDIUM' ? '📊' : '📌';
             
-            console.log(`\n${icon} ${alert.level} RISK: ${alert.symbol} ${alert.strike} ${alert.expiration}`);
-            console.log(`   Score: ${alert.score}/100`);
+            logger.info('SYSTEM', `\n${icon} ${alert.level} RISK: ${alert.symbol} ${alert.strike} ${alert.expiration}`);
+            logger.info('SYSTEM', `   Score: ${alert.score}/100`);
             
             for (const risk of alert.risks) {
-                console.log(`   • ${risk.type}: ${risk.message}`);
+                logger.info('SYSTEM', `   • ${risk.type}: ${risk.message}`);
             }
             
             if (alert.actions.length > 0) {
-                console.log(`   Actions: ${alert.actions.join(', ')}`);
+                logger.info('SYSTEM', `   Actions: ${alert.actions.join(', ')}`);
             }
         }
         
-        console.log('\n' + '='.repeat(60));
+        logger.info('SYSTEM', '\n' + '='.repeat(60));
         
         // Store alerts
         this.riskAlerts = alerts;
@@ -557,9 +557,10 @@ class AssignmentRiskMonitor extends EventEmitter {
         const basePrice = basePrices[symbol.toUpperCase()];
         if (!basePrice) return null;
         
-        // Add some realistic daily movement (+/- 2%)
-        const movement = (Math.random() - 0.5) * 0.04; // +/- 2%
-        return basePrice * (1 + movement);
+        // CRITICAL: Must use real market data, not simulated
+        // Return base price without random movement - real prices should come from API
+        logger.warn('ASSIGNMENT_RISK', `Using static price for ${symbol} - real market data required`);
+        return basePrice;
     }
     
     /**

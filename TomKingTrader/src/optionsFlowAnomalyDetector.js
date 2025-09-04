@@ -44,7 +44,7 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
     }
 
     async initializeFlowMonitoring() {
-        console.log('🔍 Initializing Options Flow Anomaly Detection System');
+        logger.info('SYSTEM', '🔍 Initializing Options Flow Anomaly Detection System');
         
         try {
             // Load historical baselines
@@ -56,17 +56,17 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
             // Set up periodic analysis
             this.startPeriodicAnalysis();
             
-            console.log('✅ Options Flow Anomaly Detection System initialized');
+            logger.info('SYSTEM', '✅ Options Flow Anomaly Detection System initialized');
             this.emit('systemReady');
             
         } catch (error) {
-            console.error('❌ Failed to initialize Options Flow Anomaly Detection:', error);
+            logger.error('ERROR', '❌ Failed to initialize Options Flow Anomaly Detection:', error);
             this.emit('systemError', error);
         }
     }
 
     async loadHistoricalBaselines() {
-        console.log('📊 Loading historical flow baselines...');
+        logger.info('SYSTEM', '📊 Loading historical flow baselines...');
         
         const symbols = MONITORED_SYMBOLS.concat(['SPY', 'QQQ', 'IWM', 'VIX']);
         
@@ -76,14 +76,14 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
                 const baseline = this.calculateFlowBaseline(historicalData);
                 this.historicalBaselines.set(symbol, baseline);
                 
-                console.log(`📈 Loaded baseline for ${symbol}:`, {
+                logger.info('SYSTEM', `📈 Loaded baseline for ${symbol}:`, {
                     avgDailyVolume: baseline.avgDailyVolume,
                     avgCallPutRatio: baseline.avgCallPutRatio,
                     avgPremiumFlow: baseline.avgPremiumFlow
                 });
                 
             } catch (error) {
-                console.error(`⚠️ Failed to load baseline for ${symbol}:`, error);
+                logger.error('ERROR', `⚠️ Failed to load baseline for ${symbol}:`, error);
             }
         }
     }
@@ -101,7 +101,7 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
             return flowData;
             
         } catch (error) {
-            console.error(`Failed to fetch historical flow data for ${symbol}:`, error);
+            logger.error('ERROR', `Failed to fetch historical flow data for ${symbol}:`, error);
             return [];
         }
     }
@@ -133,7 +133,7 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
     }
 
     async startRealTimeFlowMonitoring() {
-        console.log('🔄 Starting real-time options flow monitoring...');
+        logger.info('SYSTEM', '🔄 Starting real-time options flow monitoring...');
         
         // Monitor key market symbols
         const keySymbols = ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'TSLA', 'NVDA'];
@@ -195,7 +195,7 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
             }
             
         } catch (error) {
-            console.error('Error processing real-time flow data:', error);
+            logger.error('ERROR', 'Error processing real-time flow data:', error);
         }
     }
 
@@ -349,7 +349,7 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
     }
 
     async processDetectedAnomalies(symbol, anomalies) {
-        console.log(`🚨 Detected ${anomalies.length} flow anomalies for ${symbol}`);
+        logger.info('SYSTEM', `🚨 Detected ${anomalies.length} flow anomalies for ${symbol}`);
         
         for (const anomaly of anomalies) {
             // Store anomaly
@@ -372,7 +372,7 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
             });
             
             // Log detailed information
-            console.log(`🔍 ${symbol} - ${anomaly.type}:`, anomaly.description);
+            logger.info('SYSTEM', `🔍 ${symbol} - ${anomaly.type}:`, anomaly.description);
             
             // Check if this anomaly affects our positions
             await this.checkAnomalyImpactOnPositions(symbol, anomaly);
@@ -426,7 +426,7 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
             
             if (positions.length === 0) return;
             
-            console.log(`📊 Checking anomaly impact on ${positions.length} positions for ${symbol}`);
+            logger.info('SYSTEM', `📊 Checking anomaly impact on ${positions.length} positions for ${symbol}`);
             
             for (const position of positions) {
                 const impact = this.calculateAnomalyImpact(position, anomaly);
@@ -440,12 +440,12 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
                         timestamp: new Date()
                     });
                     
-                    console.log(`⚠️ HIGH RISK: Position ${position.id} affected by ${anomaly.type}`);
+                    logger.info('SYSTEM', `⚠️ HIGH RISK: Position ${position.id} affected by ${anomaly.type}`);
                 }
             }
             
         } catch (error) {
-            console.error(`Error checking anomaly impact for ${symbol}:`, error);
+            logger.error('ERROR', `Error checking anomaly impact for ${symbol}:`, error);
         }
     }
 
@@ -531,7 +531,7 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
     }
 
     async runComprehensiveFlowAnalysis() {
-        console.log('🔄 Running comprehensive options flow analysis...');
+        logger.info('SYSTEM', '🔄 Running comprehensive options flow analysis...');
         
         try {
             const symbols = Array.from(this.activeFlowMonitoring.keys());
@@ -552,7 +552,7 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
             });
             
         } catch (error) {
-            console.error('Error in comprehensive flow analysis:', error);
+            logger.error('ERROR', 'Error in comprehensive flow analysis:', error);
         }
     }
 
@@ -583,7 +583,7 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
             };
             
         } catch (error) {
-            console.error(`Error analyzing flow for ${symbol}:`, error);
+            logger.error('ERROR', `Error analyzing flow for ${symbol}:`, error);
             return null;
         }
     }
@@ -828,7 +828,7 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
     }
 
     updateDailyBaselines() {
-        console.log('📊 Updating daily baselines...');
+        logger.info('SYSTEM', '📊 Updating daily baselines...');
         
         // This would typically run overnight to update baselines with the latest data
         for (const symbol of this.historicalBaselines.keys()) {
@@ -842,10 +842,10 @@ class OptionsFlowAnomalyDetector extends EventEmitter {
             if (historicalData.length > 0) {
                 const newBaseline = this.calculateFlowBaseline(historicalData);
                 this.historicalBaselines.set(symbol, newBaseline);
-                console.log(`✅ Updated baseline for ${symbol}`);
+                logger.info('SYSTEM', `✅ Updated baseline for ${symbol}`);
             }
         } catch (error) {
-            console.error(`Failed to update baseline for ${symbol}:`, error);
+            logger.error('ERROR', `Failed to update baseline for ${symbol}:`, error);
         }
     }
 
@@ -919,3 +919,6 @@ const DETECTION_ALGORITHMS = {
 };
 
 module.exports = OptionsFlowAnomalyDetector;
+const { getLogger } = require('./logger');
+const logger = getLogger();
+

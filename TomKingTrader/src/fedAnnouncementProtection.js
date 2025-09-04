@@ -5,6 +5,7 @@
  */
 
 const { EventEmitter } = require('events');
+const { RISK_LIMITS } = require('./config');
 const { getLogger } = require('./logger');
 const logger = getLogger();
 
@@ -29,7 +30,7 @@ class FedAnnouncementProtection extends EventEmitter {
             
             // VIX thresholds during Fed
             maxVIXForEntry: config.maxVIXForEntry || 30,
-            targetBPUsage: config.targetBPUsage || 0.30, // 30% max BP during Fed
+            targetBPUsage: config.targetBPUsage || 'DYNAMIC_EXTREME', // ~30% of VIX-based BP during Fed
             
             ...config
         };
@@ -144,13 +145,13 @@ class FedAnnouncementProtection extends EventEmitter {
         this.protectionActive = true;
         this.nextAnnouncement = announcement;
         
-        console.log('\n' + '='.repeat(60));
-        console.log('🏛️ FED ANNOUNCEMENT PROTECTION ACTIVATED');
-        console.log('='.repeat(60));
-        console.log(`Event: ${announcement.type}`);
-        console.log(`Date: ${announcement.date} at ${announcement.time}`);
-        console.log(`Hours until: ${announcement.hoursUntil.toFixed(1)}`);
-        console.log(`Importance: ${announcement.importance}`);
+        logger.info('SYSTEM', '\n' + '='.repeat(60));
+        logger.info('SYSTEM', '🏛️ FED ANNOUNCEMENT PROTECTION ACTIVATED');
+        logger.info('SYSTEM', '='.repeat(60));
+        logger.info('SYSTEM', `Event: ${announcement.type}`);
+        logger.info('SYSTEM', `Date: ${announcement.date} at ${announcement.time}`);
+        logger.info('SYSTEM', `Hours until: ${announcement.hoursUntil.toFixed(1)}`);
+        logger.info('SYSTEM', `Importance: ${announcement.importance}`);
         
         // Apply trading restrictions
         this.applyTradingRestrictions();
@@ -164,13 +165,13 @@ class FedAnnouncementProtection extends EventEmitter {
             restrictions: this.getActiveRestrictions()
         });
         
-        console.log('\nRestrictions Applied:');
-        console.log(`• Position reduction: ${(this.config.reducePositionsPercent * 100).toFixed(0)}%`);
-        console.log(`• Max new positions: ${this.config.maxNewPositions}`);
-        console.log(`• Target BP usage: ${(this.config.targetBPUsage * 100).toFixed(0)}%`);
-        console.log(`• 0DTE restricted: ${this.config.restrict0DTE}`);
-        console.log(`• Strangles restricted: ${this.config.restrictStrangles}`);
-        console.log('='.repeat(60) + '\n');
+        logger.info('SYSTEM', '\nRestrictions Applied:');
+        logger.info('SYSTEM', `• Position reduction: ${(this.config.reducePositionsPercent * 100).toFixed(0)}%`);
+        logger.info('SYSTEM', `• Max new positions: ${this.config.maxNewPositions}`);
+        logger.info('SYSTEM', `• Target BP usage: ${(this.config.targetBPUsage * 100).toFixed(0)}%`);
+        logger.info('SYSTEM', `• 0DTE restricted: ${this.config.restrict0DTE}`);
+        logger.info('SYSTEM', `• Strangles restricted: ${this.config.restrictStrangles}`);
+        logger.info('SYSTEM', '='.repeat(60) + '\n');
     }
     
     /**
@@ -216,8 +217,8 @@ class FedAnnouncementProtection extends EventEmitter {
     deactivateProtection() {
         if (!this.protectionActive) return;
         
-        console.log('\n✅ Fed announcement protection deactivated');
-        console.log(`Event ${this.nextAnnouncement.type} has passed\n`);
+        logger.info('SYSTEM', '\n✅ Fed announcement protection deactivated');
+        logger.info('SYSTEM', `Event ${this.nextAnnouncement.type} has passed\n`);
         
         this.protectionActive = false;
         this.nextAnnouncement = null;

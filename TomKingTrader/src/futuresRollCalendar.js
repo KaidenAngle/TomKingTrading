@@ -377,6 +377,7 @@ class FuturesRollCalendar extends EventEmitter {
         this.volumeData = new Map(); // contract -> volume migration data
         this.spreadData = new Map(); // contract -> spread monitoring
         this.riskAssessments = new Map(); // contract -> risk analysis
+        this.dataManager = null; // Will initialize if needed
         
         // Monitoring
         this.monitoringInterval = null;
@@ -976,17 +977,84 @@ class FuturesRollCalendar extends EventEmitter {
     }
     
     async getContractVolume(contractCode) {
-        // Mock volume data
-        return Math.floor(Math.random() * 100000) + 10000;
+        try {
+            // Use real API data if available
+            if (this.api && this.api.getContractData) {
+                const contractData = await this.api.getContractData(contractCode);
+                if (contractData && contractData.volume) {
+                    return contractData.volume;
+                }
+            }
+            
+            // Use real API quote data as fallback
+            if (this.api && this.api.getQuote) {
+                const quote = await this.api.getQuote(contractCode);
+                if (quote && quote.volume) {
+                    return quote.volume;
+                }
+            }
+            
+            // Initialize dataManager if needed
+            if (!this.dataManager) {
+                const DataManager = require('./dataManager');
+                this.dataManager = new DataManager(this.api);
+            }
+            
+            // Fallback to DataManager for real cached data
+            const futuresData = await this.dataManager.getCurrentPrice(contractCode);
+            if (futuresData && futuresData.volume) {
+                return futuresData.volume;
+            }
+            
+            // No synthetic data - return null if no real data available
+            logger.error('FUTURES_ROLL', `No real volume data available for ${contractCode}`);
+            return null;
+        } catch (error) {
+            logger.error('FUTURES_ROLL', `Failed to get volume for ${contractCode}:`, error);
+            return null;
+        }
     }
     
     async getContractPrice(contractCode) {
-        // Mock price data
-        const basePrices = { ES: 4500, NQ: 15000, CL: 75, GC: 2000 };
-        const symbol = contractCode.substring(0, 2);
-        const basePrice = basePrices[symbol] || 100;
-        return basePrice * (1 + (Math.random() - 0.5) * 0.02);
+        try {
+            // Use real API data if available
+            if (this.api && this.api.getContractData) {
+                const contractData = await this.api.getContractData(contractCode);
+                if (contractData && contractData.price) {
+                    return contractData.price;
+                }
+            }
+            
+            // Use real API quote data as fallback
+            if (this.api && this.api.getQuote) {
+                const quote = await this.api.getQuote(contractCode);
+                if (quote && (quote.price || quote.last || quote.close)) {
+                    return quote.price || quote.last || quote.close;
+                }
+            }
+            
+            // Initialize dataManager if needed
+            if (!this.dataManager) {
+                const DataManager = require('./dataManager');
+                this.dataManager = new DataManager(this.api);
+            }
+            
+            // Fallback to DataManager for real cached data
+            const futuresData = await this.dataManager.getCurrentPrice(contractCode);
+            if (futuresData && futuresData.price) {
+                return futuresData.price;
+            }
+            
+            // No synthetic data - return null if no real data available
+            logger.error('FUTURES_ROLL', `No real price data available for ${contractCode}`);
+            return null;
+        } catch (error) {
+            logger.error('FUTURES_ROLL', `Failed to get price for ${contractCode}:`, error);
+            return null;
+        }
     }
+    
+    // Removed synthetic calculation methods - using only real API data
     
     // Public interface methods
     

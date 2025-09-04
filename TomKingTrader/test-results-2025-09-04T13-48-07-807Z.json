@@ -1,0 +1,19 @@
+{
+  "passed": [
+    "option-chain-SPY",
+    "option-chain-QQQ",
+    "option-chain-IWM",
+    "greeks-calculation",
+    "position-monitoring",
+    "long-term-112",
+    "vix-based-sizing",
+    "correlation-limits",
+    "order-placement",
+    "risk-management",
+    "websocket-streaming"
+  ],
+  "failed": [],
+  "skipped": [
+    "friday-0dte-strategy"
+  ]
+}

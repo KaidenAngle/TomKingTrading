@@ -4,6 +4,7 @@
  */
 
 const math = require('mathjs');
+const { getLogger } = require('./logger');
 
 class GreeksCalculator {
     constructor() {
@@ -921,12 +922,12 @@ class GreeksCalculator {
      */
     async initialize() {
         try {
-            const { getLogger } = require('./logger');
+            // getLogger already imported at top
             const logger = getLogger();
             logger.info('GREEKS', 'Initializing Greeks Calculator with real-time capabilities');
             return true;
         } catch (error) {
-            const { getLogger } = require('./logger');
+            // getLogger already imported at top
             const logger = getLogger();
             logger.error('GREEKS', 'Failed to initialize Greeks Calculator', error);
             throw error;
@@ -982,7 +983,7 @@ class GreeksCalculator {
             };
             
         } catch (error) {
-            const { getLogger } = require('./logger');
+            // getLogger already imported at top
             const logger = getLogger();
             logger.error('GREEKS', `Failed to fetch real Greeks for ${symbol}`, error);
             throw error; // No fallback - must use real data
@@ -1043,7 +1044,7 @@ class GreeksCalculator {
             };
             
         } catch (error) {
-            const { getLogger } = require('./logger');
+            // getLogger already imported at top
             const logger = getLogger();
             logger.error('GREEKS', `Failed to calculate optimal strangle strikes for ${symbol}`, error);
             throw error;
@@ -1079,11 +1080,11 @@ class GreeksCalculator {
      */
     async shutdown() {
         try {
-            const { getLogger } = require('./logger');
+            // getLogger already imported at top
             const logger = getLogger();
             logger.info('GREEKS', 'Greeks Calculator shutdown');
         } catch (error) {
-            const { getLogger } = require('./logger');
+            // getLogger already imported at top
             const logger = getLogger();
             logger.error('GREEKS', 'Error during shutdown', error);
         }

@@ -1062,7 +1062,7 @@ class TradingStrategies {
             const analysis = await this.vixAnalyzer.getCompleteAnalysis();
             return analysis;
         } catch (error) {
-            console.warn('VIX term structure analysis failed, using basic VIX data:', error.message);
+            logger.warn('WARN', 'VIX term structure analysis failed, using basic VIX data:', error.message);
             return {
                 current: {
                     rawData: { VIX: { price: 16 } },
@@ -1187,7 +1187,7 @@ class TradingStrategies {
             };
             
         } catch (error) {
-            console.warn('VIX term structure filtering failed:', error.message);
+            logger.warn('WARN', 'VIX term structure filtering failed:', error.message);
             return {
                 strategies,
                 vixAnalysis: null,
@@ -1500,3 +1500,6 @@ class TradingStrategies {
 }
 
 module.exports = { TradingStrategies };
+const { getLogger } = require('./logger');
+const logger = getLogger();
+

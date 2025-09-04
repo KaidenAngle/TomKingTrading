@@ -6,6 +6,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const { BacktestingEngine } = require('./backtestingEngine');
+
+// Removed synthetic data generator - using only real API data
 
 const DEBUG = process.env.NODE_ENV !== 'production';
 
@@ -1481,14 +1484,14 @@ class ConfidenceScorer {
           
           // Check if we have historical data index from files
           if (dataManager.historicalIndex) {
-            console.log('📊 Loading historical data from data index');
+            logger.info('SYSTEM', '📊 Loading historical data from data index');
             return dataManager.historicalIndex;
           }
           
           // For backtesting/confidence scoring, we can start with empty history
           // and build it up from real-time data collection
-          console.log('📊 No historical data available yet - will collect from real-time feed');
-          console.log('   System will build historical database as it runs');
+          logger.info('SYSTEM', '📊 No historical data available yet - will collect from real-time feed');
+          logger.info('SYSTEM', '   System will build historical database as it runs');
           
           // Initialize with empty history - will be populated as we collect data
           return {
@@ -1502,7 +1505,7 @@ class ConfidenceScorer {
           };
           
         } catch (moduleError) {
-          console.warn('DataManager not available - starting with empty history');
+          logger.warn('WARN', 'DataManager not available - starting with empty history');
           // Return empty history structure
           return {
             SPY: [],
@@ -1519,7 +1522,7 @@ class ConfidenceScorer {
       // Return empty history if no module system
       return {};
     } catch (error) {
-      console.warn('Starting with empty historical data:', error.message);
+      logger.warn('WARN', 'Starting with empty historical data:', error.message);
       // Don't throw - return empty data structure
       return {
         SPY: [],
@@ -1533,240 +1536,11 @@ class ConfidenceScorer {
     }
   }
 
+  // Removed synthetic data generation - using only real historical data from DataManager
   generateSampleData() {
-    // Generate sample historical data for common symbols
-    const symbols = ['ES', 'SPY', 'QQQ', 'CL', 'GC', 'TLT', 'IWM'];
-    const data = {};
-    
-    symbols.forEach(symbol => {
-      const basePrice = this.getBasePrice(symbol);
-      const history = [];
-      let currentPrice = basePrice;
-      
-      // Generate 252 days of sample data (1 trading year)
-      for (let i = 0; i < 252; i++) {
-        const change = (Math.random() - 0.5) * 0.04; // +/- 2% daily change
-        currentPrice *= (1 + change);
-        
-        const high = currentPrice * (1 + Math.random() * 0.015);
-        const low = currentPrice * (1 - Math.random() * 0.015);
-        const volume = Math.floor(1000000 * (0.5 + Math.random()));
-        
-        history.push({
-          date: new Date(Date.now() - (251 - i) * 24 * 60 * 60 * 1000),
-          open: currentPrice * (1 + (Math.random() - 0.5) * 0.01),
-          high: high,
-          low: low,
-          close: currentPrice,
-          volume: volume
-        });
-      }
-      
-      data[symbol] = history;
-    });
-    
-    return data;
-  }
-
-  getBasePrice(symbol) {
-    const basePrices = {
-      'ES': 4500,
-      'SPY': 450,
-      'QQQ': 350,
-      'CL': 70,
-      'GC': 2000,
-      'TLT': 100,
-      'IWM': 200
-    };
-    return basePrices[symbol] || 100;
-  }
-}
-
-/**
- * Backtesting Engine
- */
-class BacktestingEngine {
-  constructor() {
-    this.results = [];
-  }
-
-  backtest(strategy, historicalData, parameters = {}) {
-    const results = {
-      strategy: strategy,
-      parameters: parameters,
-      trades: [],
-      performance: {},
-      startDate: null,
-      endDate: null
-    };
-
-    if (!historicalData || historicalData.length < 30) {
-      return { error: 'Insufficient historical data' };
-    }
-
-    results.startDate = historicalData[0].date;
-    results.endDate = historicalData[historicalData.length - 1].date;
-
-    // Simulate trades
-    for (let i = 30; i < historicalData.length - 30; i++) {
-      const currentData = historicalData[i];
-      const signal = this.generateSignal(strategy, historicalData.slice(i - 30, i + 1));
-      
-      if (signal.action === 'ENTER') {
-        const trade = this.simulateTrade(strategy, currentData, historicalData.slice(i, i + 30));
-        if (trade) {
-          results.trades.push(trade);
-        }
-      }
-    }
-
-    // Calculate performance metrics
-    results.performance = this.calculatePerformanceMetrics(results.trades);
-    
-    return results;
-  }
-
-  generateSignal(strategy, data) {
-    // Simplified signal generation - would use full pattern analysis
-    const closes = data.map(d => d.close);
-    const rsi = AdvancedTechnicalIndicators.calculateRSI(closes);
-    
-    switch (strategy) {
-      case 'STRANGLE':
-        const ivRank = data[data.length - 1].ivRank || 0;
-        return {
-          action: ivRank > 40 && rsi > 40 && rsi < 60 ? 'ENTER' : 'HOLD',
-          confidence: ivRank / 100
-        };
-        
-      case '0DTE':
-        const dayOfWeek = new Date(data[data.length - 1].date).getDay();
-        return {
-          action: dayOfWeek === 5 && rsi > 45 && rsi < 55 ? 'ENTER' : 'HOLD',
-          confidence: 0.7
-        };
-        
-      default:
-        return { action: 'HOLD', confidence: 0 };
-    }
-  }
-
-  simulateTrade(strategy, entryData, futureData) {
-    // Simplified trade simulation
-    const entryPrice = entryData.close;
-    const maxProfit = 0.5; // 50% profit target
-    const maxLoss = 2.0; // 200% loss limit (2x credit received)
-    
-    let exitReason = 'TIME_DECAY';
-    let exitPrice = entryPrice;
-    let exitDate = futureData[futureData.length - 1].date;
-    
-    // Check for early exit conditions
-    for (let i = 1; i < futureData.length; i++) {
-      const currentPrice = futureData[i].close;
-      const priceChange = (currentPrice - entryPrice) / entryPrice;
-      
-      // Profit target hit
-      if (Math.abs(priceChange) < maxProfit / 100) {
-        exitReason = 'PROFIT_TARGET';
-        exitPrice = currentPrice;
-        exitDate = futureData[i].date;
-        break;
-      }
-      
-      // Loss limit hit
-      if (Math.abs(priceChange) > maxLoss / 100) {
-        exitReason = 'STOP_LOSS';
-        exitPrice = currentPrice;
-        exitDate = futureData[i].date;
-        break;
-      }
-    }
-    
-    const pnl = strategy === 'STRANGLE' ? 
-      this.calculateStranglePnL(entryPrice, exitPrice) :
-      (exitPrice - entryPrice);
-    
-    return {
-      entryDate: entryData.date,
-      exitDate: exitDate,
-      entryPrice: entryPrice,
-      exitPrice: exitPrice,
-      pnl: pnl,
-      exitReason: exitReason,
-      daysHeld: Math.floor((new Date(exitDate) - new Date(entryData.date)) / (1000 * 60 * 60 * 24))
-    };
-  }
-
-  calculateStranglePnL(entryPrice, exitPrice) {
-    // Simplified strangle P&L calculation
-    const credit = entryPrice * 0.02; // 2% credit typical
-    const priceMove = Math.abs(exitPrice - entryPrice) / entryPrice;
-    
-    if (priceMove < 0.05) { // Within 5% range
-      return credit * 0.5; // 50% profit
-    } else {
-      return credit - (priceMove * entryPrice); // Loss scenario
-    }
-  }
-
-  calculatePerformanceMetrics(trades) {
-    if (trades.length === 0) {
-      return { error: 'No trades to analyze' };
-    }
-
-    const totalPnL = trades.reduce((sum, trade) => sum + trade.pnl, 0);
-    const winningTrades = trades.filter(trade => trade.pnl > 0);
-    const losingTrades = trades.filter(trade => trade.pnl < 0);
-    
-    const winRate = (winningTrades.length / trades.length) * 100;
-    const avgWin = winningTrades.length > 0 ? 
-      winningTrades.reduce((sum, trade) => sum + trade.pnl, 0) / winningTrades.length : 0;
-    const avgLoss = losingTrades.length > 0 ? 
-      losingTrades.reduce((sum, trade) => sum + Math.abs(trade.pnl), 0) / losingTrades.length : 0;
-    
-    const profitFactor = avgLoss > 0 ? (avgWin * winningTrades.length) / (avgLoss * losingTrades.length) : 0;
-    
-    return {
-      totalTrades: trades.length,
-      winRate: Math.round(winRate),
-      totalPnL: Math.round(totalPnL * 100) / 100,
-      avgWin: Math.round(avgWin * 100) / 100,
-      avgLoss: Math.round(avgLoss * 100) / 100,
-      profitFactor: Math.round(profitFactor * 100) / 100,
-      maxDrawdown: this.calculateMaxDrawdown(trades),
-      sharpeRatio: this.calculateSharpeRatio(trades)
-    };
-  }
-
-  calculateMaxDrawdown(trades) {
-    let peak = 0;
-    let maxDrawdown = 0;
-    let runningPnL = 0;
-    
-    for (const trade of trades) {
-      runningPnL += trade.pnl;
-      
-      if (runningPnL > peak) {
-        peak = runningPnL;
-      }
-      
-      const drawdown = (peak - runningPnL) / Math.max(peak, 1);
-      maxDrawdown = Math.max(maxDrawdown, drawdown);
-    }
-    
-    return Math.round(maxDrawdown * 100);
-  }
-
-  calculateSharpeRatio(trades) {
-    if (trades.length < 2) return 0;
-    
-    const returns = trades.map(trade => trade.pnl);
-    const avgReturn = returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
-    const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) / returns.length;
-    const stdDev = Math.sqrt(variance);
-    
-    return stdDev > 0 ? Math.round((avgReturn / stdDev) * 100) / 100 : 0;
+    // Return empty data - should use real historical data from DataManager
+    logger.warn('PATTERN_ANALYSIS', 'generateSampleData called - should use real data from DataManager');
+    return {};
   }
 }
 
@@ -2061,3 +1835,6 @@ module.exports = {
   ConfidenceScorer,
   BacktestingEngine
 };
+const { getLogger } = require('./logger');
+const logger = getLogger();
+

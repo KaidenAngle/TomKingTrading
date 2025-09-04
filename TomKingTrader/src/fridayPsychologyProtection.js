@@ -5,7 +5,12 @@
  */
 
 const { EventEmitter } = require('events');
+const { RISK_LIMITS } = require('./config');
 const { getLogger } = require('./logger');
+const { EarningsCalendar } = require('./earningsCalendar');
+const { FedAnnouncementProtection } = require('./fedAnnouncementProtection');
+
+// Removed synthetic data generator - using only real API data
 
 const logger = getLogger();
 
@@ -152,7 +157,7 @@ const FRIDAY_THRESHOLDS = {
     
     // Position risk limits
     POSITION_LIMITS: {
-        maxBPFriday: 0.55, // Reduce from normal 65-80% to 55%
+        maxBPFriday: 'DYNAMIC_FRIDAY', // 70% of normal VIX-based BP on Fridays
         maxCorrelatedPositions: 2, // Reduce from normal 3 to 2
         maxSinglePosition: 0.08, // 8% max single position (vs 10%)
         maxShortPremium: 0.30 // 30% max short premium exposure
@@ -225,6 +230,11 @@ class FridayPsychologyProtection extends EventEmitter {
             averageProtectionAccuracy: 0,
             lastFridayAnalysis: null
         };
+        
+        // Initialize calendar modules and data manager
+        this.earningsCalendar = this.config.earningsCalendar || new EarningsCalendar();
+        this.fedProtection = new FedAnnouncementProtection();
+        this.dataManager = null; // Will initialize if needed
         
         logger.info('FRIDAY_PSYCHOLOGY', 'Friday Psychology Protection initialized', {
             trackedSymbols: this.config.trackedSymbols.length,
@@ -695,31 +705,31 @@ class FridayPsychologyProtection extends EventEmitter {
         const mediumRiskAnalyses = analyses.filter(a => a.protectionLevel === 'MEDIUM');
         
         if (this.config.debugMode || highRiskAnalyses.length > 0) {
-            console.log('\n' + '='.repeat(70));
-            console.log(`📅 FRIDAY PSYCHOLOGY PROTECTION - Phase: ${this.currentPhase}`);
-            console.log('='.repeat(70));
+            logger.info('SYSTEM', '\n' + '='.repeat(70));
+            logger.info('SYSTEM', `📅 FRIDAY PSYCHOLOGY PROTECTION - Phase: ${this.currentPhase}`);
+            logger.info('SYSTEM', '='.repeat(70));
             
             for (const analysis of analyses.slice(0, 10)) {
                 const icon = this.getProtectionIcon(analysis.protectionLevel);
                 
-                console.log(`\n${icon} ${analysis.symbol} - ${analysis.protectionLevel} Risk (Score: ${analysis.riskScore.toFixed(1)})`);
-                console.log(`   Friday Type: ${analysis.fridayType} | Phase: ${analysis.phase}`);
+                logger.info('SYSTEM', `\n${icon} ${analysis.symbol} - ${analysis.protectionLevel} Risk (Score: ${analysis.riskScore.toFixed(1)})`);
+                logger.info('SYSTEM', `   Friday Type: ${analysis.fridayType} | Phase: ${analysis.phase}`);
                 
                 if (analysis.factors.gamma.pinStrikes.length > 0) {
                     const nearestPin = analysis.factors.gamma.pinStrikes[0];
-                    console.log(`   Nearest Pin: $${nearestPin.strike} (${(nearestPin.distance * 100).toFixed(2)}% away)`);
+                    logger.info('SYSTEM', `   Nearest Pin: $${nearestPin.strike} (${(nearestPin.distance * 100).toFixed(2)}% away)`);
                 }
                 
                 if (analysis.factors.volume.surge) {
-                    console.log(`   Volume: ${analysis.factors.volume.volumeRatio.toFixed(1)}x average`);
+                    logger.info('SYSTEM', `   Volume: ${analysis.factors.volume.volumeRatio.toFixed(1)}x average`);
                 }
                 
                 if (analysis.recommendations.length > 0) {
-                    console.log(`   Actions: ${analysis.recommendations.slice(0, 3).join(', ')}`);
+                    logger.info('SYSTEM', `   Actions: ${analysis.recommendations.slice(0, 3).join(', ')}`);
                 }
             }
             
-            console.log('\n' + '='.repeat(70));
+            logger.info('SYSTEM', '\n' + '='.repeat(70));
         }
         
         // Store alerts
@@ -845,8 +855,13 @@ class FridayPsychologyProtection extends EventEmitter {
     }
     
     isEarningsFriday(date) {
-        // Would check earnings calendar - simplified for now
-        return false; // TODO: Integrate with earnings calendar
+        // Check earnings calendar integration
+        try {
+            return this.earningsCalendar.hasEarningsOnDate(date);
+        } catch (error) {
+            logger.warn('FRIDAY_PSYCHOLOGY', 'Earnings calendar check failed', error);
+            return false;
+        }
     }
     
     isHolidayFriday(date) {
@@ -867,8 +882,13 @@ class FridayPsychologyProtection extends EventEmitter {
     }
     
     isFOMCFriday(date) {
-        // Would check FOMC calendar - simplified for now
-        return false; // TODO: Integrate with FOMC calendar
+        // Check FOMC calendar integration
+        try {
+            return this.fedProtection.isFOMCWeek(date);
+        } catch (error) {
+            logger.warn('FRIDAY_PSYCHOLOGY', 'FOMC calendar check failed', error);
+            return false;
+        }
     }
     
     getFirstFriday(year, month) {
@@ -878,51 +898,70 @@ class FridayPsychologyProtection extends EventEmitter {
         return new Date(year, month, 1 + daysToFriday);
     }
     
-    // Mock data methods
-    
     async getCurrentMarketData(symbol) {
-        // Mock market data
-        const basePrices = {
-            'SPY': 450, 'QQQ': 350, 'IWM': 200, 'DIA': 340,
-            'AAPL': 175, 'MSFT': 380, 'TSLA': 220, 'AMZN': 140,
-            'XLF': 38, 'XLK': 170, 'XLE': 85, 'XLV': 125
-        };
-        
-        const basePrice = basePrices[symbol] || 100;
-        const movement = (Math.random() - 0.5) * 0.02;
-        const volume = Math.floor(Math.random() * 1000000) + 100000;
-        
-        return {
-            symbol: symbol,
-            price: basePrice * (1 + movement),
-            volume: volume,
-            averageVolume: volume * 0.8,
-            volatility: Math.random() * 0.02,
-            timestamp: new Date()
-        };
+        try {
+            // Use real API data if available
+            if (this.api && this.api.getQuote) {
+                const quote = await this.api.getQuote(symbol);
+                if (quote && (quote.price || quote.last || quote.close)) {
+                    return {
+                        symbol: symbol,
+                        price: quote.price || quote.last || quote.close,
+                        volume: quote.volume || quote.totalVolume || 0,
+                        averageVolume: quote.averageVolume || 0,
+                        volatility: quote.impliedVolatility || 0,
+                        timestamp: new Date()
+                    };
+                }
+            }
+            
+            // Initialize dataManager if needed
+            if (!this.dataManager) {
+                const DataManager = require('./dataManager');
+                this.dataManager = new DataManager(this.api);
+            }
+            
+            // Fallback to DataManager for real cached data
+            const marketData = await this.dataManager.getCurrentPrice(symbol);
+            if (marketData && marketData.price) {
+                return {
+                    symbol: symbol,
+                    price: marketData.price,
+                    volume: marketData.volume || 0,
+                    averageVolume: marketData.averageVolume || 0,
+                    volatility: marketData.volatility || 0,
+                    timestamp: new Date()
+                };
+            }
+            
+            // No synthetic data - return null if no real data available
+            logger.error('FRIDAY_PSYCHOLOGY', `No real market data available for ${symbol}`);
+            return null;
+        } catch (error) {
+            logger.error('FRIDAY_PSYCHOLOGY', `Failed to get market data for ${symbol}:`, error);
+            return null;
+        }
     }
     
+    // Removed all synthetic calculation methods - using only real API data
+    
     async getOptionChain(symbol) {
-        // Mock option chain with strikes near current price
-        const marketData = await this.getCurrentMarketData(symbol);
-        const currentPrice = marketData.price;
-        const strikes = [];
-        
-        // Generate strikes around current price
-        for (let i = -10; i <= 10; i++) {
-            const strike = Math.round(currentPrice + (i * 5));
-            strikes.push({
-                strike: strike,
-                calls: {
-                    openInterest: Math.floor(Math.random() * 20000) + 1000
-                },
-                puts: {
-                    openInterest: Math.floor(Math.random() * 20000) + 1000
+        try {
+            // Use real API data if available
+            if (this.api && this.api.getOptionChain) {
+                const optionChain = await this.api.getOptionChain(symbol);
+                if (optionChain && optionChain.strikes) {
+                    return optionChain;
                 }
-            });
+            }
+            
+            // No synthetic data generation - return empty if no real data
+            logger.error('FRIDAY_PSYCHOLOGY', `No real option chain data available for ${symbol}`);
+            return { strikes: [] };
+        } catch (error) {
+            logger.error('FRIDAY_PSYCHOLOGY', `Failed to get option chain for ${symbol}:`, error);
+            return { strikes: [] };
         }
-        
-        return { strikes };
     }
     
     // Public interface methods

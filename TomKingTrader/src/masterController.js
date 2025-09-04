@@ -546,7 +546,7 @@ class MasterController extends EventEmitter {
                 name: 'Foundation Building',
                 minBalance: 30000,
                 maxBalance: 40000,
-                maxBPUsage: 0.45, // Conservative BP usage
+                maxBPUsage: 'DYNAMIC', // VIX-based: uses RISK_LIMITS.getMaxBPUsage()
                 maxCorrelatedPositions: 2,
                 maxRiskPerTrade: 0.02, // 2% max risk
                 defaultPositionSize: 0.05, // 5% of account
@@ -570,7 +570,7 @@ class MasterController extends EventEmitter {
                 name: 'Expansion',
                 minBalance: 40000,
                 maxBalance: 60000,
-                maxBPUsage: 0.55, // Moderate BP usage
+                maxBPUsage: 'DYNAMIC', // VIX-based: uses RISK_LIMITS.getMaxBPUsage()
                 maxCorrelatedPositions: 3,
                 maxRiskPerTrade: 0.025, // 2.5% max risk
                 defaultPositionSize: 0.06, // 6% of account
@@ -597,7 +597,7 @@ class MasterController extends EventEmitter {
                 name: 'Optimization', 
                 minBalance: 60000,
                 maxBalance: 75000,
-                maxBPUsage: 0.65, // Higher BP usage
+                maxBPUsage: 'DYNAMIC', // VIX-based: uses RISK_LIMITS.getMaxBPUsage()
                 maxCorrelatedPositions: 3,
                 maxRiskPerTrade: 0.03, // 3% max risk
                 defaultPositionSize: 0.08, // 8% of account
@@ -626,7 +626,7 @@ class MasterController extends EventEmitter {
                 name: 'Professional',
                 minBalance: 75000,
                 maxBalance: null,
-                maxBPUsage: 0.75, // Max BP per Tom King
+                maxBPUsage: 'DYNAMIC', // VIX-based: uses RISK_LIMITS.getMaxBPUsage()
                 maxCorrelatedPositions: 4,
                 maxRiskPerTrade: 0.05, // 5% max risk
                 defaultPositionSize: 0.10, // 10% of account
@@ -789,7 +789,7 @@ class MasterController extends EventEmitter {
             details: [
                 `Account Balance: £${balance.toLocaleString()}`,
                 `Phase Name: ${toConfig.name}`,
-                `New BP Limit: ${(toConfig.maxBPUsage * 100).toFixed(0)}%`,
+                `New BP Limit: ${toConfig.maxBPUsage === 'DYNAMIC' ? 'VIX-based (45-80%)' : (toConfig.maxBPUsage * 100).toFixed(0) + '%'}`,
                 `Max Positions: ${toConfig.maxPositions}`,
                 `Available Strategies: ${toConfig.availableStrategies.length}`
             ],
@@ -797,13 +797,13 @@ class MasterController extends EventEmitter {
         };
         
         // Log to console
-        console.log('\n' + '='.repeat(60));
-        console.log(notification.title);
-        console.log('='.repeat(60));
-        notification.details.forEach(detail => console.log(detail));
-        console.log('\nNew Trading Rules:');
-        toConfig.tradingRules.forEach(rule => console.log(`  • ${rule}`));
-        console.log('='.repeat(60) + '\n');
+        logger.info('SYSTEM', '\n' + '='.repeat(60));
+        logger.info('SYSTEM', notification.title);
+        logger.info('SYSTEM', '='.repeat(60));
+        notification.details.forEach(detail => logger.info('SYSTEM', detail));
+        logger.info('SYSTEM', '\nNew Trading Rules:');
+        toConfig.tradingRules.forEach(rule => logger.info('SYSTEM', `  • ${rule}`));
+        logger.info('SYSTEM', '='.repeat(60) + '\n');
         
         // Emit notification event
         this.emit('notification', notification);
@@ -905,18 +905,18 @@ class MasterController extends EventEmitter {
      * Display system status
      */
     displayStatus() {
-        console.log('\n' + '═'.repeat(60));
-        console.log('📊 TOM KING TRADING FRAMEWORK - MASTER CONTROLLER');
-        console.log('═'.repeat(60));
-        console.log(`Mode: ${this.config.mode.toUpperCase()}`);
-        console.log(`Phase: ${this.state.currentPhase}`);
-        console.log(`Balance: £${this.state.accountBalance.toLocaleString()}`);
-        console.log(`Target: £${this.config.targetBalance.toLocaleString()}`);
-        console.log(`Progress: ${((this.state.accountBalance / this.config.targetBalance) * 100).toFixed(1)}%`);
-        console.log(`Active Strategies: ${this.state.activeStrategies.join(', ')}`);
-        console.log(`Positions: ${this.state.positions.length}`);
-        console.log(`Status: ${this.state.running ? '🟢 RUNNING' : '🔴 STOPPED'}`);
-        console.log('═'.repeat(60));
+        logger.info('SYSTEM', '\n' + '═'.repeat(60));
+        logger.info('SYSTEM', '📊 TOM KING TRADING FRAMEWORK - MASTER CONTROLLER');
+        logger.info('SYSTEM', '═'.repeat(60));
+        logger.info('SYSTEM', `Mode: ${this.config.mode.toUpperCase()}`);
+        logger.info('SYSTEM', `Phase: ${this.state.currentPhase}`);
+        logger.info('SYSTEM', `Balance: £${this.state.accountBalance.toLocaleString()}`);
+        logger.info('SYSTEM', `Target: £${this.config.targetBalance.toLocaleString()}`);
+        logger.info('SYSTEM', `Progress: ${((this.state.accountBalance / this.config.targetBalance) * 100).toFixed(1)}%`);
+        logger.info('SYSTEM', `Active Strategies: ${this.state.activeStrategies.join(', ')}`);
+        logger.info('SYSTEM', `Positions: ${this.state.positions.length}`);
+        logger.info('SYSTEM', `Status: ${this.state.running ? '🟢 RUNNING' : '🔴 STOPPED'}`);
+        logger.info('SYSTEM', '═'.repeat(60));
     }
     
     /**
@@ -951,21 +951,21 @@ if (require.main === module) {
     
     controller.initialize()
         .then(() => {
-            console.log('\n✅ Master Controller initialized');
-            console.log('Status:', controller.getStatus());
+            logger.info('SYSTEM', '\n✅ Master Controller initialized');
+            logger.info('SYSTEM', 'Status:', controller.getStatus());
             
             // Test phase determination
-            console.log('\nPhase tests:');
-            console.log('£35k → Phase', controller.determinePhase(35000));
-            console.log('£45k → Phase', controller.determinePhase(45000));
-            console.log('£65k → Phase', controller.determinePhase(65000));
-            console.log('£80k → Phase', controller.determinePhase(80000));
+            logger.info('SYSTEM', '\nPhase tests:');
+            logger.info('SYSTEM', '£35k → Phase', controller.determinePhase(35000));
+            logger.info('SYSTEM', '£45k → Phase', controller.determinePhase(45000));
+            logger.info('SYSTEM', '£65k → Phase', controller.determinePhase(65000));
+            logger.info('SYSTEM', '£80k → Phase', controller.determinePhase(80000));
             
             // Test never-trade list
-            console.log('\nNever-trade tests:');
-            console.log('SPY:', controller.isNeverTrade('SPY'), '(should be false)');
-            console.log('UVXY:', controller.isNeverTrade('UVXY'), '(should be true)');
-            console.log('GME:', controller.isNeverTrade('GME'), '(should be true)');
+            logger.info('SYSTEM', '\nNever-trade tests:');
+            logger.info('SYSTEM', 'SPY:', controller.isNeverTrade('SPY'), '(should be false)');
+            logger.info('SYSTEM', 'UVXY:', controller.isNeverTrade('UVXY'), '(should be true)');
+            logger.info('SYSTEM', 'GME:', controller.isNeverTrade('GME'), '(should be true)');
         })
-        .catch(console.error);
+        .catch(error => logger.error('ERROR', 'Master Controller initialization failed', error));
 }

@@ -1,5 +1,0 @@
-Risk Metric,Current Value,Limit/Target,Status,Notes
-"BP Usage","32%","35%","SAFE","Can add 1 position"
-"Max Drawdown","8.3%","15%","GOOD","Well within limits"
-"Correlation Groups","3 active","9 max","DIVERSIFIED","Excellent diversification"
-"Days Since Aug 5 2024","393","N/A","PROTECTED","Correlation limits enforced"

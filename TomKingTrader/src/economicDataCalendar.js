@@ -5,6 +5,7 @@
  */
 
 const { EventEmitter } = require('events');
+const { RISK_LIMITS } = require('./config');
 const { getLogger } = require('./logger');
 
 const logger = getLogger();
@@ -208,28 +209,28 @@ const PROTECTION_RULES = {
         EXTREME: {
             hours: 4,
             actions: ['HALT_NEW_POSITIONS', 'REDUCE_EXPOSURE', 'HEDGE_PORTFOLIO'],
-            maxBPUsage: 0.40, // Reduce to 40%
+            maxBPUsage: 'DYNAMIC_HALVED', // 50% of normal VIX-based BP
             maxCorrelation: 1, // Only 1 position per correlation group
             restrictedStrategies: ['0DTE', 'WEEKLY_SHORT', 'IRON_CONDOR']
         },
         VERY_HIGH: {
             hours: 2,
             actions: ['LIMIT_NEW_POSITIONS', 'REDUCE_SIZE', 'INCREASE_HEDGING'],
-            maxBPUsage: 0.50,
+            maxBPUsage: 'DYNAMIC_REDUCED', // 75% of normal VIX-based BP
             maxCorrelation: 2,
             restrictedStrategies: ['0DTE']
         },
         HIGH: {
             hours: 1,
             actions: ['MONITOR_CLOSELY', 'PREPARE_ADJUSTMENTS'],
-            maxBPUsage: 0.60,
+            maxBPUsage: 'DYNAMIC_CONSERVATIVE', // 85% of normal VIX-based BP
             maxCorrelation: 2,
             restrictedStrategies: []
         },
         MEDIUM: {
             hours: 0.5,
             actions: ['INCREASED_MONITORING'],
-            maxBPUsage: 0.65,
+            maxBPUsage: 'DYNAMIC', // Uses RISK_LIMITS.getMaxBPUsage(vix)
             maxCorrelation: 3,
             restrictedStrategies: []
         }
@@ -422,8 +423,8 @@ class EconomicDataCalendar extends EventEmitter {
             
             const url = `https://api.economicalendar.com/events?start=${new Date().toISOString()}&end=${endDate.toISOString()}`;
             
-            // Mock API response for development
-            return this.generateMockAPIResponse();
+            // CRITICAL: No mock data allowed for production trading
+            throw new Error('Economic calendar API unavailable - cannot use mock data for live trading');
             
         } catch (error) {
             logger.error('ECONOMIC_CALENDAR', 'Economic Calendar API failed', error);
@@ -432,9 +433,10 @@ class EconomicDataCalendar extends EventEmitter {
     }
     
     /**
-     * Generate mock API response for development
+     * DEPRECATED - Use real API data only
+     * @deprecated This method should not be used in production
      */
-    generateMockAPIResponse() {
+    generateMockAPIResponse_DEPRECATED() {
         const events = [];
         const startDate = new Date();
         
@@ -476,7 +478,7 @@ class EconomicDataCalendar extends EventEmitter {
             }
             
             // CPI around 12th of month
-            if (date.getDate() >= 10 && date.getDate() <= 14 && Math.random() > 0.7) {
+            if (date.getDate() >= 10 && date.getDate() <= 14 && date.getDate() === 12) { // CPI typically on 12th
                 events.push({
                     id: `CPI_${date.toISOString().split('T')[0]}`,
                     event: 'CPI',
@@ -579,14 +581,14 @@ class EconomicDataCalendar extends EventEmitter {
         
         // CPI typically around 12th
         if (dayOfMonth >= 11 && dayOfMonth <= 15) {
-            if (Math.random() > 0.8) { // Not every month on same day
+            if (dayOfMonth === 12) { // CPI typically on 12th
                 events.push(this.createEvent('CPI', date, '08:30'));
             }
         }
         
         // PPI typically day after CPI
         if (dayOfMonth >= 12 && dayOfMonth <= 16) {
-            if (Math.random() > 0.8) {
+            if (dayOfMonth === 13) { // PPI typically day after CPI
                 events.push(this.createEvent('PPI', date, '08:30'));
             }
         }
@@ -598,7 +600,7 @@ class EconomicDataCalendar extends EventEmitter {
         
         // Quarterly GDP
         if ([0, 3, 6, 9].includes(month) && dayOfMonth >= 25 && dayOfMonth <= 30) {
-            if (Math.random() > 0.7) {
+            if (dayOfMonth === 28) { // GDP typically on 28th
                 events.push(this.createEvent('GDP', date, '08:30'));
             }
         }
