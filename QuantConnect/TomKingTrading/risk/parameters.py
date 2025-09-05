@@ -1,3 +1,6 @@
+# region imports
+from AlgorithmImports import *
+# endregion
 """
 Risk Parameters and Thresholds for QuantConnect LEAN
 Centralized risk parameter management implementing Tom King methodology

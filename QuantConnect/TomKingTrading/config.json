@@ -1,6 +1,9 @@
 {
     "algorithm-language": "Python",
     "parameters": {},
-    "description": "",
-    "local-id": 847604641
+    "description": "Tom King Trading System",
+    "local-id": 847604641,
+    "cloud-id": 24926818,
+    "organization-id": "9fdfe971013fafe77700e18267986aa7",
+    "deployment-target": "Cloud Platform"
 }

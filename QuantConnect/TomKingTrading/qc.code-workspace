@@ -42,6 +42,14 @@
             ".ipynb_checkpoints/**": true,
             ".idea/**": true,
             ".vscode/**": true
+        },
+        "files.readonlyInclude": {
+            "**/*.py": false,
+            "**/*.cs": false,
+            "**/*.ipynb": false,
+            "d:/OneDrive/Trading/Claude/QuantConnect/TomKingTrading/**/*.py": true,
+            "d:/OneDrive/Trading/Claude/QuantConnect/TomKingTrading/**/*.cs": true,
+            "d:/OneDrive/Trading/Claude/QuantConnect/TomKingTrading/**/*.ipynb": true
         }
     }
 }

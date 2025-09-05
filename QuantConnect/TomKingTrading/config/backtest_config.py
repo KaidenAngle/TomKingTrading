@@ -14,8 +14,8 @@ class BacktestConfig:
     BACKTEST_END_DATE = datetime(2025, 1, 1)
     
     # Initial capital and currency
-    STARTING_CASH = 35000  # £35,000 starting capital
-    ACCOUNT_CURRENCY = "GBP"
+    STARTING_CASH = 44450  # $44,450 starting capital (£35,000 * 1.27)
+    ACCOUNT_CURRENCY = "USD"  # Changed from GBP to USD for QuantConnect
     
     # Data resolution settings
     EQUITY_RESOLUTION = Resolution.Minute
@@ -77,7 +77,7 @@ class BacktestConfig:
     
     # Performance benchmarks
     BENCHMARKS = {
-        'target_monthly_return': 0.067,  # 6.67% to reach £80k
+        'target_monthly_return': 0.067,  # 6.67% to reach $101,600 (£80k * 1.27)
         'min_acceptable_return': 0.03,  # 3% minimum
         'max_monthly_loss': -0.15,  # 15% max loss
         'target_sharpe_ratio': 1.5,
@@ -163,12 +163,12 @@ class BacktestConfig:
     
     @classmethod
     def get_phase_for_balance(cls, balance):
-        """Determine account phase based on balance"""
-        if balance < 40000:
+        """Determine account phase based on balance (USD)"""
+        if balance < 50800:  # $50,800 (£40k * 1.27)
             return 1
-        elif balance < 60000:
+        elif balance < 76200:  # $76,200 (£60k * 1.27)
             return 2
-        elif balance < 75000:
+        elif balance < 95250:  # $95,250 (£75k * 1.27)
             return 3
         else:
             return 4

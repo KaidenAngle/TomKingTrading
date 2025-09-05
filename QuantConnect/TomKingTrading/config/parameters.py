@@ -1,3 +1,6 @@
+# region imports
+from AlgorithmImports import *
+# endregion
 # Tom King Trading Framework v17 - Configuration Parameters
 # Extracted from Tom King Complete Trading System Documentation
 
@@ -7,12 +10,12 @@ class TomKingParameters:
     Based on 30+ years of proven systematic trading methodology
     """
     
-    # Account Phase Configuration
+    # Account Phase Configuration (USD)
     ACCOUNT_PHASES = {
-        'phase1': {'min': 30000, 'max': 40000, 'description': 'MCL, MGC, GLD, TLT strangles'},
-        'phase2': {'min': 40000, 'max': 60000, 'description': 'Add MES, MNQ, currency futures'},
-        'phase3': {'min': 60000, 'max': 75000, 'description': 'Full futures, butterflies, spreads'},
-        'phase4': {'min': 75000, 'max': 999999, 'description': 'Professional deployment, all strategies'}
+        'phase1': {'min': 38100, 'max': 50800, 'description': 'MCL, MGC, GLD, TLT strangles'},  # £30k-£40k * 1.27
+        'phase2': {'min': 50800, 'max': 76200, 'description': 'Add MES, MNQ, currency futures'},  # £40k-£60k * 1.27
+        'phase3': {'min': 76200, 'max': 95250, 'description': 'Full futures, butterflies, spreads'},  # £60k-£75k * 1.27
+        'phase4': {'min': 95250, 'max': 999999, 'description': 'Professional deployment, all strategies'}  # £75k+ * 1.27
     }
     
     # VIX Regime-Based Buying Power Usage
@@ -63,7 +66,7 @@ class TomKingParameters:
     
     # Profit Targets by Strategy
     PROFIT_TARGETS = {
-        'zero_dte_friday': 0.50,      # 50% profit target
+        'zero_dte_friday': 0.25,      # 25% profit target
         'lt112_long_term': 0.50,      # 50% profit target
         'strangles_futures': 0.50,    # 50% profit target
         'strangles_micro': 0.50,      # 50% profit target
@@ -93,7 +96,7 @@ class TomKingParameters:
     DTE_MANAGEMENT = {
         'zero_dte': 0,                # Same day expiration
         'defensive_exit': 21,         # 21 DTE defensive management
-        'lt112_entry': 45,            # 45 DTE entry for LT 1-1-2
+        'lt112_entry': 120,           # 120 DTE entry for LT 1-1-2
         'strangle_entry': 30,         # 30 DTE for strangles
         'butterfly_entry': 30,        # 30 DTE for butterflies
         'calendar_entry': 45          # 45 DTE for calendars
@@ -156,16 +159,16 @@ class TomKingParameters:
         'annual_return': 1.28,        # 128% annually
         'max_drawdown': 0.15,         # 15% maximum drawdown
         'sharpe_ratio_min': 2.0,      # Minimum Sharpe ratio
-        'goal_8_months': 80000,       # £80k in 8 months from £35k
-        'goal_18_months': 100000      # £100k in 18 months
+        'goal_8_months': 102000,      # $102k in 8 months from $44.5k
+        'goal_18_months': 127000      # $127k in 18 months
     }
     
     # Currency Configuration
     CURRENCY = {
-        'base': 'GBP',                # UK Pound Sterling
+        'base': 'USD',                # US Dollar
         'quote': 'USD',               # US Dollar quotes
-        'conversion_required': True,   # Convert USD to GBP
-        'initial_capital': 35000      # £35,000 starting capital
+        'conversion_required': False,  # No conversion needed
+        'initial_capital': 44500      # $44,500 starting capital (£35k * 1.27)
     }
     
     @classmethod

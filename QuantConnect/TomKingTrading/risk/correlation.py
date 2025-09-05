@@ -1,3 +1,6 @@
+# region imports
+from AlgorithmImports import *
+# endregion
 """
 Correlation Group Manager for QuantConnect LEAN
 Implements Tom King's correlation group limits and monitoring
@@ -34,7 +37,13 @@ class CorrelationManager:
     - Position diversification optimization
     """
     
-    def __init__(self):
+    def __init__(self, algorithm=None):
+        self.algorithm = algorithm
+        
+        # Market data storage for correlation calculations
+        self.price_history = {}  # Symbol -> price history
+        self.correlation_matrix = {}  # Correlation coefficients
+        
         # Symbol to correlation group mapping
         self.symbol_groups = {
             # Equity Index Group
@@ -123,11 +132,14 @@ class CorrelationManager:
         }
         
         # Phase-based correlation group limits
+        # Import constants properly
+        from config.constants import TradingConstants as Constants
+        
         self.phase_group_limits = {
             1: 1,  # Phase 1: Max 1 position per group
-            2: 2,  # Phase 2: Max 2 positions per group
-            3: 2,  # Phase 3: Max 2 positions per group
-            4: 3   # Phase 4: Max 3 positions per group
+            2: Constants.MAX_POSITIONS_PER_CORRELATION_GROUP_EARLY,  # Phase 2: Max 2 positions per group
+            3: Constants.MAX_POSITIONS_PER_CORRELATION_GROUP_EARLY,  # Phase 3: Max 2 positions per group
+            4: Constants.MAX_POSITIONS_PER_CORRELATION_GROUP   # Phase 4: Max 3 positions per group
         }
         
         # Historical correlation coefficients (approximate)
@@ -174,6 +186,76 @@ class CorrelationManager:
         """Get correlation group for a symbol"""
         symbol_upper = symbol.upper()
         return self.symbol_groups.get(symbol_upper, CorrelationGroup.EQUITY_INDEX)
+    
+    def GetCorrelationGroup(self, symbol: str) -> str:
+        """Get correlation group name for a symbol (compatibility method)"""
+        group = self.get_symbol_group(symbol)
+        return group.value if group else "EQUITY_INDEX"
+    
+    def CanAddToGroup(self, group_name: str) -> bool:
+        """
+        Check if a new position can be added to the specified correlation group
+        based on Tom King position limits and current holdings
+        
+        Args:
+            group_name: Name of the correlation group (e.g., 'EQUITY_INDEX')
+            
+        Returns:
+            bool: True if position can be added, False if group is at limit
+        """
+        try:
+            # Get current positions from algorithm if available
+            if not hasattr(self, 'algorithm') or not self.algorithm:
+                return True  # If no algorithm context, allow by default
+            
+            # Count current positions in the specified group
+            current_positions = []
+            if hasattr(self.algorithm, 'Portfolio'):
+                for kvp in self.algorithm.Portfolio:
+                    if kvp.Value.Invested:
+                        symbol = kvp.Key.Value
+                        position_group = self.GetCorrelationGroup(symbol)
+                        if position_group == group_name:
+                            current_positions.append(symbol)
+            
+            # Get position limit based on account phase
+            phase = 1  # Default phase
+            if hasattr(self.algorithm, 'account_phase'):
+                phase = self.algorithm.account_phase
+            
+            # Import constants properly
+            from config.constants import TradingConstants as Constants
+            
+            # Tom King position limits by phase
+            position_limits = {
+                1: 1,  # Phase 1: 1 position per group
+                2: Constants.MAX_POSITIONS_PER_CORRELATION_GROUP_EARLY,  # Phase 2: 2 positions per group
+                3: Constants.MAX_POSITIONS_PER_CORRELATION_GROUP_EARLY,  # Phase 3: 2 positions per group  
+                4: Constants.MAX_POSITIONS_PER_CORRELATION_GROUP   # Phase 4: 3 positions per group
+            }
+            
+            max_positions = position_limits.get(phase, Constants.MAX_POSITIONS_PER_CORRELATION_GROUP_EARLY)
+            
+            # Check VIX adjustment - tighter limits in high volatility
+            if hasattr(self.algorithm, 'Securities') and 'VIX' in self.algorithm.Securities:
+                vix = self.algorithm.Securities['VIX'].Price
+                if vix >= Constants.VIX_EXTREME:  # Emergency VIX level (35+)
+                    max_positions = max(1, max_positions - 1)  # Reduce by 1, minimum 1
+                elif vix >= Constants.VIX_ELEVATED:  # High VIX (25+)
+                    max_positions = min(Constants.MAX_POSITIONS_PER_CORRELATION_GROUP_EARLY, max_positions)  # Cap at 2
+            
+            # Return whether we're below the limit
+            can_add = len(current_positions) < max_positions
+            
+            if not can_add and hasattr(self.algorithm, 'Log'):
+                self.algorithm.Log(f"⚠️ Correlation group {group_name} at limit: {len(current_positions)}/{max_positions} positions")
+            
+            return can_add
+            
+        except Exception as e:
+            if hasattr(self, 'algorithm') and hasattr(self.algorithm, 'Error'):
+                self.algorithm.Error(f"Error in CanAddToGroup: {str(e)}")
+            return False  # Deny on error for safety (prevent August 2024 disaster)
     
     def check_position_limits(self, current_positions: List[Dict], 
                             new_symbol: str, account_phase: int,
@@ -352,11 +434,11 @@ class CorrelationManager:
     
     def _get_vix_correlation_adjustment(self, vix_level: float) -> float:
         """Get correlation limit adjustment based on VIX level"""
-        if vix_level < 20:
+        if vix_level <= 22:
             return 1.0  # Normal limits
-        elif vix_level < 25:
+        elif vix_level <= 28:
             return 0.8  # 20% tighter limits
-        elif vix_level < 35:
+        elif vix_level <= 35:
             return 0.6  # 40% tighter limits
         else:
             return 0.4  # 60% tighter limits (extreme caution)
@@ -376,6 +458,25 @@ class CorrelationManager:
         diversification_score = max(0, 1 - normalized_hhi)
         
         return diversification_score
+    
+    def UpdateMarketData(self, data):
+        """Update market data for correlation calculations"""
+        try:
+            for symbol in data.Keys:
+                if data[symbol] is not None:
+                    # Store price history for correlation calculations
+                    symbol_str = str(symbol)
+                    if symbol_str not in self.price_history:
+                        self.price_history[symbol_str] = []
+                    
+                    # Add current price to history (keep last 20 days)
+                    if hasattr(data[symbol], 'Close'):
+                        self.price_history[symbol_str].append(data[symbol].Close)
+                        if len(self.price_history[symbol_str]) > 20:
+                            self.price_history[symbol_str].pop(0)
+        except Exception as e:
+            if self.algorithm:
+                self.algorithm.Error(f"Error updating correlation market data: {str(e)}")
     
     def _assess_concentration_risk(self, group_counts: Dict, 
                                  total_positions: int) -> str:
@@ -584,9 +685,84 @@ class CorrelationManager:
     
     def _select_best_symbols_from_group(self, symbols: List[str], 
                                       max_count: int, group: CorrelationGroup) -> List[str]:
-        """Select best symbols from a correlation group (placeholder for complex logic)"""
-        # Simple implementation - in practice, this would use liquidity, spreads, etc.
-        return symbols[:max_count]
+        """Select best symbols from a correlation group based on liquidity and spreads"""
+        try:
+            symbol_scores = []
+            
+            for symbol in symbols:
+                score = 0.0
+                
+                # Check if symbol data is available
+                if symbol in self.algorithm.Securities:
+                    security = self.algorithm.Securities[symbol]
+                    
+                    # Liquidity score (based on volume)
+                    if hasattr(security, 'Volume') and security.Volume > 0:
+                        # Higher volume = better liquidity
+                        volume_score = min(100, security.Volume / 1000000)  # Normalize to 0-100
+                        score += volume_score * 0.4  # 40% weight
+                    
+                    # Spread score (tighter spread = better)
+                    if security.BidPrice > 0 and security.AskPrice > 0:
+                        spread = (security.AskPrice - security.BidPrice) / security.BidPrice
+                        spread_score = max(0, 100 - (spread * 10000))  # Lower spread = higher score
+                        score += spread_score * 0.3  # 30% weight
+                    
+                    # Open interest score (for options)
+                    if hasattr(security, 'OpenInterest') and security.OpenInterest > 0:
+                        oi_score = min(100, security.OpenInterest / 1000)  # Normalize
+                        score += oi_score * 0.2  # 20% weight
+                    
+                    # Historical volatility score (prefer moderate volatility)
+                    if hasattr(self.algorithm, 'ATR'):
+                        atr_indicator = self.algorithm.ATR(symbol, 14)
+                        if atr_indicator.IsReady:
+                            # Target ATR around 2-3% of price
+                            atr_ratio = atr_indicator.Current.Value / security.Price
+                            if 0.02 <= atr_ratio <= 0.03:
+                                vol_score = 100
+                            elif atr_ratio < 0.02:
+                                vol_score = atr_ratio * 5000  # Scale up low vol
+                            else:
+                                vol_score = max(0, 100 - (atr_ratio - 0.03) * 1000)  # Penalize high vol
+                            score += vol_score * 0.1  # 10% weight
+                
+                # Group-specific preferences
+                if group == CorrelationGroup.EQUITY_INDEX:
+                    # Prefer major indices
+                    if symbol in ['SPY', 'QQQ', 'IWM']:
+                        score += 20
+                elif group == CorrelationGroup.ENERGY:
+                    # Prefer liquid energy futures
+                    if symbol in ['CL', 'USO']:
+                        score += 15
+                elif group == CorrelationGroup.METALS:
+                    # Prefer major metals
+                    if symbol in ['GLD', 'SLV', 'GC']:
+                        score += 15
+                elif group == CorrelationGroup.TREASURIES:
+                    # Prefer TLT for bonds
+                    if symbol == 'TLT':
+                        score += 20
+                
+                symbol_scores.append((symbol, score))
+            
+            # Sort by score descending
+            symbol_scores.sort(key=lambda x: x[1], reverse=True)
+            
+            # Return top symbols up to max_count
+            selected = [sym for sym, score in symbol_scores[:max_count]]
+            
+            if hasattr(self.algorithm, 'Debug'):
+                self.algorithm.Debug(f"Selected {len(selected)} symbols from {group.value}: {selected}")
+            
+            return selected
+            
+        except Exception as e:
+            if hasattr(self.algorithm, 'Error'):
+                self.algorithm.Error(f"Error selecting symbols from group: {str(e)}")
+            # Fallback to simple selection
+            return symbols[:max_count]
     
     def _suggest_diversification_improvements(self, group_allocations: Dict) -> List[str]:
         """Suggest improvements to portfolio diversification"""

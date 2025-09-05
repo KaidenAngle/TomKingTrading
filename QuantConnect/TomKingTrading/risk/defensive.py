@@ -1,3 +1,6 @@
+# region imports
+from AlgorithmImports import *
+# endregion
 """
 Defensive Adjustment Protocols for QuantConnect LEAN
 Implements Tom King's defensive management rules and exit strategies

@@ -1,3 +1,6 @@
+# region imports
+from AlgorithmImports import *
+# endregion
 """
 QuantConnect LEAN Risk Management Package
 Complete implementation of Tom King's risk management methodology
