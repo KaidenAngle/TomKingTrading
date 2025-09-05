@@ -85,5 +85,7 @@
       }
     ]
   },
-  "outputStyle": "concise"
+  "outputStyle": "concise",
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": ["quantconnect"]
 }

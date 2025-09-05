@@ -42,8 +42,8 @@ class UnifiedTradingFramework {
         this.signalGenerator = null;
         this.orderManager = null;
         this.backtester = null;
-        this.accountBalance = 35000; // Default £35k
-        this.currentVIX = 18; // Default VIX
+        this.accountBalance = null; // Must be fetched from API
+        this.currentVIX = null; // Must be fetched from API - no defaults
         this.paperPortfolio = this.loadPaperPortfolio();
     }
 
@@ -408,6 +408,14 @@ class UnifiedTradingFramework {
             data.SPY = await this.api.getQuote('SPY');
             data.VIX = await this.api.getQuote('VIX');
             data.options = await this.api.getOptionChain('SPY');
+            
+            // Validate that we got real data
+            if (!data.VIX || !data.VIX.last) {
+                throw new Error('CRITICAL: Unable to fetch VIX data from API - cannot proceed');
+            }
+            if (!data.SPY || !data.SPY.last) {
+                throw new Error('CRITICAL: Unable to fetch SPY data from API - cannot proceed');
+            }
         } else {
             // Manual input
             console.log('Enter current market data:');
@@ -428,6 +436,12 @@ class UnifiedTradingFramework {
         }
         
         this.currentVIX = data.VIX.last;
+        
+        // Final validation
+        if (!this.currentVIX || isNaN(this.currentVIX)) {
+            throw new Error('CRITICAL: VIX data is invalid or missing - cannot proceed with trading');
+        }
+        
         return data;
     }
 

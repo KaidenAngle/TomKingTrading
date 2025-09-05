@@ -69,13 +69,10 @@ class Phase4Analyzer {
             };
             
         } catch (error) {
-            console.log('⚠️ Using simulated market data for analysis');
-            return {
-                vix: 22,
-                regime: this.getVolatilityRegime(22),
-                spy: 450,
-                positions: []
-            };
+            console.log('❌ ERROR: Unable to fetch market data from API');
+            console.log('   Error details:', error.message);
+            console.log('   CRITICAL: Cannot proceed without real market data');
+            throw new Error('Market data unavailable - analysis cannot proceed with simulated values');
         }
     }
 
@@ -314,19 +311,11 @@ async function runPhase4Analysis() {
         
     } catch (error) {
         console.log('\\n❌ Error during analysis:', error.message);
-        console.log('   Continuing with simulated analysis...');
+        console.log('   CRITICAL: Cannot proceed without real market data');
+        console.log('   Please ensure API connection is active and retry');
         
-        // Fallback analysis with simulated data
-        const marketConditions = {
-            vix: 22,
-            regime: analyzer.getVolatilityRegime(22),
-            spy: 450,
-            positions: []
-        };
-        
-        const recommendations = await analyzer.generateTradeRecommendations(marketConditions);
-        analyzer.displayRecommendations(recommendations);
-        await analyzer.generatePhase4Dashboard();
+        // Cannot continue with simulated data in production
+        throw new Error('Real market data required - analysis cannot proceed with simulated values');
     }
 }
 

@@ -511,14 +511,9 @@ class AssignmentRiskMonitor extends EventEmitter {
                 }
             }
             
-            // Generate realistic price for testing (remove in production)
-            const testPrice = this.generateTestPrice(symbol);
-            if (testPrice) {
-                logger.debug('AssignmentRisk', `Using test price for ${symbol}: ${testPrice}`);
-                return testPrice;
-            }
-            
-            logger.warn('AssignmentRisk', `No price data available for ${symbol}`);
+            // CRITICAL: Cannot proceed without real market data
+            logger.error('AssignmentRisk', `CRITICAL: No price data available for ${symbol} - cannot monitor assignment risk without real data`);
+            throw new Error(`Real market data required for ${symbol} - assignment risk monitoring disabled`);
             return null;
             
         } catch (error) {
@@ -528,39 +523,12 @@ class AssignmentRiskMonitor extends EventEmitter {
     }
     
     /**
-     * Generate realistic test prices for common symbols (development/testing only)
+     * REMOVED: Test price generation - production system requires real market data only
+     * @deprecated Production system must use real API data exclusively
      */
     generateTestPrice(symbol) {
-        const basePrices = {
-            'SPY': 450,
-            'QQQ': 350,
-            'IWM': 200,
-            'TLT': 95,
-            'AAPL': 175,
-            'MSFT': 380,
-            'TSLA': 220,
-            'AMZN': 140,
-            'GOOGL': 135,
-            'META': 320,
-            'NVDA': 450,
-            'JNJ': 165,
-            'KO': 60,
-            'PG': 155,
-            'XLF': 38,
-            'XLE': 85,
-            'XLK': 170,
-            'GLD': 185,
-            'SLV': 22,
-            'VNQ': 85
-        };
-        
-        const basePrice = basePrices[symbol.toUpperCase()];
-        if (!basePrice) return null;
-        
-        // CRITICAL: Must use real market data, not simulated
-        // Return base price without random movement - real prices should come from API
-        logger.warn('ASSIGNMENT_RISK', `Using static price for ${symbol} - real market data required`);
-        return basePrice;
+        // This method has been intentionally disabled for production safety
+        throw new Error(`Test price generation disabled - real market data required for ${symbol}`);
     }
     
     /**

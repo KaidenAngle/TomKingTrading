@@ -495,13 +495,9 @@ class DataManager {
             }
         }
         
-        // Return test data
-        return {
-            netLiq: 35000,
-            buyingPower: 25000,
-            bpUsed: 28,
-            positions: []
-        };
+        // CRITICAL: Cannot proceed without real account data
+        logger.error('DataManager', 'CRITICAL: No account data available - real API connection required');
+        throw new Error('Real account data required - cannot use hardcoded values in production');
     }
 
     // ========== HISTORICAL DATA METHODS ==========

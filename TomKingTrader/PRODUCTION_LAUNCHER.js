@@ -253,18 +253,35 @@ class ProductionLauncher {
      * Check VIX level
      */
     async checkVIXLevel() {
-        // In production, would fetch real VIX
-        const mockVIX = 18;
-        
-        let status = 'Normal';
-        if (mockVIX < 15) status = 'Low (reduce size)';
-        if (mockVIX > 25) status = 'Elevated (opportunity)';
-        if (mockVIX > 30) status = 'High (caution)';
-        
-        return { 
-            pass: true, 
-            message: `VIX ${mockVIX} - ${status}`
-        };
+        try {
+            // Fetch real VIX from API
+            const api = new TastyTradeAPI();
+            const vixData = await api.getMarketData('VIX');
+            
+            if (!vixData || !vixData.last) {
+                return {
+                    pass: false,
+                    message: 'ERROR: Unable to fetch VIX data - cannot proceed without real market data'
+                };
+            }
+            
+            const currentVIX = vixData.last;
+            
+            let status = 'Normal';
+            if (currentVIX < 15) status = 'Low (reduce size)';
+            if (currentVIX > 25) status = 'Elevated (opportunity)';
+            if (currentVIX > 30) status = 'High (caution)';
+            
+            return { 
+                pass: true, 
+                message: `VIX ${currentVIX.toFixed(2)} - ${status}`
+            };
+        } catch (error) {
+            return {
+                pass: false,
+                message: `ERROR: VIX check failed - ${error.message}`
+            };
+        }
     }
     
     /**
