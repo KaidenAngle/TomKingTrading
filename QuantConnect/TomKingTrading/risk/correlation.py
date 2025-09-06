@@ -1,827 +1,378 @@
 # region imports
 from AlgorithmImports import *
 # endregion
-"""
-Correlation Group Manager for QuantConnect LEAN
-Implements Tom King's correlation group limits and monitoring
-Prevents concentration risk and August 2024-style disasters
-"""
+# Tom King Trading Framework v17 - Correlation Analysis System
+# Based on Tom King Complete Trading System Documentation (PDF Pages 12, 33, 34-35)
 
-import numpy as np
-from typing import Dict, List, Optional, Set, Tuple
-from datetime import datetime, timedelta
-from enum import Enum
-import pandas as pd
-
-class CorrelationGroup(Enum):
-    """Correlation groups based on Tom King methodology"""
-    EQUITY_INDEX = "EQUITY_INDEX"      # SPY, QQQ, IWM, ES, MES, NQ, MNQ, YM, MYM
-    ENERGY = "ENERGY"                  # CL, MCL, USO, XLE, OIH
-    METALS = "METALS"                  # GC, MGC, GLD, SLV, SI, GDX, GDXJ
-    TREASURIES = "TREASURIES"          # TLT, IEF, SHY, ZB, ZN, ZF
-    VOLATILITY = "VOLATILITY"          # VIX, UVXY, VXX, SVXY
-    CURRENCIES = "CURRENCIES"          # 6E, 6A, 6B, 6J, DXY, UUP
-    TECHNOLOGY = "TECHNOLOGY"          # QQQ, NVDA, AAPL, MSFT, GOOGL
-    COMMODITIES = "COMMODITIES"        # DBA, DBC, CORN, WEAT, SOYB
-    REAL_ESTATE = "REAL_ESTATE"        # IYR, VNQ, REZ, REM
-    
 class CorrelationManager:
     """
-    Manages correlation groups and position limits to prevent concentration risk
-    
-    Key Features:
-    - Maximum 3 positions per correlation group (Phase 4), 2 for earlier phases
-    - Real-time correlation monitoring and alerts
-    - August 2024 disaster prevention protocols
-    - Dynamic correlation coefficient calculation
-    - Position diversification optimization
+    Tom King Correlation Group Management System
+    Prevents overconcentration based on historical disaster analysis (August 5, 2024)
     """
     
-    def __init__(self, algorithm=None):
+    def __init__(self, algorithm):
         self.algorithm = algorithm
         
-        # Market data storage for correlation calculations
-        self.price_history = {}  # Symbol -> price history
-        self.correlation_matrix = {}  # Correlation coefficients
-        
-        # Symbol to correlation group mapping
-        self.symbol_groups = {
-            # Equity Index Group
-            'SPY': CorrelationGroup.EQUITY_INDEX,
-            'QQQ': CorrelationGroup.EQUITY_INDEX,
-            'IWM': CorrelationGroup.EQUITY_INDEX,
-            'DIA': CorrelationGroup.EQUITY_INDEX,
-            'ES': CorrelationGroup.EQUITY_INDEX,
-            'MES': CorrelationGroup.EQUITY_INDEX,
-            'NQ': CorrelationGroup.EQUITY_INDEX,
-            'MNQ': CorrelationGroup.EQUITY_INDEX,
-            'YM': CorrelationGroup.EQUITY_INDEX,
-            'MYM': CorrelationGroup.EQUITY_INDEX,
-            'RTY': CorrelationGroup.EQUITY_INDEX,
-            'M2K': CorrelationGroup.EQUITY_INDEX,
+        # Correlation Groups - CORRECTED to match Tom King documentation
+        self.correlation_groups = {
+            # Group A1: Equity Indices (Limit: 2)
+            'A1': ['ES', 'MES', 'NQ', 'MNQ', 'RTY', 'M2K', 'YM', 'MYM'],
             
-            # Energy Group
-            'CL': CorrelationGroup.ENERGY,
-            'MCL': CorrelationGroup.ENERGY,
-            'USO': CorrelationGroup.ENERGY,
-            'XLE': CorrelationGroup.ENERGY,
-            'OIH': CorrelationGroup.ENERGY,
-            'GUSH': CorrelationGroup.ENERGY,
-            'DRIP': CorrelationGroup.ENERGY,
+            # Group A2: Equity ETFs + IPMCC positions (Limit: 3)
+            'A2': ['SPY', 'QQQ', 'IWM', 'DIA'],  # IPMCC positions counted here too
             
-            # Metals Group
-            'GC': CorrelationGroup.METALS,
-            'MGC': CorrelationGroup.METALS,
-            'GLD': CorrelationGroup.METALS,
-            'SLV': CorrelationGroup.METALS,
-            'SI': CorrelationGroup.METALS,
-            'GDX': CorrelationGroup.METALS,
-            'GDXJ': CorrelationGroup.METALS,
-            'NUGT': CorrelationGroup.METALS,
-            'DUST': CorrelationGroup.METALS,
+            # Group B1: Safe Haven (Limit: 2)
+            'B1': ['GC', 'MGC', 'GLD', 'TLT', 'ZB', 'ZN'],
             
-            # Treasuries Group
-            'TLT': CorrelationGroup.TREASURIES,
-            'IEF': CorrelationGroup.TREASURIES,
-            'SHY': CorrelationGroup.TREASURIES,
-            'ZB': CorrelationGroup.TREASURIES,
-            'ZN': CorrelationGroup.TREASURIES,
-            'ZF': CorrelationGroup.TREASURIES,
-            'TMF': CorrelationGroup.TREASURIES,
-            'TMV': CorrelationGroup.TREASURIES,
+            # Group B2: Industrial Metals (Limit: 2)
+            'B2': ['SI', 'SIL', 'SLV', 'HG', 'PL', 'PA'],
             
-            # Volatility Group
-            'VIX': CorrelationGroup.VOLATILITY,
-            'UVXY': CorrelationGroup.VOLATILITY,
-            'VXX': CorrelationGroup.VOLATILITY,
-            'SVXY': CorrelationGroup.VOLATILITY,
-            'VIXY': CorrelationGroup.VOLATILITY,
-            'XIV': CorrelationGroup.VOLATILITY,
+            # Group C1: Crude Complex (Limit: 2)
+            'C1': ['CL', 'MCL', 'QM', 'RB', 'HO', 'XLE', 'XOP'],
             
-            # Currencies Group
-            '6E': CorrelationGroup.CURRENCIES,
-            '6A': CorrelationGroup.CURRENCIES,
-            '6B': CorrelationGroup.CURRENCIES,
-            '6J': CorrelationGroup.CURRENCIES,
-            'DXY': CorrelationGroup.CURRENCIES,
-            'UUP': CorrelationGroup.CURRENCIES,
-            'FXE': CorrelationGroup.CURRENCIES,
-            'FXB': CorrelationGroup.CURRENCIES,
+            # Group C2: Natural Gas (Limit: 1)
+            'C2': ['NG'],
             
-            # Technology Group (subset of equity with higher correlation)
-            'NVDA': CorrelationGroup.TECHNOLOGY,
-            'AAPL': CorrelationGroup.TECHNOLOGY,
-            'MSFT': CorrelationGroup.TECHNOLOGY,
-            'GOOGL': CorrelationGroup.TECHNOLOGY,
-            'AMZN': CorrelationGroup.TECHNOLOGY,
-            'META': CorrelationGroup.TECHNOLOGY,
-            'TSLA': CorrelationGroup.TECHNOLOGY,
+            # Group D1: Grains (Limit: 2)
+            'D1': ['ZC', 'ZS', 'ZW'],
             
-            # Commodities Group
-            'DBA': CorrelationGroup.COMMODITIES,
-            'DBC': CorrelationGroup.COMMODITIES,
-            'CORN': CorrelationGroup.COMMODITIES,
-            'WEAT': CorrelationGroup.COMMODITIES,
-            'SOYB': CorrelationGroup.COMMODITIES,
+            # Group D2: Proteins (Limit: 1)
+            'D2': ['LE', 'HE', 'GF'],
             
-            # Real Estate Group
-            'IYR': CorrelationGroup.REAL_ESTATE,
-            'VNQ': CorrelationGroup.REAL_ESTATE,
-            'REZ': CorrelationGroup.REAL_ESTATE,
-            'REM': CorrelationGroup.REAL_ESTATE
+            # Group E: Currencies (Limit: 2)
+            'E': ['6E', '6B', '6A', '6C', 'M6E', 'M6A', 'DXY']
         }
         
-        # Phase-based correlation group limits
-        # Import constants properly
-        from config.constants import TradingConstants as Constants
-        
-        self.phase_group_limits = {
-            1: 1,  # Phase 1: Max 1 position per group
-            2: Constants.MAX_POSITIONS_PER_CORRELATION_GROUP_EARLY,  # Phase 2: Max 2 positions per group
-            3: Constants.MAX_POSITIONS_PER_CORRELATION_GROUP_EARLY,  # Phase 3: Max 2 positions per group
-            4: Constants.MAX_POSITIONS_PER_CORRELATION_GROUP   # Phase 4: Max 3 positions per group
+        # Position limits per group - CORRECTED to match documentation
+        self.group_limits = {
+            'A1': 2,  # Equity Indices (Limit: 2)
+            'A2': 3,  # Equity ETFs + IPMCC positions (Limit: 3)  
+            'B1': 2,  # Safe Haven (Limit: 2)
+            'B2': 2,  # Industrial Metals (Limit: 2)
+            'C1': 2,  # Crude Complex (Limit: 2)
+            'C2': 1,  # Natural Gas (Limit: 1)
+            'D1': 2,  # Grains (Limit: 2)
+            'D2': 1,  # Proteins (Limit: 1)
+            'E': 2    # Currencies (Limit: 2)
         }
         
-        # Historical correlation coefficients (approximate)
-        self.correlation_matrix = {
-            CorrelationGroup.EQUITY_INDEX: {
-                CorrelationGroup.EQUITY_INDEX: 0.95,
-                CorrelationGroup.TECHNOLOGY: 0.85,
-                CorrelationGroup.ENERGY: 0.25,
-                CorrelationGroup.METALS: 0.15,
-                CorrelationGroup.TREASURIES: -0.30,
-                CorrelationGroup.VOLATILITY: -0.75,
-                CorrelationGroup.CURRENCIES: -0.10,
-                CorrelationGroup.COMMODITIES: 0.20,
-                CorrelationGroup.REAL_ESTATE: 0.60
-            },
-            CorrelationGroup.TECHNOLOGY: {
-                CorrelationGroup.EQUITY_INDEX: 0.85,
-                CorrelationGroup.TECHNOLOGY: 0.90,
-                CorrelationGroup.ENERGY: 0.15,
-                CorrelationGroup.METALS: 0.10,
-                CorrelationGroup.TREASURIES: -0.25,
-                CorrelationGroup.VOLATILITY: -0.70,
-                CorrelationGroup.CURRENCIES: -0.05,
-                CorrelationGroup.COMMODITIES: 0.15,
-                CorrelationGroup.REAL_ESTATE: 0.50
-            },
-            # Add other correlation relationships as needed
-        }
-        
-        # August 2024 disaster patterns (high correlation warning thresholds)
-        self.disaster_patterns = {
-            'correlation_spike_threshold': 0.80,  # Alert when correlations exceed 80%
-            'max_correlated_exposure': 0.60,     # Max 60% of portfolio in correlated positions
-            'emergency_correlation_limit': 0.90,  # Emergency limit for extreme correlation
-            'vix_correlation_multiplier': {       # Adjust limits based on VIX
-                'low': 1.0,      # VIX < 20
-                'normal': 0.8,   # VIX 20-25
-                'high': 0.6,     # VIX 25-35
-                'extreme': 0.4   # VIX > 35
-            }
+        # August 5, 2024 crisis correlation analysis
+        self.crisis_correlation_weights = {
+            'A1': 0.95,  # Equity Indices - Nearly perfect correlation during crashes
+            'A2': 0.90,  # Equity ETFs - Very high correlation with indices
+            'B1': -0.20, # Safe Haven - Inverse correlation (but can fail like TLT)
+            'B2': 0.70,  # Industrial Metals - High correlation with risk-on/off
+            'C1': 0.75,  # Crude Complex - High correlation with economic cycles
+            'C2': 0.60,  # Natural Gas - Moderate correlation with broader markets
+            'D1': 0.50,  # Grains - Moderate correlation with risk sentiment
+            'D2': 0.45,  # Proteins - Lower correlation, more supply/demand driven
+            'E': 0.80    # Currencies - High correlation with USD strength/weakness
         }
     
-    def get_symbol_group(self, symbol: str) -> CorrelationGroup:
-        """Get correlation group for a symbol"""
-        symbol_upper = symbol.upper()
-        return self.symbol_groups.get(symbol_upper, CorrelationGroup.EQUITY_INDEX)
-    
-    def GetCorrelationGroup(self, symbol: str) -> str:
-        """Get correlation group name for a symbol (compatibility method)"""
-        group = self.get_symbol_group(symbol)
-        return group.value if group else "EQUITY_INDEX"
-    
-    def CanAddToGroup(self, group_name: str) -> bool:
-        """
-        Check if a new position can be added to the specified correlation group
-        based on Tom King position limits and current holdings
+    def get_symbol_correlation_group(self, symbol):
+        """Determine which correlation group a symbol belongs to"""
+        symbol_str = str(symbol).upper()
         
-        Args:
-            group_name: Name of the correlation group (e.g., 'EQUITY_INDEX')
+        # Handle different symbol formats
+        if hasattr(symbol, 'Value'):
+            symbol_str = symbol.Value.upper()
+        elif hasattr(symbol, 'ID'):
+            if hasattr(symbol.ID, 'Symbol'):
+                symbol_str = symbol.ID.Symbol.upper()
+        
+        for group_name, symbols in self.correlation_groups.items():
+            if symbol_str in symbols:
+                return group_name
+        
+        # Default to A1 for equity-like products
+        if any(equity in symbol_str for equity in ['SPY', 'QQQ', 'IWM', 'ES', 'NQ']):
+            return 'A1'
             
-        Returns:
-            bool: True if position can be added, False if group is at limit
-        """
-        try:
-            # Get current positions from algorithm if available
-            if not hasattr(self, 'algorithm') or not self.algorithm:
-                return True  # If no algorithm context, allow by default
-            
-            # Count current positions in the specified group
-            current_positions = []
-            if hasattr(self.algorithm, 'Portfolio'):
-                for kvp in self.algorithm.Portfolio:
-                    if kvp.Value.Invested:
-                        symbol = kvp.Key.Value
-                        position_group = self.GetCorrelationGroup(symbol)
-                        if position_group == group_name:
-                            current_positions.append(symbol)
-            
-            # Get position limit based on account phase
-            phase = 1  # Default phase
-            if hasattr(self.algorithm, 'account_phase'):
-                phase = self.algorithm.account_phase
-            
-            # Import constants properly
-            from config.constants import TradingConstants as Constants
-            
-            # Tom King position limits by phase
-            position_limits = {
-                1: 1,  # Phase 1: 1 position per group
-                2: Constants.MAX_POSITIONS_PER_CORRELATION_GROUP_EARLY,  # Phase 2: 2 positions per group
-                3: Constants.MAX_POSITIONS_PER_CORRELATION_GROUP_EARLY,  # Phase 3: 2 positions per group  
-                4: Constants.MAX_POSITIONS_PER_CORRELATION_GROUP   # Phase 4: 3 positions per group
-            }
-            
-            max_positions = position_limits.get(phase, Constants.MAX_POSITIONS_PER_CORRELATION_GROUP_EARLY)
-            
-            # Check VIX adjustment - tighter limits in high volatility
-            if hasattr(self.algorithm, 'Securities') and 'VIX' in self.algorithm.Securities:
-                vix = self.algorithm.Securities['VIX'].Price
-                if vix >= Constants.VIX_EXTREME:  # Emergency VIX level (35+)
-                    max_positions = max(1, max_positions - 1)  # Reduce by 1, minimum 1
-                elif vix >= Constants.VIX_ELEVATED:  # High VIX (25+)
-                    max_positions = min(Constants.MAX_POSITIONS_PER_CORRELATION_GROUP_EARLY, max_positions)  # Cap at 2
-            
-            # Return whether we're below the limit
-            can_add = len(current_positions) < max_positions
-            
-            if not can_add and hasattr(self.algorithm, 'Log'):
-                self.algorithm.Log(f"⚠️ Correlation group {group_name} at limit: {len(current_positions)}/{max_positions} positions")
-            
-            return can_add
-            
-        except Exception as e:
-            if hasattr(self, 'algorithm') and hasattr(self.algorithm, 'Error'):
-                self.algorithm.Error(f"Error in CanAddToGroup: {str(e)}")
-            return False  # Deny on error for safety (prevent August 2024 disaster)
+        return None
     
-    def check_position_limits(self, current_positions: List[Dict], 
-                            new_symbol: str, account_phase: int,
-                            vix_level: float = 20.0) -> Dict:
-        """
-        Check if adding a new position would violate correlation limits
+    def get_current_group_positions(self, group_name, current_positions=None):
+        """Get current positions in a specific correlation group"""
+        if current_positions is None:
+            current_positions = [holding for holding in self.algorithm.Portfolio 
+                               if holding.Value.Invested]
         
-        Args:
-            current_positions: List of current positions with 'symbol' key
-            new_symbol: Symbol for new position
-            account_phase: Current account phase (1-4)
-            vix_level: Current VIX level for emergency adjustments
-            
-        Returns:
-            Dictionary with limit check results and recommendations
-        """
-        new_group = self.get_symbol_group(new_symbol)
-        
-        # Count positions by correlation group
-        group_counts = {}
-        total_positions = len(current_positions)
+        group_positions = []
+        group_symbols = self.correlation_groups.get(group_name, [])
         
         for position in current_positions:
-            symbol = position.get('symbol', '')
-            group = self.get_symbol_group(symbol)
-            group_counts[group] = group_counts.get(group, 0) + 1
-        
-        current_in_group = group_counts.get(new_group, 0)
-        max_per_group = self.phase_group_limits.get(account_phase, 1)
-        
-        # VIX-based adjustments (tighter limits during high volatility)
-        vix_adjustment = self._get_vix_correlation_adjustment(vix_level)
-        adjusted_max_per_group = max(1, int(max_per_group * vix_adjustment))
-        
-        # Check if new position would violate limits
-        would_violate = current_in_group >= adjusted_max_per_group
-        
-        # Calculate diversification metrics
-        diversification_score = self._calculate_diversification_score(group_counts, total_positions)
-        
-        return {
-            'can_add_position': not would_violate,
-            'new_symbol': new_symbol,
-            'correlation_group': new_group.value,
-            'current_positions_in_group': current_in_group,
-            'max_positions_per_group': adjusted_max_per_group,
-            'original_limit': max_per_group,
-            'vix_adjustment_factor': vix_adjustment,
-            'total_positions': total_positions,
-            'group_distribution': {group.value: count for group, count in group_counts.items()},
-            'diversification_score': diversification_score,
-            'risk_analysis': {
-                'concentration_risk': self._assess_concentration_risk(group_counts, total_positions),
-                'august_2024_risk': self._assess_august_disaster_risk(group_counts, vix_level),
-                'correlation_warning': would_violate
-            },
-            'recommendations': self._get_correlation_recommendations(
-                group_counts, new_group, would_violate, vix_level
-            )
-        }
-    
-    def monitor_correlation_risk(self, current_positions: List[Dict], 
-                               vix_level: float = 20.0,
-                               market_stress: bool = False) -> Dict:
-        """
-        Monitor portfolio for correlation risk and August 2024-style scenarios
-        
-        Args:
-            current_positions: List of current positions
-            vix_level: Current VIX level
-            market_stress: Whether market is under stress
-            
-        Returns:
-            Comprehensive correlation risk analysis
-        """
-        group_counts = {}
-        position_values = {}
-        total_portfolio_value = 0
-        
-        # Analyze current portfolio composition
-        for position in current_positions:
-            symbol = position.get('symbol', '')
-            value = position.get('market_value', 0)
-            group = self.get_symbol_group(symbol)
-            
-            group_counts[group] = group_counts.get(group, 0) + 1
-            position_values[group] = position_values.get(group, 0) + value
-            total_portfolio_value += value
-        
-        # Calculate risk metrics
-        risk_metrics = self._calculate_comprehensive_risk_metrics(
-            group_counts, position_values, total_portfolio_value, vix_level
-        )
-        
-        # August 2024 disaster scenario analysis
-        disaster_risk = self._assess_august_disaster_risk(group_counts, vix_level)
-        
-        # Generate alerts and recommendations
-        alerts = self._generate_correlation_alerts(risk_metrics, disaster_risk, market_stress)
-        
-        return {
-            'portfolio_analysis': {
-                'total_positions': sum(group_counts.values()),
-                'group_distribution': {group.value: count for group, count in group_counts.items()},
-                'value_distribution': {group.value: value for group, value in position_values.items()},
-                'total_portfolio_value': total_portfolio_value
-            },
-            'risk_metrics': risk_metrics,
-            'disaster_scenario_risk': disaster_risk,
-            'correlation_matrix': self._get_current_correlation_estimates(list(group_counts.keys())),
-            'alerts': alerts,
-            'vix_context': {
-                'current_level': vix_level,
-                'correlation_adjustment': self._get_vix_correlation_adjustment(vix_level),
-                'risk_regime': self._get_correlation_risk_regime(vix_level)
-            }
-        }
-    
-    def optimize_position_diversification(self, target_positions: List[str],
-                                        account_phase: int, vix_level: float) -> Dict:
-        """
-        Optimize position allocation for maximum diversification
-        
-        Args:
-            target_positions: List of target symbols
-            account_phase: Account phase (1-4)
-            vix_level: Current VIX level
-            
-        Returns:
-            Optimized position allocation recommendations
-        """
-        # Group symbols by correlation group
-        groups = {}
-        for symbol in target_positions:
-            group = self.get_symbol_group(symbol)
-            if group not in groups:
-                groups[group] = []
-            groups[group].append(symbol)
-        
-        max_per_group = self.phase_group_limits.get(account_phase, 1)
-        vix_adjustment = self._get_vix_correlation_adjustment(vix_level)
-        adjusted_max = max(1, int(max_per_group * vix_adjustment))
-        
-        # Optimize selection within each group
-        optimized_positions = []
-        group_allocations = {}
-        
-        for group, symbols in groups.items():
-            # Select best symbols from each group (up to limit)
-            selected = self._select_best_symbols_from_group(symbols, adjusted_max, group)
-            optimized_positions.extend(selected)
-            group_allocations[group] = len(selected)
-        
-        # Calculate diversification score
-        diversification_score = self._calculate_diversification_score(
-            group_allocations, len(optimized_positions)
-        )
-        
-        return {
-            'optimized_positions': optimized_positions,
-            'group_allocations': {group.value: count for group, count in group_allocations.items()},
-            'diversification_score': diversification_score,
-            'optimization_details': {
-                'original_count': len(target_positions),
-                'optimized_count': len(optimized_positions),
-                'groups_used': len(group_allocations),
-                'max_per_group': adjusted_max,
-                'vix_adjustment': vix_adjustment
-            },
-            'risk_assessment': {
-                'correlation_risk': 'LOW' if diversification_score > 0.7 else 'MODERATE' if diversification_score > 0.5 else 'HIGH',
-                'august_2024_protection': diversification_score > 0.6,
-                'recommended_additions': self._suggest_diversification_improvements(group_allocations)
-            }
-        }
-    
-    def _get_vix_correlation_adjustment(self, vix_level: float) -> float:
-        """Get correlation limit adjustment based on VIX level"""
-        if vix_level <= 22:
-            return 1.0  # Normal limits
-        elif vix_level <= 28:
-            return 0.8  # 20% tighter limits
-        elif vix_level <= 35:
-            return 0.6  # 40% tighter limits
-        else:
-            return 0.4  # 60% tighter limits (extreme caution)
-    
-    def _calculate_diversification_score(self, group_counts: Dict, 
-                                       total_positions: int) -> float:
-        """Calculate portfolio diversification score (0-1)"""
-        if total_positions == 0:
-            return 0.0
-        
-        # Calculate Herfindahl-Hirschman Index (HHI) for diversification
-        hhi = sum((count / total_positions) ** 2 for count in group_counts.values())
-        
-        # Convert to diversification score (1 - HHI, adjusted)
-        max_groups = len(CorrelationGroup)
-        normalized_hhi = (hhi - 1/max_groups) / (1 - 1/max_groups)
-        diversification_score = max(0, 1 - normalized_hhi)
-        
-        return diversification_score
-    
-    def UpdateMarketData(self, data):
-        """Update market data for correlation calculations"""
-        try:
-            for symbol in data.Keys:
-                if data[symbol] is not None:
-                    # Store price history for correlation calculations
-                    symbol_str = str(symbol)
-                    if symbol_str not in self.price_history:
-                        self.price_history[symbol_str] = []
-                    
-                    # Add current price to history (keep last 20 days)
-                    if hasattr(data[symbol], 'Close'):
-                        self.price_history[symbol_str].append(data[symbol].Close)
-                        if len(self.price_history[symbol_str]) > 20:
-                            self.price_history[symbol_str].pop(0)
-        except Exception as e:
-            if self.algorithm:
-                self.algorithm.Error(f"Error updating correlation market data: {str(e)}")
-    
-    def _assess_concentration_risk(self, group_counts: Dict, 
-                                 total_positions: int) -> str:
-        """Assess concentration risk level"""
-        if total_positions == 0:
-            return "NO_POSITIONS"
-        
-        max_group_concentration = max(group_counts.values()) / total_positions
-        
-        if max_group_concentration > 0.70:
-            return "EXTREME"
-        elif max_group_concentration > 0.50:
-            return "HIGH"
-        elif max_group_concentration > 0.35:
-            return "MODERATE"
-        else:
-            return "LOW"
-    
-    def _assess_august_disaster_risk(self, group_counts: Dict, vix_level: float) -> Dict:
-        """
-        Assess risk of August 5, 2024-style correlation disaster
-        
-        Tom King lost £308k because he had 6 LT112 positions all in equity indices
-        This function prevents similar concentration disasters
-        """
-        total_positions = sum(group_counts.values())
-        
-        if total_positions == 0:
-            return {'risk_level': 'NO_RISK', 'reason': 'No positions'}
-        
-        # Check for dangerous concentration patterns
-        equity_positions = group_counts.get(CorrelationGroup.EQUITY_INDEX, 0)
-        tech_positions = group_counts.get(CorrelationGroup.TECHNOLOGY, 0)
-        
-        # Equity + Tech are highly correlated during crashes
-        correlated_equity_positions = equity_positions + tech_positions
-        equity_concentration = correlated_equity_positions / total_positions
-        
-        # VIX-adjusted risk assessment
-        if vix_level > 30 and equity_concentration > 0.60:
-            risk_level = "EXTREME"
-            reason = f"High VIX ({vix_level}) with {equity_concentration:.1%} equity concentration - August 2024 pattern"
-        elif equity_concentration > 0.75:
-            risk_level = "HIGH"
-            reason = f"Excessive equity concentration ({equity_concentration:.1%}) - similar to Tom King's disaster"
-        elif correlated_equity_positions > 4 and vix_level > 25:
-            risk_level = "MODERATE"
-            reason = f"{correlated_equity_positions} equity positions during elevated VIX ({vix_level})"
-        elif equity_concentration > 0.50:
-            risk_level = "LOW"
-            reason = f"Moderate equity concentration ({equity_concentration:.1%})"
-        else:
-            risk_level = "MINIMAL"
-            reason = "Well diversified portfolio"
-        
-        return {
-            'risk_level': risk_level,
-            'reason': reason,
-            'equity_concentration': equity_concentration,
-            'correlated_positions': correlated_equity_positions,
-            'total_positions': total_positions,
-            'vix_context': vix_level,
-            'protection_active': equity_concentration < 0.60,
-            'tom_king_comparison': {
-                'his_concentration': 1.0,  # 6/6 positions in equity indices
-                'his_loss': 308000,
-                'your_concentration': equity_concentration,
-                'estimated_protection': max(0, 1 - equity_concentration / 1.0)
-            }
-        }
-    
-    def _calculate_comprehensive_risk_metrics(self, group_counts: Dict, 
-                                            position_values: Dict, 
-                                            total_value: float, vix_level: float) -> Dict:
-        """Calculate comprehensive correlation risk metrics"""
-        if total_value == 0:
-            return {'error': 'No portfolio value to analyze'}
-        
-        # Value-based concentration (more accurate than count-based)
-        value_concentrations = {group: value / total_value 
-                              for group, value in position_values.items()}
-        
-        max_value_concentration = max(value_concentrations.values()) if value_concentrations else 0
-        
-        # Estimated portfolio correlation during stress
-        estimated_correlation = self._estimate_portfolio_correlation(group_counts, vix_level)
-        
-        # Risk-adjusted metrics
-        return {
-            'value_concentration': value_concentrations,
-            'max_group_concentration': max_value_concentration,
-            'estimated_portfolio_correlation': estimated_correlation,
-            'diversification_index': self._calculate_diversification_score(group_counts, sum(group_counts.values())),
-            'stress_test_correlation': min(0.95, estimated_correlation * (1 + vix_level / 100)),
-            'august_2024_similarity': self._calculate_august_similarity(group_counts),
-            'risk_score': self._calculate_overall_risk_score(
-                max_value_concentration, estimated_correlation, vix_level
-            )
-        }
-    
-    def _estimate_portfolio_correlation(self, group_counts: Dict, vix_level: float) -> float:
-        """Estimate overall portfolio correlation"""
-        if not group_counts:
-            return 0.0
-        
-        total_positions = sum(group_counts.values())
-        weighted_correlation = 0.0
-        
-        for group1, count1 in group_counts.items():
-            for group2, count2 in group_counts.items():
-                if group1 in self.correlation_matrix and group2 in self.correlation_matrix[group1]:
-                    corr = self.correlation_matrix[group1][group2]
-                else:
-                    corr = 0.3  # Default moderate correlation
+            symbol_str = str(position.Key).upper()
+            if hasattr(position.Key, 'Value'):
+                symbol_str = position.Key.Value.upper()
                 
-                weight = (count1 * count2) / (total_positions ** 2)
-                weighted_correlation += weight * corr
+            if symbol_str in group_symbols:
+                group_positions.append({
+                    'symbol': symbol_str,
+                    'quantity': position.Value.Quantity,
+                    'market_value': position.Value.HoldingsValue,
+                    'unrealized_pnl': position.Value.UnrealizedProfit
+                })
         
-        # Adjust for VIX (correlations increase during stress)
-        vix_multiplier = 1 + (vix_level - 20) / 100
-        return min(0.99, weighted_correlation * vix_multiplier)
+        return group_positions
     
-    def _calculate_august_similarity(self, group_counts: Dict) -> float:
-        """Calculate similarity to August 2024 disaster scenario (0-1)"""
-        total_positions = sum(group_counts.values())
-        if total_positions == 0:
-            return 0.0
+    def can_add_to_group(self, symbol, account_phase):
+        """
+        Check if we can add another position to this symbol's correlation group
+        Returns: (can_add: bool, reason: str, current_count: int, max_allowed: int)
+        """
+        group_name = self.get_symbol_correlation_group(symbol)
         
-        equity_positions = group_counts.get(CorrelationGroup.EQUITY_INDEX, 0)
-        equity_percentage = equity_positions / total_positions
+        if not group_name:
+            return True, "Symbol not in tracked correlation groups", 0, 999
         
-        # Tom King had 100% equity index concentration
-        return equity_percentage
-    
-    def _calculate_overall_risk_score(self, concentration: float, 
-                                    correlation: float, vix_level: float) -> float:
-        """Calculate overall correlation risk score (0-1, higher is riskier)"""
-        # Weighted combination of risk factors
-        concentration_risk = min(1.0, concentration * 2)  # Double weight concentration
-        correlation_risk = correlation
-        vix_risk = min(1.0, (vix_level - 15) / 50)  # Risk increases with VIX above 15
+        # Get phase limits
+        phase_key = f'phase{account_phase}'
+        limits = self.group_limits.get(phase_key, self.group_limits['phase1'])
         
-        # Combined risk score
-        risk_score = (0.4 * concentration_risk + 0.4 * correlation_risk + 0.2 * vix_risk)
-        return min(1.0, risk_score)
-    
-    def _generate_correlation_alerts(self, risk_metrics: Dict, 
-                                   disaster_risk: Dict, market_stress: bool) -> List[Dict]:
-        """Generate correlation-based alerts and warnings"""
-        alerts = []
-        
-        # High concentration alert
-        if risk_metrics.get('max_group_concentration', 0) > 0.60:
-            alerts.append({
-                'type': 'CONCENTRATION_WARNING',
-                'severity': 'HIGH',
-                'message': f"High concentration in single correlation group: {risk_metrics['max_group_concentration']:.1%}",
-                'action': 'Consider reducing positions in dominant group'
-            })
-        
-        # August 2024 disaster risk alert
-        if disaster_risk['risk_level'] in ['HIGH', 'EXTREME']:
-            alerts.append({
-                'type': 'AUGUST_2024_RISK',
-                'severity': 'CRITICAL',
-                'message': disaster_risk['reason'],
-                'action': 'Reduce equity concentration immediately - Tom King lost £308k with this pattern'
-            })
-        
-        # High correlation alert
-        if risk_metrics.get('estimated_portfolio_correlation', 0) > 0.80:
-            alerts.append({
-                'type': 'HIGH_CORRELATION',
-                'severity': 'MODERATE',
-                'message': f"Portfolio correlation estimated at {risk_metrics['estimated_portfolio_correlation']:.1%}",
-                'action': 'Add positions from uncorrelated groups'
-            })
-        
-        # Market stress amplification alert
-        if market_stress and risk_metrics.get('stress_test_correlation', 0) > 0.85:
-            alerts.append({
-                'type': 'STRESS_AMPLIFICATION',
-                'severity': 'HIGH',
-                'message': 'Market stress likely to amplify portfolio correlations',
-                'action': 'Consider defensive position sizing or hedging'
-            })
-        
-        return alerts
-    
-    def _get_current_correlation_estimates(self, active_groups: List[CorrelationGroup]) -> Dict:
-        """Get correlation estimates for active groups"""
-        estimates = {}
-        for group1 in active_groups:
-            estimates[group1.value] = {}
-            for group2 in active_groups:
-                if group1 in self.correlation_matrix and group2 in self.correlation_matrix[group1]:
-                    estimates[group1.value][group2.value] = self.correlation_matrix[group1][group2]
-                else:
-                    # Default correlation estimates
-                    if group1 == group2:
-                        estimates[group1.value][group2.value] = 1.0
-                    else:
-                        estimates[group1.value][group2.value] = 0.3
-        
-        return estimates
-    
-    def _select_best_symbols_from_group(self, symbols: List[str], 
-                                      max_count: int, group: CorrelationGroup) -> List[str]:
-        """Select best symbols from a correlation group based on liquidity and spreads"""
-        try:
-            symbol_scores = []
-            
-            for symbol in symbols:
-                score = 0.0
-                
-                # Check if symbol data is available
-                if symbol in self.algorithm.Securities:
-                    security = self.algorithm.Securities[symbol]
-                    
-                    # Liquidity score (based on volume)
-                    if hasattr(security, 'Volume') and security.Volume > 0:
-                        # Higher volume = better liquidity
-                        volume_score = min(100, security.Volume / 1000000)  # Normalize to 0-100
-                        score += volume_score * 0.4  # 40% weight
-                    
-                    # Spread score (tighter spread = better)
-                    if security.BidPrice > 0 and security.AskPrice > 0:
-                        spread = (security.AskPrice - security.BidPrice) / security.BidPrice
-                        spread_score = max(0, 100 - (spread * 10000))  # Lower spread = higher score
-                        score += spread_score * 0.3  # 30% weight
-                    
-                    # Open interest score (for options)
-                    if hasattr(security, 'OpenInterest') and security.OpenInterest > 0:
-                        oi_score = min(100, security.OpenInterest / 1000)  # Normalize
-                        score += oi_score * 0.2  # 20% weight
-                    
-                    # Historical volatility score (prefer moderate volatility)
-                    if hasattr(self.algorithm, 'ATR'):
-                        atr_indicator = self.algorithm.ATR(symbol, 14)
-                        if atr_indicator.IsReady:
-                            # Target ATR around 2-3% of price
-                            atr_ratio = atr_indicator.Current.Value / security.Price
-                            if 0.02 <= atr_ratio <= 0.03:
-                                vol_score = 100
-                            elif atr_ratio < 0.02:
-                                vol_score = atr_ratio * 5000  # Scale up low vol
-                            else:
-                                vol_score = max(0, 100 - (atr_ratio - 0.03) * 1000)  # Penalize high vol
-                            score += vol_score * 0.1  # 10% weight
-                
-                # Group-specific preferences
-                if group == CorrelationGroup.EQUITY_INDEX:
-                    # Prefer major indices
-                    if symbol in ['SPY', 'QQQ', 'IWM']:
-                        score += 20
-                elif group == CorrelationGroup.ENERGY:
-                    # Prefer liquid energy futures
-                    if symbol in ['CL', 'USO']:
-                        score += 15
-                elif group == CorrelationGroup.METALS:
-                    # Prefer major metals
-                    if symbol in ['GLD', 'SLV', 'GC']:
-                        score += 15
-                elif group == CorrelationGroup.TREASURIES:
-                    # Prefer TLT for bonds
-                    if symbol == 'TLT':
-                        score += 20
-                
-                symbol_scores.append((symbol, score))
-            
-            # Sort by score descending
-            symbol_scores.sort(key=lambda x: x[1], reverse=True)
-            
-            # Return top symbols up to max_count
-            selected = [sym for sym, score in symbol_scores[:max_count]]
-            
-            if hasattr(self.algorithm, 'Debug'):
-                self.algorithm.Debug(f"Selected {len(selected)} symbols from {group.value}: {selected}")
-            
-            return selected
-            
-        except Exception as e:
-            if hasattr(self.algorithm, 'Error'):
-                self.algorithm.Error(f"Error selecting symbols from group: {str(e)}")
-            # Fallback to simple selection
-            return symbols[:max_count]
-    
-    def _suggest_diversification_improvements(self, group_allocations: Dict) -> List[str]:
-        """Suggest improvements to portfolio diversification"""
-        suggestions = []
-        
-        total_groups = len(CorrelationGroup)
-        used_groups = len(group_allocations)
-        
-        if used_groups < total_groups * 0.5:
-            suggestions.append("Consider adding positions from unused correlation groups")
-        
-        # Find overconcentrated groups
-        for group, count in group_allocations.items():
-            if count > 3:
-                suggestions.append(f"Consider reducing positions in {group.value} group")
-        
-        # Suggest underutilized groups
-        unused_groups = set(CorrelationGroup) - set(group_allocations.keys())
-        if unused_groups:
-            for group in list(unused_groups)[:3]:  # Suggest up to 3 groups
-                suggestions.append(f"Consider adding positions in {group.value} for diversification")
-        
-        return suggestions
-    
-    def _get_correlation_recommendations(self, group_counts: Dict, 
-                                       new_group: CorrelationGroup, 
-                                       would_violate: bool, vix_level: float) -> List[str]:
-        """Get specific recommendations for correlation management"""
-        recommendations = []
-        
-        if would_violate:
-            recommendations.append(f"Cannot add position to {new_group.value} - group limit reached")
-            
-            # Suggest alternative groups
-            underutilized_groups = []
-            for group in CorrelationGroup:
-                if group_counts.get(group, 0) < self.phase_group_limits.get(4, 3):
-                    underutilized_groups.append(group.value)
-            
-            if underutilized_groups:
-                recommendations.append(f"Consider positions in: {', '.join(underutilized_groups[:3])}")
-        
-        if vix_level > 25:
-            recommendations.append("High VIX detected - using tighter correlation limits for protection")
-        
-        # August 2024 specific recommendations
-        equity_count = group_counts.get(CorrelationGroup.EQUITY_INDEX, 0)
-        if equity_count > 3:
-            recommendations.append("WARNING: High equity concentration - consider Tom King's August 2024 lesson")
-        
-        return recommendations
-    
-    def _get_correlation_risk_regime(self, vix_level: float) -> str:
-        """Get correlation risk regime based on VIX"""
-        if vix_level < 15:
-            return "LOW_CORRELATION"
-        elif vix_level < 25:
-            return "NORMAL_CORRELATION"
-        elif vix_level < 35:
-            return "HIGH_CORRELATION"
+        # Special handling for volatility group
+        if group_name == 'G':
+            max_allowed = limits['volatility_group_max']
         else:
-            return "EXTREME_CORRELATION"
+            max_allowed = limits['max_per_group']
+        
+        # Count current positions in this group
+        current_positions = self.get_current_group_positions(group_name)
+        current_count = len(current_positions)
+        
+        can_add = current_count < max_allowed
+        
+        if not can_add:
+            reason = f"Correlation group {group_name} at maximum ({current_count}/{max_allowed})"
+            return False, reason, current_count, max_allowed
+        
+        return True, f"Can add to group {group_name} ({current_count}/{max_allowed})", current_count, max_allowed
+    
+    def calculate_portfolio_correlation_risk(self, account_phase):
+        """
+        Calculate overall portfolio correlation risk score (0-100)
+        Higher score = higher correlation risk
+        """
+        risk_score = 0
+        group_concentrations = {}
+        
+        # Get current positions by group
+        for group_name in self.correlation_groups.keys():
+            positions = self.get_current_group_positions(group_name)
+            if positions:
+                group_value = sum(pos['market_value'] for pos in positions)
+                group_concentrations[group_name] = {
+                    'count': len(positions),
+                    'value': group_value,
+                    'positions': positions
+                }
+        
+        total_portfolio_value = float(self.algorithm.Portfolio.TotalPortfolioValue)
+        if total_portfolio_value <= 0:
+            return 0
+        
+        # Calculate risk components
+        for group_name, data in group_concentrations.items():
+            count = data['count']
+            value_pct = abs(data['value']) / total_portfolio_value
+            crisis_weight = self.crisis_correlation_weights.get(group_name, 0.5)
+            
+            # Phase limits
+            phase_key = f'phase{account_phase}'
+            limits = self.group_limits.get(phase_key, self.group_limits['phase1'])
+            max_allowed = limits['volatility_group_max'] if group_name == 'G' else limits['max_per_group']
+            
+            # Position count risk
+            count_risk = min(100, (count / max_allowed) * 100)
+            
+            # Concentration risk  
+            concentration_risk = min(100, value_pct * 200)  # 50% = 100 risk points
+            
+            # Crisis correlation risk
+            crisis_risk = crisis_weight * 100
+            
+            # Combined group risk
+            group_risk = (count_risk * 0.4 + concentration_risk * 0.4 + crisis_risk * 0.2)
+            risk_score += group_risk * value_pct  # Weight by portfolio percentage
+        
+        return min(100, risk_score)
+    
+    def get_correlation_summary(self, account_phase):
+        """Generate complete correlation analysis summary"""
+        summary = {
+            'account_phase': account_phase,
+            'risk_score': self.calculate_portfolio_correlation_risk(account_phase),
+            'groups': {},
+            'recommendations': [],
+            'warnings': []
+        }
+        
+        # Analyze each group
+        for group_name, symbols in self.correlation_groups.items():
+            positions = self.get_current_group_positions(group_name)
+            
+            if positions:
+                phase_key = f'phase{account_phase}'
+                limits = self.group_limits.get(phase_key, self.group_limits['phase1'])
+                max_allowed = limits['volatility_group_max'] if group_name == 'G' else limits['max_per_group']
+                
+                group_value = sum(pos['market_value'] for pos in positions)
+                portfolio_pct = (abs(group_value) / float(self.algorithm.Portfolio.TotalPortfolioValue)) * 100
+                
+                summary['groups'][group_name] = {
+                    'name': group_name,
+                    'description': self._get_group_description(group_name),
+                    'position_count': len(positions),
+                    'max_allowed': max_allowed,
+                    'total_value': group_value,
+                    'portfolio_percentage': portfolio_pct,
+                    'positions': positions,
+                    'crisis_correlation': self.crisis_correlation_weights.get(group_name, 0.5),
+                    'at_limit': len(positions) >= max_allowed
+                }
+                
+                # Generate warnings
+                if len(positions) >= max_allowed:
+                    summary['warnings'].append(f"Group {group_name} at maximum positions ({len(positions)}/{max_allowed})")
+                
+                if portfolio_pct > 40:
+                    summary['warnings'].append(f"Group {group_name} over 40% of portfolio ({portfolio_pct:.1f}%)")
+        
+        # Risk-based recommendations
+        if summary['risk_score'] > 75:
+            summary['recommendations'].append("HIGH CORRELATION RISK - Reduce concentrated positions")
+        elif summary['risk_score'] > 50:
+            summary['recommendations'].append("MEDIUM CORRELATION RISK - Monitor group limits")
+        elif summary['risk_score'] > 25:
+            summary['recommendations'].append("LOW CORRELATION RISK - Within acceptable limits")
+        else:
+            summary['recommendations'].append("MINIMAL CORRELATION RISK - Good diversification")
+        
+        # August 5, 2024 specific check
+        a1_positions = summary['groups'].get('A1', {}).get('position_count', 0)
+        if a1_positions >= 3:
+            summary['warnings'].append("⚠️ AUGUST 5TH PROTECTION: Group A1 heavily weighted - reduce equity index exposure")
+        
+        return summary
+    
+    def _get_group_description(self, group_name):
+        """Get human-readable description of correlation group"""
+        descriptions = {
+            'A1': 'Major US Equity Indices (ES, SPY, QQQ, IWM)',
+            'A2': 'International & Secondary Equity',
+            'B1': 'Energy Complex (Oil, Gas, Energy ETFs)', 
+            'C1': 'Precious Metals (Gold, Silver)',
+            'D1': 'Agriculture & Soft Commodities',
+            'E': 'Fixed Income & Interest Rates',
+            'F': 'Currencies & USD Strength',
+            'G': 'Volatility Products (VIX, UVXY)'
+        }
+        return descriptions.get(group_name, f'Group {group_name}')
+    
+    def enforce_correlation_limits(self, symbol, account_phase):
+        """
+        Enforce correlation limits before position entry
+        Returns: (allowed: bool, message: str)
+        """
+        can_add, reason, current, max_allowed = self.can_add_to_group(symbol, account_phase)
+        
+        if not can_add:
+            self.algorithm.Log(f"CORRELATION LIMIT BLOCKED: {symbol} - {reason}")
+            return False, f"Blocked: {reason}"
+        
+        # Log successful check
+        group_name = self.get_symbol_correlation_group(symbol)
+        if group_name:
+            self.algorithm.Log(f"CORRELATION CHECK PASSED: {symbol} can be added to group {group_name} ({current + 1}/{max_allowed})")
+        
+        return True, f"Approved for group {group_name} ({current + 1}/{max_allowed})"
+    
+    def get_diversification_opportunities(self, account_phase):
+        """
+        Suggest symbols that would improve diversification
+        Returns list of recommended symbols by group
+        """
+        opportunities = {}
+        
+        for group_name, symbols in self.correlation_groups.items():
+            positions = self.get_current_group_positions(group_name)
+            
+            # Skip if group is at limit
+            can_add, _, current, max_allowed = self.can_add_to_group(symbols[0] if symbols else 'SPY', account_phase)
+            
+            if can_add and len(positions) == 0:
+                # Empty groups are opportunities
+                opportunities[group_name] = {
+                    'description': self._get_group_description(group_name),
+                    'suggested_symbols': symbols[:3],  # Top 3 symbols
+                    'rationale': 'Improve diversification by adding uncorrelated exposure'
+                }
+        
+        return opportunities
+    
+    def validate_correlation_system(self):
+        """Validate correlation system functionality"""
+        tests = [
+            ('SPY in A1 group', 'SPY' in self.correlation_groups['A1']),
+            ('GLD in C1 group', 'GLD' in self.correlation_groups['C1']),
+            ('VIX in G group', 'VIX' in self.correlation_groups['G']),
+            ('7 groups defined', len(self.correlation_groups) == 7),
+            ('Phase limits defined', len(self.group_limits) == 4)
+        ]
+        
+        results = []
+        for test_name, condition in tests:
+            results.append(f"{'✅' if condition else '❌'} {test_name}")
+        
+        return results
+
+# Usage Example for QuantConnect Algorithm:
+# 
+# def Initialize(self):
+#     self.correlation_manager = CorrelationManager(self)
+# 
+# def OnData(self, data):
+#     # Before placing any trade
+#     symbol = "SPY"
+#     account_phase = 2
+#     
+#     allowed, message = self.correlation_manager.enforce_correlation_limits(symbol, account_phase)
+#     if allowed:
+#         # Place trade
+#         self.SetHoldings(symbol, 0.1)
+#         
+#     # Get correlation summary
+#     summary = self.correlation_manager.get_correlation_summary(account_phase)
+#     if summary['risk_score'] > 75:
+#         self.Log("HIGH CORRELATION RISK DETECTED")
+
+class CorrelationGroup:
+    """
+    Represents a correlation group for tracking related symbols
+    """
+    
+    def __init__(self, group_id, symbols, crisis_weight=0.0):
+        self.group_id = group_id
+        self.symbols = symbols
+        self.crisis_weight = crisis_weight
+        self.current_positions = []
+        self.exposure = 0.0
+    
+    def add_position(self, symbol, size):
+        """Add a position to this group"""
+        self.current_positions.append({
+            'symbol': symbol,
+            'size': size
+        })
+        self.exposure += abs(size)
+    
+    def remove_position(self, symbol):
+        """Remove a position from this group"""
+        self.current_positions = [p for p in self.current_positions if p['symbol'] != symbol]
+        self.exposure = sum(abs(p['size']) for p in self.current_positions)
+    
+    def get_exposure(self):
+        """Get total exposure for this group"""
+        return self.exposure
+    
+    def has_symbol(self, symbol):
+        """Check if symbol belongs to this group"""
+        return symbol in self.symbols

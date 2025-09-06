@@ -113,7 +113,7 @@ class TomKingLT112CoreStrategy:
             return False
         
         # Check account capacity
-        if not self.algorithm.HasCapacity():
+        if self.algorithm.Portfolio.MarginRemaining <= 0:
             return False
         
         # Check VIX regime (avoid extreme volatility)
@@ -220,8 +220,8 @@ class TomKingLT112CoreStrategy:
                 emergency_atr = current_price * 0.02
                 self.algorithm.Log(f"[EMERGENCY] Using emergency ATR fallback for {underlying}: ${emergency_atr:.2f}")
                 return max(1.0, emergency_atr)
-            except:
-                self.algorithm.Log(f"[EMERGENCY] Using absolute emergency ATR for {underlying}: $5.00")
+            except Exception as e:
+                self.algorithm.Log(f"[EMERGENCY] Using absolute emergency ATR for {underlying}: $5.00 - Error: {e}")
                 return 5.0  # Absolute emergency fallback
     
     def _get_option_chain(self, underlying: str, target_dte: int) -> Optional[List]:

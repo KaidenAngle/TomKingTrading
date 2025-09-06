@@ -17,62 +17,50 @@ Version: 1.0.0
 Implementation: QuantConnect LEAN Python
 """
 
-from .position_sizing import (
-    PositionSizer,
-    VIXRegime,
-    AccountPhase
-)
-
+# Import only what exists and is used by main.py
 from .correlation import (
     CorrelationManager,
     CorrelationGroup
 )
 
-from .defensive import (
-    DefensiveManager,
-    DefensiveAction,
-    ManagementTrigger,
-    PositionStatus
+from .vix_regime import (
+    VIXRegimeManager
 )
 
-from .parameters import (
-    RiskParameters,
-    RiskProfile,
-    RISK_PARAMETERS,
-    get_risk_parameters,
-    get_vix_regime_info,
-    get_account_phase_info,
-    get_strategy_info,
-    check_emergency_status
-)
+# Commented out missing modules
+# from .position_sizing import (
+#     PositionSizer,
+#     VIXRegime,
+#     AccountPhase
+# )
+
+# from .defensive import (
+#     DefensiveManager,
+#     DefensiveAction,
+#     ManagementTrigger,
+#     PositionStatus
+# )
+
+# from .parameters import (
+#     RiskParameters,
+#     RiskProfile,
+#     RISK_PARAMETERS,
+#     get_risk_parameters,
+#     get_vix_regime_info,
+#     get_account_phase_info,
+#     get_strategy_info,
+#     check_emergency_status
+# )
 
 __version__ = "1.0.0"
 __author__ = "Tom King Trading System Implementation"
 
 # Main risk management components
 __all__ = [
-    # Position Sizing
-    'PositionSizer',
-    'VIXRegime', 
-    'AccountPhase',
-    
     # Correlation Management
     'CorrelationManager',
     'CorrelationGroup',
     
-    # Defensive Management
-    'DefensiveManager',
-    'DefensiveAction',
-    'ManagementTrigger',
-    'PositionStatus',
-    
-    # Risk Parameters
-    'RiskParameters',
-    'RiskProfile',
-    'RISK_PARAMETERS',
-    'get_risk_parameters',
-    'get_vix_regime_info',
-    'get_account_phase_info',
-    'get_strategy_info',
-    'check_emergency_status'
+    # VIX Regime Management
+    'VIXRegimeManager'
 ]

@@ -26,12 +26,19 @@ class TomKingFuturesStrangleStrategy:
         
         # CORE PARAMETERS (Tom King Specifications)
         self.TARGET_DTE = 90  # CRITICAL: 90 days, not 45
-        self.ENTRY_DAY = 3  # Thursday = 3 (Monday=0)
+        self.ENTRY_DAY = 1  # Tom King: Second Tuesday of month
         self.ENTRY_TIME = time(10, 15)  # 10:15 AM ET
         self.MANAGEMENT_DTE = 21  # Exit/roll at 21 DTE
         self.PROFIT_TARGET = 0.50  # 50% profit target
-        self.TARGET_DELTA = 0.16  # 16-20 delta target
-        self.DELTA_RANGE = (0.16, 0.20)  # Acceptable delta range
+        self.TARGET_DELTA = 0.05  # Tom King: 5-7 delta for puts, 5-6 for calls
+        self.PUT_DELTA_RANGE = (0.05, 0.07)  # Put delta range
+        self.CALL_DELTA_RANGE = (0.05, 0.06)  # Call delta range
+        
+        # Tom King consolidation/range requirements
+        self.CONSOLIDATION_DAYS = 20  # Look back 20 days
+        self.MAX_RANGE_PERCENT = 0.08  # 8% maximum range for consolidation
+        self.OPTIMAL_RANGE_POSITION = (0.20, 0.80)  # Enter in middle 60% of range
+        self.MIN_IV_PERCENTILE = 40  # Minimum IV percentile for entry
         
         # Futures contracts based on account phase
         self.futures_contracts = self._initialize_futures_by_phase()
@@ -103,12 +110,48 @@ class TomKingFuturesStrangleStrategy:
         
         return futures_contracts
     
+    def update_market_data(self):
+        """Update price and IV history for consolidation and IV analysis"""
+        try:
+            for futures_name, futures_symbol in self.futures_contracts.items():
+                if futures_symbol in self.algorithm.Securities:
+                    # Update price history
+                    current_price = float(self.algorithm.Securities[futures_symbol].Price)
+                    if current_price > 0:
+                        if futures_name not in self.futures_price_history:
+                            self.futures_price_history[futures_name] = []
+                        self.futures_price_history[futures_name].append(current_price)
+                        
+                        # Keep only last 252 days (1 year)
+                        if len(self.futures_price_history[futures_name]) > 252:
+                            self.futures_price_history[futures_name] = self.futures_price_history[futures_name][-252:]
+                    
+                    # Update IV from option chains if available
+                    option_chains = self.algorithm.CurrentSlice.OptionChains
+                    for kvp in option_chains:
+                        chain = kvp.Value
+                        if chain and len(chain) > 0:
+                            # Get ATM IV
+                            atm_iv = self._estimate_atm_iv(list(chain), current_price)
+                            if atm_iv > 0:
+                                if futures_name not in self.implied_volatility_history:
+                                    self.implied_volatility_history[futures_name] = []
+                                self.implied_volatility_history[futures_name].append(atm_iv)
+                                
+                                # Keep only last 252 days
+                                if len(self.implied_volatility_history[futures_name]) > 252:
+                                    self.implied_volatility_history[futures_name] = self.implied_volatility_history[futures_name][-252:]
+                            break  # Only need one chain for IV
+                            
+        except Exception as e:
+            self.algorithm.Debug(f"Market data update error: {str(e)}")
+    
     def check_entry_opportunity(self) -> bool:
         """Check if today is a valid futures strangle entry day"""
         current_time = self.algorithm.Time
         
-        # Must be Thursday
-        if current_time.weekday() != self.ENTRY_DAY:
+        # Tom King: Must be second Tuesday of month
+        if not self._is_second_tuesday():
             return False
         
         # Must be at or after entry time
@@ -116,7 +159,7 @@ class TomKingFuturesStrangleStrategy:
             return False
         
         # Check market conditions
-        vix_level = self.algorithm.Securities["VIX"].Price
+        vix_level = self.algorithm.Securities["VIX"].Price if "VIX" in self.algorithm.Securities else 20
         if vix_level < 15:  # Skip in very low volatility
             self.algorithm.Log(f"Skipping futures strangle - VIX too low: {vix_level:.1f}")
             return False
@@ -126,6 +169,19 @@ class TomKingFuturesStrangleStrategy:
             return False
         
         return True
+    
+    def _is_second_tuesday(self) -> bool:
+        """Check if today is the second Tuesday of the month"""
+        current_date = self.algorithm.Time
+        
+        # Must be Tuesday
+        if current_date.weekday() != 1:  # 1 = Tuesday
+            return False
+        
+        # Check if it's the second Tuesday
+        day = current_date.day
+        # Second Tuesday falls between 8th and 14th
+        return 8 <= day <= 14
     
     def execute_weekly_entry(self):
         """Execute weekly futures strangle entries"""
@@ -177,8 +233,20 @@ class TomKingFuturesStrangleStrategy:
         return 'OTHER'
     
     def _enter_futures_strangle(self, futures_name: str, futures_symbol) -> bool:
-        """Enter 90 DTE futures strangle position"""
+        """Enter 90 DTE futures strangle position with Tom King entry logic"""
         try:
+            # First check consolidation pattern (Tom King requirement)
+            consolidation_valid, consolidation_msg = self.analyze_consolidation_pattern(futures_name)
+            if not consolidation_valid:
+                self.algorithm.Log(f"[SKIP] {futures_name} - {consolidation_msg}")
+                return False
+            
+            # Check IV environment
+            iv_valid, iv_msg = self.check_iv_environment(futures_name)
+            if not iv_valid:
+                self.algorithm.Log(f"[SKIP] {futures_name} - {iv_msg}")
+                return False
+            
             # Get futures chain
             futures_chains = self.algorithm.CurrentSlice.FutureChains
             futures_chain = futures_chains.get(futures_symbol)
@@ -276,9 +344,70 @@ class TomKingFuturesStrangleStrategy:
             self.algorithm.Log("[DATA] Skipping futures strangle execution - waiting for real market data")
             return []  # Return empty list to skip execution gracefully
     
+    def analyze_consolidation_pattern(self, futures_name: str) -> TupleType[bool, str]:
+        """Tom King: Analyze if market is in consolidation/range-bound pattern"""
+        try:
+            # Get price history for consolidation analysis
+            if futures_name not in self.futures_price_history:
+                return False, "No price history available"
+            
+            price_history = self.futures_price_history[futures_name]
+            if len(price_history) < self.CONSOLIDATION_DAYS:
+                return False, f"Insufficient history ({len(price_history)} days)"
+            
+            # Get last 20 days of prices
+            recent_prices = price_history[-self.CONSOLIDATION_DAYS:]
+            high_20d = max(recent_prices)
+            low_20d = min(recent_prices)
+            current_price = recent_prices[-1]
+            
+            # Calculate range percentage
+            range_percent = (high_20d - low_20d) / low_20d if low_20d > 0 else 0
+            
+            # Tom King: Range must be < 8% for consolidation
+            if range_percent > self.MAX_RANGE_PERCENT:
+                return False, f"Range too wide ({range_percent:.1%} > 8%)"
+            
+            # Check position within range
+            range_position = (current_price - low_20d) / (high_20d - low_20d) if (high_20d - low_20d) > 0 else 0.5
+            
+            # Tom King: Best entries in middle 60% of range
+            if range_position < self.OPTIMAL_RANGE_POSITION[0] or range_position > self.OPTIMAL_RANGE_POSITION[1]:
+                return False, f"Price at range extreme ({range_position:.1%})"
+            
+            return True, f"Consolidation confirmed (range: {range_percent:.1%}, position: {range_position:.1%})"
+            
+        except Exception as e:
+            return False, f"Consolidation analysis error: {str(e)}"
+    
+    def check_iv_environment(self, futures_name: str) -> TupleType[bool, str]:
+        """Check if IV environment is suitable for strangle entry"""
+        try:
+            # Get IV history
+            if futures_name not in self.implied_volatility_history:
+                return True, "No IV history - proceeding"
+            
+            iv_history = self.implied_volatility_history[futures_name]
+            if len(iv_history) < 20:
+                return True, "Insufficient IV history - proceeding"
+            
+            # Calculate IV percentile
+            current_iv = iv_history[-1]
+            sorted_iv = sorted(iv_history[-252:] if len(iv_history) >= 252 else iv_history)  # 1 year
+            percentile_rank = sorted_iv.index(current_iv) / len(sorted_iv) * 100 if current_iv in sorted_iv else 50
+            
+            # Tom King: Need elevated IV for premium selling
+            if percentile_rank < self.MIN_IV_PERCENTILE:
+                return False, f"IV too low (percentile: {percentile_rank:.0f}% < 40%)"
+            
+            return True, f"IV environment suitable (percentile: {percentile_rank:.0f}%)"
+            
+        except Exception as e:
+            return True, f"IV check error: {str(e)} - proceeding"
+    
     def _calculate_strangle_strikes(self, option_chain: List, futures_price: float, 
                                    futures_name: str) -> TupleType[Optional[float], Optional[float]]:
-        """Calculate strangle strikes targeting 16-20 delta"""
+        """Calculate strangle strikes using Tom King's 5-7 delta targeting"""
         try:
             # Estimate implied volatility from ATM options
             atm_iv = self._estimate_atm_iv(option_chain, futures_price)
@@ -289,25 +418,31 @@ class TomKingFuturesStrangleStrategy:
             time_to_expiry = self.TARGET_DTE / 365.0
             sqrt_time = np.sqrt(time_to_expiry)
             
-            # 16-20 delta corresponds to approximately 1 standard deviation
-            # Using normal distribution approximation
-            one_std_move = futures_price * atm_iv * sqrt_time
+            # Tom King: 5-7 delta for puts = ~2 standard deviations OTM
+            # 5-6 delta for calls = ~2 standard deviations OTM
+            # Using inverse normal CDF approximation
+            put_z_score = 2.05  # ~5 delta
+            call_z_score = 2.05  # ~5 delta
             
-            # Target strikes (16-20 delta)
-            call_strike = futures_price + one_std_move
-            put_strike = futures_price - one_std_move
+            put_move = futures_price * atm_iv * sqrt_time * put_z_score
+            call_move = futures_price * atm_iv * sqrt_time * call_z_score
+            
+            # Target strikes (Tom King 5-7 delta)
+            call_strike = futures_price + call_move
+            put_strike = futures_price - put_move
             
             # Round to appropriate strike increment
             strike_increment = self._get_strike_increment(futures_name, futures_price)
             call_strike = round(call_strike / strike_increment) * strike_increment
             put_strike = round(put_strike / strike_increment) * strike_increment
             
-            self.algorithm.Log(f"    Calculated strikes for {futures_name}:")
+            self.algorithm.Log(f"    Tom King Strangle Strikes for {futures_name}:")
             self.algorithm.Log(f"     - Futures Price: ${futures_price:,.2f}")
             self.algorithm.Log(f"     - ATM IV: {atm_iv:.1%}")
-            self.algorithm.Log(f"     - 1 Std Dev Move: ${one_std_move:,.2f}")
-            self.algorithm.Log(f"     - Call Strike: ${call_strike:,.2f}")
-            self.algorithm.Log(f"     - Put Strike: ${put_strike:,.2f}")
+            self.algorithm.Log(f"     - Put Strike (5-7 delta): ${put_strike:,.2f}")
+            self.algorithm.Log(f"     - Call Strike (5-6 delta): ${call_strike:,.2f}")
+            self.algorithm.Log(f"     - Put Distance: ${put_move:,.2f} ({put_move/futures_price:.1%})")
+            self.algorithm.Log(f"     - Call Distance: ${call_move:,.2f} ({call_move/futures_price:.1%})")
             
             return call_strike, put_strike
             
@@ -325,6 +460,36 @@ class TomKingFuturesStrangleStrategy:
         return 1.0
     
     def _estimate_atm_iv(self, option_chain: List, futures_price: float) -> float:
+        """Estimate ATM implied volatility from option chain"""
+        try:
+            # Find ATM options
+            calls = [c for c in option_chain if c.Right == OptionRight.Call]
+            if not calls:
+                return 0.25  # Default 25% IV
+            
+            # Find call closest to ATM
+            atm_call = min(calls, key=lambda c: abs(c.Strike - futures_price))
+            
+            # Get IV from Greeks if available
+            if hasattr(atm_call, 'ImpliedVolatility') and atm_call.ImpliedVolatility > 0:
+                return float(atm_call.ImpliedVolatility)
+            
+            # Estimate from price if no IV available
+            if hasattr(atm_call, 'BidPrice') and hasattr(atm_call, 'AskPrice'):
+                mid_price = (atm_call.BidPrice + atm_call.AskPrice) / 2
+                if mid_price > 0:
+                    # Very rough IV estimate from ATM option price
+                    # ATM option ~ 0.4 * S * IV * sqrt(T)
+                    time_to_expiry = self._get_dte(atm_call) / 365.0
+                    if time_to_expiry > 0:
+                        estimated_iv = mid_price / (0.4 * futures_price * np.sqrt(time_to_expiry))
+                        return min(1.0, max(0.1, estimated_iv))  # Cap between 10% and 100%
+            
+            return 0.25  # Default 25% IV
+            
+        except Exception as e:
+            self.algorithm.Debug(f"IV estimation error: {str(e)}")
+            return 0.25
         """Estimate ATM implied volatility"""
         try:
             calls = [c for c in option_chain if c.Right == OptionRight.CALL]
@@ -427,6 +592,18 @@ class TomKingFuturesStrangleStrategy:
             return 0
     
     def _get_futures_multiplier(self, futures_name: str) -> float:
+        """Get futures contract multiplier"""
+        multipliers = {
+            '/ES': 50,    # E-mini S&P 500
+            '/MES': 5,    # Micro E-mini S&P 500
+            '/CL': 1000,  # Crude Oil
+            '/MCL': 100,  # Micro Crude Oil
+            '/GC': 100,   # Gold
+            '/MGC': 10,   # Micro Gold
+            '/NQ': 20,    # E-mini Nasdaq
+            '/MNQ': 2,    # Micro E-mini Nasdaq
+        }
+        return multipliers.get(futures_name, 1)
         """Get contract multiplier for futures"""
         if 'ES' in futures_name:
             return 50.0  # $50 per point
@@ -488,7 +665,7 @@ class TomKingFuturesStrangleStrategy:
                 self.algorithm.Log(f"    Put Strike: ${put_contract.Strike:,.2f}")
                 self.algorithm.Log(f"    Quantity: {quantity} contracts")
                 self.algorithm.Log(f"    Total Credit: {total_credit:,.2f}")
-                self.algorithm.Log(f"    Target Delta: 16-20 (1 standard deviation)")
+                self.algorithm.Log(f"    Target Delta: 5-7 puts, 5-6 calls (Tom King specification)")
                 
                 return True
             
@@ -664,11 +841,55 @@ class TomKingFuturesStrangleStrategy:
             'active_credit': active_credit,
             'target_monthly_income': "1,000-1,500 per position",
             'target_dte': self.TARGET_DTE,
-            'implementation_status': "CORRECTED_90_DTE_SPECIFICATION"
+            'consolidation_required': True,
+            'iv_percentile_min': self.MIN_IV_PERCENTILE,
+            'delta_targets': "5-7 puts, 5-6 calls",
+            'implementation_status': "COMPLETE_TOM_KING_ENTRY_LOGIC"
         }
     
     def on_data(self, data):
         """Handle incoming market data"""
+        # Update price and IV history for consolidation/IV analysis
+        self.update_market_history()
+        
+        # Check for entry opportunities on second Tuesday
+        if self.check_entry_opportunity():
+            self.execute_weekly_entry()
+        
         # Manage existing positions
         if self.active_strangles:
             self.manage_positions()
+    
+    def update_market_history(self):
+        """Update price and IV history for market analysis"""
+        try:
+            for futures_name, futures_symbol in self.futures_contracts.items():
+                # Get current price
+                if futures_symbol in self.algorithm.Securities:
+                    current_price = self.algorithm.Securities[futures_symbol].Price
+                    if current_price > 0:
+                        if futures_name not in self.futures_price_history:
+                            self.futures_price_history[futures_name] = []
+                        self.futures_price_history[futures_name].append(current_price)
+                        
+                        # Keep only last 252 days (1 year)
+                        if len(self.futures_price_history[futures_name]) > 252:
+                            self.futures_price_history[futures_name] = self.futures_price_history[futures_name][-252:]
+                
+                # Update IV if available
+                option_chains = self.algorithm.CurrentSlice.OptionChains
+                for kvp in option_chains:
+                    chain = kvp.Value
+                    if chain and len(chain) > 0:
+                        atm_iv = self._estimate_atm_iv(list(chain), current_price)
+                        if atm_iv > 0:
+                            if futures_name not in self.implied_volatility_history:
+                                self.implied_volatility_history[futures_name] = []
+                            self.implied_volatility_history[futures_name].append(atm_iv)
+                            
+                            # Keep only last 252 days
+                            if len(self.implied_volatility_history[futures_name]) > 252:
+                                self.implied_volatility_history[futures_name] = self.implied_volatility_history[futures_name][-252:]
+                        break  # Only need one chain for IV
+        except Exception as e:
+            self.algorithm.Debug(f"Market history update error: {str(e)}")

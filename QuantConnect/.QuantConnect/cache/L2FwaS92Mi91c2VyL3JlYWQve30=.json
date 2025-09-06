@@ -37,7 +37,7 @@
             "can_comment": true,
             "can_create_discussion": true,
             "can_vote": true,
-            "Promotional Backtests": true
+            "Promotional Backtests": false
         },
         "email_verified": 1,
         "autocomplete_enabled": 1,
@@ -53,13 +53,13 @@
         "acceptedTerms": "2025-09-04T14:31:25Z",
         "getStarted": {
             "createProject": true,
-            "backtestProject": false,
+            "backtestProject": true,
             "liveDeployProject": false,
-            "backtestCount": 0,
+            "backtestCount": 17,
             "projectCount": 1,
             "projectCountNonBootcamp": 1,
             "liveDeploymentsCount": 0,
-            "signupElapsedDays": 0.07502314814814814
+            "signupElapsedDays": 0.4689814814814815
         },
         "forumSubscriber": 0
     },

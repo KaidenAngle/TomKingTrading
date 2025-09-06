@@ -1,0 +1,268 @@
+{
+  "authentication": [
+    {
+      "name": "OAuth2 Token Flow",
+      "endpoint": "mcp__quantconnect__authorize_connection",
+      "status": "configured"
+    },
+    {
+      "name": "Session Management",
+      "endpoint": "tastytrade-refresh-token",
+      "status": "configured"
+    },
+    {
+      "name": "Account Authorization",
+      "endpoint": "tastytrade-account-number",
+      "status": "configured"
+    },
+    {
+      "name": "API Rate Limits",
+      "endpoint": "120 requests/minute",
+      "status": "configured"
+    }
+  ],
+  "account_access": [
+    {
+      "feature": "Portfolio Positions",
+      "supported": true
+    },
+    {
+      "feature": "Account Balance",
+      "supported": true
+    },
+    {
+      "feature": "Margin Requirements",
+      "supported": true
+    },
+    {
+      "feature": "Buying Power",
+      "supported": true
+    },
+    {
+      "feature": "Options Approval Level",
+      "supported": true
+    },
+    {
+      "feature": "Futures Approval",
+      "supported": true
+    },
+    {
+      "feature": "Real-time P&L",
+      "supported": true
+    },
+    {
+      "feature": "Transaction History",
+      "supported": true
+    }
+  ],
+  "order_types": [
+    {
+      "type": "Market Orders",
+      "supported": true
+    },
+    {
+      "type": "Limit Orders",
+      "supported": true
+    },
+    {
+      "type": "Stop Orders",
+      "supported": true
+    },
+    {
+      "type": "OCO Orders (One-Cancels-Other)",
+      "supported": true
+    },
+    {
+      "type": "GTC Orders (Good Till Cancelled)",
+      "supported": true
+    },
+    {
+      "type": "Complex Option Orders",
+      "supported": true
+    },
+    {
+      "type": "Iron Condor (4-leg)",
+      "supported": true
+    },
+    {
+      "type": "Strangles (2-leg)",
+      "supported": true
+    },
+    {
+      "type": "Calendar Spreads",
+      "supported": true
+    },
+    {
+      "type": "Rolling Orders",
+      "supported": true
+    }
+  ],
+  "data_feeds": [
+    {
+      "type": "Equity",
+      "item": "SPY",
+      "status": "available"
+    },
+    {
+      "type": "Equity",
+      "item": "QQQ",
+      "status": "available"
+    },
+    {
+      "type": "Equity",
+      "item": "IWM",
+      "status": "available"
+    },
+    {
+      "type": "Equity",
+      "item": "TSLA",
+      "status": "available"
+    },
+    {
+      "type": "Equity",
+      "item": "NVDA",
+      "status": "available"
+    },
+    {
+      "type": "Options",
+      "item": "SPY Options",
+      "status": "available"
+    },
+    {
+      "type": "Options",
+      "item": "QQQ Options",
+      "status": "available"
+    },
+    {
+      "type": "Options",
+      "item": "IWM Options",
+      "status": "available"
+    },
+    {
+      "type": "Futures",
+      "item": "ES",
+      "status": "available"
+    },
+    {
+      "type": "Futures",
+      "item": "MES",
+      "status": "available"
+    },
+    {
+      "type": "Futures",
+      "item": "CL",
+      "status": "available"
+    },
+    {
+      "type": "Futures",
+      "item": "MCL",
+      "status": "available"
+    },
+    {
+      "type": "Futures",
+      "item": "GC",
+      "status": "available"
+    },
+    {
+      "type": "Futures",
+      "item": "MGC",
+      "status": "available"
+    },
+    {
+      "type": "Crypto",
+      "item": "BTC Futures",
+      "status": "available"
+    },
+    {
+      "type": "Crypto",
+      "item": "ETH Futures",
+      "status": "available"
+    },
+    {
+      "type": "Market Data",
+      "item": "Real-time Quotes",
+      "status": "available"
+    },
+    {
+      "type": "Market Data",
+      "item": "Greeks",
+      "status": "available"
+    },
+    {
+      "type": "Market Data",
+      "item": "IV Rank",
+      "status": "available"
+    },
+    {
+      "type": "Market Data",
+      "item": "IV Percentile",
+      "status": "available"
+    }
+  ],
+  "option_chains": [
+    {
+      "feature": "0 DTE Options",
+      "description": "Available for SPY, QQQ daily"
+    },
+    {
+      "feature": "Weekly Options",
+      "description": "All major indices"
+    },
+    {
+      "feature": "Monthly Options",
+      "description": "Standard expiration"
+    },
+    {
+      "feature": "LEAP Options",
+      "description": "Up to 2+ years"
+    },
+    {
+      "feature": "Strike Selection",
+      "description": "Delta-based, ATM, OTM"
+    },
+    {
+      "feature": "Greeks Calculation",
+      "description": "Real-time Delta, Gamma, Theta, Vega"
+    },
+    {
+      "feature": "IV Surface",
+      "description": "Full volatility smile"
+    },
+    {
+      "feature": "Expected Move",
+      "description": "Tastytrade proprietary"
+    }
+  ],
+  "integration_status": [
+    {
+      "point": "Brokerage Connection",
+      "method": "TastytradeSettings configured",
+      "status": "ready"
+    },
+    {
+      "point": "Live Trading",
+      "method": "Via mcp__quantconnect__create_live_algorithm",
+      "status": "ready"
+    },
+    {
+      "point": "Data Provider",
+      "method": "Real-time quotes from Tastytrade",
+      "status": "ready"
+    },
+    {
+      "point": "Order Routing",
+      "method": "Direct to Tastytrade execution",
+      "status": "ready"
+    },
+    {
+      "point": "Portfolio Sync",
+      "method": "Real-time position updates",
+      "status": "ready"
+    },
+    {
+      "point": "Refresh Token",
+      "method": "Auto-renewal supported",
+      "status": "ready"
+    }
+  ]
+}

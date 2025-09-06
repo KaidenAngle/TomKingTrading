@@ -10,43 +10,55 @@ class TomKingParameters:
     Based on 30+ years of proven systematic trading methodology
     """
     
-    # Account Phase Configuration (USD)
+    # Account Phase Configuration (USD - rounded to nearest 5k for ease)
+    # ES contracts from Phase 1 ($40k+), MES only for accounts under $40k
     ACCOUNT_PHASES = {
-        'phase1': {'min': 38100, 'max': 50800, 'description': 'MCL, MGC, GLD, TLT strangles'},  # £30k-£40k * 1.27
-        'phase2': {'min': 50800, 'max': 76200, 'description': 'Add MES, MNQ, currency futures'},  # £40k-£60k * 1.27
-        'phase3': {'min': 76200, 'max': 95250, 'description': 'Full futures, butterflies, spreads'},  # £60k-£75k * 1.27
-        'phase4': {'min': 95250, 'max': 999999, 'description': 'Professional deployment, all strategies'}  # £75k+ * 1.27
+        'phase1': {'min': 40000, 'max': 55000, 'description': 'ES 0DTE, IPMCC, MCL/MGC strangles'},  # $40k-$55k
+        'phase2': {'min': 55000, 'max': 75000, 'description': 'Scale ES positions, add MNQ futures'},  # $55k-$75k  
+        'phase3': {'min': 75000, 'max': 95000, 'description': 'Advanced strategies, multiple ES contracts'},  # $75k-$95k
+        'phase4': {'min': 95000, 'max': 999999, 'description': 'Professional deployment, maximum BP utilization'},  # $95k+
+        'mes_only': {'min': 0, 'max': 40000, 'description': 'MES contracts only for small accounts under $40k'}  # Under $40k = MES
     }
     
-    # VIX Regime-Based Buying Power Usage
+    # VIX Regime-Based Buying Power Usage (Tom King Framework)
+    # MAXIMIZE BP UTILIZATION based on VIX regime for maximum weekly profits
+    VIX_BP_LIMITS = {
+        'very_low': {'vix_max': 12, 'bp_limit': 0.45, 'description': 'VIX <12: Maximum 45% BP'},
+        'low': {'vix_min': 12, 'vix_max': 15, 'bp_limit': 0.60, 'description': 'VIX 12-15: Maximum 60% BP'},
+        'normal': {'vix_min': 15, 'vix_max': 20, 'bp_limit': 0.80, 'description': 'VIX 15-20: Maximum 80% BP'},
+        'elevated': {'vix_min': 20, 'vix_max': 30, 'bp_limit': 0.80, 'description': 'VIX 20-30: Maximum 80% BP'},
+        'high': {'vix_min': 30, 'bp_limit': 0.60, 'description': 'VIX >30: Reduce to 60% BP'}
+    }
+    
+    # Legacy VIX BP Usage (kept for backward compatibility but using new limits above)
     VIX_BP_USAGE = {
         'phase1': {
-            'very_low': 0.45,   # VIX < 15
-            'low': 0.52,        # VIX 15-20
-            'normal': 0.65,     # VIX 20-30
-            'high': 0.75,       # VIX 30-40
-            'very_high': 0.80   # VIX > 40
+            'very_low': 0.45,   # VIX < 12
+            'low': 0.60,        # VIX 12-15 
+            'normal': 0.80,     # VIX 15-20
+            'elevated': 0.80,   # VIX 20-30
+            'high': 0.60        # VIX >30
         },
         'phase2': {
-            'very_low': 0.50,
-            'low': 0.55,
-            'normal': 0.65,
-            'high': 0.75,
-            'very_high': 0.80
+            'very_low': 0.45,   # VIX < 12
+            'low': 0.60,        # VIX 12-15
+            'normal': 0.80,     # VIX 15-20
+            'elevated': 0.80,   # VIX 20-30
+            'high': 0.60        # VIX >30
         },
         'phase3': {
-            'very_low': 0.52,
-            'low': 0.60,
-            'normal': 0.68,
-            'high': 0.75,
-            'very_high': 0.80
+            'very_low': 0.45,   # VIX < 12
+            'low': 0.60,        # VIX 12-15
+            'normal': 0.80,     # VIX 15-20
+            'elevated': 0.80,   # VIX 20-30
+            'high': 0.60        # VIX >30
         },
         'phase4': {
-            'very_low': 0.55,
-            'low': 0.65,
-            'normal': 0.70,
-            'high': 0.78,
-            'very_high': 0.82
+            'very_low': 0.45,   # VIX < 12
+            'low': 0.60,        # VIX 12-15
+            'normal': 0.80,     # VIX 15-20
+            'elevated': 0.80,   # VIX 20-30
+            'high': 0.60        # VIX >30
         }
     }
     
@@ -105,7 +117,7 @@ class TomKingParameters:
     # Risk Management Rules
     RISK_MANAGEMENT = {
         'max_risk_per_trade': 0.05,   # 5% maximum risk per trade
-        'max_bp_usage': 0.35,         # 35% base maximum BP (VIX adjusted)
+        'max_bp_usage': 0.80,         # 80% maximum BP (VIX adjusted - can reach 80% in normal VIX)
         'max_correlated_positions': 3, # Maximum 3 positions per correlation group
         'correlation_groups': [
             ['SPY', 'QQQ', 'IWM', 'DIA'],  # Equity indices
@@ -129,28 +141,116 @@ class TomKingParameters:
         'avoid_cpi_days': True        # Avoid CPI release days
     }
     
-    # Symbol Universe by Phase
+    # Complete Symbol Universe by Phase (From Tom King Framework v17)
     SYMBOL_UNIVERSE = {
-        'phase1': {
-            'futures': ['MCL', 'MGC'],    # Micro crude, micro gold
-            'etfs': ['GLD', 'TLT'],       # Gold, Treasury bonds
-            'zero_dte': ['SPY', 'QQQ']    # 0DTE Fridays
+        'phase1': {  # £30-40k: Foundation phase - equity options + micro futures
+            'futures': ['MCL', 'MGC'],                # Micro crude, gold for strangles
+            'etfs': ['GLD', 'TLT'],                   # ETF options for diversification
+            'equity_options': ['SPY', 'QQQ', 'IWM'],  # 0DTE and IPMCC options
+            'zero_dte': ['MES'],                      # Friday 0DTE MES futures (under $40k)
+            'correlation_groups': ['A1', 'C1', 'E'],  # Equity, Metals, Bonds
+            'max_products': 6
         },
-        'phase2': {
-            'futures': ['MCL', 'MGC', 'MES', 'MNQ'], # Add micro ES, NQ
-            'etfs': ['GLD', 'TLT', 'SLV', 'IWM'],
-            'zero_dte': ['SPY', 'QQQ', 'IWM']
+        'phase2': {  # £40-60k: Expansion phase - add micro equity futures
+            'futures': ['MCL', 'MGC', 'MES', 'MNQ', 'M6E', 'M6A', 'M6B'], # Add micro ES, NQ
+            'etfs': ['GLD', 'TLT', 'SLV', 'IWM', 'XOP'],
+            'equity_options': ['SPY', 'QQQ', 'IWM'],
+            'zero_dte': ['ES'],                       # Friday 0DTE ES futures
+            'correlation_groups': ['A1', 'C1', 'E', 'B1'],  # Add equity, energy
+            'max_products': 12
         },
-        'phase3': {
-            'futures': ['CL', 'GC', 'ES', 'NQ', 'RTY'], # Full size futures
-            'etfs': ['GLD', 'TLT', 'SLV', 'IWM', 'GDX'],
-            'zero_dte': ['SPY', 'QQQ', 'IWM', 'DIA']
+        'phase3': {  # £60-75k: Optimization phase - full size futures
+            'futures': ['ES', 'NQ', 'RTY', 'CL', 'GC', 'SI', 'ZB', 'ZN', '6E', '6B', '6A'], 
+            'etfs': ['GLD', 'TLT', 'SLV', 'IWM', 'GDX', 'XLE', 'XOP', 'GDXJ'],
+            'equity_options': ['SPY', 'QQQ', 'IWM', 'DIA', 'XLE'],
+            'zero_dte': ['ES', 'NQ'],                 # ES/NQ futures 0DTE
+            'agriculture': ['ZC', 'ZS', 'ZW', 'LE', 'HE'],  # Add agriculture
+            'correlation_groups': ['A1', 'A2', 'B1', 'C1', 'D1', 'E', 'F'],
+            'max_products': 20
         },
-        'phase4': {
-            'futures': ['CL', 'GC', 'ES', 'NQ', 'RTY', 'ZB', 'ZN'],
-            'etfs': ['GLD', 'TLT', 'SLV', 'IWM', 'GDX', 'XLE', 'XOP'],
-            'zero_dte': ['SPY', 'QQQ', 'IWM', 'DIA', 'NVDA', 'TSLA']
+        'phase4': {  # £75k+: Professional deployment - full universe
+            'futures': [
+                # Equity indices
+                'ES', 'NQ', 'RTY', 'MES', 'MNQ', 'M2K',
+                # Energy complex  
+                'CL', 'NG', 'RB', 'HO', 'MCL', 'MGC',
+                # Metals
+                'GC', 'SI', 'HG', 'PA', 'PL',
+                # Agriculture
+                'ZC', 'ZS', 'ZW', 'ZM', 'ZL', 'LE', 'HE', 'KC', 'SB', 'CC', 'CT',
+                # Fixed income
+                'ZB', 'ZN', 'ZF', 'ZT',
+                # Currencies
+                '6E', '6B', '6A', '6C', '6J', '6S', '6M', 'DX'
+            ],
+            'etfs': [
+                # Equity
+                'SPY', 'QQQ', 'IWM', 'DIA', 'EFA', 'EEM', 'VTI',
+                # Sector
+                'XLE', 'XOP', 'XLF', 'XLK', 'XLV', 'XLI', 'XLU', 'XLB', 'XLP', 'XLY',
+                # Metals/Commodities  
+                'GLD', 'SLV', 'GDXJ', 'GDX', 'SILJ', 'DBA', 'DBC', 'USO', 'UNG',
+                # Fixed income
+                'TLT', 'TBT', 'IEF', 'SHY', 'LQD', 'HYG', 'TIP',
+                # International
+                'FXI', 'EWZ', 'EWJ', 'EWG', 'EWU', 'RSX'
+            ],
+            'equity_options': [
+                'SPY', 'QQQ', 'IWM', 'DIA', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL'
+            ],
+            'zero_dte': ['ES', 'NQ'],                 # ES/NQ futures 0DTE only
+            'spx_options': True,  # SPX available for box spreads
+            'correlation_groups': ['A1', 'A2', 'B1', 'C1', 'D1', 'E', 'F', 'G'],
+            'max_products': 50
         }
+    }
+    
+    # Phase Transition Requirements
+    PHASE_TRANSITIONS = {
+        'phase1_to_2': {
+            'account_minimum': 50800,  # £40k
+            'required_months': 2,      # Must be in phase 1 for 2 months minimum
+            'win_rate_minimum': 0.60,  # 60% win rate required
+            'max_drawdown_limit': 0.15 # 15% max drawdown
+        },
+        'phase2_to_3': {
+            'account_minimum': 76200,  # £60k  
+            'required_months': 3,      # Must demonstrate consistency
+            'win_rate_minimum': 0.65,  # Higher standards
+            'max_drawdown_limit': 0.12
+        },
+        'phase3_to_4': {
+            'account_minimum': 95250,  # £75k
+            'required_months': 4,      # Professional standards
+            'win_rate_minimum': 0.70,  # 70% win rate
+            'max_drawdown_limit': 0.10 # 10% max drawdown
+        }
+    }
+    
+    # Futures Contract Specifications (for proper sizing)
+    FUTURES_SPECS = {
+        # Micro futures (Phase 1-2)
+        'MES': {'multiplier': 5, 'tick_size': 0.25, 'tick_value': 1.25, 'margin_day': 500, 'margin_overnight': 1000},
+        'MNQ': {'multiplier': 2, 'tick_size': 0.25, 'tick_value': 0.50, 'margin_day': 800, 'margin_overnight': 1600},
+        'M2K': {'multiplier': 5, 'tick_size': 0.10, 'tick_value': 0.50, 'margin_day': 300, 'margin_overnight': 600},
+        'MCL': {'multiplier': 100, 'tick_size': 0.01, 'tick_value': 1.00, 'margin_day': 200, 'margin_overnight': 400},
+        'MGC': {'multiplier': 10, 'tick_size': 0.10, 'tick_value': 1.00, 'margin_day': 400, 'margin_overnight': 800},
+        
+        # Full size futures (Phase 3+)
+        'ES': {'multiplier': 50, 'tick_size': 0.25, 'tick_value': 12.50, 'margin_day': 5000, 'margin_overnight': 10000},
+        'NQ': {'multiplier': 20, 'tick_size': 0.25, 'tick_value': 5.00, 'margin_day': 8000, 'margin_overnight': 16000},
+        'RTY': {'multiplier': 50, 'tick_size': 0.10, 'tick_value': 5.00, 'margin_day': 3000, 'margin_overnight': 6000},
+        'CL': {'multiplier': 1000, 'tick_size': 0.01, 'tick_value': 10.00, 'margin_day': 2000, 'margin_overnight': 4000},
+        'GC': {'multiplier': 100, 'tick_size': 0.10, 'tick_value': 10.00, 'margin_day': 4000, 'margin_overnight': 8000},
+        'SI': {'multiplier': 5000, 'tick_size': 0.005, 'tick_value': 25.00, 'margin_day': 6000, 'margin_overnight': 12000},
+        
+        # Fixed income
+        'ZB': {'multiplier': 1000, 'tick_size': 0.03125, 'tick_value': 31.25, 'margin_day': 1500, 'margin_overnight': 3000},
+        'ZN': {'multiplier': 1000, 'tick_size': 0.015625, 'tick_value': 15.625, 'margin_day': 1200, 'margin_overnight': 2400},
+        
+        # Currencies  
+        '6E': {'multiplier': 125000, 'tick_size': 0.00005, 'tick_value': 6.25, 'margin_day': 1000, 'margin_overnight': 2000},
+        '6B': {'multiplier': 62500, 'tick_size': 0.0001, 'tick_value': 6.25, 'margin_day': 1500, 'margin_overnight': 3000}
     }
     
     # Performance Targets
@@ -163,12 +263,42 @@ class TomKingParameters:
         'goal_18_months': 127000      # $127k in 18 months
     }
     
+    # 0DTE Strategy Configuration (Tom King Framework v17)
+    # Friday ES futures options (NOT SPY) for maximum margin efficiency
+    # Dynamic position sizing to MAXIMIZE BP utilization based on account size
+    ZERO_DTE_CONFIG = {
+        'execution_day': 'Friday',     # Friday only for 0DTE
+        'entry_time': '10:30',         # No 0DTE before 10:30 AM
+        'exit_time': '15:00',          # Close before 3:00 PM
+        'contracts': {
+            'ES': {
+                'symbol': 'ES',
+                'name': 'E-Mini S&P 500 Futures',
+                'min_account': 40000,      # $40k minimum for ES
+                'margin_per_spread': 1200, # ~$1,200 per ES 0DTE iron condor
+                'target_bp_per_position': 0.08  # Target 8% BP per position
+            },
+            'MES': {
+                'symbol': 'MES', 
+                'name': 'Micro E-Mini S&P 500 Futures',
+                'min_account': 0,          # No minimum for MES
+                'max_account': 39999,      # Use MES under $40k only
+                'margin_per_spread': 300,  # ~$300 per MES 0DTE iron condor  
+                'target_bp_per_position': 0.10  # Target 10% BP per position (smaller size)
+            }
+        },
+        'max_bp_usage_single_0dte': 0.25,  # Never exceed 25% BP on single 0DTE deployment
+        'profit_target': 0.25,             # 25% profit target
+        'stop_loss': 2.00,                 # 200% stop loss (2x credit received)
+        'win_rate_target': 0.88            # 88% win rate expectation
+    }
+    
     # Currency Configuration
     CURRENCY = {
         'base': 'USD',                # US Dollar
         'quote': 'USD',               # US Dollar quotes
         'conversion_required': False,  # No conversion needed
-        'initial_capital': 44500      # $44,500 starting capital (£35k * 1.27)
+        'initial_capital': 44500      # $44,500 starting capital
     }
     
     @classmethod
@@ -176,32 +306,79 @@ class TomKingParameters:
         """Determine account phase based on current value"""
         for phase, config in cls.ACCOUNT_PHASES.items():
             if config['min'] <= account_value <= config['max']:
-                return phase
-        return 'phase4'  # Default to highest phase
+                # Extract phase number from 'phase1', 'phase2', etc.
+                return int(phase.replace('phase', ''))
+        return 4  # Default to highest phase
     
     @classmethod
     def get_bp_usage(cls, account_phase, vix_level):
-        """Get buying power usage based on phase and VIX level"""
-        if vix_level < 15:
+        """Get buying power usage based on phase and VIX level (Tom King methodology)"""
+        if vix_level < 12:
             regime = 'very_low'
-        elif vix_level < 20:
+        elif vix_level < 15:
             regime = 'low'
-        elif vix_level < 30:
+        elif vix_level < 20:
             regime = 'normal'
-        elif vix_level < 40:
-            regime = 'high'
+        elif vix_level < 30:
+            regime = 'elevated'
         else:
-            regime = 'very_high'
+            regime = 'high'
             
         return cls.VIX_BP_USAGE[account_phase][regime]
+        
+    @classmethod
+    def get_vix_regime_bp_limit(cls, vix_level):
+        """Get maximum BP limit based on VIX level (Tom King Framework v17)"""
+        if vix_level < 12:
+            return 0.45  # 45% max
+        elif vix_level < 15:
+            return 0.60  # 60% max
+        elif vix_level < 20:
+            return 0.80  # 80% max
+        elif vix_level < 30:
+            return 0.80  # 80% max
+        else:
+            return 0.60  # 60% max (high VIX protection)
     
     @classmethod
     def get_symbols_for_phase(cls, account_phase):
         """Get available symbols for trading based on account phase"""
         return cls.SYMBOL_UNIVERSE.get(account_phase, cls.SYMBOL_UNIVERSE['phase1'])
+        
+    @classmethod
+    def get_zero_dte_contract(cls, account_value):
+        """Get the appropriate 0DTE contract (ES or MES) based on account size"""
+        if account_value >= cls.ZERO_DTE_CONFIG['contracts']['ES']['min_account']:
+            return 'ES'
+        else:
+            return 'MES'
+            
+    @classmethod 
+    def calculate_max_zero_dte_positions(cls, account_value, vix_level, buying_power):
+        """Calculate maximum 0DTE positions based on account size, VIX, and available BP"""
+        # Get the appropriate contract
+        contract = cls.get_zero_dte_contract(account_value)
+        contract_config = cls.ZERO_DTE_CONFIG['contracts'][contract]
+        
+        # Get VIX-based BP limit
+        max_bp_limit = cls.get_vix_regime_bp_limit(vix_level)
+        available_bp = buying_power * max_bp_limit
+        
+        # Calculate positions based on margin requirement
+        margin_per_position = contract_config['margin_per_spread']
+        max_positions_by_margin = int(available_bp / margin_per_position)
+        
+        # Limit by maximum BP usage per single 0DTE deployment
+        max_bp_for_0dte = buying_power * cls.ZERO_DTE_CONFIG['max_bp_usage_single_0dte']
+        max_positions_by_limit = int(max_bp_for_0dte / margin_per_position)
+        
+        # Return the smaller of the two limits
+        return min(max_positions_by_margin, max_positions_by_limit)
 
-# Usage Example:
+# Usage Examples:
 # parameters = TomKingParameters()
-# current_phase = parameters.get_phase_for_account_size(45000)  # Returns 'phase2'
-# bp_usage = parameters.get_bp_usage('phase2', 25)  # Returns 0.65 for normal VIX
-# symbols = parameters.get_symbols_for_phase('phase2')
+# current_phase = parameters.get_phase_for_account_size(45000)  # Returns 2 for $45k account
+# bp_usage = parameters.get_bp_usage('phase2', 18)  # Returns 0.80 for VIX 18 (normal regime)  
+# max_bp = parameters.get_vix_regime_bp_limit(18)  # Returns 0.80 for VIX 18
+# contract = parameters.get_zero_dte_contract(45000)  # Returns 'ES' for $45k account
+# max_positions = parameters.calculate_max_zero_dte_positions(45000, 18, 45000)  # Calculate max positions

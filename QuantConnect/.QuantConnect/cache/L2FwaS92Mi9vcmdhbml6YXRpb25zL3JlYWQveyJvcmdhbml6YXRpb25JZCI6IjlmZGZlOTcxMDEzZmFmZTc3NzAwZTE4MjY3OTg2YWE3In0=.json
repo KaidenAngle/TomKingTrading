@@ -3,7 +3,7 @@
         "id": "9fdfe971013fafe77700e18267986aa7",
         "allowSkylightSync": 1,
         "seats": 1,
-        "type": "free",
+        "type": "researcher",
         "billing": null,
         "credit": {
             "movements": [],
@@ -22,13 +22,32 @@
                 "start": "2025-09-04T14:33:59Z"
             },
             {
-                "id": 749775,
+                "id": 749863,
                 "name": "R-MICRO",
                 "price": 0,
-                "start": "2025-09-04T14:33:59Z"
+                "start": "2025-09-04T16:46:51Z"
+            },
+            {
+                "id": 749864,
+                "name": "Researcher Seat",
+                "price": 10,
+                "start": "2025-09-04T16:46:57Z"
             }
         ],
         "products": [
+            {
+                "name": "Professional Seats",
+                "icon": "https://cdn.quantconnect.com/i/tu/subscription-icon-v1.0.png",
+                "items": [
+                    {
+                        "productId": 31,
+                        "name": "Researcher Seat",
+                        "quantity": 1,
+                        "unitPrice": 10,
+                        "total": 10
+                    }
+                ]
+            },
             {
                 "name": "Backtest Node",
                 "icon": "https://cdn.quantconnect.com/i/tu/backtest-node-icon-v1.0.png",
@@ -54,10 +73,250 @@
                         "total": 0
                     }
                 ]
+            },
+            {
+                "name": "Modules",
+                "icon": "https://cdn.quantconnect.com/i/tu/arrow-right-circle.svg",
+                "items": [
+                    {
+                        "productId": 130,
+                        "name": "Kraken Brokerage",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "w0HR8fJ5YPbz/MscOLDmS4l/vBEdQWyYa1Umi+nUGAFn30nHgFev25rTUbscf5IBpOKBleqeHAU1M49PYiSrymgyyZ/AE0rsiw6WE7Nl4uw=::VJTahrifo3FxT/AQmwY57w=="
+                    },
+                    {
+                        "productId": 173,
+                        "name": "SAMCO Brokerage",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "2ypf08FlYd5A9HavMltMD5dKb50aAL0At0AglMQ8ym90sJnX+5PNiYgrq2xYRUSBA2FbbDyBsVxTgBlv5yusjhhY26e4kJW4mfx/j6qqykI=::/BqimzeIdUqLt9Pr4csbVA=="
+                    },
+                    {
+                        "productId": 174,
+                        "name": "Zerodha Brokerage",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "JXAtLk0pP9EhPm5D3coYJyLn6wGqB+3v7RnAFVVIGFpTPftye+M7kDuFWsdjTIfVaOUKlOc+s3XXZhJ4ftI1lteDTBD9SvsEzjfEbX1oCk4=::VtUqS3c4cRC4gr6qWwSzyw=="
+                    },
+                    {
+                        "productId": 176,
+                        "name": "Binance Brokerage",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "SnD6SeE3VRICzBsyvULGyGaANWNz0iq0Hok9a0jRJXaVOFELAr7HgeG9Kx/vX+KuNr5OCHjNiELWE558EncN6q8HPtQf705bqMWsCcEzrnY=::GkTKOTpA3WXLROPAWtb6OQ=="
+                    },
+                    {
+                        "productId": 181,
+                        "name": "Interactive Brokers",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "emVAezdrhgVh4+13GCW4zgzWOcfYbU6PqX6d3c9dKlu2hW7Agm325s7roZx0hfLgqPWN8jHvMnN5utAn31MI5Ge/WuW4bbIaKY65PnyAmEQ=::y7KCiWsCkhi4UXx8JKzKQA=="
+                    },
+                    {
+                        "productId": 182,
+                        "name": "Bitfinex",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "eDce+D2GcVFc7HtG1tXKhOSEj0MD9Z7Sa+RAryoWlw9yVtRE3fox4RkbZTKNMDRZFKbhRsMNNzttpoyNzi86xHipgTEOc5HSJtBEZpN7mCk=::QMydMem/vMSfqijorIzS7Q=="
+                    },
+                    {
+                        "productId": 183,
+                        "name": "Coinbase Advanced",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "n0z5fyCsm4W5nZBo8tLXwYz1fZKS9dkXI+gCxHHvWDKYgNF2n6/d+CzxjVG68d8LYG6XgIn7mHKTzKHP2dhQUeZ+EpbveArDZfDt1MLXing=::EaKAGOEwEDpnEyG7zslDfQ=="
+                    },
+                    {
+                        "productId": 184,
+                        "name": "OANDA",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "COGsnDd8GztfOTgfqCUd/ZGA6j3pwJLOznRnKYqGvdeX78vVXlATopWpzJaWe91ge6P0XgfC3FFzQPicuR57ZGDAFuLHzOJtz7qoVw5nQP0=::RI0w5z4V3AzWx2z+A83Ufg=="
+                    },
+                    {
+                        "productId": 185,
+                        "name": "Tradier",
+                        "quantity": 1,
+                        "unitPrice": 1,
+                        "total": 1,
+                        "license": "e0qsEwtqVa/AtuqL3Y2e17j1pflrwqw0SVakuaeJoLaqkHlLIiDlK1mzW96La8FC1IcRssMcqff4i8iITViJsFRNfcZWhNSYZlAozB/05Ys=::4EjhG+5F3wiNIMG+nSDbZQ=="
+                    },
+                    {
+                        "productId": 226,
+                        "name": "TD Ameritrade",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "QByZQgK8I62JAemwEvRh/pEHSw9LbT39dppRvj1kxP6Dp3luA0D5QDzB0+k1FEmFAWD1c4iWFOTSw2kdkNv24Pu8RUmeGZLN6HjxJVLumCk=::WmAMW6bArkCFSClkMHsdWQ=="
+                    },
+                    {
+                        "productId": 227,
+                        "name": "Local Platform - VSCode Extension",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "4nEMHhw2C27aePgA5I/k0Djzn8F1Vs7cwVg+0rC0f2DPNzSrzfBq2kwplKLnPq7Bdox7PsVmN4yftE/aF0EOLF61fiJWPGz+e0QWAcs4IPc=::uHaxhCye4H2oRx/CB4XjAw=="
+                    },
+                    {
+                        "productId": 228,
+                        "name": "Messaging Handler",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "c6ZUcZ+BuDiO+7bbKvSai96sNwusGkPtcIxpyf9ZxiobwjmLmSHcRcObCU1gGcdC53tbAOjaEIJdlZVOxa7HpdTs4DEbrhg6MLsyyMaEick=::aLxXkTDkSu3lAnsaQTm6KQ=="
+                    },
+                    {
+                        "productId": 305,
+                        "name": "Bybit",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "R/QtZ+TfCGn6dhAAqCEngEKGOw7QEcHDg0NWmCpUbG+MV+FrtIy8abv0sYRhGkqqmu/Brt9d5dcT6Xs5hMunTzLw5yUUl8RI823s5YRdeao=::FA4gZ+qp5EosfyIjbtABww=="
+                    },
+                    {
+                        "productId": 306,
+                        "name": "Polygon Data",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "nBeV9LtXeVmNm0ECs3r3jl0ELyJ5L/oY4tJYrT2YLdjz2swo5fwjCql9cnnSt3Lho6ROZJSGd4HeLd90FHjlvspZghIp5Kg8mlXM9PgO1IE=::cILO6Z4To4BDcBxfUaLdpA=="
+                    },
+                    {
+                        "productId": 308,
+                        "name": "Eze",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "5I8E2hksPuNltJyXcGq1mXNfgWUMkXjoyjmF4gGRZ59Z5ZstuDcbOf+YQl1I3zjNoxs8UI1HCl/2OR9+mnAhsgEfQvHYiWyxSjqztNUth+0=::25jUQ7mbSCmrrV+xASsqZA=="
+                    },
+                    {
+                        "productId": 313,
+                        "name": "Local Price Service",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "cncRM9w8ogK8Udj8ocXrpuO5Yo6nrG1vhLakdnVxLvVPH/i8In/96gCLJmYjcqKTor2eXzJdTC+s250nT+cyCPkT6WD+jt6B9TDvJogrGo0=::2xYAOJqss6LgvppqtSWZjg=="
+                    },
+                    {
+                        "productId": 332,
+                        "name": "IQFeed Data",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "CNZz44V7F8Q2iP51qOmj2ljAb3mOVAQV3vWJvb6HS84RLmvchSvNwa8E+VdjoUXWatHK9IquLNtaUhADBlTpFuxEFFVnozzn6SqhhbG2GlY=::5ODks0TkSpWADz6yNUMwXg=="
+                    },
+                    {
+                        "productId": 333,
+                        "name": "IEX Data",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "4iinzGn3+ObaKsxwu+QpFtcdJo2KKzCG7CZBuS6n7OAalhnfXN8tFVHrWGugOrxgcxnuGiOFPlsTriSO9ohJY4ZLMGSDPaBdmU2fWxJ7F6Y=::VsFIgY3wFdfsKadiQqvI1A=="
+                    },
+                    {
+                        "productId": 334,
+                        "name": "Alpha Vantage Data",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "YXA5K7BNGPQEcUmh2/k52fgtC1zjcydcLAY7wINQlAQ+cbuy6fibF9SvRQ1SoSQ0BgG707NyBWbdwW4Q/iBDlyjzvGYNC6Xr0MNmA1WmKAs=::SuGRipQlKTYyxxETvLxo0g=="
+                    },
+                    {
+                        "productId": 335,
+                        "name": "CoinAPI Data",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "LlJvQJJhVk11dgjvw0KKoIPrqloadAmqn5o+0xCUqKdzISBVszFobcWj93sNAdCYqlbn/5Lqm//Kyy1hT2T1/UxsnbixLKV4drw+h9Ub9R4=::Z7kNmMKfPsFSKG3k101jUA=="
+                    },
+                    {
+                        "productId": 343,
+                        "name": "FactSet Data",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "Gj6xUgrNUEjtBgFcn9eX9WeElsiWRj2GCGGhMyCRG3RKfAalTOR+GJun9y1QsVXWr1iFhaa8joU3UMNHwkhXgIUGU2PdxAlGzFVaeX1Gmp4=::f4DO0ggWBez3TTtbM7aRsw=="
+                    },
+                    {
+                        "productId": 344,
+                        "name": "Theta Data",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "ED69vf3EkCMQerIvUB7bfkndnw/E7QcT+/WhFyzu+YgYYL+0UZ9rj9K2Op3Au0FiHgkRfqD3lNOPR0ziFQvEdxpM8Mt9Ea+8G5kJGHJOBzk=::7Ukkh6BBMcWyFDyvl78C2g=="
+                    },
+                    {
+                        "productId": 346,
+                        "name": "TradeStation",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "07hX6SZWIB89frhW/zvr395grd2gidGCMIwDRd9WNZP9IxCU5kNru+7godFg0TZMtp2jHYN7pIgM1uJ1nQHUpkdR169N6meJCfi7UmwgnEY=::XGPtrOIvqPs0eNsZZiTlIw=="
+                    },
+                    {
+                        "productId": 347,
+                        "name": "Alpaca",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "eU/G6b+2diL3uLsCkZWjV+ac2NIwxojfE8udlmfvSAYUbe45iX3FGKGnKYiL2HglH2L9TFoSP6S556rPCIwHchFuy6W1pEi9g/Dt4K8Q93o=::kw1AWEhsxXEKfivb2jcppg=="
+                    },
+                    {
+                        "productId": 367,
+                        "name": "Charles Schwab",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "hcLzlW0N1pSyyr/F5g0Le6vimRa/jBg6LtHC4sYOpbALCjhXRoZpWimhkzD5zhdQnu2oKg0PurlmqAS9ORun+LK+JeIbPiJHwKw+B5DbrYU=::2LL259HkG1IUsxjTotNriw=="
+                    },
+                    {
+                        "productId": 412,
+                        "name": "Tastytrade",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "aA5GPKYrLd4Urf9D4vtYcFGSoyPVEgPFVkT2sumC4nXFRopLzsBTLt7eBy8nUJp3jDegK3DKM/d6VFnNscE0+QR0bcyWiwJORXDOu9Oudt4=::pO62hS7VnHJcVTGKNQQxVg=="
+                    },
+                    {
+                        "productId": 419,
+                        "name": "Fix Brokerage",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "pXIP0/YkBd4b4XGoYG0XyjdDxpYfdgrrXB1IPcl0jP/TUm/6sy/eYY35ALY9b0FQxmNR16wB6/0hzmH72siCIEq+KpuAl1LNf2egQTNcQuU=::7QAdUenN44R2oDGb/CO6Sw=="
+                    },
+                    {
+                        "productId": 420,
+                        "name": "Fix Interactive Brokers",
+                        "quantity": 1,
+                        "unitPrice": 0,
+                        "total": 0,
+                        "license": "hcc2aOpWkTlQz6v86FIcINQRoFnqXz9FYGS9dEtyfeeElN6oY/zLQaPFl+PymsfDbiMcK8VHi3RQuwJa7hbjLUzPJAHCyguvArZ3NG69WoE=::QWhlV2nC3AWHOLZ/Ul6TzA=="
+                    }
+                ]
             }
         ],
-        "invoices": [],
-        "invoicesCount": 0,
+        "invoices": [
+            {
+                "id": "z5ykTxnGGa",
+                "time": "2025-09-04T16:46:57Z",
+                "status": "Paid",
+                "amount": 10,
+                "discount": 0,
+                "total": 10,
+                "url": "https://invoice.stripe.com/i/acct_1ulWuTYT697Hz5VaULuW/live_YWNjdF8xdWxXdVRZVDY5N0h6NVZhVUx1VyxfU3pmZU51alpRcExxRlBhM0ZZbDZVaTlwbnFqbEFKWCwxNDc1NDUyMTc0200niNnGEtJ?s=ap"
+            }
+        ],
+        "invoicesCount": 1,
         "about": "",
         "name": "Kaiden Angle",
         "supportSeats": {
@@ -82,7 +341,7 @@
             },
             {
                 "name": "Lines",
-                "value": "19"
+                "value": "6,286"
             },
             {
                 "name": "Projects",
@@ -90,7 +349,7 @@
             },
             {
                 "name": "Backtests",
-                "value": "0"
+                "value": "12"
             },
             {
                 "name": "Members",
@@ -100,7 +359,7 @@
         "profileImage": "https://cdn.quantconnect.com/i/tu/organization-default-icon.png",
         "useResourcesListView": false,
         "useMembersListView": false,
-        "isUsingPaidFeatures": false,
+        "isUsingPaidFeatures": true,
         "isAbleToDowngrade": true,
         "nodes": {
             "backtest": [
@@ -143,7 +402,7 @@
                     "projectName": "",
                     "projectId": null,
                     "busy": false,
-                    "id": "RN-24e51327af8ef2036a057f69e8314ab2",
+                    "id": "RN-21662a05d53a11a764ab8aa36af82ebd",
                     "assets": 100,
                     "host": null,
                     "hasGpu": 0
@@ -222,7 +481,7 @@
                 "editable": false,
                 "support": null,
                 "linkedin": null,
-                "lastLoginTimestamp": "2025-09-04T16:19:27Z",
+                "lastLoginTimestamp": "2025-09-05T01:46:27Z",
                 "email": "kaiden.angle@gmail.com",
                 "profileUrl": "/u/kaiden-angle",
                 "publicId": "kaiden-angle",
@@ -338,9 +597,9 @@
         "channel": "ORGa6969db2c7-9fdfe971013fafe77700e18267986aa7",
         "minimumTransactionSizeLimit": 0,
         "billingFrequency": "monthly",
-        "billingStatus": null,
+        "billingStatus": "paid",
         "billingPausedUntil": null,
-        "hasCardOnFile": false,
+        "hasCardOnFile": true,
         "joinOrganizationLink": "https://www.quantconnect.com/invite?t=organization&o=9fdfe971013fafe77700e18267986aa7&k=1854c5e381786715f46c30234686042fa4a52c8b",
         "outOfSampleDays": 90,
         "trial": null,
@@ -348,10 +607,15 @@
             "institution": null
         },
         "logs": {
-            "limit": 10240,
-            "remaining": 3145728
+            "limit": 102400,
+            "remaining": 3130906
         },
-        "downgradeScheduled": null
+        "downgradeScheduled": null,
+        "userOrganizationStatistics": {
+            "storageUsed": 10,
+            "storageQuota": 10000,
+            "projectsCount": 1
+        }
     },
     "success": true
 }

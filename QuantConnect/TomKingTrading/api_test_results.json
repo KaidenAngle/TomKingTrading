@@ -1,0 +1,250 @@
+{
+  "api_endpoints": [
+    {
+      "name": "Read Project",
+      "endpoint": "mcp__quantconnect__read_project",
+      "status": "connected"
+    },
+    {
+      "name": "List Projects",
+      "endpoint": "mcp__quantconnect__list_projects",
+      "status": "connected"
+    },
+    {
+      "name": "Compile Project",
+      "endpoint": "mcp__quantconnect__create_compile",
+      "status": "connected"
+    },
+    {
+      "name": "Read Compile",
+      "endpoint": "mcp__quantconnect__read_compile",
+      "status": "connected"
+    },
+    {
+      "name": "Create Backtest",
+      "endpoint": "mcp__quantconnect__create_backtest",
+      "status": "connected"
+    },
+    {
+      "name": "Read Backtest",
+      "endpoint": "mcp__quantconnect__read_backtest",
+      "status": "connected"
+    }
+  ],
+  "data_feeds": [
+    {
+      "type": "Equity",
+      "symbol": "SPY",
+      "status": "available"
+    },
+    {
+      "type": "Equity",
+      "symbol": "QQQ",
+      "status": "available"
+    },
+    {
+      "type": "Equity",
+      "symbol": "IWM",
+      "status": "available"
+    },
+    {
+      "type": "Equity",
+      "symbol": "NVDA",
+      "status": "available"
+    },
+    {
+      "type": "Equity",
+      "symbol": "TSLA",
+      "status": "available"
+    },
+    {
+      "type": "Options",
+      "symbol": "SPY Options Chain",
+      "status": "available"
+    },
+    {
+      "type": "Options",
+      "symbol": "QQQ Options Chain",
+      "status": "available"
+    },
+    {
+      "type": "Options",
+      "symbol": "0DTE Availability",
+      "status": "available"
+    },
+    {
+      "type": "Futures",
+      "symbol": "ES",
+      "status": "available"
+    },
+    {
+      "type": "Futures",
+      "symbol": "MES",
+      "status": "available"
+    },
+    {
+      "type": "Futures",
+      "symbol": "CL",
+      "status": "available"
+    },
+    {
+      "type": "Futures",
+      "symbol": "MCL",
+      "status": "available"
+    },
+    {
+      "type": "Futures",
+      "symbol": "GC",
+      "status": "available"
+    },
+    {
+      "type": "Futures",
+      "symbol": "MGC",
+      "status": "available"
+    },
+    {
+      "type": "VIX",
+      "symbol": "VIX Index",
+      "status": "available"
+    },
+    {
+      "type": "VIX",
+      "symbol": "VIX Futures",
+      "status": "available"
+    },
+    {
+      "type": "VIX",
+      "symbol": "UVXY",
+      "status": "available"
+    },
+    {
+      "type": "Forex",
+      "symbol": "6E",
+      "status": "available"
+    },
+    {
+      "type": "Forex",
+      "symbol": "M6E",
+      "status": "available"
+    },
+    {
+      "type": "Forex",
+      "symbol": "6B",
+      "status": "available"
+    },
+    {
+      "type": "Forex",
+      "symbol": "M6B",
+      "status": "available"
+    }
+  ],
+  "order_types": [
+    {
+      "type": "Market Orders",
+      "supported": true
+    },
+    {
+      "type": "Limit Orders",
+      "supported": true
+    },
+    {
+      "type": "Stop Loss Orders",
+      "supported": true
+    },
+    {
+      "type": "Option Combos (Iron Condor)",
+      "supported": true
+    },
+    {
+      "type": "Option Legs (Strangles)",
+      "supported": true
+    },
+    {
+      "type": "Futures Orders",
+      "supported": true
+    },
+    {
+      "type": "Multi-Leg Orders",
+      "supported": true
+    }
+  ],
+  "option_chains": [
+    {
+      "dte": "0 DTE Options (Friday)",
+      "purpose": "Critical for Friday 0DTE strategy",
+      "status": "needs_verification"
+    },
+    {
+      "dte": "30 DTE Options",
+      "purpose": "For monthly strangles",
+      "status": "needs_verification"
+    },
+    {
+      "dte": "45 DTE Options",
+      "purpose": "For calendar spreads",
+      "status": "needs_verification"
+    },
+    {
+      "dte": "120 DTE Options",
+      "purpose": "For LT112 strategy",
+      "status": "needs_verification"
+    },
+    {
+      "dte": "365 DTE Options (LEAPS)",
+      "purpose": "For LEAP ladders and IPMCC",
+      "status": "needs_verification"
+    }
+  ],
+  "futures_contracts": [
+    {
+      "phase": "Phase 1",
+      "contract": "MCL (Micro Crude)",
+      "status": "needs_setup"
+    },
+    {
+      "phase": "Phase 1",
+      "contract": "MGC (Micro Gold)",
+      "status": "needs_setup"
+    },
+    {
+      "phase": "Phase 1",
+      "contract": "M6E (Micro Euro)",
+      "status": "needs_setup"
+    },
+    {
+      "phase": "Phase 2",
+      "contract": "MES (Micro S&P)",
+      "status": "needs_setup"
+    },
+    {
+      "phase": "Phase 2",
+      "contract": "MNQ (Micro Nasdaq)",
+      "status": "needs_setup"
+    },
+    {
+      "phase": "Phase 2",
+      "contract": "M2K (Micro Russell)",
+      "status": "needs_setup"
+    },
+    {
+      "phase": "Phase 3",
+      "contract": "CL (Crude Oil)",
+      "status": "needs_setup"
+    },
+    {
+      "phase": "Phase 3",
+      "contract": "GC (Gold)",
+      "status": "needs_setup"
+    },
+    {
+      "phase": "Phase 3",
+      "contract": "ES (E-mini S&P)",
+      "status": "needs_setup"
+    },
+    {
+      "phase": "Phase 4",
+      "contract": "All futures available",
+      "status": "needs_setup"
+    }
+  ]
+}
