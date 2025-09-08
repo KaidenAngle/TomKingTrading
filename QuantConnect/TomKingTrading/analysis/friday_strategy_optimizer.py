@@ -3,9 +3,10 @@ from AlgorithmImports import *
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from collections import deque
+from core.base_component import BaseComponent
 # endregion
 
-class FridayStrategyOptimizer:
+class FridayStrategyOptimizer(BaseComponent):
     """
     Tom King's Progressive Friday pattern detection
     Identifies high-probability 0DTE setups with enhanced win rates
@@ -19,7 +20,7 @@ class FridayStrategyOptimizer:
     """
     
     def __init__(self, algorithm):
-        self.algorithm = algorithm
+        super().__init__(algorithm)
         self.pattern_history = []
         self.win_rate_boost = 0.05  # 5% win rate improvement on Progressive Fridays
         self.progressive_count = 0
@@ -573,16 +574,4 @@ class FridayStrategyOptimizer:
                 
         return 50  # Default 50%
         
-    def get_account_phase(self) -> int:
-        """Get current account phase"""
-        
-        portfolio_value = self.algorithm.Portfolio.TotalPortfolioValue
-        
-        if portfolio_value >= 75000:
-            return 4
-        elif portfolio_value >= 60000:
-            return 3
-        elif portfolio_value >= 40000:
-            return 2
-        else:
-            return 1
+    # get_account_phase() now inherited from BaseComponent

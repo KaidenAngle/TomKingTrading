@@ -236,24 +236,3 @@ class CriticalValidations:
 
 # USAGE IN MAIN.PY:
 #
-# def Initialize(self):
-#     self.critical_validations = CriticalValidations(self)
-#
-# def place_trade(self, strategy_name, symbol, quantity):
-#     # Pre-trade validation
-#     valid, reason = self.critical_validations.pre_trade_validation(
-#         strategy_name, symbol, quantity
-#     )
-#     
-#     if not valid:
-#         self.Log(f"Trade blocked: {reason}")
-#         return None
-#     
-#     # Place the trade
-#     order = self.MarketOrder(symbol, quantity)
-#     
-#     # Record position
-#     if order:
-#         self.critical_validations.record_position_open(strategy_name)
-#     
-#     return order

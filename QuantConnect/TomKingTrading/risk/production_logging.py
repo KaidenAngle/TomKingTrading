@@ -442,28 +442,3 @@ Account: ${account_value:,.2f}
 
 # USAGE IN MAIN.PY:
 #
-# def Initialize(self):
-#     self.production_logger = ProductionLogger(self)
-#     self.network_monitor = NetworkMonitor(self)
-#     self.greeks_aggregator = GreeksAggregator(self)
-#     
-#     # Schedule heartbeat every minute
-#     self.Schedule.On(self.DateRules.EveryDay(),
-#                     self.TimeRules.Every(timedelta(minutes=1)),
-#                     self.network_monitor.heartbeat_check)
-#
-# def OnOrderEvent(self, orderEvent):
-#     if orderEvent.Status == OrderStatus.Filled:
-#         # Log the trade
-#         self.production_logger.log_trade_entry(
-#             strategy_name="0DTE",
-#             symbol=orderEvent.Symbol,
-#             quantity=orderEvent.FillQuantity,
-#             entry_price=orderEvent.FillPrice
-#         )
-#
-# def OnEndOfDay(self):
-#     # Log daily metrics
-#     self.production_logger.calculate_daily_metrics()
-#     # Log Greeks summary
-#     self.greeks_aggregator.log_greeks_summary()

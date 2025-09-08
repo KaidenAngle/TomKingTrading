@@ -358,30 +358,3 @@ Win Rate: {win_rate:.1f}%
 
 # USAGE EXAMPLE:
 #
-# def Initialize(self):
-#     # Add to existing initialization
-#     self.position_recovery = SimplePositionRecovery(self)
-#     self.performance_tracker = SimplePerformanceTracker(self)
-#     self.futures_roller = SimpleFuturesRoller(self)
-#     self.broker_failover = SimpleBrokerFailover(self)
-#     self.commission_model = SimpleCommissionModel(self)
-#     self.daily_summary = SimpleDailySummary(self)
-#
-#     # Recover positions on startup
-#     recovered_state = self.position_recovery.recover_positions()
-#     if recovered_state:
-#         self.current_phase = recovered_state.get('phase', 1)
-#
-# def OnData(self, data):
-#     # Check futures rolls daily
-#     self.futures_roller.check_and_roll_futures()
-#
-#     # Use failover for orders
-#     order = self.broker_failover.place_order_with_failover(symbol, quantity)
-#
-# def OnEndOfDay(self):
-#     # Generate daily summary
-#     self.daily_summary.generate_daily_summary()
-#     
-#     # Reset daily trackers
-#     self.performance_tracker.reset_daily()

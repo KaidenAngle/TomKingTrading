@@ -295,15 +295,3 @@ class TomKingExitRules:
 
 # Usage in main algorithm:
 #
-# def Initialize(self):
-#     self.exit_manager = SimpleExitManager(self)
-#
-# def check_positions_for_exit(self):
-#     for position in self.active_positions:
-#         should_exit, reason, action = self.exit_manager.check_exits(position)
-#         
-#         if should_exit:
-#             if action == 'close':
-#                 self.close_position(position)
-#             elif action == 'roll':
-#                 self.roll_position(position)

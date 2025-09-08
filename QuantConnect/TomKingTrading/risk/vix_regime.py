@@ -469,28 +469,3 @@ class VIXRegimeManager:
 
 # Usage Example for QuantConnect Algorithm:
 #
-# def Initialize(self):
-#     self.vix_manager = VIXRegimeManager(self)
-#     
-# def OnData(self, data):
-#     # Update VIX level (assuming VIX data feed)
-#     if "VIX" in data and data["VIX"] is not None:
-#         vix_level = data["VIX"].Close
-#         self.vix_manager.update_vix_level(vix_level)
-#         
-#         # Get regime analysis
-#         account_phase = 2  # Example phase
-#         summary = self.vix_manager.get_vix_regime_summary(account_phase)
-#         
-#         # Adjust position sizing
-#         max_bp = summary['max_bp_usage']
-#         sizing_multiplier = summary['position_sizing_multiplier']
-#         
-#         # Check for opportunities
-#         if summary['opportunities']:
-#             self.Log(f"VIX OPPORTUNITY: {summary['opportunities']['warning']}")
-#         
-#         # Apply strategy restrictions
-#         should_avoid_0dte, reason = self.vix_manager.should_avoid_strategy('0DTE')
-#         if should_avoid_0dte:
-#             self.Log(f"AVOIDING 0DTE: {reason}")

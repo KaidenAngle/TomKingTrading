@@ -505,39 +505,3 @@ class TradingDashboard:
 
 # USAGE IN MAIN.PY:
 #
-# def Initialize(self):
-#     self.dashboard = TradingDashboard(self)
-#     
-#     # Load previous state if exists
-#     self.dashboard.load_dashboard_state()
-#
-# def execute_friday_strategies(self):
-#     # Record decision stages
-#     self.dashboard.record_decision_stage(
-#         "VIX_CHECK",
-#         {"vix": vix_level, "threshold": 30},
-#         passed=vix_level < 30
-#     )
-#     
-#     # When opening position
-#     position_id = self.dashboard.add_position(
-#         "0DTE",
-#         {
-#             'symbol': symbol,
-#             'entry_price': price,
-#             'quantity': quantity,
-#             'type': 'Iron Condor',
-#             'strikes': [450, 455, 445, 440],
-#             'greeks': {'delta': 5, 'theta': -50},
-#             'margin_used': 2000,
-#             'correlation_group': 'A1'
-#         }
-#     )
-#
-# def OnEndOfDay(self):
-#     # Generate and log full dashboard
-#     dashboard_report = self.dashboard.generate_full_report()
-#     self.Log(dashboard_report)
-#     
-#     # Save state
-#     self.dashboard.save_dashboard_state()

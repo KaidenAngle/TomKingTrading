@@ -4,9 +4,10 @@ import numpy as np
 from scipy.stats import norm
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
+from core.base_component import BaseComponent
 # endregion
 
-class GreeksMonitor:
+class GreeksMonitor(BaseComponent):
     """
     Real-time Greeks calculation and monitoring
     Essential for options risk management
@@ -14,7 +15,7 @@ class GreeksMonitor:
     """
     
     def __init__(self, algorithm):
-        self.algorithm = algorithm
+        super().__init__(algorithm)
         self.position_greeks = {}
         self.portfolio_greeks_history = []
         
@@ -387,19 +388,7 @@ class GreeksMonitor:
                     f"Theta: ${expiry_greeks['theta']:7.0f}"
                 )
                 
-    def get_account_phase(self) -> int:
-        """Get current account phase for threshold adjustments"""
-        
-        portfolio_value = self.algorithm.Portfolio.TotalPortfolioValue
-        
-        if portfolio_value >= 75000:
-            return 4
-        elif portfolio_value >= 60000:
-            return 3
-        elif portfolio_value >= 40000:
-            return 2
-        else:
-            return 1
+    # get_account_phase() now inherited from BaseComponent
             
     def calculate_0dte_greeks(self, strike: float, option_type: str, 
                               spot: float = None) -> Dict:

@@ -144,27 +144,3 @@ class GreeksSignalGenerator:
             return "defensive"  # Reduce size or stay out
 
 
-# Usage in main algorithm:
-#
-# def Initialize(self):
-#     self.greeks_signals = SimpleGreeksSignals(self)
-#
-# def OnData(self, data):
-#     # Get signals from Greeks
-#     vix = self.Securities["VIX"].Price
-#     
-#     # For 0DTE
-#     if self.Time.weekday() == 4:  # Friday
-#         spy_chain = self.OptionChainProvider.GetOptionContractList("SPY", self.Time)
-#         if self.greeks_signals.should_enter_0dte(self.Time, vix, spy_chain):
-#             # Execute 0DTE strategy
-#             
-#     # For monthly strategies
-#     iv_rank = self.greeks_signals.calculate_iv_rank(vix)
-#     gamma_exposure = self.greeks_signals.check_gamma_exposure(spy_chain)
-#     
-#     strategy = self.greeks_signals.get_strategy_signal(vix, iv_rank, gamma_exposure)
-#     
-#     if strategy == "strangle":
-#         put_strike, call_strike = self.greeks_signals.get_strangle_strikes_by_delta(spy_chain, 0.07)
-#         # Execute strangle at these strikes

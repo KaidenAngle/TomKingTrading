@@ -266,28 +266,3 @@ class SimpleAlerts:
 
 # USAGE EXAMPLE:
 # 
-# def Initialize(self):
-#     self.safety = SimpleSafetyChecks(self)
-#     self.fill_check = SimpleOrderFillCheck(self)
-#     self.assignment_check = SimpleAssignmentCheck(self)
-#     self.data_check = SimpleDataValidation(self)
-#     self.alerts = SimpleAlerts(self)
-#
-# def OnData(self, data):
-#     # Before any trade
-#     if not self.safety.check_before_trade():
-#         return
-#     
-#     # Check data
-#     if not self.data_check.is_data_valid("SPY"):
-#         return
-#     
-#     # Check assignment risk daily
-#     self.assignment_check.close_risky_positions()
-#     
-#     # Place orders with fill validation
-#     orders = [...] # Your iron condor orders
-#     if self.fill_check.place_iron_condor(orders):
-#         self.alerts.send_alert("INFO", "Iron condor filled successfully")
-#     else:
-#         self.alerts.send_alert("WARNING", "Iron condor fill failed")

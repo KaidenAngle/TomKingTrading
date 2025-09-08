@@ -245,16 +245,3 @@ class StrategyOrderExecutor:
 
 # USAGE IN MAIN.PY:
 #
-# def Initialize(self):
-#     self.order_executor = StrategyOrderExecutor(self)
-#
-# def execute_monthly_strategies(self):
-#     # LT112 creates order structure
-#     order_structure = self.lt112_strategy.create_lt112_order(strikes, size, symbol)
-#     
-#     # Execute the actual orders
-#     success, orders = self.order_executor.execute_lt112_order(order_structure)
-#     
-#     if success:
-#         # Track in dashboard
-#         self.dashboard.add_position("LT112", {...})

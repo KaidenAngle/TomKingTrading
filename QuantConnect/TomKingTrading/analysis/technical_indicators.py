@@ -522,36 +522,3 @@ class TechnicalAnalysisSystem:
 
 # Usage Example for QuantConnect Algorithm:
 #
-# def Initialize(self):
-#     self.technical_system = TechnicalAnalysisSystem(self)
-#     
-#     # Initialize indicators for symbols
-#     symbols = ['SPY', 'QQQ', 'IWM']
-#     for symbol in symbols:
-#         self.technical_system.initialize_indicators(symbol)
-#         
-# def OnData(self, data):
-#     for symbol in ['SPY', 'QQQ']:
-#         if symbol in data and data[symbol] is not None:
-#             current_price = data[symbol].Close
-#             
-#             # Get technical analysis
-#             quality_score = self.technical_system.calculate_pattern_quality_score(
-#                 symbol, current_price, '0dte'
-#             )
-#             
-#             if quality_score['score'] >= 65:  # Good quality setup
-#                 # Calculate strikes
-#                 strikes = self.technical_system.calculate_strike_prices(
-#                     '0dte', current_price, self.technical_system.get_current_values(symbol)
-#                 )
-#                 
-#                 # Get entry timing
-#                 entry_signals = self.technical_system.get_entry_timing_signals(
-#                     symbol, current_price, '0dte'
-#                 )
-#                 
-#                 if entry_signals['primary_signal'] == 'GOOD_ENTRY':
-#                     self.Log(f"Technical Setup: {symbol} Quality={quality_score['score']:.1f} "
-#                             f"Signal={entry_signals['primary_signal']}")
-#                     # Execute strategy logic here
