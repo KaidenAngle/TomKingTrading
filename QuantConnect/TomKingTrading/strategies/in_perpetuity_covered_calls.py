@@ -378,8 +378,9 @@ class InPerpetuityCoveredCalls:
         Returns: dict with roll recommendation
         """
         # First check if LEAP needs rolling (critical)
+        # Clear boundaries: <= 30 is critical, 31-60 is warning, > 60 is normal
         leap_dte = ipmcc_position.get('leap_leg', {}).get('dte', float('inf'))
-        if leap_dte < 30:
+        if leap_dte <= 30:  # 30 days or less - critical
             self.algorithm.Log(f"[IPMCC] CRITICAL: LEAP expiring in {leap_dte} days - needs immediate roll!")
             return {
                 'position_id': ipmcc_position.get('id'),
@@ -387,7 +388,7 @@ class InPerpetuityCoveredCalls:
                 'reason': f'LEAP expiring in {leap_dte} days',
                 'priority': 'CRITICAL'
             }
-        elif leap_dte < 60:
+        elif leap_dte <= 60:  # 31-60 days - warning
             self.algorithm.Log(f"[IPMCC] WARNING: LEAP has {leap_dte} days to expiration - plan roll soon")
         
         weekly_call = ipmcc_position['weekly_call']

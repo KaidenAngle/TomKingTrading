@@ -3,6 +3,7 @@
 
 from AlgorithmImports import *
 from datetime import timedelta
+from helpers.timezone_handler import TimezoneHandler
 
 class TomKingExitRules:
     """
@@ -16,6 +17,7 @@ class TomKingExitRules:
     
     def __init__(self, algorithm):
         self.algo = algorithm
+        self.timezone_handler = TimezoneHandler(algorithm)
         
         # Tom King's actual profit targets (from documentation)
         self.profit_targets = {
@@ -176,14 +178,13 @@ class TomKingExitRules:
         if strategy != '0DTE':
             return (False, None, None)
         
-        current_time = self.algo.Time
         exit_hour, exit_minute = self.time_exits['0DTE']
         
-        # Check if past exit time
-        if current_time.hour > exit_hour or \
-           (current_time.hour == exit_hour and current_time.minute >= exit_minute):
-            self.algo.Log(f"[TIME] 0DTE time exit at {current_time.strftime('%H:%M')}")
-            return (True, "3:00 PM time exit", "close")
+        # Check if past exit time using timezone handler (Eastern Time with DST)
+        if self.timezone_handler.is_past_time(exit_hour, exit_minute):
+            time_str = self.timezone_handler.format_time()
+            self.algo.Log(f"[TIME] 0DTE time exit at {time_str}")
+            return (True, "3:00 PM ET time exit", "close")
         
         return (False, None, None)
     

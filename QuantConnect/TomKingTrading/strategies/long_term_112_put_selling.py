@@ -689,8 +689,10 @@ class LongTerm112PutSelling:
             unrealized_pl_percent = position.get('unrealized_pl_percent', 0)
             days_held = position.get('days_held', 0)
             
-            # Check profit targets
-            if unrealized_pl_percent >= (self.naked_put_profit_target * 100):
+            # Check profit targets (assuming unrealized_pl_percent is in percentage 0-100)
+            # Convert to decimal for consistent comparison with profit targets
+            unrealized_pl_decimal = unrealized_pl_percent / 100.0
+            if unrealized_pl_decimal >= self.naked_put_profit_target:
                 management_actions.append({
                     'position_id': position.get('id'),
                     'action': 'CLOSE',
@@ -701,7 +703,7 @@ class LongTerm112PutSelling:
             
             # Check 21 DTE defensive rule
             if dte <= self.defensive_dte:
-                if unrealized_pl_percent < 25:  # Less than 25% profit at 21 DTE
+                if unrealized_pl_decimal < 0.25:  # Less than 25% profit at 21 DTE
                     management_actions.append({
                         'position_id': position.get('id'),
                         'action': 'CLOSE',

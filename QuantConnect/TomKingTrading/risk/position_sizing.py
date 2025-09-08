@@ -375,11 +375,13 @@ class PositionSizer:
         q = 1 - win_rate
         
         # Protect against division by zero in Kelly calculation
-        if b == 0:
-            self.algorithm.Log("[POSITION SIZING] Warning: b is 0, using conservative Kelly")
+        if b == 0 or abs(b) < 0.0001:  # Near-zero protection
+            self.algorithm.Log("[POSITION SIZING] Warning: b is near 0, using conservative Kelly")
             return 0.05
             
-        kelly = (b * p - q) / b
+        # Simplified Kelly formula to avoid unnecessary division
+        # kelly = (b * p - q) / b = p - q/b
+        kelly = p - (q / b)
         
         # Conservative adjustment (use 25% of Kelly for safety)
         # Note: Applying single conservative factor, not double reduction

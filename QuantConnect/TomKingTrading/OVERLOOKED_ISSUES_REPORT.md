@@ -58,15 +58,18 @@ if self.can_add_position(group):  # Check
 - Alert system for high assignment probability
 - Automatic defensive action triggers
 
-### 6. Order Rejection Handling ⚠️ NOT IMPLEMENTED
+### 6. Order Rejection Handling ✅ ALREADY IMPLEMENTED
 
-**Issue:** No retry logic or error handling for rejected orders
-**Impact:** Incomplete positions, strategy desynchronization
-**Fix Needed:** 
-- Order status monitoring
-- Retry logic with exponential backoff
-- Alternative order types on rejection
-- State recovery mechanisms
+**Location:** `risk/order_validation.py`
+**Status:** Comprehensive system already exists with:
+- `OrderValidationSystem` class with retry logic
+- `retry_failed_order()` method with configurable max attempts
+- Automatic price recalculation on retry
+- Proper order cancellation before retry
+- OnOrderEvent handlers for Invalid and Canceled statuses
+- Production logging for invalid orders
+
+**Implementation Quality:** Good - has retry delays, max attempts, and proper tracking
 
 ### 7. Data Freshness Validation ⚠️ PARTIAL
 

@@ -1,507 +1,329 @@
-# Trading Dashboard - TastyTrade-Style Interface
-# Comprehensive position tracking, strategy grouping, and performance analytics
+# Trading Dashboard - TastyTrade-style position tracking and analysis
+# Shows positions by strategy, concentration, performance metrics
 
 from AlgorithmImports import *
-from datetime import datetime, timedelta
-from typing import Dict, List, Any
+from typing import Dict, List
 import json
-from collections import defaultdict
 
 class TradingDashboard:
     """
-    Complete trading dashboard with TastyTrade-style features
-    Groups positions by strategy, tracks performance, shows concentrations
+    Comprehensive dashboard for tracking positions and performance
+    Groups by strategy, shows concentration, tracks P&L
     """
     
     def __init__(self, algorithm):
         self.algo = algorithm
         
         # Position tracking by strategy
-        self.positions_by_strategy = defaultdict(list)
-        
-        # Performance tracking
-        self.strategy_performance = defaultdict(lambda: {
-            'total_trades': 0,
-            'winning_trades': 0,
-            'losing_trades': 0,
-            'total_pnl': 0,
-            'best_trade': 0,
-            'worst_trade': 0,
-            'avg_win': 0,
-            'avg_loss': 0,
-            'current_positions': [],
-            'closed_positions': []
-        })
-        
-        # Stage tracking for decision process
-        self.decision_stages = []
-        
-        # Concentration tracking
-        self.concentration_data = {
-            'by_underlying': defaultdict(float),
-            'by_strategy': defaultdict(float),
-            'by_correlation_group': defaultdict(float),
-            'by_expiry': defaultdict(float)
+        self.positions_by_strategy = {
+            '0DTE': [],
+            'Futures_Strangle': [],
+            'LT112': [],
+            'IPMCC': [],
+            'LEAP_Ladders': []
         }
         
-        self.algo.Log("📊 TRADING DASHBOARD INITIALIZED")
-    
-    def record_decision_stage(self, stage: str, details: Dict, passed: bool):
-        """Record each stage of the decision process"""
-        self.decision_stages.append({
-            'timestamp': str(self.algo.Time),
-            'stage': stage,
-            'details': details,
-            'passed': passed,
-            'icon': '✅' if passed else '❌'
-        })
+        # Performance metrics
+        self.strategy_performance = {
+            '0DTE': {'realized_pnl': 0, 'unrealized_pnl': 0, 'win_rate': 0, 'trades': 0},
+            'Futures_Strangle': {'realized_pnl': 0, 'unrealized_pnl': 0, 'win_rate': 0, 'trades': 0},
+            'LT112': {'realized_pnl': 0, 'unrealized_pnl': 0, 'win_rate': 0, 'trades': 0},
+            'IPMCC': {'realized_pnl': 0, 'unrealized_pnl': 0, 'win_rate': 0, 'trades': 0},
+            'LEAP_Ladders': {'realized_pnl': 0, 'unrealized_pnl': 0, 'win_rate': 0, 'trades': 0}
+        }
+        
+        # Concentration metrics
+        self.concentration_limits = {
+            'max_single_position': 0.10,  # 10% of portfolio
+            'max_strategy_allocation': 0.30,  # 30% per strategy
+            'max_correlated_exposure': 0.40  # 40% in correlated assets
+        }
+        
+        # Greeks aggregation
+        self.portfolio_greeks = {
+            'delta': 0,
+            'gamma': 0,
+            'theta': 0,
+            'vega': 0,
+            'rho': 0
+        }
+        
+        # Initialize display
+        self.last_update = self.algo.Time
+        self.update_frequency = timedelta(minutes=5)
     
     def add_position(self, strategy_name: str, position_data: Dict):
-        """Add a new position to tracking"""
+        """
+        Add a new position to tracking
+        """
         position = {
             'id': f"{strategy_name}_{self.algo.Time.timestamp()}",
             'strategy': strategy_name,
             'symbol': position_data.get('symbol'),
             'entry_time': str(self.algo.Time),
-            'entry_price': position_data.get('entry_price', 0),
-            'quantity': position_data.get('quantity', 0),
-            'position_type': position_data.get('type', 'Unknown'),  # IC, Strangle, etc.
+            'entry_price': position_data.get('entry_price'),
+            'quantity': position_data.get('quantity'),
+            'position_type': position_data.get('position_type'),  # 'long', 'short', 'spread'
             'expiry': position_data.get('expiry'),
-            'strikes': position_data.get('strikes', []),
+            'strikes': position_data.get('strikes', {}),
             'greeks': position_data.get('greeks', {}),
             'margin_used': position_data.get('margin_used', 0),
-            'max_profit': position_data.get('max_profit', 0),
-            'max_loss': position_data.get('max_loss', 0),
-            'status': 'OPEN',
-            'unrealized_pnl': 0,
-            'days_in_trade': 0,
-            'correlation_group': position_data.get('correlation_group', 'Unknown'),
-            'vix_at_entry': self.algo.vix_manager.current_vix if hasattr(self.algo, 'vix_manager') else 0
+            'status': 'OPEN'
         }
         
-        self.positions_by_strategy[strategy_name].append(position)
-        self.strategy_performance[strategy_name]['current_positions'].append(position)
-        
-        # Update concentration data
-        self.update_concentration_data()
-        
-        return position['id']
+        if strategy_name in self.positions_by_strategy:
+            self.positions_by_strategy[strategy_name].append(position)
+            self.algo.Log(f"[DASHBOARD] Added {strategy_name} position - {position['symbol']}")
     
     def update_position(self, position_id: str, updates: Dict):
-        """Update an existing position"""
-        for strategy_positions in self.positions_by_strategy.values():
-            for position in strategy_positions:
+        """
+        Update an existing position
+        """
+        for strategy, positions in self.positions_by_strategy.items():
+            for position in positions:
                 if position['id'] == position_id:
                     position.update(updates)
-                    
-                    # Update days in trade
-                    entry_time = datetime.strptime(position['entry_time'][:19], '%Y-%m-%d %H:%M:%S')
-                    position['days_in_trade'] = (self.algo.Time - entry_time).days
-                    
-                    # Update unrealized P&L if price provided
-                    if 'current_price' in updates:
-                        position['unrealized_pnl'] = (updates['current_price'] - position['entry_price']) * position['quantity']
-                    
                     return True
         return False
     
-    def close_position(self, position_id: str, exit_price: float, pnl: float, reason: str = ""):
-        """Close a position and move to history"""
-        for strategy_name, positions in self.positions_by_strategy.items():
-            for i, position in enumerate(positions):
-                if position['id'] == position_id:
-                    # Update position data
-                    position['status'] = 'CLOSED'
-                    position['exit_time'] = str(self.algo.Time)
-                    position['exit_price'] = exit_price
-                    position['realized_pnl'] = pnl
-                    position['exit_reason'] = reason
-                    
-                    # Update strategy performance
-                    perf = self.strategy_performance[strategy_name]
-                    perf['total_trades'] += 1
-                    perf['total_pnl'] += pnl
-                    
-                    if pnl > 0:
-                        perf['winning_trades'] += 1
-                        perf['best_trade'] = max(perf['best_trade'], pnl)
-                    else:
-                        perf['losing_trades'] += 1
-                        perf['worst_trade'] = min(perf['worst_trade'], pnl)
-                    
-                    # Move to closed positions
-                    perf['closed_positions'].append(position)
-                    perf['current_positions'].remove(position)
-                    positions.pop(i)
-                    
-                    # Update averages
-                    if perf['winning_trades'] > 0:
-                        total_wins = sum(p['realized_pnl'] for p in perf['closed_positions'] if p['realized_pnl'] > 0)
-                        perf['avg_win'] = total_wins / perf['winning_trades']
-                    
-                    if perf['losing_trades'] > 0:
-                        total_losses = sum(p['realized_pnl'] for p in perf['closed_positions'] if p['realized_pnl'] < 0)
-                        perf['avg_loss'] = total_losses / perf['losing_trades']
-                    
-                    return True
-        return False
-    
-    def update_concentration_data(self):
-        """Update concentration metrics"""
-        # Reset concentrations
-        self.concentration_data = {
-            'by_underlying': defaultdict(float),
-            'by_strategy': defaultdict(float),
-            'by_correlation_group': defaultdict(float),
-            'by_expiry': defaultdict(float)
-        }
-        
-        total_margin = 0
-        
-        # Calculate concentrations
-        for strategy_name, positions in self.positions_by_strategy.items():
+    def close_position(self, position_id: str, exit_price: float, pnl: float):
+        """
+        Mark position as closed and update performance
+        """
+        for strategy, positions in self.positions_by_strategy.items():
             for position in positions:
-                if position['status'] == 'OPEN':
-                    margin = position.get('margin_used', 0)
-                    total_margin += margin
+                if position['id'] == position_id:
+                    position['status'] = 'CLOSED'
+                    position['exit_price'] = exit_price
+                    position['exit_time'] = str(self.algo.Time)
+                    position['pnl'] = pnl
                     
-                    # By strategy
-                    self.concentration_data['by_strategy'][strategy_name] += margin
+                    # Update performance metrics
+                    self.strategy_performance[strategy]['realized_pnl'] += pnl
+                    self.strategy_performance[strategy]['trades'] += 1
                     
-                    # By underlying
-                    symbol = str(position.get('symbol', 'Unknown'))
-                    underlying = symbol.split(' ')[0] if ' ' in symbol else symbol
-                    self.concentration_data['by_underlying'][underlying] += margin
+                    # Update win rate
+                    wins = sum(1 for p in positions if p.get('pnl', 0) > 0 and p['status'] == 'CLOSED')
+                    total = sum(1 for p in positions if p['status'] == 'CLOSED')
+                    if total > 0:
+                        self.strategy_performance[strategy]['win_rate'] = wins / total
                     
-                    # By correlation group
-                    group = position.get('correlation_group', 'Unknown')
-                    self.concentration_data['by_correlation_group'][group] += margin
-                    
-                    # By expiry
-                    expiry = position.get('expiry', 'Unknown')
-                    if expiry != 'Unknown':
-                        expiry_bucket = self.get_expiry_bucket(expiry)
-                        self.concentration_data['by_expiry'][expiry_bucket] += margin
-        
-        # Convert to percentages
-        if total_margin > 0:
-            for category in self.concentration_data:
-                for key in self.concentration_data[category]:
-                    self.concentration_data[category][key] = (self.concentration_data[category][key] / total_margin) * 100
-    
-    def get_expiry_bucket(self, expiry):
-        """Categorize expiry into buckets"""
-        if isinstance(expiry, str):
-            try:
-                expiry_date = datetime.strptime(expiry[:10], '%Y-%m-%d')
-            except:
-                return "Unknown"
-        else:
-            expiry_date = expiry
-        
-        days_to_expiry = (expiry_date - self.algo.Time).days
-        
-        if days_to_expiry <= 0:
-            return "Expired"
-        elif days_to_expiry <= 7:
-            return "0-7 DTE"
-        elif days_to_expiry <= 30:
-            return "8-30 DTE"
-        elif days_to_expiry <= 60:
-            return "31-60 DTE"
-        elif days_to_expiry <= 120:
-            return "61-120 DTE"
-        else:
-            return "120+ DTE"
+                    self.algo.Log(f"[CLOSED] {strategy} position: P&L ${pnl:,.2f}")
+                    return True
+        return False
     
     def get_dashboard_summary(self) -> str:
-        """Generate main dashboard summary"""
-        account_value = self.algo.Portfolio.TotalPortfolioValue
-        total_positions = sum(len(p) for p in self.positions_by_strategy.values())
+        """
+        Get formatted dashboard summary for logging
+        """
+        summary = ["\n" + "="*60]
+        summary.append("TRADING DASHBOARD - TastyTrade Style")
+        summary.append("="*60)
         
-        # Calculate totals
-        total_unrealized = 0
-        total_margin_used = 0
+        # Portfolio overview
+        total_value = self.algo.Portfolio.TotalPortfolioValue
+        total_margin = self.algo.Portfolio.TotalMarginUsed
+        available = total_value - total_margin
         
-        for positions in self.positions_by_strategy.values():
-            for position in positions:
-                if position['status'] == 'OPEN':
-                    total_unrealized += position.get('unrealized_pnl', 0)
-                    total_margin_used += position.get('margin_used', 0)
+        summary.append(f"\nPORTFOLIO OVERVIEW:")
+        summary.append(f"   Total Value: ${total_value:,.2f}")
+        summary.append(f"   Margin Used: ${total_margin:,.2f}")
+        summary.append(f"   Available: ${available:,.2f}")
         
-        # Calculate daily P&L
-        daily_pnl = getattr(self.algo, 'daily_pnl', 0)
-        
-        summary = f"""
-╔══════════════════════════════════════════════════════════════╗
-║               TOM KING TRADING DASHBOARD                      ║
-║                   {self.algo.Time.strftime('%Y-%m-%d %H:%M')}                       ║
-╠══════════════════════════════════════════════════════════════╣
-║ ACCOUNT OVERVIEW                                              ║
-║ ├─ Account Value: ${account_value:,.2f}                       ║
-║ ├─ Daily P&L: ${daily_pnl:+,.2f}                             ║
-║ ├─ Unrealized P&L: ${total_unrealized:+,.2f}                ║
-║ ├─ Margin Used: ${total_margin_used:,.2f} ({total_margin_used/account_value*100:.1f}%)
-║ └─ Open Positions: {total_positions}                          ║
-╚══════════════════════════════════════════════════════════════╝
-"""
-        return summary
-    
-    def get_positions_by_strategy_view(self) -> str:
-        """Generate positions grouped by strategy view"""
-        view = """
-╔══════════════════════════════════════════════════════════════╗
-║                    POSITIONS BY STRATEGY                      ║
-╚══════════════════════════════════════════════════════════════╝
-"""
-        
-        for strategy_name in ['0DTE', 'Futures_Strangle', 'LT112', 'IPMCC', 'LEAP_Ladders']:
-            positions = self.positions_by_strategy.get(strategy_name, [])
-            open_positions = [p for p in positions if p['status'] == 'OPEN']
-            
-            if open_positions:
-                perf = self.strategy_performance[strategy_name]
-                win_rate = (perf['winning_trades'] / perf['total_trades'] * 100) if perf['total_trades'] > 0 else 0
-                
-                view += f"""
-┌─ {strategy_name} ─────────────────────────────────────────────┐
-│ Positions: {len(open_positions)} | Win Rate: {win_rate:.1f}% | P&L: ${perf['total_pnl']:+,.2f}
-"""
-                
-                for position in open_positions:
-                    days = position.get('days_in_trade', 0)
-                    pnl = position.get('unrealized_pnl', 0)
-                    pnl_color = '🟢' if pnl >= 0 else '🔴'
-                    
-                    view += f"""│ {pnl_color} {position['symbol']} | {position['position_type']} | Day {days} | P&L: ${pnl:+,.2f}
-"""
-                
-                view += "└" + "─" * 63 + "┘\n"
-        
-        return view
-    
-    def get_concentration_view(self) -> str:
-        """Generate concentration analysis view"""
-        view = """
-╔══════════════════════════════════════════════════════════════╗
-║                    CONCENTRATION ANALYSIS                     ║
-╚══════════════════════════════════════════════════════════════╝
-"""
-        
-        # By Strategy
-        view += "\n📊 BY STRATEGY:\n"
-        for strategy, percent in sorted(self.concentration_data['by_strategy'].items(), key=lambda x: x[1], reverse=True):
-            if percent > 0:
-                bar = '█' * int(percent / 5)
-                view += f"   {strategy:20} {bar} {percent:.1f}%\n"
-        
-        # By Correlation Group
-        view += "\n🔗 BY CORRELATION GROUP:\n"
-        for group, percent in sorted(self.concentration_data['by_correlation_group'].items(), key=lambda x: x[1], reverse=True):
-            if percent > 0:
-                bar = '█' * int(percent / 5)
-                warning = ' ⚠️' if percent > 30 else ''
-                view += f"   {group:20} {bar} {percent:.1f}%{warning}\n"
-        
-        # By Expiry
-        view += "\n📅 BY EXPIRY:\n"
-        expiry_order = ["0-7 DTE", "8-30 DTE", "31-60 DTE", "61-120 DTE", "120+ DTE"]
-        for expiry in expiry_order:
-            percent = self.concentration_data['by_expiry'].get(expiry, 0)
-            if percent > 0:
-                bar = '█' * int(percent / 5)
-                view += f"   {expiry:20} {bar} {percent:.1f}%\n"
-        
-        return view
-    
-    def get_performance_metrics_view(self) -> str:
-        """Generate detailed performance metrics view"""
-        view = """
-╔══════════════════════════════════════════════════════════════╗
-║                    PERFORMANCE METRICS                        ║
-╚══════════════════════════════════════════════════════════════╝
-"""
-        
-        # Overall statistics
-        total_trades = sum(s['total_trades'] for s in self.strategy_performance.values())
-        total_wins = sum(s['winning_trades'] for s in self.strategy_performance.values())
-        total_pnl = sum(s['total_pnl'] for s in self.strategy_performance.values())
-        overall_win_rate = (total_wins / total_trades * 100) if total_trades > 0 else 0
-        
-        view += f"""
-📈 OVERALL STATISTICS:
-   Total Trades: {total_trades}
-   Win Rate: {overall_win_rate:.1f}%
-   Total P&L: ${total_pnl:+,.2f}
-"""
-        
-        # Best and worst trades
-        all_closed = []
-        for perf in self.strategy_performance.values():
-            all_closed.extend(perf['closed_positions'])
-        
-        if all_closed:
-            best_trade = max(all_closed, key=lambda x: x.get('realized_pnl', 0))
-            worst_trade = min(all_closed, key=lambda x: x.get('realized_pnl', 0))
-            
-            view += f"""
-🏆 BEST TRADE:
-   {best_trade['strategy']} - {best_trade['symbol']}
-   P&L: ${best_trade['realized_pnl']:+,.2f}
-   
-😰 WORST TRADE:
-   {worst_trade['strategy']} - {worst_trade['symbol']}
-   P&L: ${worst_trade['realized_pnl']:+,.2f}
-"""
-        
-        # Strategy breakdown
-        view += "\n📊 STRATEGY BREAKDOWN:\n"
-        for strategy_name, perf in self.strategy_performance.items():
-            if perf['total_trades'] > 0:
-                win_rate = (perf['winning_trades'] / perf['total_trades'] * 100)
-                avg_win = perf['avg_win']
-                avg_loss = perf['avg_loss']
-                profit_factor = abs(avg_win / avg_loss) if avg_loss != 0 else 0
-                
-                view += f"""
-┌─ {strategy_name} ─────────────────────────────────────────────┐
-│ Trades: {perf['total_trades']} | Wins: {perf['winning_trades']} | Losses: {perf['losing_trades']}
-│ Win Rate: {win_rate:.1f}% | P&L: ${perf['total_pnl']:+,.2f}
-│ Avg Win: ${avg_win:+,.2f} | Avg Loss: ${avg_loss:+,.2f}
-│ Profit Factor: {profit_factor:.2f}
-└───────────────────────────────────────────────────────────────┘
-"""
-        
-        return view
-    
-    def get_decision_log_view(self) -> str:
-        """Generate decision process log view"""
-        view = """
-╔══════════════════════════════════════════════════════════════╗
-║                    DECISION PROCESS LOG                       ║
-╚══════════════════════════════════════════════════════════════╝
-"""
-        
-        # Get last 10 decision stages
-        recent_stages = self.decision_stages[-10:] if len(self.decision_stages) > 10 else self.decision_stages
-        
-        for stage in recent_stages:
-            view += f"""
-{stage['icon']} {stage['timestamp'][-8:]} - {stage['stage']}
-   {json.dumps(stage['details'], indent=3)[:100]}...
-"""
-        
-        return view
-    
-    def get_greeks_summary_view(self) -> str:
-        """Generate Greeks summary for all positions"""
-        view = """
-╔══════════════════════════════════════════════════════════════╗
-║                       GREEKS SUMMARY                          ║
-╚══════════════════════════════════════════════════════════════╝
-"""
-        
-        # Aggregate Greeks
-        total_delta = 0
-        total_gamma = 0
-        total_theta = 0
-        total_vega = 0
-        
-        for positions in self.positions_by_strategy.values():
-            for position in positions:
-                if position['status'] == 'OPEN' and 'greeks' in position:
-                    greeks = position['greeks']
-                    total_delta += greeks.get('delta', 0)
-                    total_gamma += greeks.get('gamma', 0)
-                    total_theta += greeks.get('theta', 0)
-                    total_vega += greeks.get('vega', 0)
-        
-        # Display with visual indicators
-        delta_bar = '█' * min(int(abs(total_delta) / 10), 20)
-        gamma_bar = '█' * min(int(abs(total_gamma) / 5), 20)
-        theta_bar = '█' * min(int(abs(total_theta) / 50), 20)
-        vega_bar = '█' * min(int(abs(total_vega) / 10), 20)
-        
-        view += f"""
-Δ DELTA:  {total_delta:+.1f} {delta_bar}
-Γ GAMMA:  {total_gamma:+.1f} {gamma_bar}
-Θ THETA:  {total_theta:+.1f} {theta_bar} (${total_theta:.2f}/day)
-ν VEGA:   {total_vega:+.1f} {vega_bar}
-"""
-        
-        # Greeks by strategy
-        view += "\nBY STRATEGY:\n"
-        for strategy_name, positions in self.positions_by_strategy.items():
-            strategy_delta = sum(p.get('greeks', {}).get('delta', 0) for p in positions if p['status'] == 'OPEN')
-            strategy_theta = sum(p.get('greeks', {}).get('theta', 0) for p in positions if p['status'] == 'OPEN')
-            
-            if strategy_delta != 0 or strategy_theta != 0:
-                view += f"   {strategy_name:20} Δ:{strategy_delta:+.1f} Θ:{strategy_theta:+.1f}\n"
-        
-        return view
-    
-    def generate_full_report(self):
-        """Generate complete dashboard report"""
-        report = ""
-        
-        # Main summary
-        report += self.get_dashboard_summary()
-        report += "\n"
-        
-        # Positions by strategy
-        report += self.get_positions_by_strategy_view()
-        report += "\n"
-        
-        # Concentration analysis
-        report += self.get_concentration_view()
-        report += "\n"
-        
-        # Performance metrics
-        report += self.get_performance_metrics_view()
-        report += "\n"
+        # Strategy performance
+        summary.append(f"\nSTRATEGY PERFORMANCE:")
+        for strategy, perf in self.strategy_performance.items():
+            open_positions = sum(1 for p in self.positions_by_strategy[strategy] if p['status'] == 'OPEN')
+            summary.append(f"\n   {strategy}:")
+            summary.append(f"      Open Positions: {open_positions}")
+            summary.append(f"      Realized P&L: ${perf['realized_pnl']:,.2f}")
+            summary.append(f"      Win Rate: {perf['win_rate']*100:.1f}%")
+            summary.append(f"      Total Trades: {perf['trades']}")
         
         # Greeks summary
-        report += self.get_greeks_summary_view()
-        report += "\n"
+        summary.append(f"\nPORTFOLIO GREEKS:")
+        summary.append(f"   Delta: {self.portfolio_greeks['delta']:.2f}")
+        summary.append(f"   Gamma: {self.portfolio_greeks['gamma']:.4f}")
+        summary.append(f"   Theta: ${self.portfolio_greeks['theta']:.2f}")
+        summary.append(f"   Vega: ${self.portfolio_greeks['vega']:.2f}")
         
-        # Decision log (if recent)
-        if self.decision_stages and len(self.decision_stages) > 0:
-            recent_time = datetime.strptime(self.decision_stages[-1]['timestamp'][:19], '%Y-%m-%d %H:%M:%S')
-            if (self.algo.Time - recent_time).seconds < 3600:  # Within last hour
-                report += self.get_decision_log_view()
+        # Concentration check
+        concentration = self.check_concentration()
+        summary.append(f"\nCONCENTRATION ALERTS:")
+        if concentration['alerts']:
+            for alert in concentration['alerts']:
+                summary.append(f"   [WARNING] {alert}")
+        else:
+            summary.append(f"   [OK] All concentration limits OK")
         
-        return report
+        summary.append("="*60)
+        
+        return "\n".join(summary)
     
-    def save_dashboard_state(self):
-        """Save dashboard state to ObjectStore"""
-        state = {
-            'positions_by_strategy': dict(self.positions_by_strategy),
-            'strategy_performance': dict(self.strategy_performance),
-            'concentration_data': dict(self.concentration_data),
-            'decision_stages': self.decision_stages[-100:],  # Keep last 100
-            'timestamp': str(self.algo.Time)
+    def get_positions_by_strategy_view(self) -> Dict:
+        """
+        Get positions grouped by strategy (TastyTrade-style)
+        """
+        view = {}
+        
+        for strategy, positions in self.positions_by_strategy.items():
+            open_positions = [p for p in positions if p['status'] == 'OPEN']
+            
+            view[strategy] = {
+                'count': len(open_positions),
+                'positions': [],
+                'total_margin': 0,
+                'unrealized_pnl': 0
+            }
+            
+            for pos in open_positions:
+                # Calculate current P&L
+                current_price = self.get_current_price(pos['symbol'])
+                entry_price = pos.get('entry_price', 0)
+                quantity = pos.get('quantity', 0)
+                
+                if pos['position_type'] == 'short':
+                    unrealized = (entry_price - current_price) * quantity * 100
+                else:
+                    unrealized = (current_price - entry_price) * quantity * 100
+                
+                view[strategy]['positions'].append({
+                    'symbol': pos['symbol'],
+                    'type': pos['position_type'],
+                    'quantity': quantity,
+                    'entry': entry_price,
+                    'current': current_price,
+                    'unrealized_pnl': unrealized,
+                    'days_held': (self.algo.Time - pd.to_datetime(pos['entry_time'])).days
+                })
+                
+                view[strategy]['total_margin'] += pos.get('margin_used', 0)
+                view[strategy]['unrealized_pnl'] += unrealized
+        
+        return view
+    
+    def get_concentration_view(self) -> Dict:
+        """
+        Get concentration analysis
+        """
+        total_value = self.algo.Portfolio.TotalPortfolioValue
+        concentration = {
+            'by_strategy': {},
+            'by_underlying': {},
+            'alerts': []
         }
         
-        self.algo.ObjectStore.Save('dashboard_state', json.dumps(state))
-    
-    def load_dashboard_state(self):
-        """Load dashboard state from ObjectStore"""
-        try:
-            if self.algo.ObjectStore.ContainsKey('dashboard_state'):
-                state = json.loads(self.algo.ObjectStore.Read('dashboard_state'))
-                
-                self.positions_by_strategy = defaultdict(list, state.get('positions_by_strategy', {}))
-                self.strategy_performance = defaultdict(dict, state.get('strategy_performance', {}))
-                self.concentration_data = state.get('concentration_data', {})
-                self.decision_stages = state.get('decision_stages', [])
-                
-                self.algo.Log(f"Dashboard state loaded from {state.get('timestamp')}")
-                return True
-        except Exception as e:
-            self.algo.Error(f"Failed to load dashboard state: {str(e)}")
+        # Strategy concentration
+        for strategy, positions in self.positions_by_strategy.items():
+            open_positions = [p for p in positions if p['status'] == 'OPEN']
+            total_margin = sum(p.get('margin_used', 0) for p in open_positions)
+            
+            concentration['by_strategy'][strategy] = {
+                'margin_used': total_margin,
+                'percentage': (total_margin / total_value * 100) if total_value > 0 else 0
+            }
+            
+            # Check limit
+            if total_margin > total_value * self.concentration_limits['max_strategy_allocation']:
+                concentration['alerts'].append(
+                    f"{strategy} exceeds allocation limit: {concentration['by_strategy'][strategy]['percentage']:.1f}%"
+                )
         
+        # Underlying concentration
+        underlying_exposure = {}
+        for positions in self.positions_by_strategy.values():
+            for pos in positions:
+                if pos['status'] == 'OPEN':
+                    symbol = str(pos.get('symbol', '')).split(' ')[0]  # Get underlying
+                    if symbol:
+                        if symbol not in underlying_exposure:
+                            underlying_exposure[symbol] = 0
+                        underlying_exposure[symbol] += pos.get('margin_used', 0)
+        
+        for symbol, exposure in underlying_exposure.items():
+            concentration['by_underlying'][symbol] = {
+                'exposure': exposure,
+                'percentage': (exposure / total_value * 100) if total_value > 0 else 0
+            }
+            
+            # Check limit
+            if exposure > total_value * self.concentration_limits['max_single_position']:
+                concentration['alerts'].append(
+                    f"{symbol} exceeds position limit: {concentration['by_underlying'][symbol]['percentage']:.1f}%"
+                )
+        
+        return concentration
+    
+    def check_concentration(self) -> Dict:
+        """
+        Check concentration limits
+        """
+        return self.get_concentration_view()
+    
+    def update_greeks(self):
+        """
+        Update portfolio-wide Greeks
+        """
+        self.portfolio_greeks = {
+            'delta': 0,
+            'gamma': 0,
+            'theta': 0,
+            'vega': 0,
+            'rho': 0
+        }
+        
+        for positions in self.positions_by_strategy.values():
+            for pos in positions:
+                if pos['status'] == 'OPEN' and 'greeks' in pos:
+                    for greek, value in pos['greeks'].items():
+                        if greek in self.portfolio_greeks:
+                            self.portfolio_greeks[greek] += value
+    
+    def get_current_price(self, symbol):
+        """
+        Get current price for a symbol
+        """
+        try:
+            if symbol in self.algo.Securities:
+                return float(self.algo.Securities[symbol].Price)
+            return 0
+        except:
+            return 0
+    
+    def should_update(self) -> bool:
+        """
+        Check if dashboard should update
+        """
+        if self.algo.Time - self.last_update >= self.update_frequency:
+            self.last_update = self.algo.Time
+            return True
         return False
-
-
-# USAGE IN MAIN.PY:
-#
+    
+    def display(self):
+        """
+        Display dashboard if update needed
+        """
+        if self.should_update():
+            self.update_greeks()
+            self.algo.Log(self.get_dashboard_summary())
+            
+            # Save to ObjectStore for persistence
+            self.save_to_object_store()
+    
+    def save_to_object_store(self):
+        """
+        Save dashboard state to ObjectStore
+        """
+        try:
+            dashboard_state = {
+                'timestamp': str(self.algo.Time),
+                'positions': self.positions_by_strategy,
+                'performance': self.strategy_performance,
+                'greeks': self.portfolio_greeks
+            }
+            
+            key = f"dashboard_{self.algo.Time.strftime('%Y%m%d')}"
+            self.algo.ObjectStore.Save(key, json.dumps(dashboard_state))
+            
+        except Exception as e:
+            self.algo.Error(f"Failed to save dashboard: {str(e)}")

@@ -2,7 +2,7 @@
 # Bridges the gap between strategy logic and order placement
 
 from AlgorithmImports import *
-from helpers.option_order_executor import OptionOrderExecutor
+from helpers.simple_order_helpers import SimpleOrderHelpers
 
 class StrategyOrderExecutor:
     """
@@ -12,7 +12,7 @@ class StrategyOrderExecutor:
     
     def __init__(self, algorithm):
         self.algo = algorithm
-        self.order_helper = OptionOrderExecutor(algorithm)
+        self.order_helper = SimpleOrderHelpers(algorithm)
     
     def execute_lt112_order(self, order_structure):
         """
@@ -241,7 +241,3 @@ class StrategyOrderExecutor:
         except Exception as e:
             self.algo.Error(f"Failed to create futures option: {str(e)}")
             return None
-
-
-# USAGE IN MAIN.PY:
-#

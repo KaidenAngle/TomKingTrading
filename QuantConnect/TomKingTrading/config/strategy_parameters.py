@@ -12,12 +12,13 @@ class TomKingParameters:
     
     # Account Phase Configuration (USD - rounded to nearest 5k for ease)
     # ES contracts from Phase 1 ($40k+), MES only for accounts under $40k
+    # Fixed boundaries to prevent oscillation at exact thresholds
     ACCOUNT_PHASES = {
-        'phase1': {'min': 40000, 'max': 55000, 'description': 'ES 0DTE, IPMCC, MCL/MGC strangles'},  # $40k-$55k
-        'phase2': {'min': 55000, 'max': 75000, 'description': 'Scale ES positions, add MNQ futures'},  # $55k-$75k  
-        'phase3': {'min': 75000, 'max': 95000, 'description': 'Advanced strategies, multiple ES contracts'},  # $75k-$95k
+        'phase1': {'min': 40000, 'max': 54999, 'description': 'ES 0DTE, IPMCC, MCL/MGC strangles'},  # $40k-<$55k
+        'phase2': {'min': 55000, 'max': 74999, 'description': 'Scale ES positions, add MNQ futures'},  # $55k-<$75k  
+        'phase3': {'min': 75000, 'max': 94999, 'description': 'Advanced strategies, multiple ES contracts'},  # $75k-<$95k
         'phase4': {'min': 95000, 'max': 999999, 'description': 'Professional deployment, maximum BP utilization'},  # $95k+
-        'mes_only': {'min': 0, 'max': 40000, 'description': 'MES contracts only for small accounts under $40k'}  # Under $40k = MES
+        'mes_only': {'min': 0, 'max': 39999, 'description': 'MES contracts only for small accounts under $40k'}  # Under $40k = MES
     }
     
     # VIX BP Limits - REMOVED: Use risk.position_sizing.PositionSizer instead
