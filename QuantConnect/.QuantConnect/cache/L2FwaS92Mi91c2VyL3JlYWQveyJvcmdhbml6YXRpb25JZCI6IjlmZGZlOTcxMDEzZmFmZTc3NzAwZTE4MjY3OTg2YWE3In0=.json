@@ -55,11 +55,11 @@
             "createProject": true,
             "backtestProject": true,
             "liveDeployProject": false,
-            "backtestCount": 17,
+            "backtestCount": 24,
             "projectCount": 1,
             "projectCountNonBootcamp": 1,
             "liveDeploymentsCount": 0,
-            "signupElapsedDays": 0.4689814814814815
+            "signupElapsedDays": 3.4922800925925928
         },
         "forumSubscriber": 0
     },

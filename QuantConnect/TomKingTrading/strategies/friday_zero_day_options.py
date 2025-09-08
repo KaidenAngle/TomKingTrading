@@ -298,7 +298,12 @@ class FridayZeroDayOptions:
             
         except Exception as e:
             self.algo.Error(f"Error in pre-market analysis: {str(e)}")
-            return {}
+            return {
+                'error': True,
+                'message': str(e),
+                'time': self.algo.Time,
+                'analysis_complete': False
+            }
         """Tom King: Analyze 9:30-10:30 market move to determine entry strategy"""
         phase = getattr(self.algo, 'phase', 1)
         symbols = self.futures_symbols.get(f'phase{phase}', [self.primary_symbol])
@@ -595,22 +600,32 @@ class FridayZeroDayOptions:
     
     def GetATMIV(self, chain, underlying_price):
         """Get at-the-money implied volatility"""
-        # Find ATM call
-        calls = [x for x in chain if x.Right == OptionRight.Call]
-        if not calls:
-            return 0.20  # Default 20% IV
+        try:
+            # Find ATM call
+            calls = [x for x in chain if x.Right == OptionRight.Call]
+            if not calls:
+                self.algo.Debug(f"No calls found in chain for IV calculation")
+                return 0.20  # Default 20% IV
         
-        atm_call = min(calls, key=lambda x: abs(x.Strike - underlying_price))
-        
-        # Validate IV is available
-        if hasattr(atm_call, 'ImpliedVolatility') and atm_call.ImpliedVolatility > 0:
-            return atm_call.ImpliedVolatility
-        else:
-            return 0.20  # Default 20% IV if not available
+            atm_call = min(calls, key=lambda x: abs(x.Strike - underlying_price))
+            
+            # Validate IV is available
+            if hasattr(atm_call, 'ImpliedVolatility') and atm_call.ImpliedVolatility > 0:
+                iv = atm_call.ImpliedVolatility
+                self.algo.Debug(f"ATM IV found: {iv:.3f} for strike {atm_call.Strike}")
+                return iv
+            else:
+                self.algo.Debug(f"No IV available for ATM call, using default 20%")
+                return 0.20  # Default 20% IV if not available
+                
+        except Exception as e:
+            self.algo.Error(f"Error calculating ATM IV: {str(e)}")
+            return 0.20  # Conservative default
     
     def select_contracts_by_delta(self, chain, underlying_price, call_delta, put_delta):
         """Select contracts based on target delta values (Tom King method)"""
         if not chain:
+            self.algo.Debug(f"No option chain available for delta selection")
             return None
         
         contracts = {}

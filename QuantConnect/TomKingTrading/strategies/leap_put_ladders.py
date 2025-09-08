@@ -785,6 +785,36 @@ class LEAPPutLadderStrategy:
             self.algorithm.Error(f"LEAP close error: {str(e)}")
             return False
 
+    def calculate_leap_strike(self, current_price, target_delta):
+        """
+        Calculate appropriate LEAP strike price based on target delta
+        Uses simplified Black-Scholes approximation for deep OTM puts
+        """
+        try:
+            # For LEAP puts, we use percentage out-of-the-money based on target delta
+            # This is a practical approximation for the complex delta calculations
+            if target_delta <= 0.12:
+                percent_otm = 0.25  # 25% OTM for 12 delta
+            elif target_delta <= 0.13:
+                percent_otm = 0.23  # 23% OTM for 13 delta
+            elif target_delta <= 0.14:
+                percent_otm = 0.21  # 21% OTM for 14 delta
+            else:
+                percent_otm = 0.20  # 20% OTM for higher deltas
+            
+            # Calculate strike price
+            strike_price = current_price * (1 - percent_otm)
+            
+            # Round to nearest $5 for easier trading
+            rounded_strike = round(strike_price / 5) * 5
+            
+            return rounded_strike
+            
+        except Exception as e:
+            self.algorithm.Error(f"Error calculating LEAP strike: {str(e)}")
+            # Return 25% OTM as fallback
+            return round(current_price * 0.75 / 5) * 5
+
     def validate_leap_system(self):
         """Validate LEAP ladder system functionality"""
         tests = [

@@ -166,7 +166,17 @@ class VIXRegimeManager:
     def get_current_regime(self):
         """Get current VIX regime based on latest VIX level"""
         if self.current_vix is None:
-            return None
+            self.algo.Debug("No VIX data available for regime determination")
+            return {
+                'name': 'UNKNOWN',
+                'vix_level': None,
+                'data': {
+                    'max_bp_usage': 0.30,  # Conservative when no VIX data
+                    'position_sizing': 'CONSERVATIVE',
+                    'strategy_filters': ['HIGH_WIN_RATE_ONLY']
+                },
+                'historical_context': 'NO_VIX_DATA'
+            }
         
         for regime_name, regime_data in self.vix_regimes.items():
             min_vix, max_vix = regime_data['range']
@@ -190,7 +200,8 @@ class VIXRegimeManager:
         """Get maximum buying power usage for current VIX regime and account phase"""
         regime = self.get_current_regime()
         if not regime:
-            return 0.40  # Default conservative limit
+            self.algo.Debug("No regime available for BP calculation, using conservative default")
+            return 0.30  # Extra conservative when regime unknown
         
         phase_key = f'phase{account_phase}'
         max_bp = regime['data']['max_bp_usage'].get(phase_key, 0.40)
@@ -258,7 +269,16 @@ class VIXRegimeManager:
         """Get strategy recommendations based on current VIX regime"""
         regime = self.get_current_regime()
         if not regime:
-            return []
+            self.algo.Debug("No VIX regime available for strategy recommendations")
+            return [
+                {
+                    'strategy': 'CONSERVATIVE_ONLY',
+                    'reason': 'No VIX data available - use high win rate strategies only',
+                    'priority': 'HIGH',
+                    'suggested_strategies': ['LT112_PUT_SELLING'],
+                    'avoid_strategies': ['0DTE', 'STRANGLES', 'BUTTERFLIES']
+                }
+            ]
         
         recommendations = []
         regime_name = regime['name']
@@ -357,7 +377,12 @@ class VIXRegimeManager:
         Returns deployment recommendations for crisis scenarios
         """
         regime = self.get_current_regime()
-        if not regime or regime['name'] != 'EXTREME':
+        if not regime:
+            self.algo.Debug("No VIX regime data for spike opportunity analysis")
+            return None
+        
+        if regime['name'] != 'EXTREME':
+            self.algo.Debug(f"VIX regime {regime['name']} doesn't qualify for spike opportunities")
             return None
         
         # Calculate maximum deployment (20% of account max)

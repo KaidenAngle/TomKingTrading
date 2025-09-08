@@ -359,14 +359,26 @@ class PositionSizer:
                                 max_loss: float) -> float:
         """Calculate Kelly fraction for optimal position sizing"""
         if max_loss >= 0:
-            return 0.1  # Conservative fallback
+            self.algo.Debug(f"Invalid max_loss value for Kelly calculation: {max_loss}")
+            return 0.05  # Extra conservative when data is invalid
         
         # Modified Kelly for options: f = (bp - q) / b
         # Where b = avg_return/|max_loss|, p = win_rate, q = 1 - win_rate
+        
+        # Protect against division by zero
+        if max_loss == 0:
+            self.algorithm.Log("[POSITION SIZING] Warning: max_loss is 0, using conservative Kelly")
+            return 0.05
+            
         b = avg_return / abs(max_loss)
         p = win_rate
         q = 1 - win_rate
         
+        # Protect against division by zero in Kelly calculation
+        if b == 0:
+            self.algorithm.Log("[POSITION SIZING] Warning: b is 0, using conservative Kelly")
+            return 0.05
+            
         kelly = (b * p - q) / b
         
         # Conservative adjustment (use 25% of Kelly for safety)

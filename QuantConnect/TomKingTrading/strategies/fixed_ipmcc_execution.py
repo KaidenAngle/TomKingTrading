@@ -165,6 +165,7 @@ class FixedIPMCCExecution:
                              (c.ID.Date - self.algo.Time).days >= 300]
             
             if not leap_candidates:
+                self.algo.Debug(f"No LEAP candidates found for {symbol} with 300+ DTE")
                 return None, None
                 
             # Find ~80 delta strike (roughly 15-20% OTM)
@@ -196,6 +197,7 @@ class FixedIPMCCExecution:
                                abs((c.ID.Date - weekly_expiry).days) <= 3]
             
             if not weekly_candidates:
+                self.algo.Debug(f"No weekly call candidates found for {symbol} near {weekly_expiry}")
                 return None, None
                 
             # Calculate weekly strike (above current price, below LEAP strike for safety)

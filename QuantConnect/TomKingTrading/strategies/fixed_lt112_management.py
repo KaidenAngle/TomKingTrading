@@ -276,6 +276,7 @@ class FixedLT112Management:
         """Get detailed summary of LT112 position components"""
         position = self.psm.positions.get(position_id)
         if not position or position.strategy != "LT112":
+            self.algo.Debug(f"Position {position_id} not found or not LT112 strategy")
             return None
             
         # Update prices

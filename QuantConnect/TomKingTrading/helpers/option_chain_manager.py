@@ -79,6 +79,7 @@ class OptionChainManager:
                     if time_diff < 60:  # Use cache if less than 1 minute old
                         return self.cached_chains[symbol_str]
             
+            self.algo.Debug(f"No option chain available for {symbol_str}")
             return []
             
         except Exception as e:
@@ -92,12 +93,14 @@ class OptionChainManager:
             chain = self.get_option_chain(symbol_str, dte - 1, dte + 1)
             
             if not chain:
+                self.algo.Debug(f"No option chain found for {symbol_str} with {dte} DTE")
                 return None
             
             # Filter by option type
             filtered = [c for c in chain if c.Right == option_right]
             
             if not filtered:
+                self.algo.Debug(f"No {option_right} options found for {symbol_str}")
                 return None
             
             # Get underlying price
@@ -121,6 +124,7 @@ class OptionChainManager:
                 contracts_with_delta.sort(key=lambda x: x[2])
                 return contracts_with_delta[0][0]  # Return closest contract
             
+            self.algo.Debug(f"No contracts found matching target delta {target_delta} for {option_right}")
             return None
             
         except Exception as e:

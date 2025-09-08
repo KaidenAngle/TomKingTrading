@@ -742,6 +742,158 @@ class TastytradeApiClient:
             'maintenance_margin': float(self.algorithm.Portfolio.TotalMarginUsed),
             'source': 'quantconnect'
         }
+    
+    def is_session_valid(self) -> bool:
+        """Check if the current session token is still valid"""
+        
+        if not self.session_token:
+            return False
+        
+        if not self.last_auth_time:
+            return False
+        
+        # Check if session is expired
+        if datetime.now() - self.last_auth_time > self.session_duration:
+            return False
+        
+        return True
+    
+    def get_positions(self) -> List[Dict]:
+        """Get all current positions from account"""
+        
+        if not self.is_live:
+            return self._get_qc_positions()
+        
+        if not self.ensure_authenticated():
+            return self._get_qc_positions()
+        
+        try:
+            account_num = TastytradeCredentials.ACCOUNT_NUMBER_CASH
+            
+            response = requests.get(
+                f"{self.endpoints['accounts']}/{account_num}/positions",
+                headers=self.get_headers(),
+                timeout=15
+            )
+            
+            if response.status_code == 200:
+                data = response.json().get('data', {})
+                items = data.get('items', [])
+                
+                positions = []
+                for item in items:
+                    position = {
+                        'symbol': item.get('symbol', ''),
+                        'instrument_type': item.get('instrument-type', ''),
+                        'quantity': float(item.get('quantity', 0)),
+                        'average_price': float(item.get('average-price', 0) or 0),
+                        'mark_value': float(item.get('mark-value', 0) or 0),
+                        'multiplier': float(item.get('multiplier', 1) or 1),
+                        'close_price': float(item.get('close-price', 0) or 0),
+                        'realized_day_gain': float(item.get('realized-day-gain', 0) or 0),
+                        'unrealized_day_gain': float(item.get('unrealized-day-gain', 0) or 0),
+                        'source': 'tastytrade'
+                    }
+                    positions.append(position)
+                
+                return positions
+            
+            return self._get_qc_positions()
+            
+        except Exception as e:
+            self.algorithm.Error(f"Positions error: {str(e)}")
+            return self._get_qc_positions()
+    
+    def _get_qc_positions(self) -> List[Dict]:
+        """Get positions from QuantConnect Portfolio"""
+        
+        positions = []
+        
+        for symbol, holding in self.algorithm.Portfolio.items():
+            if holding.Quantity != 0:
+                position = {
+                    'symbol': str(symbol),
+                    'instrument_type': 'Equity',
+                    'quantity': float(holding.Quantity),
+                    'average_price': float(holding.AveragePrice),
+                    'mark_value': float(holding.HoldingsValue),
+                    'multiplier': 1.0,
+                    'close_price': float(holding.Price),
+                    'realized_day_gain': float(holding.Profit),
+                    'unrealized_day_gain': float(holding.UnrealizedProfit),
+                    'source': 'quantconnect'
+                }
+                positions.append(position)
+        
+        return positions
+    
+    def get_order_status(self, order_id: str) -> Optional[Dict]:
+        """Get status of a specific order"""
+        
+        if not self.is_live:
+            return None  # QC orders are managed differently
+        
+        if not self.ensure_authenticated():
+            return None
+        
+        try:
+            account_num = TastytradeCredentials.ACCOUNT_NUMBER_CASH
+            
+            response = requests.get(
+                f"{self.endpoints['accounts']}/{account_num}/orders/{order_id}",
+                headers=self.get_headers(),
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json().get('data', {})
+                
+                return {
+                    'order_id': data.get('id', ''),
+                    'status': data.get('status', ''),
+                    'filled_quantity': int(data.get('filled-quantity', 0) or 0),
+                    'remaining_quantity': int(data.get('remaining-quantity', 0) or 0),
+                    'avg_fill_price': float(data.get('average-fill-price', 0) or 0),
+                    'order_type': data.get('order-type', ''),
+                    'time_in_force': data.get('time-in-force', ''),
+                    'legs': data.get('legs', []),
+                    'source': 'tastytrade'
+                }
+            
+            return None
+            
+        except Exception as e:
+            self.algorithm.Error(f"Order status error: {str(e)}")
+            return None
+    
+    def cancel_order(self, order_id: str) -> bool:
+        """Cancel an existing order"""
+        
+        if not self.is_live:
+            return False  # QC orders handled differently
+        
+        if not self.ensure_authenticated():
+            return False
+        
+        try:
+            account_num = TastytradeCredentials.ACCOUNT_NUMBER_CASH
+            
+            response = requests.delete(
+                f"{self.endpoints['accounts']}/{account_num}/orders/{order_id}",
+                headers=self.get_headers(),
+                timeout=10
+            )
+            
+            if response.status_code == 204:
+                self.algorithm.Log(f"Order {order_id} cancelled successfully")
+                return True
+            
+            self.algorithm.Error(f"Failed to cancel order {order_id}: {response.text}")
+            return False
+            
+        except Exception as e:
+            self.algorithm.Error(f"Cancel order error: {str(e)}")
+            return False
 
 # Usage in main algorithm:
 """

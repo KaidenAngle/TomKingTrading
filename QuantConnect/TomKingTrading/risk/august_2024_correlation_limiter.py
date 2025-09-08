@@ -73,6 +73,12 @@ class August2024CorrelationLimiter:
             if symbol_str in [s.upper() for s in symbols]:
                 return group_name
         
+        # For debugging - track uncategorized symbols
+        if symbol_str not in getattr(self, '_logged_uncategorized', set()):
+            self.algo.Debug(f"Symbol {symbol_str} not found in correlation groups")
+            if not hasattr(self, '_logged_uncategorized'):
+                self._logged_uncategorized = set()
+            self._logged_uncategorized.add(symbol_str)
         return None
     
     def update_active_positions(self, portfolio_positions):
@@ -122,6 +128,7 @@ class August2024CorrelationLimiter:
     def get_correlation_risk_score(self):
         """Calculate overall portfolio correlation risk (0-100)"""
         if not self.active_positions_by_group:
+            self.algo.Debug("No active positions for correlation risk calculation")
             return 0
         
         total_positions = sum(len(positions) for positions in self.active_positions_by_group.values())
@@ -193,6 +200,7 @@ class August2024CorrelationLimiter:
     def calculate_crisis_portfolio_var(self):
         """Calculate portfolio VaR using August 5, 2024 correlation matrix"""
         if not self.active_positions_by_group:
+            self.algo.Debug("No positions for VaR calculation")
             return 0
         
         # Simplified VaR calculation

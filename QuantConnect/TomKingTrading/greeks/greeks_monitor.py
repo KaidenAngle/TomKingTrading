@@ -68,7 +68,12 @@ class GreeksMonitor(BaseComponent):
             rho = -strike * T * np.exp(-r * T) * norm.cdf(-d2) / 100
             
         # Greeks same for calls and puts
-        gamma = norm.pdf(d1) / (spot * iv * sqrt_T)
+        # Protect against division by zero
+        if spot == 0 or iv == 0 or sqrt_T == 0:
+            gamma = 0
+        else:
+            gamma = norm.pdf(d1) / (spot * iv * sqrt_T)
+        
         vega = spot * norm.pdf(d1) * sqrt_T / 100  # Per 1% IV change
         
         return {
@@ -315,8 +320,11 @@ class GreeksMonitor(BaseComponent):
                 
         # Try from Greeks if available
         if hasattr(option, 'Greeks') and hasattr(option.Greeks, 'Vega'):
-            # Rough IV estimation from vega
-            return 0.20  # Default for now
+            # Use actual IV if available
+            if hasattr(option, 'ImpliedVolatility') and option.ImpliedVolatility > 0:
+                return option.ImpliedVolatility
+            # Rough IV estimation from vega and price sensitivity
+            return 0.20  # Conservative default when Greeks available
             
         # Calculate from option prices (simplified)
         try:
@@ -328,16 +336,24 @@ class GreeksMonitor(BaseComponent):
                 underlying_price = self.algorithm.Securities[option.Underlying].Price
                 moneyness = option.ID.StrikePrice / underlying_price
                 
-                if 0.9 < moneyness < 1.1:  # Near ATM
-                    return 0.20  # 20% IV
-                elif 0.8 < moneyness < 1.2:  # Slightly OTM/ITM
-                    return 0.25  # 25% IV
+                # Time to expiry factor (simplified)
+                days_to_expiry = (option.ID.Date.date() - self.algorithm.Time.date()).days
+                time_factor = max(0.1, days_to_expiry / 30.0)  # 30-day normalization
+                
+                if 0.95 < moneyness < 1.05:  # Near ATM
+                    base_iv = 0.20 + (time_factor * 0.05)
+                    return min(base_iv, 0.40)  # Cap at 40%
+                elif 0.85 < moneyness < 1.15:  # Slightly OTM/ITM
+                    base_iv = 0.25 + (time_factor * 0.08)
+                    return min(base_iv, 0.50)  # Cap at 50%
                 else:  # Far OTM/ITM
-                    return 0.30  # 30% IV
+                    base_iv = 0.30 + (time_factor * 0.10)
+                    return min(base_iv, 0.80)  # Cap at 80%
         except Exception as e:
             self.algo.Debug(f"IV estimation error: {e}")
             
-        # Default IV
+        # Conservative default IV with logging
+        self.algo.Debug(f"Using default IV 20% for option {option.Symbol}")
         return 0.20
         
     def log_position_greeks(self, greeks: Dict):
@@ -413,7 +429,16 @@ class GreeksMonitor(BaseComponent):
         """Analyze Greeks trends over time"""
         
         if len(self.portfolio_greeks_history) < lookback_periods:
-            return {}
+            self.algo.Debug(f"Insufficient Greeks history for trend analysis: {len(self.portfolio_greeks_history)} < {lookback_periods}")
+            return {
+                'delta_trend': 'INSUFFICIENT_DATA',
+                'gamma_trend': 'INSUFFICIENT_DATA', 
+                'theta_trend': 'INSUFFICIENT_DATA',
+                'vega_trend': 'INSUFFICIENT_DATA',
+                'data_points': len(self.portfolio_greeks_history),
+                'required_points': lookback_periods,
+                'status': 'WARMING_UP'
+            }
             
         recent = self.portfolio_greeks_history[-lookback_periods:]
         

@@ -1012,6 +1012,7 @@ class TomKingTradingAlgorithm(QCAlgorithm):
         """Place single order with failover and safety checks"""
         # Check circuit breaker
         if not self.safety_checks.check_before_trade():
+            self.Error(f"Safety check failed for {symbol} order")
             return None
         
         # CRITICAL: Full pre-trade validation
@@ -1020,17 +1021,20 @@ class TomKingTradingAlgorithm(QCAlgorithm):
         )
         if not valid:
             self.alerts.send_alert("WARNING", f"Trade blocked: {reason}")
+            self.Error(f"Pre-trade validation failed: {reason}")
             return None
         
         # Validate data
         if not self.data_validator.is_data_valid(symbol):
             self.alerts.send_alert("WARNING", f"Invalid data for {symbol}")
+            self.Error(f"Data validation failed for {symbol}")
             return None
         
         # Check position size
         security = self.Securities[symbol]
         position_risk = abs(quantity) * security.Price * 100  # For options
         if not self.safety_checks.check_position_size(position_risk):
+            self.Error(f"Position size check failed for {symbol}: risk=${position_risk:.2f}")
             return None
         
         # Place with broker failover
@@ -1967,6 +1971,7 @@ class TomKingTradingAlgorithm(QCAlgorithm):
             
         except Exception as e:
             self.Error(f"Error analyzing FIXED LT112 positions: {str(e)}")
+            self.Error(f"Failed to analyze FIXED LT112 positions: {str(e)}")
             return []
             
     def execute_fixed_lt112_management(self, action: dict) -> tuple[bool, str]:

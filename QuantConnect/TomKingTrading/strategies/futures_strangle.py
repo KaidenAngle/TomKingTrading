@@ -334,6 +334,7 @@ class TomKingFuturesStrangleStrategy:
                 option.SetFilter(-20, 20, target_dte - 10, target_dte + 10)
                 self.algorithm.Log(f"[ADDED] Added futures options for {futures_symbol} - waiting for real data")
                 # Return empty list - strategy will skip this execution cycle
+                self.algorithm.Debug(f"Futures options added but no data yet for {futures_symbol}")
                 return []
                 
             except Exception as add_error:

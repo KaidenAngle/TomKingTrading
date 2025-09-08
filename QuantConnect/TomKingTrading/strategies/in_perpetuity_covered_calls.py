@@ -377,6 +377,19 @@ class InPerpetuityCoveredCalls:
         Analyze whether to roll weekly call or let it expire
         Returns: dict with roll recommendation
         """
+        # First check if LEAP needs rolling (critical)
+        leap_dte = ipmcc_position.get('leap_leg', {}).get('dte', float('inf'))
+        if leap_dte < 30:
+            self.algorithm.Log(f"[IPMCC] CRITICAL: LEAP expiring in {leap_dte} days - needs immediate roll!")
+            return {
+                'position_id': ipmcc_position.get('id'),
+                'action': 'ROLL_LEAP_URGENT',
+                'reason': f'LEAP expiring in {leap_dte} days',
+                'priority': 'CRITICAL'
+            }
+        elif leap_dte < 60:
+            self.algorithm.Log(f"[IPMCC] WARNING: LEAP has {leap_dte} days to expiration - plan roll soon")
+        
         weekly_call = ipmcc_position['weekly_call']
         current_strike = weekly_call['strike']
         dte = weekly_call['dte']
