@@ -1,143 +1,129 @@
-#!/usr/bin/env python3
-"""
-Base Component - Eliminates Code Duplication
-Provides common functionality for all Tom King Trading System components
-"""
+# Base component class for all Tom King Trading System components
+# Eliminates duplicate initialization patterns across 37+ files
 
-from typing import Dict, List, Optional, Any
-from datetime import datetime
-import time
+from AlgorithmImports import *
+from typing import Optional, Dict, Any
 
 class BaseComponent:
     """
-    Base class for all Tom King Trading System components
-    Eliminates duplicate code patterns across the system
+    Base class for all trading system components.
+    Provides common initialization and utility methods.
+    Eliminates duplicate code across the entire system.
     """
     
     def __init__(self, algorithm):
-        """Standard initialization pattern for all components"""
+        """Initialize base component with algorithm reference"""
         self.algorithm = algorithm
-        self._last_log_time = {}
-        self._component_stats = {
-            'initialized_at': datetime.now(),
-            'method_calls': 0,
-            'errors': 0,
-            'warnings': 0
-        }
+        self.algo = algorithm  # Alias for compatibility
+        self.initialized = False
+        self.last_update = None
+        
+    def log(self, message: str, level: str = "INFO"):
+        """Standardized logging method"""
+        # Log, Debug, and Error are standard QCAlgorithm methods - always available
+        self.algorithm.Log(f"[{self.__class__.__name__}] {message}")
     
-    # COMMON UTILITY METHODS
+    def debug(self, message: str):
+        """Debug logging"""
+        self.algorithm.Debug(f"[{self.__class__.__name__}] {message}")
+    
+    def error(self, message: str):
+        """Error logging"""
+        self.algorithm.Error(f"[{self.__class__.__name__}] {message}")
     
     def get_account_phase(self) -> int:
         """Get current account phase based on portfolio value"""
+        if hasattr(self.algorithm, 'current_phase'):
+            return self.algorithm.current_phase
+            
         portfolio_value = self.algorithm.Portfolio.TotalPortfolioValue
         
-        if portfolio_value >= 75000:
+        if portfolio_value >= 95000:
             return 4
-        elif portfolio_value >= 60000:
+        elif portfolio_value >= 75000:
             return 3
-        elif portfolio_value >= 40000:
+        elif portfolio_value >= 55000:
             return 2
-        else:
+        elif portfolio_value >= 40000:
             return 1
-    
-    def log_throttled(self, message: str, throttle_seconds: int = 30, level: str = 'info'):
-        """Log with throttling to prevent spam"""
-        current_time = time.time()
-        key = f"{level}_{hash(message)}"
-        
-        if key not in self._last_log_time or (current_time - self._last_log_time[key]) >= throttle_seconds:
-            if level == 'debug':
-                self.algorithm.Debug(message)
-            elif level == 'error':
-                self.algorithm.Error(message)
-                self._component_stats['errors'] += 1
-            else:
-                self.algorithm.Log(message)
-                
-            self._last_log_time[key] = current_time
-            
-            if 'warning' in message.lower() or 'warn' in message.lower():
-                self._component_stats['warnings'] += 1
-    
-    def safe_execute(self, func, *args, default_return=None, error_prefix="Component"):
-        """Execute function with error handling"""
-        try:
-            self._component_stats['method_calls'] += 1
-            return func(*args)
-        except Exception as e:
-            error_msg = f"{error_prefix} error: {str(e)}"
-            self.log_throttled(error_msg, level='error')
-            return default_return
-    
-    def validate_configuration(self) -> Dict[str, bool]:
-        """Base validation - override in subclasses"""
-        return {
-            'initialized': hasattr(self, 'algorithm'),
-            'algorithm_valid': self.algorithm is not None,
-            'stats_available': bool(self._component_stats)
-        }
-    
-    def get_component_stats(self) -> Dict[str, Any]:
-        """Get component statistics"""
-        stats = self._component_stats.copy()
-        stats['uptime_minutes'] = (datetime.now() - stats['initialized_at']).total_seconds() / 60
-        stats['error_rate'] = stats['errors'] / max(stats['method_calls'], 1)
-        return stats
-    
-    def get_portfolio_value(self) -> float:
-        """Get current portfolio value"""
-        return float(self.algorithm.Portfolio.TotalPortfolioValue)
-    
-    def get_cash_available(self) -> float:
-        """Get available cash"""
-        return float(self.algorithm.Portfolio.Cash)
-    
-    def get_buying_power(self) -> float:
-        """Get available buying power"""
-        return float(self.algorithm.Portfolio.TotalMarginUsed)
+        else:
+            return 0
     
     def is_market_open(self) -> bool:
         """Check if market is currently open"""
-        return self.algorithm.Securities["SPY"].Exchange.ExchangeOpen
+        if self.algorithm.IsMarketOpen("SPY"):
+            return True
+        return False
     
-    def get_current_time(self) -> datetime:
-        """Get current algorithm time"""
-        return self.algorithm.Time
+    def get_vix_level(self) -> float:
+        """Get current VIX level"""
+        if hasattr(self.algorithm, 'vix_indicator'):
+            return self.algorithm.vix_indicator.get_vix_level()
+        
+        # Fallback to direct VIX check
+        vix_symbol = self.algorithm.AddIndex("VIX", Resolution.Minute).Symbol
+        if vix_symbol in self.algorithm.Securities:
+            return float(self.algorithm.Securities[vix_symbol].Price)
+        
+        return 20.0  # Default VIX if not available
     
-    def get_business_day_between(self, start_date: datetime, end_date: datetime) -> int:
-        """Calculate business days between dates"""
-        # Simple implementation - can be enhanced
-        delta = end_date - start_date
-        return max(int(delta.days * 5/7), 1)  # Rough business day approximation
+    def get_portfolio_value(self) -> float:
+        """Get current portfolio value"""
+        return self.algorithm.Portfolio.TotalPortfolioValue
     
-    # COMMON VALIDATION PATTERNS
+    def get_buying_power(self) -> float:
+        """Get available buying power"""
+        return self.algorithm.Portfolio.MarginRemaining
     
-    def validate_symbol_data(self, symbol: str) -> bool:
-        """Validate symbol has data"""
-        if symbol not in self.algorithm.Securities:
+    def validate_trade_conditions(self, strategy_name: str) -> bool:
+        """Common trade validation logic"""
+        # Check if strategy validator exists
+        if hasattr(self.algorithm, 'strategy_validator'):
+            is_valid, reason = self.algorithm.strategy_validator.validate_strategy(strategy_name)
+            if not is_valid:
+                self.log(f"Strategy {strategy_name} validation failed: {reason}")
+            return is_valid
+        
+        # Basic validation if no validator
+        if not self.is_market_open():
+            self.log(f"Market closed, cannot execute {strategy_name}")
             return False
-        security = self.algorithm.Securities[symbol]
-        return security.HasData and security.Price > 0
+        
+        if self.get_buying_power() <= 0:
+            self.log(f"Insufficient buying power for {strategy_name}")
+            return False
+        
+        return True
     
-    def validate_market_conditions(self) -> Dict[str, bool]:
-        """Validate basic market conditions"""
+    def format_currency(self, amount: float) -> str:
+        """Format currency for display"""
+        return f"${amount:,.2f}"
+    
+    def format_percentage(self, value: float, decimals: int = 2) -> str:
+        """Format percentage for display"""
+        return f"{value:.{decimals}f}%"
+    
+    def safe_divide(self, numerator: float, denominator: float, default: float = 0) -> float:
+        """Safe division with default value"""
+        if denominator == 0:
+            return default
+        return numerator / denominator
+    
+    def is_initialized(self) -> bool:
+        """Check if component is initialized"""
+        return self.initialized
+    
+    def mark_initialized(self):
+        """Mark component as initialized"""
+        self.initialized = True
+        self.last_update = self.algorithm.Time
+    
+    def get_component_status(self) -> Dict[str, Any]:
+        """Get component status for monitoring"""
         return {
-            'market_open': self.is_market_open(),
-            'spy_data_available': self.validate_symbol_data("SPY"),
-            'portfolio_initialized': self.get_portfolio_value() > 0,
-            'cash_available': self.get_cash_available() > 1000
+            'name': self.__class__.__name__,
+            'initialized': self.initialized,
+            'last_update': str(self.last_update) if self.last_update else None,
+            'phase': self.get_account_phase(),
+            'portfolio_value': self.get_portfolio_value()
         }
-    
-    # CLEANUP AND MAINTENANCE
-    
-    def cleanup_old_data(self, days_to_keep: int = 30):
-        """Clean up old data - override in subclasses"""
-        # Base implementation does nothing - subclasses should override
-        return
-    
-    def __str__(self):
-        """String representation of component"""
-        return f"{self.__class__.__name__}(phase={self.get_account_phase()}, uptime={self.get_component_stats()['uptime_minutes']:.1f}min)"
-    
-    def __repr__(self):
-        return self.__str__()

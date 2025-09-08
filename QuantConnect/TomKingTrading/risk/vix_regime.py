@@ -3,11 +3,26 @@ from AlgorithmImports import *
 # endregion
 # Tom King Trading Framework v17 - VIX Regime Analysis System
 # Based on Tom King Complete Trading System Documentation (PDF Pages 12, 33, 34-35)
+#
+# NOT REDUNDANT WITH UnifiedVIXManager - HERE'S WHY:
+# - VIXRegimeManager: Provides ADVANCED 6-LEVEL REGIME ANALYSIS
+#                     Tracks historical VIX patterns and regime transitions
+#                     Has detailed strategy adjustments for each regime
+#                     Includes special rules for crisis opportunities
+#                     Maintains 252-day history for pattern analysis
+# - UnifiedVIXManager: Simple cached VIX access for performance
+#
+# THIS CLASS IS FOR: Strategic decision-making based on VIX regime analysis
+# USE WHEN: You need to understand VIX context, not just current value
 
 class VIXRegimeManager:
     """
-    Tom King 5-Level VIX Regime System
+    Tom King 6-Level VIX Regime System (EXTREMELY_LOW to EXTREME)
     Dynamically adjusts buying power and position sizing based on volatility environment
+    
+    PURPOSE: Advanced regime analysis with historical context
+    USE FOR: Strategic planning, regime-based adjustments, crisis detection
+    UNIQUE FEATURES: 6 regimes, history tracking, strategy adjustments per regime
     """
     
     def __init__(self, algorithm):

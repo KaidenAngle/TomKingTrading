@@ -518,9 +518,9 @@ class ExcelReporter:
         for strategy, perf in self.algo.strategy_performance.items():
             if perf['trades'] > 0:
                 win_rate = perf['wins'] / perf['trades']
-                # Simplified win/loss ratio calculation
-                avg_win = 0.5  # Placeholder
-                avg_loss = 0.3  # Placeholder
+                # Calculate actual average win/loss from performance data
+                avg_win = perf.get('avg_win_percent', 0.50)  # Use actual data or Tom King's typical 50%
+                avg_loss = abs(perf.get('avg_loss_percent', -0.30))  # Use actual data or typical 30%
                 win_loss_ratio = avg_win / avg_loss if avg_loss > 0 else 0
                 
                 # Kelly calculation

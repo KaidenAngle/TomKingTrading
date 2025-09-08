@@ -5,6 +5,7 @@ from scipy.stats import norm
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 from core.base_component import BaseComponent
+from helpers.data_freshness_validator import DataFreshnessValidator
 # endregion
 
 class GreeksMonitor(BaseComponent):
@@ -18,6 +19,12 @@ class GreeksMonitor(BaseComponent):
         super().__init__(algorithm)
         self.position_greeks = {}
         self.portfolio_greeks_history = []
+        self.data_validator = DataFreshnessValidator(algorithm)
+        
+        # Performance optimization: Track position changes
+        self.last_position_snapshot = {}
+        self.cached_portfolio_greeks = None
+        self.last_greeks_calculation = None
         
         # Tom King's Greeks thresholds
         self.alert_thresholds = {
@@ -35,6 +42,30 @@ class GreeksMonitor(BaseComponent):
             3: 1.0,   # Phase 3: Standard
             4: 1.25   # Phase 4: Aggressive
         }
+    
+    def update(self):
+        """Update Greeks only when positions change (performance optimization)"""
+        # Check if positions have changed
+        current_snapshot = self._get_position_snapshot()
+        
+        if current_snapshot == self.last_position_snapshot:
+            # No position changes, return cached Greeks
+            return self.cached_portfolio_greeks
+        
+        # Positions changed, recalculate Greeks
+        self.last_position_snapshot = current_snapshot
+        self.cached_portfolio_greeks = self.calculate_portfolio_greeks()
+        self.last_greeks_calculation = self.algorithm.Time
+        
+        return self.cached_portfolio_greeks
+    
+    def _get_position_snapshot(self):
+        """Get snapshot of current positions for change detection"""
+        snapshot = {}
+        for symbol, holding in self.algorithm.Portfolio.items():
+            if holding.Invested and holding.Type == SecurityType.Option:
+                snapshot[str(symbol)] = holding.Quantity
+        return snapshot
         
     def calculate_option_greeks(self, spot: float, strike: float, dte: float, 
                                iv: float, option_type: str, r: float = 0.05) -> Dict:
@@ -100,9 +131,9 @@ class GreeksMonitor(BaseComponent):
             'timestamp': self.algorithm.Time
         }
         
-        # Process each position
+        # Process each position (optimized to skip non-invested)
         for symbol, holding in self.algorithm.Portfolio.items():
-            if not holding.Invested:
+            if not holding.Invested or holding.Quantity == 0:
                 continue
                 
             # Handle options
@@ -127,8 +158,17 @@ class GreeksMonitor(BaseComponent):
                 # Calculate Greeks
                 greeks = self.calculate_option_greeks(spot, strike, dte, iv, option_type)
                 
-                # Scale by position size (options are 100x multiplier)
+                # CRITICAL FIX: Handle sign conventions properly
+                # Position size already includes sign (negative for short)
                 position_size = holding.Quantity
+                
+                # Apply proper sign conventions:
+                # - Delta: Already has correct sign from Black-Scholes
+                # - Gamma: Always positive, multiply by position sign
+                # - Theta: Already negative for long, adjust for position
+                # - Vega: Positive for long, adjust for position sign
+                # - Rho: Already has correct sign from B-S
+                
                 position_greeks = {
                     'symbol': str(symbol),
                     'underlying': str(underlying),
@@ -137,9 +177,9 @@ class GreeksMonitor(BaseComponent):
                     'dte': dte,
                     'type': option_type,
                     'delta': greeks['delta'] * position_size * 100,
-                    'gamma': greeks['gamma'] * position_size * 100,
-                    'theta': greeks['theta'] * position_size * 100,
-                    'vega': greeks['vega'] * position_size * 100,
+                    'gamma': abs(greeks['gamma']) * position_size * 100,  # Gamma * position sign
+                    'theta': greeks['theta'] * abs(position_size) * 100,  # Theta sign from B-S
+                    'vega': abs(greeks['vega']) * position_size * 100,    # Vega * position sign
                     'rho': greeks['rho'] * position_size * 100,
                     'iv': greeks['iv']
                 }
@@ -200,6 +240,14 @@ class GreeksMonitor(BaseComponent):
         
     def monitor_greeks_limits(self) -> Tuple[Dict, List[str]]:
         """Check if Greeks exceed safety thresholds"""
+        
+        # Validate data freshness first
+        market_conditions = self.data_validator.check_market_conditions()
+        if market_conditions['data_quality_score'] < 60:
+            self.algorithm.Log(f"WARNING: Poor data quality ({market_conditions['data_quality_score']}%)")
+            if market_conditions['issues']:
+                for issue in market_conditions['issues']:
+                    self.algorithm.Log(f"  - {issue}")
         
         greeks = self.calculate_portfolio_greeks()
         alerts = []
@@ -312,10 +360,15 @@ class GreeksMonitor(BaseComponent):
     def get_implied_volatility(self, option) -> float:
         """Get IV from market data or calculate from prices"""
         
+        # Validate option data freshness
+        contract_issues = self.data_validator.validate_option_contract(option)
+        if contract_issues:
+            self.algo.Debug(f"Option data issues for {option.Symbol}: {contract_issues[0]}")
+        
         # Try QuantConnect's IV
         if hasattr(option, 'ImpliedVolatility'):
             iv = option.ImpliedVolatility
-            if iv > 0:
+            if iv > 0 and iv < 5:  # Sanity check: IV between 0 and 500%
                 return iv
                 
         # Try from Greeks if available

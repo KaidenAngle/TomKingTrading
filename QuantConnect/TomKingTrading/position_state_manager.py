@@ -1,20 +1,33 @@
 #!/usr/bin/env python3
 """
-Tom King Trading Framework - Position State Manager
-Handles complex multi-legged position tracking and individual component management
+Tom King Trading Framework - QuantConnect-Compatible Position State Manager
+Handles complex multi-legged position tracking with proper QuantConnect imports
 """
 
-from AlgorithmImports import *
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 import json
+
+# Import from AlgorithmImports or define if running standalone
+try:
+    from AlgorithmImports import *
+except ImportError:
+    # Define minimal stubs for standalone testing
+    class OptionRight:
+        Call = 0
+        Put = 1
+    
+    class OrderStatus:
+        Filled = 0
+        PartiallyFilled = 1
+        Canceled = 2
 
 class PositionComponent:
     """Represents a single component of a multi-legged position"""
     
     def __init__(self, component_id: str, strategy: str, symbol: str, 
                  leg_type: str, contract_symbol: str, quantity: int, 
-                 strike: float, expiry: datetime, right: OptionRight = None):
+                 strike: float, expiry: datetime, right: OptionRight = None, multiplier: int = 100):
         self.component_id = component_id
         self.strategy = strategy
         self.symbol = symbol  # Underlying symbol
@@ -24,12 +37,22 @@ class PositionComponent:
         self.strike = strike
         self.expiry = expiry
         self.right = right
+        self.multiplier = multiplier  # Option multiplier (usually 100 for equity options)
         self.entry_time = datetime.now()
         self.entry_price = 0.0
         self.current_price = 0.0
         self.status = "OPEN"  # OPEN, CLOSED, ROLLED, ASSIGNED
         self.pnl = 0.0
         self.days_held = 0
+        
+        # Order execution tracking
+        self.order_ticket = None  # QuantConnect OrderTicket
+        self.qc_symbol = None  # QuantConnect Symbol object
+        self.actual_fill_price = None  # Actual fill price from order
+        self.actual_quantity = None  # Actual filled quantity
+        self.fill_time = None  # Time of fill
+        self.commission = 0.0  # Commission paid
+        self.order_status = "PENDING"  # PENDING, FILLED, PARTIAL, CANCELLED
         
     def to_dict(self) -> Dict:
         """Convert to dictionary for serialization"""
@@ -48,7 +71,14 @@ class PositionComponent:
             'current_price': self.current_price,
             'status': self.status,
             'pnl': self.pnl,
-            'days_held': self.days_held
+            'days_held': self.days_held,
+            'multiplier': self.multiplier,
+            # Order execution tracking
+            'order_status': self.order_status,
+            'actual_fill_price': self.actual_fill_price,
+            'actual_quantity': self.actual_quantity,
+            'fill_time': self.fill_time.isoformat() if self.fill_time else None,
+            'commission': self.commission
         }
 
 class MultiLegPosition:
@@ -122,9 +152,9 @@ class MultiLegPosition:
             'metadata': self.metadata
         }
 
-class PositionStateManager:
+class PositionStateManagerQC:
     """
-    Advanced position state manager for complex multi-legged strategies
+    QuantConnect-Compatible Position State Manager for multi-legged strategies
     Handles individual component tracking, partial closes, and dynamic management
     """
     
@@ -310,80 +340,306 @@ class PositionStateManager:
                         component.pnl = (component.current_price - component.entry_price) * component.quantity * 100
                     else:  # Short position  
                         component.pnl = (component.entry_price - component.current_price) * abs(component.quantity) * 100
+    
+    def get_position_current_value(self, position_id: str) -> float:
+        """Get current value of all components in a position"""
+        if position_id not in self.positions:
+            return 0
+        
+        position = self.positions[position_id]
+        total_value = 0
+        
+        for component in position.components.values():
+            # Calculate value based on current price and quantity
+            current_price = getattr(component, 'current_price', component.entry_price)
+            value = abs(current_price * component.quantity * component.multiplier)
+            total_value += value
+            
+        return total_value
+    
+    def get_position_dte(self, position_id: str) -> int:
+        """Get minimum DTE across all components in a position"""
+        if position_id not in self.positions:
+            return 999
+        
+        position = self.positions[position_id]
+        min_dte = 999
+        
+        for component in position.components.values():
+            if hasattr(component, 'expiry') and component.expiry:
+                dte = (component.expiry - self.algo.Time).days
+                min_dte = min(min_dte, dte)
+                
+        return min_dte
+    
+    def close_position(self, position_id: str) -> bool:
+        """Close all components of a multi-legged position"""
+        if position_id not in self.positions:
+            self.algo.Log(f"[ERROR] Position {position_id} not found")
+            return False
+        
+        position = self.positions[position_id]
+        
+        try:
+            # Close each component
+            for component in position.components.values():
+                # Place closing order for each component
+                if hasattr(self.algo, 'Liquidate'):
+                    self.algo.Liquidate(component.contract_symbol, f"Closing {position.strategy} position")
+                    
+            # Remove position from tracking
+            del self.positions[position_id]
+            
+            self.algo.Log(f"✅ Closed multi-legged position {position_id} ({position.strategy})")
+            return True
+            
+        except Exception as e:
+            self.algo.Log(f"[ERROR] Failed to close position {position_id}: {e}")
+            return False
+    
+    # ================================
+    # ORDER EXECUTION INTEGRATION
+    # ================================
+    
+    def link_order_to_component(self, order_ticket, position_id: str, component_id: str):
+        """Link QuantConnect order ticket to position component"""
+        if position_id in self.positions:
+            position = self.positions[position_id]
+            if component_id in position.components:
+                component = position.components[component_id]
+                component.order_ticket = order_ticket
+                component.qc_symbol = order_ticket.Symbol
+                
+                # Update with actual fill if order is filled
+                if order_ticket.Status == OrderStatus.Filled:
+                    component.actual_fill_price = order_ticket.AverageFillPrice
+                    component.actual_quantity = order_ticket.Quantity
+                    component.fill_time = self.algo.Time
+                    component.order_status = "FILLED"
+                    component.entry_price = order_ticket.AverageFillPrice
+                    
+                    self.algo.Log(f"[ORDER] Linked filled order to {component_id}: Price={component.actual_fill_price}, Qty={component.actual_quantity}")
+                else:
+                    component.order_status = str(order_ticket.Status)
+                    
+                return True
+        return False
+    
+    def execute_component_order(self, component: PositionComponent, position_id: str, action: str = 'open'):
+        """Execute actual QuantConnect order for component"""
+        try:
+            # Get the QC Symbol
+            qc_symbol = self.algo.Symbol(component.contract_symbol) if isinstance(component.contract_symbol, str) else component.contract_symbol
+            
+            # Determine order quantity based on action
+            if action == 'open':
+                order_quantity = component.quantity
+            elif action == 'close':
+                order_quantity = -component.quantity
+            else:
+                self.algo.Log(f"[ERROR] Unknown action: {action}")
+                return None
+            
+            # Place the order
+            ticket = self.algo.MarketOrder(qc_symbol, order_quantity, tag=f"{component.strategy}_{component.leg_type}")
+            
+            # Link order to position tracking
+            self.link_order_to_component(ticket, position_id, component.component_id)
+            
+            self.algo.Log(f"[ORDER] Placed {action} order for {component.component_id}: Symbol={qc_symbol}, Qty={order_quantity}")
+            
+            return ticket
+            
+        except Exception as e:
+            self.algo.Log(f"[ERROR] Failed to execute order for {component.component_id}: {e}")
+            return None
+    
+    def execute_position_orders(self, position_id: str, action: str = 'open'):
+        """Execute orders for all components of a position"""
+        if position_id not in self.positions:
+            self.algo.Log(f"[ERROR] Position {position_id} not found")
+            return []
+        
+        position = self.positions[position_id]
+        tickets = []
+        
+        for component in position.components.values():
+            if component.status == "OPEN" and component.order_status != "FILLED":
+                ticket = self.execute_component_order(component, position_id, action)
+                if ticket:
+                    tickets.append(ticket)
+        
+        self.algo.Log(f"[ORDER] Executed {len(tickets)} orders for position {position_id}")
+        return tickets
+    
+    def update_fills_from_tickets(self, position_id: str):
+        """Update component fill information from order tickets"""
+        if position_id not in self.positions:
+            return
+        
+        position = self.positions[position_id]
+        
+        for component in position.components.values():
+            if component.order_ticket:
+                ticket = component.order_ticket
+                
+                # Update fill status
+                if ticket.Status == OrderStatus.Filled:
+                    if component.order_status != "FILLED":
+                        component.order_status = "FILLED"
+                        component.actual_fill_price = ticket.AverageFillPrice
+                        component.actual_quantity = ticket.Quantity
+                        component.fill_time = ticket.Time
+                        component.entry_price = ticket.AverageFillPrice
                         
-    def get_management_actions(self) -> List[Dict]:
-        """Get all recommended management actions across all positions"""
-        actions = []
+                        # Calculate commission if available
+                        if hasattr(ticket, 'OrderEvents') and ticket.OrderEvents:
+                            total_fees = sum(event.OrderFee.Value.Amount for event in ticket.OrderEvents)
+                            component.commission = float(total_fees)
+                        
+                        self.algo.Log(f"[FILL] Updated {component.component_id}: Price={component.actual_fill_price}, Commission={component.commission}")
+                
+                elif ticket.Status == OrderStatus.PartiallyFilled:
+                    component.order_status = "PARTIAL"
+                    if hasattr(ticket, 'QuantityFilled'):
+                        component.actual_quantity = ticket.QuantityFilled
+                
+                elif ticket.Status == OrderStatus.Canceled:
+                    component.order_status = "CANCELLED"
+                    self.algo.Log(f"[ORDER] Component {component.component_id} order cancelled")
+    
+    def sync_with_portfolio(self):
+        """Sync position tracking with actual QuantConnect portfolio"""
+        portfolio_holdings = self.algo.Portfolio
+        
+        # Check each tracked position against actual holdings
+        for position_id, position in self.positions.items():
+            for component in position.components.values():
+                if component.qc_symbol and component.qc_symbol in portfolio_holdings:
+                    holding = portfolio_holdings[component.qc_symbol]
+                    
+                    # Update current values from portfolio
+                    component.current_price = float(holding.Price)
+                    component.pnl = float(holding.UnrealizedProfit)
+                    
+                    # Check for discrepancies
+                    if holding.Quantity != component.quantity and component.order_status == "FILLED":
+                        self.algo.Log(f"[SYNC] Discrepancy in {component.component_id}: Tracked={component.quantity}, Actual={holding.Quantity}")
+                        # Could auto-correct here if desired
+                        # component.actual_quantity = holding.Quantity
+    
+    def get_unfilled_components(self, position_id: str = None) -> List[PositionComponent]:
+        """Get all components that haven't been filled yet"""
+        unfilled = []
+        
+        positions_to_check = [self.positions[position_id]] if position_id else self.positions.values()
+        
+        for position in positions_to_check:
+            for component in position.components.values():
+                if component.order_status not in ["FILLED", "CANCELLED"]:
+                    unfilled.append(component)
+        
+        return unfilled
+    
+    # ================================
+    # STATE PERSISTENCE
+    # ================================
+    
+    def serialize_state(self) -> str:
+        """Serialize position state for persistence"""
+        state_data = {
+            'positions': {},
+            'metadata': {
+                'last_updated': self.algo.Time.isoformat(),
+                'algorithm_version': '2.0',
+                'total_positions': len(self.positions)
+            }
+        }
+        
+        for pos_id, position in self.positions.items():
+            state_data['positions'][pos_id] = position.to_dict()
+        
+        return json.dumps(state_data, indent=2)
+    
+    def deserialize_state(self, state_json: str):
+        """Restore position state from persistence"""
+        try:
+            state_data = json.loads(state_json)
+            
+            for pos_id, pos_data in state_data['positions'].items():
+                # Recreate MultiLegPosition
+                position = MultiLegPosition(
+                    position_id=pos_id,
+                    strategy=pos_data['strategy'],
+                    symbol=pos_data['symbol']
+                )
+                
+                # Restore metadata
+                position.entry_time = datetime.fromisoformat(pos_data['entry_time'])
+                position.status = pos_data['status']
+                position.total_pnl = pos_data['total_pnl']
+                position.metadata = pos_data.get('metadata', {})
+                
+                # Recreate components
+                for comp_id, comp_data in pos_data['components'].items():
+                    component = PositionComponent(
+                        component_id=comp_id,
+                        strategy=comp_data['strategy'],
+                        symbol=comp_data['symbol'],
+                        leg_type=comp_data['leg_type'],
+                        contract_symbol=comp_data['contract_symbol'],
+                        quantity=comp_data['quantity'],
+                        strike=comp_data['strike'],
+                        expiry=datetime.fromisoformat(comp_data['expiry']),
+                        right=OptionRight.Call if comp_data.get('right') == 'OptionRight.Call' else OptionRight.Put if comp_data.get('right') == 'OptionRight.Put' else None
+                    )
+                    
+                    # Restore component state
+                    component.entry_time = datetime.fromisoformat(comp_data['entry_time'])
+                    component.entry_price = comp_data['entry_price']
+                    component.current_price = comp_data['current_price']
+                    component.status = comp_data['status']
+                    component.pnl = comp_data['pnl']
+                    component.days_held = comp_data['days_held']
+                    
+                    # Restore order tracking state
+                    component.order_status = comp_data.get('order_status', 'PENDING')
+                    component.actual_fill_price = comp_data.get('actual_fill_price')
+                    component.actual_quantity = comp_data.get('actual_quantity')
+                    component.fill_time = datetime.fromisoformat(comp_data['fill_time']) if comp_data.get('fill_time') else None
+                    component.commission = comp_data.get('commission', 0.0)
+                    
+                    position.add_component(component)
+                
+                self.positions[pos_id] = position
+            
+            self.algo.Log(f"[PERSISTENCE] Restored {len(self.positions)} multi-legged positions")
+            
+        except Exception as e:
+            self.algo.Log(f"[ERROR] State deserialization failed: {e}")
+    
+    def get_state_summary(self) -> Dict:
+        """Get summary of current state for monitoring"""
+        summary = {
+            'total_positions': len(self.positions),
+            'positions_by_strategy': {},
+            'positions_by_status': {},
+            'total_components': 0,
+            'unfilled_components': len(self.get_unfilled_components())
+        }
         
         for position in self.positions.values():
-            if position.strategy == "IPMCC":
-                actions.extend(self._get_ipmcc_actions(position))
-            elif position.strategy == "LT112":
-                actions.extend(self._get_lt112_actions(position))
-                
-        return actions
+            # Count by strategy
+            if position.strategy not in summary['positions_by_strategy']:
+                summary['positions_by_strategy'][position.strategy] = 0
+            summary['positions_by_strategy'][position.strategy] += 1
+            
+            # Count by status
+            if position.status not in summary['positions_by_status']:
+                summary['positions_by_status'][position.status] = 0
+            summary['positions_by_status'][position.status] += 1
+            
+            # Count total components
+            summary['total_components'] += len(position.components)
         
-    def _get_ipmcc_actions(self, position: MultiLegPosition) -> List[Dict]:
-        """Get management actions for IPMCC positions"""
-        actions = []
-        
-        # Check weekly calls for roll/expiry
-        weekly_calls = [c for c in position.components.values() if c.leg_type.startswith("WEEKLY_CALL")]
-        for weekly in weekly_calls:
-            days_to_expiry = (weekly.expiry - self.algo.Time).days
-            if days_to_expiry <= 1:  # Friday expiry
-                profit_pct = (weekly.pnl / (abs(weekly.entry_price * weekly.quantity * 100))) * 100
-                if profit_pct >= 50:  # 50% profit target
-                    actions.append({
-                        'position_id': position.position_id,
-                        'component_id': weekly.component_id,
-                        'action': 'CLOSE_COMPONENT',
-                        'reason': f'Weekly call 50% profit ({profit_pct:.1f}%)',
-                        'priority': 'MEDIUM'
-                    })
-                else:
-                    actions.append({
-                        'position_id': position.position_id, 
-                        'component_id': weekly.component_id,
-                        'action': 'ROLL_WEEKLY_CALL',
-                        'reason': 'Weekly call approaching expiry',
-                        'priority': 'HIGH'
-                    })
-        
-        return actions
-        
-    def _get_lt112_actions(self, position: MultiLegPosition) -> List[Dict]:
-        """Get management actions for LT112 positions"""
-        actions = []
-        
-        # Check naked puts for 90% profit target
-        naked_puts = position.get_components_by_type("NAKED_PUT")
-        for naked in naked_puts:
-            if naked.pnl > 0:
-                profit_pct = (naked.pnl / (abs(naked.entry_price * naked.quantity * 100))) * 100
-                if profit_pct >= 90:  # Tom King 90% target
-                    actions.append({
-                        'position_id': position.position_id,
-                        'component_id': naked.component_id,
-                        'action': 'CLOSE_COMPONENT',
-                        'reason': f'Naked puts 90% profit ({profit_pct:.1f}%)',
-                        'priority': 'HIGH'
-                    })
-                    
-        # Check debit spread for 50% profit target
-        debit_components = position.get_components_by_type("DEBIT_LONG") + position.get_components_by_type("DEBIT_SHORT")
-        if len(debit_components) == 2:
-            debit_pnl = sum(c.pnl for c in debit_components)
-            debit_cost = sum(abs(c.entry_price * c.quantity * 100) for c in debit_components)
-            if debit_cost > 0:
-                debit_profit_pct = (debit_pnl / debit_cost) * 100
-                if debit_profit_pct >= 50:  # 50% profit target
-                    actions.append({
-                        'position_id': position.position_id,
-                        'component_ids': [c.component_id for c in debit_components],
-                        'action': 'CLOSE_DEBIT_SPREAD',
-                        'reason': f'Debit spread 50% profit ({debit_profit_pct:.1f}%)',
-                        'priority': 'MEDIUM'
-                    })
-        
-        return actions
+        return summary

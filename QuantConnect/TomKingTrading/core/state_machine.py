@@ -247,16 +247,16 @@ class StrategyStateMachine:
         # Suspension transitions (from operational states)
         for state in [StrategyState.IDLE, StrategyState.ANALYZING, StrategyState.PENDING_ENTRY]:
             self.add_transition(
-                    state,
-                    StrategyState.SUSPENDED,
-                    TransitionTrigger.EARNINGS_APPROACHING
-                )
-                
-                self.add_transition(
-                    state,
-                    StrategyState.EXITING,
-                    TransitionTrigger.EMERGENCY_EXIT
-                )
+                state,
+                StrategyState.SUSPENDED,
+                TransitionTrigger.EARNINGS_APPROACHING
+            )
+            
+            self.add_transition(
+                state,
+                StrategyState.EXITING,
+                TransitionTrigger.EMERGENCY_EXIT
+            )
     
     def add_transition(self,
                        from_state: StrategyState,

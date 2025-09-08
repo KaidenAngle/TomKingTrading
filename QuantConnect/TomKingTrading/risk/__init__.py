@@ -8,7 +8,7 @@ Complete implementation of Tom King's risk management methodology
 This package provides four essential risk management modules:
 
 1. position_sizing.py - VIX-based position sizing logic
-2. august_2024_correlation_limiter.py - Correlation group management 
+2. correlation_group_limiter.py - Correlation group management 
 3. defensive.py - Defensive adjustment protocols
 4. parameters.py - Centralized risk parameters
 
@@ -18,7 +18,7 @@ Implementation: QuantConnect LEAN Python
 """
 
 # Import only what exists and is used by main.py
-from .august_2024_correlation_limiter import (
+from .correlation_group_limiter import (
     August2024CorrelationLimiter as CorrelationManager
 )
 

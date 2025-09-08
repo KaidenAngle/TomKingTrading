@@ -56,34 +56,23 @@ class SimpleOrderHelpers:
     
     def place_iron_condor_orders(self, short_call, long_call, short_put, long_put, quantity=1):
         """
-        Place iron condor as 4 separate limit orders
-        Simple, no complex multi-leg logic
+        DEPRECATED: Use AtomicOrderExecutor.execute_iron_condor_atomic() instead.
+        This method lacks atomic guarantees and proper rollback handling.
+        Redirecting to atomic executor for safety.
         """
-        orders = []
+        # Redirect to atomic executor if available
+        if hasattr(self.algo, 'atomic_executor'):
+            return self.algo.atomic_executor.execute_iron_condor_atomic(
+                short_call, long_call, short_put, long_put, quantity
+            )
         
-        try:
-            # Place each leg
-            orders.append(self.place_option_limit_order(short_call, -quantity))  # Sell call
-            orders.append(self.place_option_limit_order(long_call, quantity))    # Buy call
-            orders.append(self.place_option_limit_order(short_put, -quantity))   # Sell put
-            orders.append(self.place_option_limit_order(long_put, quantity))     # Buy put
-            
-            # Check all filled (simple check)
-            all_filled = all(order is not None for order in orders)
-            
-            if all_filled:
-                self.algo.Log(f"Iron condor placed successfully")
-                return orders
-            else:
-                self.algo.Log(f"Iron condor placement had issues")
-                # Cancel any unfilled and try to clean up
-                self.cleanup_partial_fill(orders)
-                return None
-                
-        except Exception as e:
-            self.algo.Error(f"Iron condor placement failed: {str(e)}")
-            self.cleanup_partial_fill(orders)
-            return None
+        # Log deprecation warning
+        self.algo.Error("[SimpleOrderHelpers] DEPRECATED: place_iron_condor_orders called without atomic executor")
+        self.algo.Error("[SimpleOrderHelpers] This method is unsafe - use AtomicOrderExecutor instead")
+        
+        # For backward compatibility only - this path should not be used in production
+        # The atomic executor provides proper all-or-nothing execution with rollback
+        return None
     
     def cleanup_partial_fill(self, orders):
         """

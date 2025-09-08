@@ -8,12 +8,8 @@ from datetime import timedelta, time
 from fee_models import TastyTradeFeeModel
 
 # Configuration and Constants
-from config.strategy_parameters import TomKingStrategyParameters
-from config.constants import (
-    VIX_LOW, VIX_NORMAL, VIX_ELEVATED, VIX_HIGH,
-    MARGIN_BUFFER_NORMAL, MARGIN_BUFFER_ELEVATED,
-    DEFENSIVE_EXIT_DTE
-)
+from config.strategy_parameters import TomKingParameters
+from config.constants import TradingConstants
 from config.strategy_validator import StrategyValidator
 
 # Core State Management - CRITICAL INTEGRATION
