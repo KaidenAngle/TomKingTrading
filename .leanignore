@@ -1,0 +1,11 @@
+# Ignore for LEAN cloud push to reduce size
+brokers/paper_trading_adapter.py
+brokers/tastytrade_websocket.py
+analysis/
+optimization/
+reporting/
+*.md
+*.sh
+*.ipynb
+__pycache__/
+*.pyc

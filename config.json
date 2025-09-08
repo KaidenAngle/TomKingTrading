@@ -1,0 +1,50 @@
+{
+    "algorithm-language": "Python",
+    "parameters": {},
+    "description": "",
+    "cloud-id": 24926818,
+    "local-id": 1234567890,
+    "data-folder": "data",
+    "debugging": false,
+    "debugging-method": "LocalCmdline",
+    "log-handler": "CompositeLogHandler",
+    "results-destination-folder": "backtests",
+    "send-via-api": false,
+    "job-user-id": "0",
+    "api-access-token": "",
+    "job-project-id": "0",
+    "live-mode": false,
+    "live-mode-brokerage": "QuantConnectBrokerage",
+    "setup-handler": "SetupHandler",
+    "result-handler": "BacktestingResultHandler",
+    "data-provider": "QuantConnect.Lean.Engine.DataFeeds.ApiDataProvider",
+    "transaction-handler": "BacktestingTransactionHandler",
+    "real-time-handler": "BacktestingRealTimeHandler",
+    "history-provider": "SubscriptionDataReaderHistoryProvider",
+    "environments": {
+        "backtesting": {
+            "data-folder": "data",
+            "results-destination-folder": "backtests",
+            "live-mode": false,
+            "setup-handler": "SetupHandler",
+            "result-handler": "BacktestingResultHandler",
+            "data-provider": "QuantConnect.Lean.Engine.DataFeeds.ApiDataProvider",
+            "transaction-handler": "BacktestingTransactionHandler"
+        },
+        "live-tastytrade": {
+            "live-mode": true,
+            "live-mode-brokerage": "TastyWorks",
+            "data-queue-handler": [
+                "TastyWorksDataQueueHandler"
+            ],
+            "setup-handler": "BrokerageSetupHandler",
+            "result-handler": "LiveTradingResultHandler",
+            "data-provider": "TastyWorksDataProvider",
+            "transaction-handler": "BrokerageTransactionHandler",
+            "real-time-handler": "LiveTradingRealTimeHandler",
+            "history-provider": "BrokerageHistoryProvider"
+        }
+    },
+    "organization-id": "9fdfe971013fafe77700e18267986aa7",
+    "python-venv": 1
+}
