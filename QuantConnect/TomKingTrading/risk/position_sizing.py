@@ -4,6 +4,18 @@ from AlgorithmImports import *
 """
 VIX-Based Position Sizing Logic for QuantConnect LEAN
 Implements Tom King's systematic position sizing approach with VIX regime detection
+
+NOT REDUNDANT WITH UnifiedPositionSizer - HERE'S WHY:
+- PositionSizer: ADVANCED VIX-REGIME-BASED position sizing
+                 6 VIX regimes (EXTREMELY_LOW to EXTREME) 
+                 Account phases (Phase 1-4) with different limits
+                 Crisis opportunity detection (VIX > 35)
+                 August 2024 crash protection measures
+                 Historical context awareness
+- UnifiedPositionSizer: Simple Kelly Criterion for quick sizing
+
+THIS CLASS IS FOR: Complex position sizing based on market regime
+USE WHEN: VIX regime should influence position size decisions
 """
 
 import numpy as np
@@ -31,12 +43,17 @@ class PositionSizer:
     """
     VIX-based position sizing manager implementing Tom King methodology
     
+    PURPOSE: Complex regime-based position sizing with crisis detection
+    USE FOR: When VIX regime should significantly impact position sizes
+    UNIQUE FEATURES: 6 VIX regimes, 4 account phases, crisis opportunities
+    
     Key Features:
     - VIX regime detection with automatic BP adjustment
-    - Account phase-based position limits
+    - Account phase-based position limits  
     - Kelly Criterion modified for options trading
     - August 2024 crash protection measures
     - Dynamic position sizing based on market conditions
+    - Special $19k deployment rule for VIX > 35 crisis opportunities
     """
     
     def __init__(self):
@@ -186,12 +203,20 @@ class PositionSizer:
         vix_spike_deployment = 0
         
         if is_vix_spike and vix_regime == VIXRegime.EXTREME:
-            # Calculate VIX spike opportunity deployment
-            max_spike_usd = min(vix_config['max_deployment'], 
-                              account_value * vix_config['max_deployment_pct'])
-            vix_spike_deployment = max_spike_usd
+            # Calculate VIX spike opportunity deployment with proper scaling
+            from config.constants import TradingConstants
+            
+            # Scale deployment by account size (Tom King: 20% during spikes)
+            base_deployment = account_value * TradingConstants.VIX_SPIKE_BP_DEPLOYMENT_PCT
+            
+            # Apply min/max limits for safety
+            vix_spike_deployment = max(
+                TradingConstants.VIX_SPIKE_MIN_DEPLOYMENT,  # Min $5k
+                min(base_deployment, TradingConstants.VIX_SPIKE_MAX_DEPLOYMENT)  # Max $50k
+            )
+            
             deployment_strategy = "VIX_SPIKE_OPPORTUNITY"
-            warning_message = f"[ALERT] GENERATIONAL OPPORTUNITY: VIX Spike Protocol Activated"
+            warning_message = f"[ALERT] GENERATIONAL OPPORTUNITY: VIX Spike Protocol - Deploying ${vix_spike_deployment:,.0f}"
         else:
             deployment_strategy = self._get_deployment_strategy(vix_regime)
             warning_message = vix_config.get('warning')
@@ -250,6 +275,21 @@ class PositionSizer:
         
         # Calculate Kelly fraction
         kelly_fraction = self._calculate_kelly_fraction(win_rate, avg_return, max_loss)
+        
+        # CRITICAL: If Kelly calculation fails, DO NOT TRADE
+        if kelly_fraction is None:
+            return {
+                'recommended_positions': 0,
+                'max_positions_by_bp': 0,
+                'max_positions_by_phase': 0,
+                'kelly_position_size': 0,
+                'vix_regime': vix_regime.value,
+                'account_phase': phase,
+                'strategy': strategy_key,
+                'deployment_strategy': 'SKIP_TRADE',
+                'risk_warning': 'Invalid risk metrics - cannot calculate safe position size',
+                'should_trade': False
+            }
         
         # Get maximum BP usage
         bp_analysis = self.calculate_max_bp_usage(vix_level, account_value)
@@ -357,27 +397,32 @@ class PositionSizer:
     
     def _calculate_kelly_fraction(self, win_rate: float, avg_return: float, 
                                 max_loss: float) -> float:
-        """Calculate Kelly fraction for optimal position sizing"""
+        """Calculate Kelly fraction for optimal position sizing
+        
+        Returns None if calculation cannot be performed safely - caller should skip trade
+        """
+        # Validate inputs - NO FALLBACK VALUES
         if max_loss >= 0:
-            self.algo.Debug(f"Invalid max_loss value for Kelly calculation: {max_loss}")
-            return 0.05  # Extra conservative when data is invalid
+            # Invalid data - max_loss should be negative
+            # DO NOT TRADE with invalid risk metrics
+            return None
+        
+        if max_loss == 0:
+            # Division by zero - cannot calculate risk/reward
+            # DO NOT TRADE without proper risk assessment
+            return None
         
         # Modified Kelly for options: f = (bp - q) / b
         # Where b = avg_return/|max_loss|, p = win_rate, q = 1 - win_rate
-        
-        # Protect against division by zero
-        if max_loss == 0:
-            self.algorithm.Log("[POSITION SIZING] Warning: max_loss is 0, using conservative Kelly")
-            return 0.05
-            
         b = avg_return / abs(max_loss)
         p = win_rate
         q = 1 - win_rate
         
         # Protect against division by zero in Kelly calculation
         if b == 0 or abs(b) < 0.0001:  # Near-zero protection
-            self.algorithm.Log("[POSITION SIZING] Warning: b is near 0, using conservative Kelly")
-            return 0.05
+            # Risk/reward ratio too poor to trade
+            # DO NOT TRADE when edge is unclear
+            return None
             
         # Simplified Kelly formula to avoid unnecessary division
         # kelly = (b * p - q) / b = p - q/b

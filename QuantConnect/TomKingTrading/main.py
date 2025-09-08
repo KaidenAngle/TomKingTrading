@@ -1,523 +1,567 @@
-# Tom King Trading Framework - QuantConnect Production Implementation
-# Complete multi-strategy options trading system
-# Target: $44,450 to $101,600 in 8 months (128% return)
+# Tom King Trading Framework
+# Production implementation with all strategies and risk management
 
 from AlgorithmImports import *
-from datetime import datetime, timedelta
-import numpy as np
-from typing import Dict, List, Optional, Tuple
-from collections import defaultdict
-import json
+from datetime import timedelta, time
 
-# Import all Tom King Framework components
-from config.strategy_parameters import *
-from config.strategy_validator import StrategyValidator
-from strategies.friday_zero_day_options import FridayZeroDayOptions
-from strategies.futures_strangle import TomKingFuturesStrangleStrategy
-from strategies.long_term_112_put_selling import LongTerm112PutSellingStrategy
-from strategies.in_perpetuity_covered_calls import InPerpetuityCoveredCallsStrategy
-from strategies.leap_put_ladders import LEAPPutLaddersStrategy
-from risk.vix_regime import VIXRegimeManager
-from risk.position_sizing import PositionSizingManager
-from risk.august_2024_correlation_limiter import CorrelationLimiter
-from greeks.greeks_monitor import GreeksMonitor
-from greeks.greeks_signal_generator import GreeksSignalGenerator
-from position_state_manager_qc import QuantConnectPositionStateManager
-from brokers.tastytrade_api_client import TastytradeApiClient
-from brokers.tastytrade_websocket import TastytradeWebSocket
-from helpers.rate_limiter import RateLimiter
-from risk.live_trading_components import (
-    LivePositionRecovery, LivePerformanceTracker, 
-    LiveCommissionModel, LiveDailySummary
+# Fee models
+from fee_models import TastyTradeFeeModel
+
+# Configuration and Constants
+from config.strategy_parameters import TomKingStrategyParameters
+from config.constants import (
+    VIX_LOW, VIX_NORMAL, VIX_ELEVATED, VIX_HIGH,
+    MARGIN_BUFFER_NORMAL, MARGIN_BUFFER_ELEVATED,
+    DEFENSIVE_EXIT_DTE
 )
+from config.strategy_validator import StrategyValidator
 
-class TomKingTradingAlgorithm(QCAlgorithm):
+# Core State Management - CRITICAL INTEGRATION
+from core.unified_state_manager import UnifiedStateManager
+from core.strategy_coordinator import StrategyCoordinator
+from core.unified_vix_manager import UnifiedVIXManager
+from core.unified_position_sizer import UnifiedPositionSizer
+
+# State Machine Strategies - NEW IMPLEMENTATIONS
+from strategies.friday_0dte_with_state import Friday0DTEWithState
+from strategies.lt112_with_state import LT112WithState
+from strategies.ipmcc_with_state import IPMCCWithState
+from strategies.futures_strangle_with_state import FuturesStrangleWithState
+from strategies.leap_put_ladders_with_state import LEAPPutLaddersWithState
+
+# Risk Management
+# VIX management now handled by UnifiedVIXManager
+from risk.dynamic_margin_manager import DynamicMarginManager
+from risk.correlation_group_limiter import August2024CorrelationLimiter
+
+# Helpers and Safety Systems
+from helpers.data_freshness_validator import DataFreshnessValidator
+from helpers.performance_tracker_safe import SafePerformanceTracker
+from helpers.quantconnect_event_calendar import QuantConnectEventCalendar
+from helpers.option_chain_manager import OptionChainManager
+from helpers.option_order_executor import OptionOrderExecutor
+from helpers.atomic_order_executor import EnhancedAtomicOrderExecutor
+
+# Position Management
+from position_state_manager import QuantConnectPositionStateManager
+
+# Greeks and Analytics
+from greeks.greeks_monitor import GreeksMonitor
+
+class TomKingTradingIntegrated(QCAlgorithm):
     """
-    Tom King Trading Framework - Production Implementation
-    Complete multi-strategy options trading system with:
-    - 5 core strategies (0DTE, Futures Strangles, LT112, IPMCC, LEAP Ladders)
-    - Greeks-based decision making
-    - VIX regime management
-    - Phase-based progression
-    - Correlation limiting
-    - Live trading components
+    PRODUCTION-READY Tom King Trading Framework
+    All safety systems integrated, state machines active
     """
     
     def Initialize(self):
-        """Initialize Tom King Trading Framework"""
-        # Set dates and capital
-        self.SetStartDate(2023, 1, 1)
-        self.SetEndDate(2025, 1, 1)
-        self.SetCash(44450)  # Starting capital
+        """Initialize with all safety systems properly wired"""
         
-        # Set resolution
+        # Core configuration
+        self.SetStartDate(2024, 1, 1)
+        self.SetEndDate(2025, 1, 1)
+        self.SetCash(100000)
+        
+        # Timezone
+        self.SetTimeZone("America/New_York")
+        
+        # Set brokerage model for proper API initialization
+        # Using Default model since Tastytrade is handled via custom API client
+        from AlgorithmImports import BrokerageModel, BrokerageModelSecurityInitializer, FuncSecuritySeeder
+        self.SetBrokerageModel(BrokerageModel.Default)
+        
+        # Set security initializer to properly configure securities when added
+        self.SetSecurityInitializer(
+            BrokerageModelSecurityInitializer(
+                self.BrokerageModel, 
+                FuncSecuritySeeder(self.GetLastKnownPrices)
+            )
+        )
+        
+        # Performance optimization flag
+        self.is_backtest = not self.LiveMode
+        
+        # Data resolution
         self.UniverseSettings.Resolution = Resolution.Minute
         
-        # Initialize core components
-        self.InitializeFrameworkSystems()
-        self.InitializeRiskManagement()
-        self.InitializeStrategies()
-        self.InitializeTradingInfrastructure()
-        self.InitializeSymbols()
-        self.ScheduleEvents()
+        # Set warmup period for indicators and data initialization
+        self.SetWarmUp(timedelta(days=30))
         
-        self.Log(f"Tom King Trading Framework Initialized")
-        self.Log(f"Starting Capital: ${self.Portfolio.Cash:,.0f}")
-        self.Log(f"Account Phase: {self.current_phase}")
-        self.Log(f"Greeks Monitoring: ACTIVE")
-        self.Log(f"Strategy Attribution: ENABLED")
-    
-    def InitializeFrameworkSystems(self):
-        """Initialize core framework systems"""
-        # Phase management
-        self.current_phase = self.GetAccountPhase()
+        # Add core symbols
+        self.spy = self.AddEquity("SPY", Resolution.Minute).Symbol
+        self.vix = self.AddIndex("VIX", Resolution.Minute).Symbol
         
-        # VIX for regime detection
-        self.vix = self.AddIndex("VIX", Resolution.Minute)
-        self.current_vix = 20
+        # Options configuration with Tastytrade fee model
+        option = self.AddOption("SPY", Resolution.Minute)
+        option.SetFilter(lambda x: x.Strikes(-50, 50)
+                                   .Expiration(timedelta(0), timedelta(180)))
         
-        # Performance tracking
-        self.total_trades = 0
-        self.winning_trades = 0
-        self.losing_trades = 0
-        self.strategy_performance = defaultdict(lambda: {'trades': 0, 'wins': 0, 'pnl': 0})
+        # Set Tastytrade fee model for all securities
+        for security in self.Securities.Values:
+            security.SetFeeModel(TastyTradeFeeModel())
         
-        # Position tracking
-        self.active_positions = {}
-        self.position_entry_dates = {}
+        # ======================
+        # CRITICAL SAFETY SYSTEMS
+        # ======================
         
-        # Initialize missing components that were found in verification
-        self.tastytrade_api = None
-        self.tastytrade_websocket = None
-        self.LiveMode = False  # Set to True for live trading
+        # 1. Data Freshness Validator - PREVENTS STALE DATA TRADING
+        self.data_validator = DataFreshnessValidator(self)
         
-        if self.LiveMode:
-            # Initialize TastyTrade integration for live trading
-            self.tastytrade_api = TastytradeApiClient(self)
-            self.tastytrade_websocket = TastytradeWebSocket(self, list(self.symbol_universe))
-            self.tastytrade_websocket.connect()
+        # 2. Dynamic Margin Manager - VIX-BASED MARGIN CONTROL
+        self.margin_manager = DynamicMarginManager(self)
         
-        # Initialize rate limiter
-        self.rate_limiter = RateLimiter(self)
+        # 3. Strategy Coordinator - PRIORITY EXECUTION QUEUE
+        self.strategy_coordinator = StrategyCoordinator(self)
         
-        # Initialize performance tracker
-        self.performance_tracker = LivePerformanceTracker(self)
+        # 3.5 SPY Concentration Manager - PREVENT OVER-EXPOSURE
+        from core.spy_concentration_manager import SPYConcentrationManager
+        self.spy_concentration_manager = SPYConcentrationManager(self)
         
-        # Initialize position recovery for live trading
-        self.position_recovery = LivePositionRecovery(self)
+        # 4. Performance Tracker - OVERFLOW PROTECTED
+        self.performance_tracker = SafePerformanceTracker(self)
         
-        # Initialize commission model
-        self.commission_model = LiveCommissionModel(self)
+        # 5. Event Calendar - REAL-TIME QUANTCONNECT API DATA
+        self.event_calendar = QuantConnectEventCalendar(self)
         
-        # Initialize daily summary
-        self.daily_summary = LiveDailySummary(self)
-    
-    def InitializeRiskManagement(self):
-        """Initialize risk management systems"""
+        # 6. Unified State Manager - SYSTEM-WIDE STATE CONTROL
+        self.state_manager = UnifiedStateManager(self)
+        
+        # 6.5 Order State Recovery - CRASH RECOVERY FOR MULTI-LEG ORDERS
+        from helpers.order_state_recovery import OrderStateRecovery
+        self.order_recovery = OrderStateRecovery(self)
+        
+        # ======================
+        # RISK MANAGEMENT
+        # ======================
+        
+        # Unified VIX Manager - Single source of truth
+        self.vix_manager = UnifiedVIXManager(self)
+        
+        # Unified Position Sizer - Single source of truth
+        self.position_sizer = UnifiedPositionSizer(self)
+        
+        # Correlation Limiter
+        self.correlation_limiter = August2024CorrelationLimiter(self)
+        
+        # Position Manager
+        self.position_manager = QuantConnectPositionStateManager(self)
+        
+        # Greeks Monitor
+        self.greeks_monitor = GreeksMonitor(self)
+        
+        # ======================
+        # HELPER SYSTEMS
+        # ======================
+        
+        # Option chain manager
+        self.option_chain_manager = OptionChainManager(self)
+        
+        # Order executor
+        self.order_executor = OptionOrderExecutor(self)
+        
+        # Atomic order executor for multi-leg strategies
+        self.atomic_executor = EnhancedAtomicOrderExecutor(self)
+        
+        # Unified order pricing - Single source for limit order pricing
+        from helpers.unified_order_pricing import UnifiedOrderPricing
+        self.unified_pricing = UnifiedOrderPricing(self)
+        
         # Strategy validator
         self.strategy_validator = StrategyValidator(self)
         
-        # VIX regime manager
-        self.vix_regime = VIXRegimeManager(self)
+        # ======================
+        # STATE MACHINE STRATEGIES
+        # ======================
         
-        # Position sizing manager
-        self.position_sizer = PositionSizingManager(self)
-        
-        # Correlation limiter (August 2024 protection)
-        self.correlation_limiter = CorrelationLimiter(self)
-        
-        # Greeks monitoring
-        self.greeks_monitor = GreeksMonitor(self)
-        self.greeks_signal_generator = GreeksSignalGenerator(self)
-        
-        # Position state manager (QuantConnect compatible)
-        self.position_manager = QuantConnectPositionStateManager(self)
-    
-    def InitializeStrategies(self):
-        """Initialize all Tom King strategies"""
+        # Initialize strategies with state machines
         self.strategies = {
-            '0DTE': FridayZeroDayOptions(self),
-            'Futures_Strangle': TomKingFuturesStrangleStrategy(self),
-            'LT112': LongTerm112PutSellingStrategy(self),
-            'IPMCC': InPerpetuityCoveredCallsStrategy(self),
-            'LEAP_Ladders': LEAPPutLaddersStrategy(self)
+            '0DTE': Friday0DTEWithState(self),
+            'LT112': LT112WithState(self),
+            'IPMCC': IPMCCWithState(self),
+            'FuturesStrangle': FuturesStrangleWithState(self),
+            'LEAPLadders': LEAPPutLaddersWithState(self)
         }
-    
-    def InitializeTradingInfrastructure(self):
-        """Initialize trading infrastructure"""
-        # Symbol universe based on phase
-        self.symbol_universe = self.GetPhaseSymbols()
         
-        # Greeks tracking
-        self.portfolio_greeks = {
-            'delta': 0,
-            'gamma': 0,
-            'theta': 0,
-            'vega': 0
+        # Register all strategies with state manager
+        for name, strategy in self.strategies.items():
+            self.state_manager.register_strategy(name, strategy.state_machine)
+            self.strategy_coordinator.register_strategy(name, priority=strategy.priority)
+        
+        # ======================
+        # CIRCUIT BREAKERS
+        # ======================
+        
+        self.circuit_breakers = {
+            'rapid_drawdown': {'threshold': -0.03, 'window': timedelta(minutes=5)},
+            'correlation_spike': {'threshold': 0.90},
+            'margin_spike': {'threshold': 0.80},
+            'consecutive_losses': {'threshold': 3}
         }
-    
-    def InitializeSymbols(self):
-        """Initialize trading symbols with options chains"""
-        # Core ETFs always available
-        for symbol in ['SPY', 'QQQ', 'IWM']:
-            equity = self.AddEquity(symbol, Resolution.Minute)
-            option = self.AddOption(symbol, Resolution.Minute)
-            option.SetFilter(
-                lambda x: x.Strikes(-20, 20)
-                          .Expiration(0, 180)
-                          .IncludeWeeklys()
-            )
         
-        # Phase-based additional symbols
-        if self.current_phase >= 2:
-            for symbol in ['GLD', 'TLT', 'SLV']:
-                equity = self.AddEquity(symbol, Resolution.Minute)
-                option = self.AddOption(symbol, Resolution.Minute)
-                option.SetFilter(
-                    lambda x: x.Strikes(-15, 15)
-                              .Expiration(0, 120)
-                              .IncludeWeeklys()
-                )
+        self.drawdown_window = []
+        self.consecutive_losses = 0
         
-        # Futures for strangles (Phase 2+)
-        if self.current_phase >= 2:
-            self.AddFuture(Futures.Indices.MicroSP500EMini, Resolution.Minute)
-            self.AddFuture(Futures.Energies.MicroCrudeOilWTI, Resolution.Minute)
-            self.AddFuture(Futures.Metals.MicroGold, Resolution.Minute)
-    
-    def ScheduleEvents(self):
-        """Schedule all trading events"""
-        # Friday 0DTE - 10:30 AM ET
+        # ======================
+        # TRACKING VARIABLES
+        # ======================
+        
+        self.last_option_check = self.Time
+        self.option_check_interval = timedelta(minutes=15)
+        
+        self.trades_today = 0
+        self.daily_trade_limit = 10
+        
+        self.current_phase = 1  # Start in Phase 1
+        
+        # Performance tracking
+        self.winning_trades = 0
+        self.losing_trades = 0
+        self.total_pnl = 0
+        
+        # Performance optimization: Track invested positions
+        self.invested_positions = set()
+        
+        # ======================
+        # SCHEDULING
+        # ======================
+        
+        # Schedule regular safety checks (less frequent in backtest)
+        safety_check_interval = 30 if self.is_backtest else 5
         self.Schedule.On(
-            self.DateRules.Every(DayOfWeek.Friday),
-            self.TimeRules.At(10, 30),
-            self.Execute0DTE
+            self.DateRules.EveryDay(self.spy),
+            self.TimeRules.Every(timedelta(minutes=safety_check_interval)),
+            self.SafetyCheck
         )
         
-        # LT112 - First Wednesday of month
+        # Schedule state persistence at end of day
         self.Schedule.On(
-            self.DateRules.MonthStart(),
-            self.TimeRules.At(10, 15),
-            self.ExecuteLT112
+            self.DateRules.EveryDay(self.spy),
+            self.TimeRules.At(15, 45),  # End of day persistence
+            self.PersistStates
         )
         
-        # Futures Strangles - Second Tuesday of month (Tom King methodology)
-        # Schedule to run every Tuesday, strategy will check if it's the second Tuesday
+        # Schedule EOD reconciliation
         self.Schedule.On(
-            self.DateRules.Every(DayOfWeek.Tuesday),
-            self.TimeRules.At(11, 0),
-            self.ExecuteFuturesStrangles
-        )
-        
-        # Position monitoring
-        self.Schedule.On(
-            self.DateRules.EveryDay(),
-            self.TimeRules.Every(timedelta(minutes=15)),
-            self.MonitorPositions
-        )
-        
-        # Greeks update
-        self.Schedule.On(
-            self.DateRules.EveryDay(),
-            self.TimeRules.Every(timedelta(minutes=30)),
-            self.UpdateGreeks
-        )
-        
-        # End of day summary
-        self.Schedule.On(
-            self.DateRules.EveryDay(),
+            self.DateRules.EveryDay(self.spy),
             self.TimeRules.At(15, 45),
-            self.EndOfDaySummary
+            self.EndOfDayReconciliation
         )
-    
-    def Execute0DTE(self):
-        """Execute Friday 0DTE strategy"""
-        if self.IsWarmingUp:
-            return
         
-        # Validate strategy can execute
-        can_trade, reason = self.strategy_validator.validate_strategy('0DTE')
-        if not can_trade:
-            self.Log(f"0DTE skipped: {reason}")
-            return
+        # Load any saved states
+        self.state_manager.load_all_states()
         
-        # Execute through strategy class
-        self.strategies['0DTE'].check_entry_conditions()
-    
-    def ExecuteLT112(self):
-        """Execute LT112 strategy"""
-        if self.IsWarmingUp or self.Time.day > 7:
-            return
+        # Check for incomplete orders from previous session
+        if hasattr(self, 'order_recovery'):
+            manual_intervention = self.order_recovery.check_and_recover_incomplete_orders()
+            if manual_intervention:
+                self.Error(f"MANUAL INTERVENTION REQUIRED: {len(manual_intervention)} incomplete order groups")
+                for issue in manual_intervention:
+                    self.Error(f"  - {issue['group_id']}: {issue['issue']}")
         
-        can_trade, reason = self.strategy_validator.validate_strategy('LT112')
-        if not can_trade:
-            self.Log(f"LT112 skipped: {reason}")
-            return
-        
-        self.strategies['LT112'].check_entry_conditions()
-    
-    def ExecuteFuturesStrangles(self):
-        """Execute futures strangle strategy"""
-        if self.IsWarmingUp or self.current_phase < 2:
-            return
-        
-        can_trade, reason = self.strategy_validator.validate_strategy('Futures_Strangle')
-        if not can_trade:
-            self.Log(f"Futures Strangle skipped: {reason}")
-            return
-        
-        self.strategies['Futures_Strangle'].check_entry_conditions()
-    
-    def MonitorPositions(self):
-        """Monitor all active positions"""
-        if self.IsWarmingUp:
-            return
-        
-        # Update position states
-        self.position_manager.update_positions()
-        
-        # Check exit conditions for each strategy
-        for strategy_name, strategy in self.strategies.items():
-            strategy.check_exit_conditions()
-        
-        # Update Greeks after position changes
-        self.UpdateGreeks()
-    
-    def UpdateGreeks(self):
-        """Update portfolio Greeks"""
-        if self.IsWarmingUp:
-            return
-        
-        # Reset portfolio Greeks
-        self.portfolio_greeks = {
-            'delta': 0,
-            'gamma': 0,
-            'theta': 0,
-            'vega': 0
-        }
-        
-        # Aggregate Greeks from all positions
-        for symbol, holding in self.Portfolio.items():
-            if holding.Invested and holding.Type == SecurityType.Option:
-                security = self.Securities[symbol]
-                if hasattr(security, 'Greeks') and security.Greeks:
-                    self.portfolio_greeks['delta'] += security.Greeks.Delta * holding.Quantity * 100
-                    self.portfolio_greeks['gamma'] += security.Greeks.Gamma * holding.Quantity * 100
-                    self.portfolio_greeks['theta'] += security.Greeks.Theta * holding.Quantity * 100
-                    self.portfolio_greeks['vega'] += security.Greeks.Vega * holding.Quantity * 100
-        
-        # Check Greeks limits
-        self.CheckGreeksLimits()
-    
-    def CheckGreeksLimits(self):
-        """Check if portfolio Greeks exceed limits"""
-        # Phase-based Greeks limits
-        limits = {
-            1: {'delta': 50, 'gamma': 10, 'vega': 100},
-            2: {'delta': 75, 'gamma': 15, 'vega': 150},
-            3: {'delta': 100, 'gamma': 20, 'vega': 200},
-            4: {'delta': 150, 'gamma': 30, 'vega': 300}
-        }
-        
-        phase_limits = limits.get(self.current_phase, limits[1])
-        
-        # Check each Greek
-        if abs(self.portfolio_greeks['delta']) > phase_limits['delta']:
-            self.Log(f"[GREEKS] Delta limit exceeded: {self.portfolio_greeks['delta']:.1f}")
-        
-        if abs(self.portfolio_greeks['gamma']) > phase_limits['gamma']:
-            self.Log(f"[GREEKS] Gamma limit exceeded: {self.portfolio_greeks['gamma']:.1f}")
-        
-        if abs(self.portfolio_greeks['vega']) > phase_limits['vega']:
-            self.Log(f"[GREEKS] Vega limit exceeded: {self.portfolio_greeks['vega']:.1f}")
-    
-    def EndOfDaySummary(self):
-        """Generate end of day summary"""
-        if self.IsWarmingUp:
-            return
-        
-        # Generate daily summary
-        self.daily_summary.generate_daily_summary()
-        
-        # Save positions for recovery
-        if self.LiveMode:
-            self.position_recovery.save_positions()
-    
-    def GetAccountPhase(self):
-        """Get current account phase"""
-        balance = self.Portfolio.TotalPortfolioValue
-        
-        if balance < 50800:  # $40k * 1.27
-            return 1
-        elif balance < 69850:  # $55k * 1.27
-            return 2
-        elif balance < 95250:  # $75k * 1.27
-            return 3
-        else:
-            return 4
-    
-    def GetPhaseSymbols(self):
-        """Get allowed symbols for current phase"""
-        phase_config = ACCOUNT_PHASES.get(self.current_phase, ACCOUNT_PHASES[1])
-        return phase_config['symbols']
+        self.Debug("=== TOM KING TRADING FRAMEWORK INITIALIZED ===")
+        self.Debug("All safety systems: ACTIVE")
+        self.Debug("State machines: REGISTERED")
+        self.Debug("Circuit breakers: ARMED")
     
     def OnData(self, data):
-        """Process incoming data"""
-        if self.IsWarmingUp:
+        """Main data handler with full safety integration"""
+        
+        # ======================
+        # PERFORMANCE CACHING
+        # ======================
+        
+        # Cache frequently accessed values for this cycle
+        self.current_portfolio_value = self.Portfolio.TotalPortfolioValue
+        self.current_margin_used = self.Portfolio.TotalMarginUsed
+        self.current_margin_remaining = self.Portfolio.MarginRemaining
+        
+        # Cache current prices
+        self.current_prices = {}
+        for symbol in [self.spy, self.vix]:
+            if symbol in self.Securities:
+                self.current_prices[symbol] = self.Securities[symbol].Price
+        
+        # Initialize option chain cache if needed (time-based expiry)
+        if not hasattr(self, 'option_chain_cache'):
+            self.option_chain_cache = {}
+            self.option_cache_expiry = {}
+        
+        # ======================
+        # SAFETY CHECKS FIRST
+        # ======================
+        
+        # 1. Validate data freshness
+        if not self.data_validator.validate_all_data():
+            self.Debug("Data validation failed, skipping cycle")
             return
         
-        # Update VIX
-        if "VIX" in data and data["VIX"] is not None:
-            self.current_vix = data["VIX"].Price
-            self.vix_regime.update_vix(self.current_vix)
+        # 2. Check circuit breakers
+        if self._check_circuit_breakers():
+            self.Debug("Circuit breaker triggered, halting trading")
+            self.state_manager.halt_all_trading("Circuit breaker triggered")
+            return
         
-        # Update Greeks monitor
-        self.greeks_monitor.calculate_portfolio_greeks()
+        # 3. Update system state
+        self.state_manager.update_system_state()
         
-        # Generate Greeks signals
-        signals = self.greeks_signal_generator.generate_signals()
-        for signal in signals:
-            if signal['action'] == 'ADJUST':
-                self.Log(f"[GREEKS SIGNAL] {signal['message']}")
+        # 4. Check if we can trade
+        if not self.IsMarketOpen(self.spy):
+            return
+        
+        # 5. Check margin availability
+        if not self.margin_manager.check_margin_available():
+            self.Debug("Insufficient margin, skipping cycle")
+            return
+        
+        # 6. Check correlation limits
+        if self.correlation_limiter.positions_at_limit():
+            self.Debug("Correlation limit reached")
+            return
+        
+        # ======================
+        # STRATEGY EXECUTION
+        # ======================
+        
+        # Update VIX status (only log periodically to avoid overhead)
+        if not self.is_backtest or self.Time.minute % 30 == 0:
+            if hasattr(self.vix_manager, 'log_vix_status'):
+                self.vix_manager.log_vix_status()
+        
+        # Update Greeks (only when positions change)
+        if hasattr(self, 'greeks_monitor') and hasattr(self.greeks_monitor, 'update'):
+            self.greeks_monitor.update()
+        
+        # Get execution order from coordinator
+        execution_order = self.strategy_coordinator.get_execution_order()
+        
+        for strategy_name in execution_order:
+            # Check if strategy can execute
+            if not self.state_manager.can_enter_new_position(strategy_name):
+                continue
+            
+            # Check daily trade limit
+            if self.trades_today >= self.daily_trade_limit:
+                self.Debug("Daily trade limit reached")
+                break
+            
+            # Check strategy-specific conditions
+            strategy = self.strategies.get(strategy_name)
+            if strategy:
+                try:
+                    # Execute through state machine
+                    strategy.execute()
+                    
+                    # Update coordinator
+                    self.strategy_coordinator.record_execution(strategy_name)
+                    
+                except Exception as e:
+                    self.Error(f"Strategy {strategy_name} error: {e}")
+                    self.state_manager.force_strategy_exit(strategy_name, str(e))
+        
+        # ======================
+        # POSITION MANAGEMENT
+        # ======================
+        
+        # Check existing positions
+        self._manage_existing_positions()
+        
+        # Update performance tracking
+        self.performance_tracker.update()
+    
+    def _check_circuit_breakers(self) -> bool:
+        """Check all circuit breakers"""
+        
+        # Rapid drawdown check
+        current_value = self.Portfolio.TotalPortfolioValue
+        self.drawdown_window.append((self.Time, current_value))
+        
+        # Remove old entries
+        cutoff_time = self.Time - self.circuit_breakers['rapid_drawdown']['window']
+        self.drawdown_window = [(t, v) for t, v in self.drawdown_window if t > cutoff_time]
+        
+        if len(self.drawdown_window) > 1:
+            max_value = max(v for _, v in self.drawdown_window)
+            drawdown = (current_value - max_value) / max_value if max_value > 0 else 0
+            
+            if drawdown < self.circuit_breakers['rapid_drawdown']['threshold']:
+                self.Error(f"CIRCUIT BREAKER: Rapid drawdown {drawdown:.2%}")
+                return True
+        
+        # Correlation spike check
+        if hasattr(self, 'correlation_limiter'):
+            if self.correlation_limiter.get_max_correlation() > self.circuit_breakers['correlation_spike']['threshold']:
+                self.Error("CIRCUIT BREAKER: Correlation spike")
+                return True
+        
+        # Margin spike check
+        margin_usage = self.Portfolio.TotalMarginUsed / self.Portfolio.TotalPortfolioValue if self.Portfolio.TotalPortfolioValue > 0 else 0
+        if margin_usage > self.circuit_breakers['margin_spike']['threshold']:
+            self.Error(f"CIRCUIT BREAKER: Margin spike {margin_usage:.2%}")
+            return True
+        
+        # Consecutive losses check
+        if self.consecutive_losses >= self.circuit_breakers['consecutive_losses']['threshold']:
+            self.Error(f"CIRCUIT BREAKER: {self.consecutive_losses} consecutive losses")
+            return True
+        
+        return False
+    
+    def _manage_existing_positions(self):
+        """Manage all existing positions"""
+        
+        for symbol in self.Portfolio.Keys:
+            holding = self.Portfolio[symbol]
+            
+            if holding.Invested and symbol.SecurityType == SecurityType.Option:
+                # Let strategies manage their own positions through state machines
+                strategy_name = self.position_manager.get_strategy_for_symbol(symbol)
+                
+                if strategy_name and strategy_name in self.strategies:
+                    strategy = self.strategies[strategy_name]
+                    strategy.check_position_management()
+    
+    def SafetyCheck(self):
+        """Regular safety check routine"""
+        
+        self.Debug("=== SAFETY CHECK ===")
+        
+        # Check data feeds
+        data_status = self.data_validator.get_status()
+        self.Debug(f"Data feeds: {data_status}")
+        
+        # Check margin
+        margin_status = self.margin_manager.get_margin_status()
+        self.Debug(f"Margin: {margin_status['usage_pct']:.1%} used")
+        
+        # Check correlations
+        max_corr = self.correlation_limiter.get_max_correlation()
+        self.Debug(f"Max correlation: {max_corr:.2f}")
+        
+        # Check state machines
+        state_dashboard = self.state_manager.get_dashboard()
+        self.Debug(f"Active strategies: {state_dashboard['active_strategies']}/{state_dashboard['total_strategies']}")
+        
+        # Check for stuck positions
+        for name, strategy in self.strategies.items():
+            if hasattr(strategy, 'check_health'):
+                health = strategy.check_health()
+                if not health['healthy']:
+                    self.Error(f"Strategy {name} unhealthy: {health['reason']}")
+    
+    def PersistStates(self):
+        """Persist all state machines"""
+        
+        self.state_manager.save_all_states()
+        self.Debug("States persisted to ObjectStore")
+    
+    def EndOfDayReconciliation(self):
+        """End of day reconciliation and reporting"""
+        
+        self.Debug("=== END OF DAY RECONCILIATION ===")
+        
+        # Performance summary
+        daily_pnl = self.performance_tracker.get_daily_pnl()
+        self.Debug(f"Daily P&L: ${daily_pnl:.2f}")
+        self.Debug(f"Win rate: {self.winning_trades}/{self.winning_trades + self.losing_trades}")
+        
+        # Position summary
+        open_positions = self.state_manager.get_active_strategies()
+        self.Debug(f"Open positions: {open_positions}")
+        
+        # Risk summary
+        portfolio_greeks = self.greeks_monitor.get_portfolio_greeks()
+        self.Debug(f"Portfolio Greeks: Delta={portfolio_greeks['delta']:.2f}, Gamma={portfolio_greeks['gamma']:.4f}")
+        
+        # Reset daily counters
+        self.trades_today = 0
+        self.consecutive_losses = 0 if daily_pnl > 0 else self.consecutive_losses
+        
+        # Check for phase advancement
+        self._check_phase_advancement()
+    
+    def _check_phase_advancement(self):
+        """Check if ready to advance to next phase"""
+        
+        # Simple phase advancement based on performance
+        total_trades = self.winning_trades + self.losing_trades
+        
+        if total_trades >= 20:  # Minimum trades for phase advancement
+            win_rate = self.winning_trades / total_trades if total_trades > 0 else 0
+            
+            if self.current_phase == 1 and win_rate > 0.60:
+                self.current_phase = 2
+                self.Debug("ADVANCED TO PHASE 2")
+            elif self.current_phase == 2 and win_rate > 0.65 and total_trades >= 50:
+                self.current_phase = 3
+                self.Debug("ADVANCED TO PHASE 3")
+            elif self.current_phase == 3 and win_rate > 0.70 and total_trades >= 100:
+                self.current_phase = 4
+                self.Debug("ADVANCED TO PHASE 4")
     
     def OnOrderEvent(self, orderEvent):
-        """Handle order events for tracking"""
+        """Handle order events with safety checks"""
+        
         if orderEvent.Status == OrderStatus.Filled:
-            # Track fills for performance
+            # Update trades today
+            self.trades_today += 1
+            
+            # Track performance
             symbol = orderEvent.Symbol
+            fill_price = orderEvent.FillPrice
+            quantity = orderEvent.FillQuantity
             
-            # Determine which strategy this belongs to
-            strategy_name = self.position_manager.get_strategy_for_symbol(symbol)
+            # Let performance tracker handle it
+            self.performance_tracker.record_trade(orderEvent)
             
-            if strategy_name:
-                # Record trade for performance tracking
-                if orderEvent.Direction == OrderDirection.Buy:
-                    # Opening trade
-                    self.performance_tracker.record_trade(strategy_name, 0)  # P&L calculated on close
+            # Update invested positions tracking for performance
+            if self.Portfolio[symbol].Quantity != 0:
+                self.invested_positions.add(symbol)
+            else:
+                self.invested_positions.discard(symbol)
+            
+            # Persist states on position changes (more important than time-based)
+            self.PersistStates()
+            
+            # Update consecutive losses if needed
+            if orderEvent.Direction == OrderDirection.Sell and quantity < 0:
+                # Opening position
+                pass
+            elif orderEvent.Direction == OrderDirection.Buy and quantity > 0:
+                # Closing position - check P&L
+                pnl = self.position_manager.calculate_position_pnl(symbol)
+                
+                if pnl < 0:
+                    self.consecutive_losses += 1
                 else:
-                    # Closing trade - calculate P&L
-                    if symbol in self.position_entry_dates:
-                        entry_price = self.position_entry_dates[symbol]
-                        exit_price = orderEvent.FillPrice
-                        pnl = (exit_price - entry_price) * orderEvent.FillQuantity
-                        
-                        # Record to performance tracker
-                        self.performance_tracker.record_trade(strategy_name, pnl)
-                        
-                        # Update strategy performance
-                        self.strategy_performance[strategy_name]['trades'] += 1
-                        if pnl > 0:
-                            self.strategy_performance[strategy_name]['wins'] += 1
-                            self.winning_trades += 1
-                        else:
-                            self.losing_trades += 1
-                        self.strategy_performance[strategy_name]['pnl'] += pnl
-                        
-                        # Clean up tracking
-                        del self.position_entry_dates[symbol]
+                    self.consecutive_losses = 0
     
-    def get_system_health(self) -> Dict:
-        """Get comprehensive system health status"""
-        return {
-            'timestamp': str(self.Time),
-            'phase': self.current_phase,
-            'portfolio_value': float(self.Portfolio.TotalPortfolioValue),
-            'vix': self.current_vix,
-            'vix_regime': self.vix_regime.get_regime() if hasattr(self, 'vix_regime') else 'UNKNOWN',
-            'greeks': self.portfolio_greeks,
-            'active_positions': len(self.active_positions),
-            'win_rate': self.winning_trades / max(1, self.winning_trades + self.losing_trades),
-            'total_trades': self.total_trades,
-            'strategy_performance': dict(self.strategy_performance),
-            'correlation_groups': self.correlation_limiter.get_group_usage() if hasattr(self, 'correlation_limiter') else {},
-            'health_status': 'HEALTHY'  # Would implement actual health checks
-        }
-    
-    def enhanced_log(self, message: str, level: str = "INFO", context: Dict = None):
-        """Enhanced logging with context"""
-        timestamp = self.Time.strftime('%Y-%m-%d %H:%M:%S')
+    def GetCachedOptionChain(self, symbol):
+        """Get option chain with time-based caching to avoid duplicate API calls"""
+        # Check if cache exists and is still fresh (5-minute expiry)
+        cache_duration = timedelta(minutes=5)
         
-        # Build context string
-        context_str = ""
-        if context:
-            context_items = [f"{k}={v}" for k, v in context.items()]
-            context_str = f" [{', '.join(context_items)}]"
-        
-        # Format message
-        formatted_message = f"[{timestamp}] [{level}]{context_str} {message}"
-        
-        # Log based on level
-        if level == "ERROR":
-            self.Error(formatted_message)
-        elif level == "DEBUG":
-            self.Debug(formatted_message)
-        else:
-            self.Log(formatted_message)
-    
-    def export_metrics(self):
-        """Export metrics to ObjectStore for persistence"""
-        try:
-            metrics = {
-                'timestamp': str(self.Time),
-                'performance': dict(self.strategy_performance),
-                'portfolio': {
-                    'value': float(self.Portfolio.TotalPortfolioValue),
-                    'cash': float(self.Portfolio.Cash),
-                    'invested': float(self.Portfolio.TotalHoldingsValue)
-                },
-                'greeks': self.portfolio_greeks,
-                'trades': {
-                    'total': self.total_trades,
-                    'wins': self.winning_trades,
-                    'losses': self.losing_trades
-                },
-                'health': self.get_system_health()
-            }
+        if (symbol not in self.option_chain_cache or 
+            symbol not in self.option_cache_expiry or
+            self.Time > self.option_cache_expiry[symbol]):
             
-            # Save to ObjectStore
-            metrics_json = json.dumps(metrics)
-            self.ObjectStore.Save('metrics_latest', metrics_json)
+            # Fetch fresh option chain
+            self.option_chain_cache[symbol] = self.OptionChainProvider.GetOptionContractList(symbol, self.Time)
+            self.option_cache_expiry[symbol] = self.Time + cache_duration
             
-            # Also save historical
-            history_key = f"metrics_{self.Time.strftime('%Y%m%d_%H%M%S')}"
-            self.ObjectStore.Save(history_key, metrics_json)
-            
-            return True
-            
-        except Exception as e:
-            self.enhanced_log(f"Failed to export metrics: {str(e)}", "ERROR")
-            return False
+        return self.option_chain_cache[symbol]
     
     def OnEndOfAlgorithm(self):
-        """Final reporting"""
-        final_value = self.Portfolio.TotalPortfolioValue
-        total_return = (final_value - 44450) / 44450 * 100
+        """Clean shutdown with state persistence"""
         
-        self.Log("=" * 60)
-        self.Log("TOM KING TRADING FRAMEWORK - FINAL RESULTS")
-        self.Log("=" * 60)
-        self.Log(f"Starting Capital: $44,450")
-        self.Log(f"Final Value: ${final_value:,.0f}")
-        self.Log(f"Total Return: {total_return:.2f}%")
-        self.Log(f"Target ($101,600): {'ACHIEVED' if final_value >= 101600 else f'MISSED by ${101600-final_value:,.0f}'}")
-        self.Log("")
+        self.Debug("=== ALGORITHM SHUTDOWN ===")
         
-        # Strategy breakdown
-        self.Log("STRATEGY PERFORMANCE:")
-        for strategy, perf in self.strategy_performance.items():
-            if perf['trades'] > 0:
-                win_rate = (perf['wins'] / perf['trades']) * 100
-                self.Log(f"  {strategy}: {perf['trades']} trades | {win_rate:.1f}% win | ${perf['pnl']:,.0f} P&L")
+        # Shutdown state manager
+        self.state_manager.shutdown()
         
-        # Greeks summary
-        self.Log("")
-        self.Log("FINAL GREEKS:")
-        self.Log(f"  Delta: {self.portfolio_greeks['delta']:.1f}")
-        self.Log(f"  Gamma: {self.portfolio_greeks['gamma']:.1f}")
-        self.Log(f"  Theta: ${self.portfolio_greeks['theta']:.2f}/day")
-        self.Log(f"  Vega: {self.portfolio_greeks['vega']:.1f}")
+        # Final performance report
+        self.performance_tracker.generate_final_report()
         
-        # Export final metrics
-        self.export_metrics()
+        # Save final states
+        self.PersistStates()
         
-        self.Log("=" * 60)
+        self.Debug("Shutdown complete")
