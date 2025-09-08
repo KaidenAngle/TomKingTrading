@@ -57,10 +57,11 @@ class TomKingTradingIntegrated(QCAlgorithm):
     def Initialize(self):
         """Initialize with all safety systems properly wired"""
         
-        # Core configuration
-        self.SetStartDate(2024, 1, 1)
-        self.SetEndDate(2025, 1, 1)
-        self.SetCash(100000)
+        # Core configuration - Using backtest config
+        from config.backtest_config import BacktestConfig
+        self.SetStartDate(BacktestConfig.BACKTEST_START_DATE)
+        self.SetEndDate(BacktestConfig.BACKTEST_END_DATE)
+        self.SetCash(BacktestConfig.STARTING_CASH)  # $30,000 for faster backtesting
         
         # Timezone
         self.SetTimeZone("America/New_York")
