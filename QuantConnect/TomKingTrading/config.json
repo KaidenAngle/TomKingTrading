@@ -1,0 +1,57 @@
+{
+  "algorithm-language": "Python",
+  "parameters": {
+    "use-sandbox-mirror": "false",
+    "enable-tastytrade": "true",
+    "enable-defensive-mode": "true",
+    "max-drawdown-percent": "20",
+    "starting-cash": "44500",
+    "target-monthly-return": "8.5",
+    "max-correlated-positions": "3",
+    "enable-august-2024-protection": "true"
+  },
+  "description": "Tom King Trading Framework v17 - Complete trading system with 5 core strategies",
+  "cloud-id": 24926818,
+  "local-id": 1234567890,
+  "data-folder": "data",
+  "debugging": false,
+  "debugging-method": "LocalCmdline",
+  "log-handler": "CompositeLogHandler",
+  "results-destination-folder": "backtests",
+  "send-via-api": false,
+  "job-user-id": "0",
+  "api-access-token": "",
+  "job-project-id": "0",
+  "live-mode": false,
+  "live-mode-brokerage": "QuantConnectBrokerage",
+  "setup-handler": "SetupHandler",
+  "result-handler": "BacktestingResultHandler",
+  "data-provider": "QuantConnect.Lean.Engine.DataFeeds.ApiDataProvider",
+  "transaction-handler": "BacktestingTransactionHandler",
+  "real-time-handler": "BacktestingRealTimeHandler",
+  "history-provider": "SubscriptionDataReaderHistoryProvider",
+  "environments": {
+    "backtesting": {
+      "data-folder": "data",
+      "results-destination-folder": "backtests",
+      "live-mode": false,
+      "setup-handler": "SetupHandler",
+      "result-handler": "BacktestingResultHandler",
+      "data-provider": "QuantConnect.Lean.Engine.DataFeeds.ApiDataProvider",
+      "transaction-handler": "BacktestingTransactionHandler"
+    },
+    "live-tastytrade": {
+      "live-mode": true,
+      "live-mode-brokerage": "TastyWorks",
+      "data-queue-handler": [
+        "TastyWorksDataQueueHandler"
+      ],
+      "setup-handler": "BrokerageSetupHandler",
+      "result-handler": "LiveTradingResultHandler",
+      "data-provider": "TastyWorksDataProvider",
+      "transaction-handler": "BrokerageTransactionHandler",
+      "real-time-handler": "LiveTradingRealTimeHandler",
+      "history-provider": "BrokerageHistoryProvider"
+    }
+  }
+}

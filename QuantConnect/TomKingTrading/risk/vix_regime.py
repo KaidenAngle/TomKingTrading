@@ -153,6 +153,16 @@ class VIXRegimeManager:
         if len(self.regime_history) > 252:
             self.regime_history = self.regime_history[-252:]
     
+    def get_current_vix(self):
+        """Get current VIX level"""
+        # Try to get from Securities if not updated recently
+        if self.current_vix is None and hasattr(self.algorithm, 'Securities'):
+            if "VIX" in self.algorithm.Securities:
+                self.current_vix = float(self.algorithm.Securities["VIX"].Price)
+        
+        # Return current VIX or default to normal regime (18)
+        return self.current_vix if self.current_vix is not None else 18.0
+    
     def get_current_regime(self):
         """Get current VIX regime based on latest VIX level"""
         if self.current_vix is None:

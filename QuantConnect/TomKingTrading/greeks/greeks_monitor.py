@@ -42,12 +42,14 @@ class GreeksMonitor:
         if dte <= 0:
             return {'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0, 'rho': 0}
             
-        T = dte / 365.0
+        T = max(0.001, dte / 365.0)  # Minimum 0.001 to prevent zero
         sqrt_T = np.sqrt(T)
         
         # Prevent division by zero
         if iv <= 0:
             iv = 0.20  # Default 20% IV
+        if sqrt_T <= 0:
+            sqrt_T = 0.001  # Fallback for edge case
             
         d1 = (np.log(spot / strike) + (r + 0.5 * iv ** 2) * T) / (iv * sqrt_T)
         d2 = d1 - iv * sqrt_T
@@ -331,8 +333,8 @@ class GreeksMonitor:
                     return 0.25  # 25% IV
                 else:  # Far OTM/ITM
                     return 0.30  # 30% IV
-        except:
-            pass
+        except Exception as e:
+            self.algo.Debug(f"IV estimation error: {e}")
             
         # Default IV
         return 0.20

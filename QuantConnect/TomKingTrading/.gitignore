@@ -46,3 +46,9 @@ desktop.ini
 docs/_build/
 docs/_static/
 docs/_templates/
+
+# IMPORTANT: Environment variables and credentials
+.env
+.env.local
+.env.production
+config/tastytrade_credentials.py

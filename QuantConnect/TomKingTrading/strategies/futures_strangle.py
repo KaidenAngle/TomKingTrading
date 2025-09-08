@@ -29,7 +29,9 @@ class TomKingFuturesStrangleStrategy:
         self.ENTRY_DAY = 1  # Tom King: Second Tuesday of month
         self.ENTRY_TIME = time(10, 15)  # 10:15 AM ET
         self.MANAGEMENT_DTE = 21  # Exit/roll at 21 DTE
-        self.PROFIT_TARGET = 0.50  # 50% profit target
+        # Use centralized profit target from constants
+        from config.constants import TradingConstants
+        self.PROFIT_TARGET = TradingConstants.FUTURES_STRANGLE_PROFIT_TARGET
         self.TARGET_DELTA = 0.05  # Tom King: 5-7 delta for puts, 5-6 for calls
         self.PUT_DELTA_RANGE = (0.05, 0.07)  # Put delta range
         self.CALL_DELTA_RANGE = (0.05, 0.06)  # Call delta range

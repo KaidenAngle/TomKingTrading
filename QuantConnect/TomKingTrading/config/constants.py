@@ -46,7 +46,7 @@ class TradingConstants:
     # ==================== PROFIT & LOSS TARGETS ====================
     
     # Profit Targets (as decimals)
-    FRIDAY_0DTE_PROFIT_TARGET = 0.25  # Tom King: 25% profit target
+    FRIDAY_0DTE_PROFIT_TARGET = 0.50  # Tom King: 50% profit target
     LT112_PROFIT_TARGET = 0.50  # Tom King: 50% profit target
     FUTURES_STRANGLE_PROFIT_TARGET = 0.50  # 50% profit target
     IPMCC_PROFIT_TARGET = 0.50  # 50% on short calls

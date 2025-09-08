@@ -296,10 +296,15 @@ class ManualModeFallback:
         
         # Check if algorithm is timing out
         if hasattr(self.algorithm, 'TimeLimit'):
-            # Would need actual implementation
-            pass
+            # Check if we're approaching time limit
+            elapsed = (datetime.now() - self.algorithm.StartDate).total_seconds()
+            time_limit = self.algorithm.TimeLimit.total_seconds()
             
-        return True  # Assume OK for now
+            if elapsed > time_limit * 0.95:  # Within 5% of time limit
+                self.algorithm.Error("Algorithm approaching time limit")
+                return False
+            
+        return True  # Algorithm healthy
         
     def log_current_positions(self):
         """Log all current positions for manual review"""
