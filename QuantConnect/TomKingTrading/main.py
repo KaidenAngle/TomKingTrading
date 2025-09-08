@@ -204,8 +204,13 @@ class TomKingTradingAlgorithm(QCAlgorithm):
         self.fixed_ipmcc = FixedIPMCCExecution(self, self.position_state_manager)
         self.fixed_lt112 = FixedLT112Management(self, self.position_state_manager)
         
+        # Initialize Phase-Based Greeks Limits Manager
+        from greeks.phase_based_greeks_limits import PhaseBasedGreeksLimits
+        self.phase_greeks_manager = PhaseBasedGreeksLimits(self)
+        
         self.Log("🔧 CRITICAL: Fixed multi-legged position management with sync bridge initialized")
         self.Log("🔧 CRITICAL: Fixed IPMCC and LT112 execution systems initialized")
+        self.Log("✅ Phase-Based Greeks Limits Manager initialized")
         
         # Initialize Phase 4 optimization systems
         self.option_cache = OptionChainCache(self, cache_ttl_minutes=5, max_cache_size=100)
@@ -624,7 +629,16 @@ class TomKingTradingAlgorithm(QCAlgorithm):
         if not self.IsMarketOpen("SPY"):
             return
         
-        # Get aggregated Greeks from the aggregator
+        # Check phase-based Greeks limits
+        if hasattr(self, 'phase_greeks_manager'):
+            compliant, message, details = self.phase_greeks_manager.check_greeks_compliance()
+            if not compliant:
+                self.Log(f"⚠️ GREEKS VIOLATION: {message}")
+                # Log detailed status every hour
+                if self.Time.minute == 0:
+                    self.phase_greeks_manager.log_greeks_status()
+        
+        # Get aggregated Greeks from the aggregator (legacy check)
         within_limits, violations, greeks = self.greeks_aggregator.check_greeks_limits()
         
         # Calculate portfolio-level Greeks aggregation

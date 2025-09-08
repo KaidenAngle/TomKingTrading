@@ -382,7 +382,9 @@ class PositionSizer:
         kelly = (b * p - q) / b
         
         # Conservative adjustment (use 25% of Kelly for safety)
-        return max(0.05, min(0.25, kelly * 0.25))
+        # Note: Applying single conservative factor, not double reduction
+        conservative_kelly = kelly * 0.25
+        return max(0.05, min(0.25, conservative_kelly))
     
     def _get_deployment_strategy(self, vix_regime: VIXRegime) -> str:
         """Get deployment strategy for VIX regime"""

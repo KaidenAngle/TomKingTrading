@@ -182,8 +182,8 @@ class StrategyValidator:
         current_vix = self.algo.vix_manager.get_current_vix()
         
         # Strategy-specific VIX requirements
-        if strategy == '0DTE' and current_vix > 22:  # Tom King rule
-            return False, f"VIX too high for 0DTE ({current_vix:.2f} > 22)"
+        if strategy == '0DTE' and current_vix < 22:  # Tom King rule - trade when VIX HIGH
+            return False, f"VIX too low for 0DTE ({current_vix:.2f} < 22)"
         
         if strategy == 'STRANGLE' and current_vix < 12:
             return False, f"VIX too low for strangles ({current_vix:.2f} < 12)"

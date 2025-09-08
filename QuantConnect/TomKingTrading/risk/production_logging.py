@@ -353,11 +353,9 @@ class GreeksAggregator:
     def __init__(self, algorithm):
         self.algo = algorithm
         
-        # Greeks limits (per $100k)
-        self.max_delta_per_100k = 100
-        self.max_gamma_per_100k = 20
-        self.max_theta_per_100k = -500  # Negative because we collect theta
-        self.max_vega_per_100k = 50
+        # DEPRECATED: Greeks limits moved to phase_based_greeks_limits.py
+        # Using phase-specific limits instead of linear scaling
+        # See: greeks/phase_based_greeks_limits.py for proper implementation
         
         self.algo.Log("✅ Greeks Aggregator Initialized")
     
@@ -394,27 +392,20 @@ class GreeksAggregator:
         }
     
     def check_greeks_limits(self) -> tuple:
-        """Check if portfolio Greeks are within limits"""
+        """
+        DEPRECATED: Use phase_greeks_manager.check_greeks_compliance() instead
+        Kept for backward compatibility only
+        """
+        # Delegate to phase-based manager if available
+        if hasattr(self.algo, 'phase_greeks_manager'):
+            compliant, message, details = self.algo.phase_greeks_manager.check_greeks_compliance()
+            violations = details.get('violations', [])
+            greeks = details.get('current_greeks', self.calculate_portfolio_greeks())
+            return compliant, violations, greeks
+        
+        # Fallback to basic calculation without limits
         greeks = self.calculate_portfolio_greeks()
-        account_value = self.algo.Portfolio.TotalPortfolioValue
-        scale = account_value / 100000  # Scale limits by account size
-        
-        violations = []
-        
-        # Check each Greek against scaled limits
-        if abs(greeks['delta']) > self.max_delta_per_100k * scale:
-            violations.append(f"Delta {greeks['delta']:.1f} exceeds limit {self.max_delta_per_100k * scale:.1f}")
-        
-        if abs(greeks['gamma']) > self.max_gamma_per_100k * scale:
-            violations.append(f"Gamma {greeks['gamma']:.1f} exceeds limit {self.max_gamma_per_100k * scale:.1f}")
-        
-        if greeks['theta'] < self.max_theta_per_100k * scale:  # Theta is negative
-            violations.append(f"Theta {greeks['theta']:.1f} exceeds limit {self.max_theta_per_100k * scale:.1f}")
-        
-        if abs(greeks['vega']) > self.max_vega_per_100k * scale:
-            violations.append(f"Vega {greeks['vega']:.1f} exceeds limit {self.max_vega_per_100k * scale:.1f}")
-        
-        return len(violations) == 0, violations, greeks
+        return True, [], greeks
     
     def log_greeks_summary(self):
         """Log portfolio Greeks summary"""

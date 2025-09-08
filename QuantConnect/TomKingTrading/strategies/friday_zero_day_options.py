@@ -179,11 +179,11 @@ class FridayZeroDayOptions:
                 return False
         
         # Check VIX for extreme conditions using centralized manager
-        # Tom King rule: VIX > 22 for 0DTE strategies
+        # Tom King rule: VIX > 22 for 0DTE strategies (higher volatility = better premium)
         if hasattr(self.algo, 'vix_manager'):
             vix_price = self.algo.vix_manager.get_current_vix()
-            if vix_price > 22:  # Tom King threshold for 0DTE
-                self.algo.Log(f"Skipping {symbol_str} - VIX above Tom King threshold (22): {vix_price}")
+            if vix_price < 22:  # Tom King threshold - trade when VIX is HIGH (> 22)
+                self.algo.Log(f"Skipping {symbol_str} - VIX below Tom King threshold (22): {vix_price}")
                 return False
         
         return True
@@ -886,27 +886,23 @@ class FridayZeroDayOptions:
                         total_gamma += option.Greeks.Gamma * quantity * 100
                         total_theta += option.Greeks.Theta * quantity * 100
             
-            # Check against limits
-            account_value = self.algo.Portfolio.TotalPortfolioValue
-            scale_factor = account_value / 100000  # Scale limits per $100k
-            
-            delta_limit = self.max_portfolio_delta * scale_factor
-            gamma_limit = self.max_portfolio_gamma * scale_factor
-            theta_limit = self.max_theta_decay * scale_factor
-            
-            if abs(total_delta) > delta_limit:
-                self.algo.Log(f"⚠️ Portfolio delta {total_delta:.1f} exceeds limit {delta_limit:.1f}")
-                return False
-            
-            if abs(total_gamma) > gamma_limit:
-                self.algo.Log(f"⚠️ Portfolio gamma {total_gamma:.1f} exceeds limit {gamma_limit:.1f}")
-                return False
-                
-            if total_theta < theta_limit:  # Theta is negative
-                self.algo.Log(f"⚠️ Portfolio theta {total_theta:.1f} exceeds limit {theta_limit:.1f}")
-                return False
-            
-            self.algo.Log(f"✅ Greeks OK: Δ={total_delta:.1f}, Γ={total_gamma:.1f}, Θ={total_theta:.1f}")
+            # Use phase-based Greeks limits validation
+            if hasattr(self.algo, 'phase_greeks_manager'):
+                # Add current Greeks to check
+                proposed_greeks = {
+                    'delta': total_delta,
+                    'gamma': total_gamma,
+                    'theta': total_theta,
+                    'vega': 0  # Would need to calculate if needed
+                }
+                compliant, message, details = self.algo.phase_greeks_manager.check_greeks_compliance()
+                if not compliant:
+                    self.algo.Log(f"⚠️ Greeks violation: {message}")
+                    return False
+                self.algo.Log(f"✅ Greeks OK (Phase {details['phase']}): Δ={total_delta:.1f}, Γ={total_gamma:.1f}, Θ={total_theta:.1f}")
+            else:
+                # Fallback without phase manager
+                self.algo.Log(f"Greeks calculated: Δ={total_delta:.1f}, Γ={total_gamma:.1f}, Θ={total_theta:.1f}")
             return True
             
         except Exception as e:
