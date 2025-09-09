@@ -1,9 +1,0 @@
-**/*.pyc
-.idea
-.env
-.cache*
-.DS_Store
-dist
-*.egg-info
-docs/_build
-docs/site

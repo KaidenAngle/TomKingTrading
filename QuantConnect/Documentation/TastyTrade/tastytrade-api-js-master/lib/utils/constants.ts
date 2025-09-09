@@ -1,1 +1,0 @@
-export const MinTlsVersion = 'TLSv1.2'

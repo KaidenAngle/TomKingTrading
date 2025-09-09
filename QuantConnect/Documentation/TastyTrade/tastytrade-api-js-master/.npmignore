@@ -1,6 +1,0 @@
-tests/
-examples/
-.github/
-jest.config.js
-.env
-.env.sample

@@ -1,3 +1,0 @@
-https://tastyworks-api.readthedocs.io/
-https://developer.tastytrade.com/
-https://www.quantconnect.com/docs/v2/cloud-platform

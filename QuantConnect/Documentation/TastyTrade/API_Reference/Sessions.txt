@@ -1,2 +1,0 @@
-Sessions
-Sessions are deprecated for API users. Please use Oauth2 access tokens instead. You can set up your own Oauth2 integration by following the instructions in our Oauth2 guide.
