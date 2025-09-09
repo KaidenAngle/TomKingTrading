@@ -72,7 +72,6 @@ class TransitionTrigger(Enum):
     SYSTEM_ERROR = auto()
     DATA_STALE = auto()
     EMERGENCY_EXIT = auto()
-    RESET = auto()
 
 @dataclass
 class StateContext:
@@ -241,12 +240,12 @@ class StrategyStateMachine:
         # Error recovery transition
         self.add_transition(
             StrategyState.ERROR,
-            StrategyState.READY,
+            StrategyState.IDLE,
             TransitionTrigger.RESET
         )
         
         # Suspension transitions (from operational states)
-        for state in [StrategyState.READY, StrategyState.ANALYZING, StrategyState.PENDING_ENTRY]:
+        for state in [StrategyState.IDLE, StrategyState.ANALYZING, StrategyState.PENDING_ENTRY]:
             self.add_transition(
                 state,
                 StrategyState.SUSPENDED,

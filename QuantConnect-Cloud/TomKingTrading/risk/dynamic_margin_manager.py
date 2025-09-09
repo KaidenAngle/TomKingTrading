@@ -307,10 +307,7 @@ class DynamicMarginManager(BaseComponent):
         third_friday = first_friday + timedelta(weeks=2)
         
         # Check if within 3 days of OpEx
-        # Handle datetime safely - third_friday could be datetime or date
-        third_friday_date = third_friday.date() if hasattr(third_friday, 'date') and callable(third_friday.date) else third_friday
-        check_date = date.date() if hasattr(date, 'date') and callable(date.date) else date
-        days_to_opex = abs((check_date - third_friday_date).days)
+        days_to_opex = abs((date - third_friday.date()).days)
         return days_to_opex <= 3
         
     def get_vix_level(self) -> float:

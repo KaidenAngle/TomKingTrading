@@ -279,6 +279,38 @@ class August2024CorrelationLimiter:
         
         return True
     
+    def positions_at_limit(self) -> bool:
+        """Check if any correlation groups are at their position limits"""
+        
+        # Update position tracking first
+        if hasattr(self.algorithm, 'Portfolio') and self.algorithm.Portfolio:
+            self.update_active_positions(self.algorithm.Portfolio.Values)
+        
+        # Update limits based on current account value
+        self.group_limits = self._get_dynamic_limits()
+        
+        # Check if any group is at limit
+        for group, positions in self.active_positions_by_group.items():
+            current_count = len(positions)
+            max_allowed = self.group_limits.get(group, 1)
+            
+            # During high VIX (>30), reduce all limits by 1
+            if hasattr(self.algorithm, 'vix_manager') and self.algorithm.vix_manager.current_vix:
+                if self.algorithm.vix_manager.current_vix > 30:
+                    max_allowed = max(1, max_allowed - 1)
+            
+            if current_count >= max_allowed:
+                return True
+        
+        # Check total equity exposure (A1 + A2 combined)
+        if 'A1' in self.active_positions_by_group or 'A2' in self.active_positions_by_group:
+            total_equity = len(self.active_positions_by_group.get('A1', [])) + \
+                          len(self.active_positions_by_group.get('A2', []))
+            if total_equity >= 3:  # Max 3 total equity positions
+                return True
+        
+        return False
+    
     def reset_bypass_tracking(self):
         """Reset bypass attempt tracking"""
         
