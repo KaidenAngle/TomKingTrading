@@ -265,7 +265,7 @@ class TradeExecutionLogger:
         
         for trade_id, trade in self.active_trades.items():
             unrealized = trade.get('unrealized_pnl', 0)
-            pnl_emoji = "🟢" if unrealized >= 0 else "[WARNING]"
+            pnl_emoji = "[PROFIT]" if unrealized >= 0 else "[LOSS]"
             
             summary += f"""
 {pnl_emoji} {trade['strategy']} - {trade['symbol']}
