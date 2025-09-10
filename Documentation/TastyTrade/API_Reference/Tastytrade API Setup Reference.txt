@@ -1,0 +1,979 @@
+TastyTrade API Complete Setup Reference
+Your Credentials (Store Securely!)
+const CLIENT_ID = 'bfca2bd1-b3f3-4941-b542-0267812f1b2f';
+const CLIENT_SECRET = '98911c87a7287ac6665fc96a9a467d54fd02f7ed';
+const REFRESH_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6InJ0K2p3dCIsImtpZCI6IkZqVTdUT25qVEQ2WnVySlg2cVlwWmVPbzBDQzQ5TnIzR1pUN1E4MTc0cUkiLCJqa3UiOiJodHRwczovL2ludGVyaW9yLWFwaS5hcjIudGFzdHl0cmFkZS5zeXN0ZW1zL29hdXRoL2p3a3MifQ.eyJpc3MiOiJodHRwczovL2FwaS50YXN0eXRyYWRlLmNvbSIsInN1YiI6IlUyYTUyMWEwZS0zZmNmLTQzMjgtOGI5NS02MjA1ZDY4ODUwOGUiLCJpYXQiOjE3NTY0MTE3NzcsImF1ZCI6ImJmY2EyYmQxLWIzZjMtNDk0MS1iNTQyLTAyNjc4MTJmMWIyZiIsImdyYW50X2lkIjoiRzRmMzdmMTZjLWNlYTktNDhlYi05N2FiLTA1YzI0YjdiMDQ2OCIsInNjb3BlIjoicmVhZCB0cmFkZSBvcGVuaWQifQ.bA7Mt0YbQj5aCptb3BlxD67YnzdlWysWzqGYbNChCTMV1VfmRxsQMQ7yGMcrv28izZuIihzC7_-tWKkLhxZTAw';
+Environments
+const ENVIRONMENTS = {
+  SANDBOX: {
+    API_BASE: 'https://api.cert.tastyworks.com',
+    STREAMER: 'wss://streamer.cert.tastyworks.com',
+    DXLINK: 'wss://tasty-openapi-ws.dxfeed.com/realtime'
+  },
+  PRODUCTION: {
+    API_BASE: 'https://api.tastyworks.com',
+    STREAMER: 'wss://streamer.tastyworks.com',
+    DXLINK: 'wss://tasty-openapi-ws.dxfeed.com/realtime'
+  }
+};
+
+// Start with SANDBOX, switch to PRODUCTION when ready
+const CURRENT_ENV = ENVIRONMENTS.PRODUCTION;
+1. Authentication Setup
+Generate Access Token from Refresh Token
+async function getAccessToken(refreshToken, clientSecret) {
+  const response = await fetch(`${CURRENT_ENV.API_BASE}/oauth/token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'TomKingFramework/1.0'  // Required format!
+    },
+    body: JSON.stringify({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_secret: clientSecret
+    })
+  });
+  
+  const data = await response.json();
+  return data.access_token; // Valid for 15 minutes
+}
+
+// Token refresh manager
+class TokenManager {
+  constructor(refreshToken, clientSecret) {
+    this.refreshToken = refreshToken;
+    this.clientSecret = clientSecret;
+    this.accessToken = null;
+    this.tokenExpiry = null;
+  }
+  
+  async getValidToken() {
+    const now = Date.now();
+    if (!this.accessToken || now >= this.tokenExpiry) {
+      this.accessToken = await getAccessToken(this.refreshToken, this.clientSecret);
+      this.tokenExpiry = now + (14 * 60 * 1000); // Refresh 1 minute early
+    }
+    return this.accessToken;
+  }
+}
+2. Core API Functions
+Initialize API Client
+class TastyTradeAPI {
+  constructor(tokenManager) {
+    this.tokenManager = tokenManager;
+  }
+  
+  async request(endpoint, options = {}) {
+    const token = await this.tokenManager.getValidToken();
+    const response = await fetch(`${CURRENT_ENV.API_BASE}${endpoint}`, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'User-Agent': 'TomKingFramework/1.0',
+        'Content-Type': 'application/json',
+        ...options.headers
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`API Error: ${error.error?.message || response.statusText}`);
+    }
+    
+    return response.json();
+  }
+}
+Get Account Information
+async function getAccountInfo(api) {
+  // Get customer info
+  const customer = await api.request('/customers/me');
+  
+  // Get all accounts
+  const accounts = await api.request('/customers/me/accounts');
+  
+  // Extract account numbers
+  const accountNumbers = accounts.data.items.map(item => 
+    item.account['account-number']
+  );
+  
+  return { customer, accounts, accountNumbers };
+}
+Get Account Balance & Positions
+async function getAccountStatus(api, accountNumber) {
+  // Get balance
+  const balance = await api.request(`/accounts/${accountNumber}/balances`);
+  
+  // Get positions
+  const positions = await api.request(`/accounts/${accountNumber}/positions`);
+  
+  // Get trading status
+  const status = await api.request(`/accounts/${accountNumber}/trading-status`);
+  
+  return {
+    netLiq: parseFloat(balance.data['net-liquidating-value']),
+    buyingPower: parseFloat(balance.data['derivative-buying-power']),
+    cashBalance: parseFloat(balance.data['cash-balance']),
+    positions: positions.data.items
+  };
+}
+3. Option Chains & Greeks
+Get Option Chain
+async function getOptionChain(api, symbol) {
+  // Nested format (recommended for full chain)
+  const chain = await api.request(`/option-chains/${symbol}/nested`);
+  
+  return chain.data.items[0].expirations.map(exp => ({
+    date: exp['expiration-date'],
+    dte: exp['days-to-expiration'],
+    strikes: exp.strikes.map(strike => ({
+      strike: strike['strike-price'],
+      call: strike.call,
+      put: strike.put,
+      callStreamer: strike['call-streamer-symbol'],
+      putStreamer: strike['put-streamer-symbol']
+    }))
+  }));
+}
+
+// Get specific option details
+async function getOptionDetails(api, optionSymbol) {
+  const encoded = encodeURIComponent(optionSymbol);
+  return api.request(`/instruments/equity-options/${encoded}`);
+}
+Get Live Quotes
+async function getQuotes(api, symbols) {
+  const params = new URLSearchParams();
+  
+  // Group by type
+  symbols.forEach(symbol => {
+    if (symbol.startsWith('/')) {
+      params.append('future', symbol);
+    } else if (symbol.includes(' ')) {
+      params.append('equity-option', symbol);
+    } else {
+      params.append('equity', symbol);
+    }
+  });
+  
+  return api.request(`/market-data/by-type?${params}`);
+}
+4. Real-Time Data Streaming (DXLink)
+Get Quote Token
+async function getQuoteToken(api) {
+  const response = await api.request('/api-quote-tokens');
+  return {
+    token: response.data.token,
+    url: response.data['dxlink-url']
+  };
+}
+DXLink WebSocket Setup
+class DXLinkStreamer {
+  constructor(url, token) {
+    this.url = url;
+    this.token = token;
+    this.ws = null;
+    this.channel = 3;
+    this.keepaliveInterval = null;
+  }
+  
+  async connect() {
+    this.ws = new WebSocket(this.url);
+    
+    return new Promise((resolve, reject) => {
+      this.ws.onopen = () => {
+        this.setup();
+        resolve();
+      };
+      
+      this.ws.onerror = reject;
+      
+      this.ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        this.handleMessage(data);
+      };
+    });
+  }
+  
+  setup() {
+    // 1. SETUP
+    this.send({
+      type: 'SETUP',
+      channel: 0,
+      version: '0.1-DXF-JS/0.3.0',
+      keepaliveTimeout: 60,
+      acceptKeepaliveTimeout: 60
+    });
+  }
+  
+  handleMessage(data) {
+    switch(data.type) {
+      case 'SETUP':
+        this.authorize();
+        break;
+        
+      case 'AUTH_STATE':
+        if (data.state === 'AUTHORIZED') {
+          this.openChannel();
+          this.startKeepalive();
+        }
+        break;
+        
+      case 'CHANNEL_OPENED':
+        this.setupFeed();
+        break;
+        
+      case 'FEED_CONFIG':
+        // Ready to subscribe
+        this.onReady();
+        break;
+        
+      case 'FEED_DATA':
+        this.onData(data.data);
+        break;
+    }
+  }
+  
+  authorize() {
+    this.send({
+      type: 'AUTH',
+      channel: 0,
+      token: this.token
+    });
+  }
+  
+  openChannel() {
+    this.send({
+      type: 'CHANNEL_REQUEST',
+      channel: this.channel,
+      service: 'FEED',
+      parameters: { contract: 'AUTO' }
+    });
+  }
+  
+  setupFeed() {
+    this.send({
+      type: 'FEED_SETUP',
+      channel: this.channel,
+      acceptAggregationPeriod: 0.1,
+      acceptDataFormat: 'COMPACT',
+      acceptEventFields: {
+        Trade: ['eventType', 'eventSymbol', 'price', 'dayVolume', 'size'],
+        Quote: ['eventType', 'eventSymbol', 'bidPrice', 'askPrice', 'bidSize', 'askSize'],
+        Greeks: ['eventType', 'eventSymbol', 'volatility', 'delta', 'gamma', 'theta', 'rho', 'vega'],
+        Summary: ['eventType', 'eventSymbol', 'openInterest', 'dayOpenPrice', 'dayHighPrice', 'dayLowPrice', 'prevDayClosePrice']
+      }
+    });
+  }
+  
+  subscribe(symbols, events = ['Quote', 'Greeks']) {
+    const subscriptions = [];
+    symbols.forEach(symbol => {
+      events.forEach(type => {
+        subscriptions.push({ type, symbol });
+      });
+    });
+    
+    this.send({
+      type: 'FEED_SUBSCRIPTION',
+      channel: this.channel,
+      reset: true,
+      add: subscriptions
+    });
+  }
+  
+  startKeepalive() {
+    this.keepaliveInterval = setInterval(() => {
+      this.send({ type: 'KEEPALIVE', channel: 0 });
+    }, 30000);
+  }
+  
+  send(message) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(message));
+    }
+  }
+  
+  disconnect() {
+    if (this.keepaliveInterval) {
+      clearInterval(this.keepaliveInterval);
+    }
+    if (this.ws) {
+      this.ws.close();
+    }
+  }
+}
+5. Order Submission
+Submit Order JSON Structure
+// Credit Spread Example (ES Friday 0DTE)
+async function submitCreditSpread(api, accountNumber, strikes, credit) {
+  const order = {
+    'time-in-force': 'Day',
+    'order-type': 'Limit',
+    'price': credit.toFixed(2),  // Credit as positive number
+    'price-effect': 'Credit',
+    'legs': [
+      {
+        'instrument-type': 'Future Option',
+        'symbol': `./ESZ4 EW4Z4 241227C${strikes.short}`,
+        'quantity': 1,
+        'action': 'Sell to Open'
+      },
+      {
+        'instrument-type': 'Future Option', 
+        'symbol': `./ESZ4 EW4Z4 241227C${strikes.long}`,
+        'quantity': 1,
+        'action': 'Buy to Open'
+      }
+    ]
+  };
+  
+  // Dry run first
+  const dryRun = await api.request(`/accounts/${accountNumber}/orders/dry-run`, {
+    method: 'POST',
+    body: JSON.stringify(order)
+  });
+  
+  // Check buying power effect
+  if (dryRun.data['buying-power-effect']['change-in-buying-power'] < 0) {
+    // Actually submit
+    return api.request(`/accounts/${accountNumber}/orders`, {
+      method: 'POST',
+      body: JSON.stringify(order)
+    });
+  }
+}
+
+// Naked Put Example
+async function submitNakedPut(api, accountNumber, symbol, strike, credit) {
+  const order = {
+    'time-in-force': 'GTC',
+    'order-type': 'Limit',
+    'price': credit.toFixed(2),
+    'price-effect': 'Credit',
+    'legs': [{
+      'instrument-type': 'Equity Option',
+      'symbol': symbol,  // e.g., 'SPY   240531P00450000'
+      'quantity': 1,
+      'action': 'Sell to Open'
+    }]
+  };
+  
+  return api.request(`/accounts/${accountNumber}/orders`, {
+    method: 'POST',
+    body: JSON.stringify(order)
+  });
+}
+Manage Orders
+// Get open orders
+async function getOpenOrders(api, accountNumber) {
+  return api.request(`/accounts/${accountNumber}/orders/live`);
+}
+
+// Cancel order
+async function cancelOrder(api, accountNumber, orderId) {
+  return api.request(`/accounts/${accountNumber}/orders/${orderId}`, {
+    method: 'DELETE'
+  });
+}
+
+// Replace order (modify)
+async function replaceOrder(api, accountNumber, orderId, newOrder) {
+  return api.request(`/accounts/${accountNumber}/orders/${orderId}`, {
+    method: 'PUT',
+    body: JSON.stringify(newOrder)
+  });
+}
+6. Account Streamer (Order Updates)
+class AccountStreamer {
+  constructor(url, token) {
+    this.ws = new WebSocket(url);
+    this.token = token;
+    this.heartbeatInterval = null;
+  }
+  
+  connect(accountNumbers) {
+    return new Promise((resolve) => {
+      this.ws.onopen = () => {
+        // Subscribe to accounts
+        this.send({
+          action: 'connect',
+          value: accountNumbers,
+          'auth-token': this.token,
+          'request-id': 1
+        });
+        
+        // Start heartbeat
+        this.heartbeatInterval = setInterval(() => {
+          this.send({
+            action: 'heartbeat',
+            'auth-token': this.token
+          });
+        }, 10000);
+        
+        resolve();
+      };
+      
+      this.ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'Order') {
+          this.onOrderUpdate(data.data);
+        } else if (data.type === 'Position') {
+          this.onPositionUpdate(data.data);
+        }
+      };
+    });
+  }
+  
+  send(data) {
+    this.ws.send(JSON.stringify(data));
+  }
+  
+  disconnect() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+    this.ws.close();
+  }
+}
+7. Integration with Tom King Framework
+Complete API Integration
+class TomKingAPIIntegration {
+  constructor(clientSecret, refreshToken) {
+    this.tokenManager = new TokenManager(refreshToken, clientSecret);
+    this.api = new TastyTradeAPI(this.tokenManager);
+    this.dxlink = null;
+    this.accountStreamer = null;
+    this.accountNumber = null;
+  }
+  
+  async initialize() {
+    // Get account info
+    const { accountNumbers } = await getAccountInfo(this.api);
+    this.accountNumber = accountNumbers[0];
+    
+    // Get initial account status
+    const status = await getAccountStatus(this.api, this.accountNumber);
+    
+    // Setup quote streaming
+    const { token, url } = await getQuoteToken(this.api);
+    this.dxlink = new DXLinkStreamer(url, token);
+    await this.dxlink.connect();
+    
+    // Setup account streaming
+    const accessToken = await this.tokenManager.getValidToken();
+    this.accountStreamer = new AccountStreamer(CURRENT_ENV.STREAMER, accessToken);
+    await this.accountStreamer.connect(accountNumbers);
+    
+    return status;
+  }
+  
+  async execute0DTE(direction, strikes) {
+    // Tom King's 0DTE strategy
+    const symbol = await this.getESFridayOption();
+    const credit = 5.00; // $500 credit target
+    
+    return submitCreditSpread(
+      this.api,
+      this.accountNumber,
+      strikes,
+      credit
+    );
+  }
+  
+  async executeLT112(putStrike, hedgeStrike) {
+    // Long-term 112 strategy
+    const exp = this.get120DTEExpiration();
+    // Implementation here
+  }
+  
+  async getVIX() {
+    const quote = await getQuotes(this.api, ['VIX']);
+    return parseFloat(quote.data.items[0].last);
+  }
+  
+  async getPositionGreeks() {
+    const positions = await this.api.request(`/accounts/${this.accountNumber}/positions`);
+    const optionSymbols = positions.data.items
+      .filter(p => p['instrument-type'] === 'Equity Option')
+      .map(p => p['streamer-symbol']);
+    
+    // Subscribe to Greeks
+    this.dxlink.subscribe(optionSymbols, ['Greeks']);
+    
+    // Return stream handler
+    return (callback) => {
+      this.dxlink.onData = (data) => {
+        if (data[0] === 'Greeks') {
+          callback(data[1]);
+        }
+      };
+    };
+  }
+}
+8. Helper Functions
+Date/Expiration Utilities
+// Get next Friday expiration for 0DTE
+function getNextFriday() {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const daysUntilFriday = (5 - dayOfWeek + 7) % 7 || 7;
+  const friday = new Date(now);
+  friday.setDate(now.getDate() + daysUntilFriday);
+  return friday.toISOString().split('T')[0].replace(/-/g, '').slice(2);
+}
+
+// Get 45 DTE monthly expiration
+function get45DTEExpiration() {
+  const target = new Date();
+  target.setDate(target.getDate() + 45);
+  // Find third Friday of that month
+  const month = target.getMonth();
+  const year = target.getFullYear();
+  const firstDay = new Date(year, month, 1);
+  const firstFriday = new Date(year, month, 1 + (5 - firstDay.getDay() + 7) % 7);
+  const thirdFriday = new Date(firstFriday);
+  thirdFriday.setDate(firstFriday.getDate() + 14);
+  return thirdFriday.toISOString().split('T')[0].replace(/-/g, '').slice(2);
+}
+Symbol Conversion
+// Convert option symbol formats
+function occToStreamerSymbol(occSymbol) {
+  // OCC: 'SPY   240531P00450000'
+  // Streamer: '.SPY240531P450'
+  const parts = occSymbol.trim().split(/\s+/);
+  const underlying = parts[0];
+  const contract = parts[1];
+  const date = contract.slice(0, 6);
+  const type = contract[6];
+  const strike = parseInt(contract.slice(7)) / 1000;
+  return `.${underlying}${date}${type}${strike}`;
+}
+9. Error Handling
+class APIError extends Error {
+  constructor(message, code, details) {
+    super(message);
+    this.code = code;
+    this.details = details;
+  }
+}
+
+async function safeAPICall(fn, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (error.code === 401) {
+        // Token expired, will auto-refresh on next call
+        continue;
+      }
+      if (error.code === 429) {
+        // Rate limited, wait and retry
+        await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+        continue;
+      }
+      if (i === retries - 1) throw error;
+    }
+  }
+}
+10. SDK Options & Implementation Patterns
+JavaScript SDK (@tastytrade/api)
+npm install @tastytrade/api
+# or
+yarn add @tastytrade/api
+Advantages:
+•	Pre-built service classes
+•	Automatic token management
+•	TypeScript support
+•	WebSocket helpers
+SDK Pattern:
+import TastytradeClient from '@tastytrade/api';
+
+const client = new TastytradeClient({
+  baseUrl: 'https://api.tastyworks.com',
+  accountStreamerUrl: 'wss://streamer.tastyworks.com'
+});
+
+// Using OAuth2 (recommended for our use case)
+const session = await client.sessionService.loginWithRefreshToken(
+  REFRESH_TOKEN, 
+  CLIENT_SECRET
+);
+
+// Get accounts
+const accounts = await client.accountsAndCustomersService.getCustomerAccounts();
+
+// Get positions
+const positions = await client.balancesAndPositionsService.getPositionsList(
+  accounts[0].account['account-number']
+);
+
+// Submit order using SDK
+const order = await client.orderService.submitOrder(
+  accountNumber,
+  orderPayload
+);
+Python SDK (tastytrade)
+pip install tastytrade
+Python Implementation Pattern:
+from tastytrade import Session, Account, DXLinkStreamer
+from tastytrade.instruments import Equity, FutureOption
+from tastytrade.order import NewOrder, OrderAction, OrderTimeInForce, OrderType
+from decimal import Decimal
+
+# OAuth2 session
+session = Session.from_refresh_token(REFRESH_TOKEN, CLIENT_SECRET)
+
+# Get account
+account = Account.get(session, account_number)
+
+# Build 0DTE credit spread
+future_option = FutureOption.get(session, './ESZ4 EW4Z4 241227C5500')
+legs = [
+    future_option.build_leg(Decimal(1), OrderAction.SELL_TO_OPEN),
+    FutureOption.get(session, './ESZ4 EW4Z4 241227C5530').build_leg(
+        Decimal(1), OrderAction.BUY_TO_OPEN
+    )
+]
+
+order = NewOrder(
+    time_in_force=OrderTimeInForce.DAY,
+    order_type=OrderType.LIMIT,
+    legs=legs,
+    price=Decimal('5.00')  # $500 credit
+)
+
+# Dry run
+response = account.place_order(session, order, dry_run=True)
+print(f"BP Effect: {response.buying_power_effect.change_in_buying_power}")
+DXLink Streaming (@dxfeed/dxlink-api)
+npm install @dxfeed/dxlink-api
+Recommended Pattern for Market Data:
+const { DXLinkWebSocketClient, DXLinkFeed, FeedDataFormat } = require('@dxfeed/dxlink-api');
+
+// Initialize with token from TastyTrade
+const client = new DXLinkWebSocketClient();
+await client.connect('wss://tasty-openapi-ws.dxfeed.com/realtime');
+client.setAuthToken(apiQuoteToken);
+
+const feed = new DXLinkFeed(client, 'AUTO');
+
+// Configure for options Greeks
+feed.configure({
+  acceptAggregationPeriod: 10,
+  acceptDataFormat: FeedDataFormat.COMPACT,
+  acceptEventFields: {
+    Quote: ['eventSymbol', 'bidPrice', 'askPrice', 'bidSize', 'askSize'],
+    Greeks: ['eventSymbol', 'delta', 'gamma', 'theta', 'vega', 'volatility']
+  }
+});
+
+// Subscribe to positions
+feed.addSubscriptions({
+  type: 'Greeks',
+  symbol: streamerSymbol  // Use streamer-symbol from API
+});
+11. Quick Start Example
+async function quickStart() {
+  // Initialize
+  const integration = new TomKingAPIIntegration(CLIENT_SECRET, REFRESH_TOKEN);
+  const accountStatus = await integration.initialize();
+  
+  console.log('Account Status:', {
+    netLiq: accountStatus.netLiq,
+    buyingPower: accountStatus.buyingPower,
+    positions: accountStatus.positions.length
+  });
+  
+  // Get SPY option chain
+  const chain = await getOptionChain(integration.api, 'SPY');
+  console.log('Available expirations:', chain.map(exp => `${exp.date} (${exp.dte} DTE)`));
+  
+  // Subscribe to real-time quotes
+  integration.dxlink.onReady = () => {
+    integration.dxlink.subscribe(['SPY', '/ES', 'VIX'], ['Quote']);
+  };
+  
+  integration.dxlink.onData = (data) => {
+    console.log('Market Data:', data);
+  };
+  
+  // Monitor orders
+  integration.accountStreamer.onOrderUpdate = (order) => {
+    console.log('Order Update:', order.status, order.id);
+  };
+}
+
+// Run it
+quickStart().catch(console.error);
+12. SDK vs Raw API Comparison
+Feature	Raw API	JavaScript SDK	Python SDK
+Setup Complexity	High	Medium	Low
+Token Management	Manual	Semi-Auto	Automatic
+Type Safety	None	TypeScript	Type Hints
+WebSocket Support	Manual	Built-in	Built-in
+Order Building	JSON	Objects	Objects
+Error Handling	Manual	Partial	Comprehensive
+Symbol Conversion	Manual	Manual	Some helpers
+Greeks Streaming	DXLink	DXLink	DXLinkStreamer
+Best For	Custom/Framework	Web Apps	Scripts/Bots
+When to Use Each:
+•	Raw API: Framework integration, custom error handling, full control
+•	JavaScript SDK: React/Node apps, TypeScript projects
+•	Python SDK: Backtesting, analysis scripts, trading bots
+•	DXLink Direct: High-frequency quote updates, custom streaming
+Important Notes
+1.	API Limits:
+o	120 requests per minute
+o	Quote tokens valid for 24 hours
+o	Access tokens valid for 15 minutes
+2.	Required Headers:
+o	User-Agent: Must be in format Product/Version
+o	Authorization: Bearer <token>
+o	Content-Type: application/json
+3.	Symbol Formats:
+o	Equities: AAPL, SPY
+o	Equity Options: SPY 240531P00450000 (OCC format)
+o	Futures: /ES, /CL
+o	Future Options: ./ESZ4 EW4Z4 241227C5500
+4.	Order Actions:
+o	Buy to Open - Open long position
+o	Sell to Open - Open short position
+o	Buy to Close - Close short position
+o	Sell to Close - Close long position
+5.	Testing:
+o	Always use sandbox first
+o	Test with dry_run=true before real orders
+o	Market orders fill at $1 in sandbox
+o	Limit orders ≤$3 fill immediately in sandbox
+13. Tom King Strategy API Implementations
+Quick Strategy Execution Templates
+// 0DTE: Check time, direction, build spread (details in PDF pages 24-26)
+async function execute0DTE(api, accountNumber) {
+  const hour = new Date().getHours();
+  if (hour < 10 || (hour === 10 && new Date().getMinutes() < 30)) {
+    return { error: 'Before 10:30 AM restriction' };
+  }
+  // See PDF for complete strike selection rules
+  return build0DTESpread(api, accountNumber);
+}
+
+// LT112: First Wednesday, 120 DTE (details in PDF pages 26-27)
+async function executeLT112(api, accountNumber) {
+  const today = new Date();
+  if (today.getDay() !== 3 || today.getDate() > 7) {
+    return { error: 'First Wednesday only' };
+  }
+  // See PDF for complete structure
+  return buildLT112Complex(api, accountNumber);
+}
+
+// Position sizing by VIX (complete table in PDF page 11-12)
+async function getPositionSize(api, strategy) {
+  const vix = await api.getQuote('VIX');
+  // See PDF for complete VIX regime tables and BP limits
+  return calculateByVIXRegime(vix, strategy);
+}
+
+## 14. Emergency Protocols & Fallbacks
+
+### API Failure Handling
+```javascript
+class APIFailureHandler {
+  constructor() {
+    this.failureCount = 0;
+    this.lastFailure = null;
+    this.fallbackMode = false;
+  }
+  
+  async handleFailure(error, context) {
+    this.failureCount++;
+    this.lastFailure = Date.now();
+    
+    // Log critical information
+    console.error(`API Failure #${this.failureCount}:`, {
+      context,
+      error: error.message,
+      code: error.code,
+      time: new Date().toISOString()
+    });
+    
+    // Emergency actions by error type
+    switch(error.code) {
+      case 401: // Authentication failure
+        return this.handleAuthFailure();
+        
+      case 429: // Rate limited
+        return this.handleRateLimit();
+        
+      case 500: // Server error
+      case 502: // Bad gateway
+      case 503: // Service unavailable
+        return this.handleServerError();
+        
+      case 'ENOTFOUND':
+      case 'ETIMEDOUT':
+        return this.handleNetworkError();
+        
+      default:
+        return this.handleUnknownError(error);
+    }
+  }
+  
+  async handleAuthFailure() {
+    // Try to refresh token
+    // If fails, switch to manual mode
+    return {
+      action: 'SWITCH_TO_MANUAL',
+      message: 'Authentication failed - switching to manual mode',
+      instructions: 'Please re-enter credentials or use manual data entry'
+    };
+  }
+  
+  async handleServerError() {
+    // After 3 failures, switch to manual
+    if (this.failureCount >= 3) {
+      this.fallbackMode = true;
+      return {
+        action: 'EMERGENCY_MANUAL_MODE',
+        message: 'TastyTrade API unavailable - emergency manual mode',
+        instructions: 'Use manual data entry until service restored'
+      };
+    }
+    
+    // Wait and retry
+    await new Promise(r => setTimeout(r, 5000 * this.failureCount));
+    return { action: 'RETRY' };
+  }
+}
+Data Synchronization Patterns
+class DataSynchronizer {
+  constructor(api) {
+    this.api = api;
+    this.lastSync = {};
+    this.syncInterval = 5000; // 5 seconds
+  }
+  
+  async syncPositions() {
+    try {
+      const positions = await this.api.getPositions();
+      
+      // Detect changes
+      const changes = this.detectChanges(this.lastSync.positions, positions);
+      
+      if (changes.length > 0) {
+        console.log('Position changes detected:', changes);
+        
+        // Check for assignment risk
+        changes.forEach(change => {
+          if (change.type === 'SHORT_OPTION' && change.dte < 1) {
+            this.alertAssignmentRisk(change);
+          }
+        });
+      }
+      
+      this.lastSync.positions = positions;
+      this.lastSync.time = Date.now();
+      
+      return positions;
+    } catch (error) {
+      // Use last known good data
+      return this.lastSync.positions || [];
+    }
+  }
+  
+  detectChanges(oldPositions = [], newPositions = []) {
+    const changes = [];
+    
+    // Find new positions
+    newPositions.forEach(newPos => {
+      const oldPos = oldPositions.find(p => p.symbol === newPos.symbol);
+      if (!oldPos) {
+        changes.push({ type: 'NEW', position: newPos });
+      } else if (oldPos.quantity !== newPos.quantity) {
+        changes.push({ type: 'QUANTITY_CHANGE', position: newPos, old: oldPos });
+      }
+    });
+    
+    // Find closed positions
+    oldPositions.forEach(oldPos => {
+      if (!newPositions.find(p => p.symbol === oldPos.symbol)) {
+        changes.push({ type: 'CLOSED', position: oldPos });
+      }
+    });
+    
+    return changes;
+  }
+}
+15. Testing Procedures for Tom King Strategies
+Test Scenarios
+const testScenarios = {
+  // 0DTE Tests
+  '0DTE_BEFORE_1030': {
+    time: '09:30',
+    expected: 'BLOCKED',
+    reason: 'Before 10:30 AM restriction'
+  },
+  '0DTE_TRENDING_UP': {
+    time: '10:31',
+    esMove: '+0.8%',
+    expected: 'CALL_SPREAD',
+    strikes: 'ATM+30/ATM+60'
+  },
+  '0DTE_FLAT': {
+    time: '10:31',
+    esMove: '+0.2%',
+    expected: 'IRON_CONDOR'
+  },
+  
+  // VIX Regime Tests
+  'VIX_LOW': {
+    vix: 11,
+    expected: 'REDUCED_SIZE',
+    bpLimit: '45%'
+  },
+  'VIX_SPIKE': {
+    vix: 35,
+    expected: 'PUTS_ONLY',
+    bpLimit: '80%'
+  },
+  
+  // Correlation Tests
+  'CORRELATION_BREACH': {
+    positions: ['ES', 'MES', 'SPY'],
+    expected: 'BLOCKED',
+    reason: 'Group A1 at limit (2)'
+  },
+  
+  // August 5 Scenario
+  'AUGUST_5_RECREATION': {
+    positions: Array(6).fill('LT112'),
+    vixSpike: 65,
+    expected: 'CATASTROPHIC_LOSS',
+    lesson: 'Never exceed 3 correlated positions'
+  }
+};
+
+// Run tests
+async function runTestSuite(api) {
+  const results = [];
+  
+  for (const [name, scenario] of Object.entries(testScenarios)) {
+    const result = await testScenario(api, scenario);
+    results.push({
+      name,
+      passed: result.actual === scenario.expected,
+      details: result
+    });
+  }
+  
+  return results;
+}
+Next Steps
+1.	Test authentication with your credentials
+2.	Verify account access and permissions
+3.	Test quote streaming with a few symbols
+4.	Practice order submission in sandbox
+5.	Integrate position monitoring
+6.	Add to Tom King framework execution logic
+

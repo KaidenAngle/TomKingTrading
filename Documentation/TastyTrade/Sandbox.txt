@@ -1,0 +1,34 @@
+Sandbox Environment
+The base url for all sandbox api endpoints is api.cert.tastyworks.com
+The websocket url for account streamer updates is streamer.cert.tastyworks.com
+Orders in the sandbox environment all remain within the sandbox system. They never go to a real market.
+Orders statuses in the sandbox system are all determined by the order type and order price. The logic is as follows:
+Market orders will always fill at a price of $1.
+Limit orders with a price <= $3 will fill immediately.
+Limit orders with a price between >= $3 will be Live and never fill.
+Please note our Sandbox Environment instrumentation sometimes lags behind our live trading environment, which occasionally causes valid symbols to fail with 422 error codes. If you experience this please send a message to api.support@tastytrade.com and we will correct them right away.
+
+Not every service is available in our sandbox environment. The following services are only available in our live trading system currently:
+
+Symbol search
+Net liquidating value history
+Market metrics
+Market data
+OAuth2 in Sandbox
+
+OAuth2 is supported in the Sandbox environment. Please use the tools at the bottom of the page to create and manage your personal application once you have logged in with your Sandbox user. If you lose your client secret you will need to regenerate it as it will only be shown once after creating the initial application.
+
+You are logged in as kaiden.angle@gmail.com
+Sign Out
+Customer Info:
+Kaiden Angle
+Delete
+Please note: Deleting a sandbox customer will also delete their sandbox accounts.
+Add New Account
+OAuth2 Application:
+Name: kaidenangle Personal OAuth2 App
+Scopes: read,trade,openid
+Client ID: d99becce-b939-450c-9133-c8ecb2e096b1
+Redirect URIs: None
+⚠️ Make sure to copy and store the Client Secret somewhere safe. The Client Secret cannot be viewed again. If you lose it, you will need to regenerate it!
+Client Secret: 20a9d42f0fa920704773a358a098a022212302c5

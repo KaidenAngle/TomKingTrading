@@ -1,0 +1,85 @@
+Oauth2
+Tastytrade uses the code flow of OAuth2. After performing authorization, the access token is sent with every request in the Authorization header with Bearer preceding the token. 
+
+Register with tastytrade
+Customers can create their own OAuth2 client on my.tastytrade.com by accessing the Manage tab > My Profile > API > OAuth Applications
+
+Click + New OAuth client.
+Client Name will be populated with your tastytrade username
+You will then fill out the following items:
+Redirect URI per environment requested
+Multiple URIs can be sent
+These must be full URIs. https://www.my-redirect-uri.com is valid but my-redirect.com is not.
+Scopes requested
+Valid values: read, trade, openid
+Click Create
+Upon creating your application you will be presented with your Client ID and Client Secret. These should be stored securely before clicking Finish Setup.
+
+Please Note: Your client secret is a value that can only be shared one time. It is crucial to store it securely upon receipt from tastytrade as it cannot be shared again without creating new credentials. If you do need to create a new client secret, use the Regenerate button at the top of the page. This will invalidate any active grants you may have.
+
+Authorize with tastytrade
+tastytrade supports the authorization code grant OAuth2 flow. After registering your application with tastytrade, you can direct users to authorize your application at https://my.tastytrade.com/auth.html (Sandbox: https://cert-my.staging-tasty.works/auth.html) with the following parameters:
+
+client_id - required
+redirect_uri - required
+response_type - required
+scope - optional
+state - optional
+See the OAuth2 spec for more information: https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.1.
+
+The screenshot below is what users will see when directed to my.tastytrade.com/auth.html:
+
+Upon successful authorization, the page will redirect users back to the provided redirect_uri with the following query parameters:
+
+code - authorization code
+state
+See the OAuth2 spec for more information: https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.
+
+Personal Oauth2 Applications
+Tastytrade makes it easy for you to generate an Oauth2 grant for your own personal application so that you don't have to go through the entire authorization flow.
+
+To generate a grant, head to my.tastytrade.com by accessing the Manage tab > My Profile > API > OAuth Applications. This will display your personal application with a "Manage" button on the right. Click Manage, then click "Create Grant." This will show you your grant's refresh token, which you should use to generate an access token.
+
+
+
+Request an Access Token
+Upon obtaining an authorization code, clients must request an access token by hitting tastytrade's token endpoint: POST https://api.tastyworks.com/oauth/token (Sandbox: https://api.cert.tastyworks.com/oauth/token). The following parameters are required:
+
+grant_type - authorization_code
+code - the authorization code sent to the redirect uri
+client_id
+client_secret
+redirect_uri
+See the OAuth2 spec for more information: https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3.
+
+The response will include the following data:
+
+access_token - the token to be sent in each subsequent request in the Authorization header
+refresh_token - never expires
+token_type - Bearer
+expires_in - The number of seconds the access token will be valid
+id_token - only returned if using the openid scope
+See the OAuth2 spec for more information: https://datatracker.ietf.org/doc/html/rfc6749#section-5.1.
+
+Refresh an Access Token
+You can make a refresh token request at this endpoint: POST https://api.tastyworks.com/oauth/token (Sandbox: https://api.cert.tastyworks.com/oauth/token). The following parameters are required:
+
+grant_type - refresh_token
+refresh_token
+client_secret
+See the OAuth2 spec for more information: https://datatracker.ietf.org/doc/html/rfc6749#section-6.
+
+The response will include a new access_token.
+
+Please Note: Refresh tokens are long-lived and do not expire. If you lose your refresh token or if it becomes compromised, please reach out to tastytrade API support immediately.
+
+Two Factor Authentication - 2FA
+For sensitive scopes, tastytrade is requiring customers to use two factor authentication (2FA) in order to grant an application access to their account. Sensitive scopes currently include:
+
+read
+trade
+In order to enable 2FA, a customer must navigate to My Profile | Security and enable either Authenticator App or SMS Authentication.
+
+
+
+During the ‘Authorize with tastytrade’ step, after entering your tastytrade account credentials and clicking ‘Login’ the customer will be prompted to enter their 2FA code either sent via SMS or on the Authenticator App they have set up.

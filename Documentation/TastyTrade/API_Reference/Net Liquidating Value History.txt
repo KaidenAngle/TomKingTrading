@@ -1,0 +1,30 @@
+OpenAPI definition
+ v0 
+OAS3
+Servers
+
+http://localhost:8080 - Generated server url
+Filter by tag
+net-liq-controller
+
+
+GET
+/accounts/{accountNumber}/net-liq/history
+Get net-liq history for account
+
+Schemas
+NetLiqOhlc{
+open	number($double)
+high	number($double)
+low	number($double)
+close	number($double)
+totalOpen	number($double)
+totalHigh	number($double)
+totalLow	number($double)
+totalClose	number($double)
+pendingCashOpen	number($double)
+pendingCashHigh	number($double)
+pendingCashLow	number($double)
+pendingCashClose	number($double)
+time	string
+}

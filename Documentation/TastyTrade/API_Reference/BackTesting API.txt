@@ -1,0 +1,108 @@
+Backtesting API
+ 1.0.0 
+OAS3
+tastytrade options backtester
+
+Servers
+
+https://backtester.vast.tastyworks.com - Backtester API
+Filter by tag
+default
+
+
+POST
+/sessions
+Create backtester session
+
+DELETE
+/sessions
+Invalidate backtester session
+
+POST
+/backtests
+Create backtest
+
+GET
+/backtests/{id}
+Get backtest
+
+GET
+/backtests/{id}/logs
+Get backtest Logs
+
+POST
+/backtests/{id}/cancel
+Cancel backtest
+
+GET
+/backtests/const/available-dates
+Available historical date ranges
+
+Schemas
+BacktestPost{
+symbol	string
+startDate	string($date)
+endDate	string($date)
+legs	[...]
+entryConditions	{...}
+exitConditions	{...}
+}
+BacktestGet{
+id	string
+symbol	string
+startDate	string($date)
+endDate	string($date)
+legs	[...]
+entryConditions	{...}
+exitConditions	{...}
+ETA	number
+progress	number
+status	string
+oneOf: List [ OrderedMap { "title": "Pending", "const": "pending" }, OrderedMap { "title": "Running", "const": "running" }, OrderedMap { "title": "Completed", "const": "completed" } ]
+statistics	[...]
+trials	[...]
+snapshots	[...]
+notices	[...]
+}
+Snapshot{
+dateTime	string
+profitLoss	number
+underlyingPrice	number
+}
+Trial{
+openDateTime	string
+closeDateTime	string
+profitLoss	number
+}
+Leg{
+direction	string
+oneOf: List [ OrderedMap { "title": "Buy", "const": "buy" }, OrderedMap { "title": "Sell", "const": "sell" } ]
+side	integer
+oneOf: List [ OrderedMap { "title": "None,", "const": 0 }, OrderedMap { "title": "Call,", "const": 1 }, OrderedMap { "title": "Put,", "const": 2 } ]
+quantity	integer
+delta	integer
+daysUntilExpiration	integer
+}
+EntryConditions{
+frequency	stringnull
+oneOf: List [ OrderedMap { "title": "Every day", "const": "every day" }, OrderedMap { "title": "On specific days", "const": "on specific days of the week" }, OrderedMap { "title": "On exact days", "const": "on exact days to expiration match" } ]
+specificDays	arraynull
+items: OrderedMap { "type": "integer" }
+maximumActiveTrials	integernull
+maximumActiveTrialsBehavior	stringnull
+oneOf: List [ OrderedMap { "title": "Don't enter", "const": "don't enter" }, OrderedMap { "title": "Close oldest", "const": "close oldest" } ]
+minimumVIX	integernull
+maximumVIX	integernull
+}
+ExitConditions{
+takeProfitPercentage	integernull
+stopLossPercentage	integernull
+afterDaysInTrade	integernull
+atDaysToExpiration	integernull
+minimumVIX	integernull
+}
+AvailableSymbolDates{
+symbol	string
+startDate	string
+endDate	string
+}
