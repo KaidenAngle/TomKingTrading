@@ -12,7 +12,11 @@ class StrategyPriority(Enum):
     HIGH = 2        # 0DTE, expiring positions
     MEDIUM = 3      # Regular trading strategies
     LOW = 4         # Opportunistic trades
-    IDLE = 5        # Background monitoring
+    IDLE_ = 5       # Background monitoring (underscore suffix for compatibility)
+
+# Set up name mapping for backward compatibility
+StrategyPriority.IDLE_._name_ = 'IDLE'
+StrategyPriority._member_map_['IDLE'] = StrategyPriority.IDLE_
 
 class StrategyCoordinator:
     """
@@ -34,7 +38,7 @@ class StrategyCoordinator:
             StrategyPriority.HIGH: [],
             StrategyPriority.MEDIUM: [],
             StrategyPriority.LOW: [],
-            StrategyPriority.IDLE: []
+            StrategyPriority.IDLE_: []
         }
         
         # Resource locks (prevents simultaneous access)

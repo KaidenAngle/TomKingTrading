@@ -240,12 +240,12 @@ class StrategyStateMachine:
         # Error recovery transition
         self.add_transition(
             StrategyState.ERROR,
-            StrategyState.IDLE,
+            StrategyState.READY,
             TransitionTrigger.RESET
         )
         
         # Suspension transitions (from operational states)
-        for state in [StrategyState.IDLE, StrategyState.ANALYZING, StrategyState.PENDING_ENTRY]:
+        for state in [StrategyState.READY, StrategyState.ANALYZING, StrategyState.PENDING_ENTRY]:
             self.add_transition(
                 state,
                 StrategyState.SUSPENDED,
@@ -406,7 +406,7 @@ class StrategyStateMachine:
             if time_in_error >= self.error_recovery_timeout:
                 self.algorithm.Log(f"[StateMachine] {self.strategy_name} auto-recovering from ERROR state after {time_in_error}")
                 
-                # Transition to IDLE state
+                # Transition to READY state
                 self.transition(TransitionTrigger.RESET)
                 self.error_count = 0  # Reset error count
                 self.error_state_entry_time = None
