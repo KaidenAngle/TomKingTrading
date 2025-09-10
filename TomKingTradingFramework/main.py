@@ -39,7 +39,7 @@ from helpers.option_order_executor import OptionOrderExecutor
 from helpers.atomic_order_executor import EnhancedAtomicOrderExecutor
 
 # Position Management
-from position_state_manager import PositionStateManagerQC as QuantConnectPositionStateManager
+from position_state_manager import PositionStateManagerQC
 
 # Greeks and Analytics
 from greeks.greeks_monitor import GreeksMonitor
@@ -62,18 +62,8 @@ class TomKingTradingIntegrated(QCAlgorithm):
         # Timezone
         self.SetTimeZone("America/New_York")
         
-        # Set brokerage model for proper API initialization
-        # Using Default model since Tastytrade is handled via custom API client
-        from AlgorithmImports import BrokerageModel, BrokerageModelSecurityInitializer, FuncSecuritySeeder
-        self.SetBrokerageModel(BrokerageModel.Default)
-        
-        # Set security initializer to properly configure securities when added
-        self.SetSecurityInitializer(
-            BrokerageModelSecurityInitializer(
-                self.BrokerageModel, 
-                FuncSecuritySeeder(self.GetLastKnownPrices)
-            )
-        )
+        # Brokerage model configuration removed - using QuantConnect defaults
+        # Custom fee models applied per security below
         
         # Performance optimization flag
         self.is_backtest = not self.LiveMode
@@ -141,7 +131,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
         self.correlation_limiter = August2024CorrelationLimiter(self)
         
         # Position Manager
-        self.position_manager = QuantConnectPositionStateManager(self)
+        self.position_manager = PositionStateManagerQC(self)
         
         # Greeks Monitor
         self.greeks_monitor = GreeksMonitor(self)
@@ -179,10 +169,23 @@ class TomKingTradingIntegrated(QCAlgorithm):
             'LEAPLadders': LEAPPutLaddersWithState(self)
         }
         
-        # Register all strategies with state manager
+        # Register all strategies with state manager and coordinator
+        # Import priority enum
+        from core.strategy_coordinator import StrategyPriority
+        
+        # Strategy priorities based on Tom King methodology
+        strategy_priorities = {
+            '0DTE': StrategyPriority.HIGH,        # Time-sensitive Friday expiration
+            'LT112': StrategyPriority.MEDIUM,     # Regular trading strategy
+            'IPMCC': StrategyPriority.MEDIUM,     # Regular PMCC management  
+            'FuturesStrangle': StrategyPriority.MEDIUM,  # Regular futures strategy
+            'LEAPLadders': StrategyPriority.LOW   # Long-term position management
+        }
+        
         for name, strategy in self.strategies.items():
             self.state_manager.register_strategy(name, strategy.state_machine)
-            self.strategy_coordinator.register_strategy(name, priority=strategy.priority)
+            priority = strategy_priorities.get(name, StrategyPriority.MEDIUM)
+            self.strategy_coordinator.register_strategy(name, priority=priority)
         
         # ======================
         # CIRCUIT BREAKERS
