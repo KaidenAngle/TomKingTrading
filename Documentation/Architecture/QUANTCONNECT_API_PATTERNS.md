@@ -239,7 +239,7 @@ is_fomc = len(fomc_days) > 0
 3. **Safety**: Fallback values can hide critical failures
 4. **Simplicity**: Direct API usage is cleaner and clearer
 
-## Interface Compatibility Issues (Fixed September 2024)
+## Interface Compatibility Issues (Updated January 2025)
 
 ### Securities Collection Access Pattern
 
@@ -264,6 +264,96 @@ if vix_symbol in self.algo.Securities:
 **Why This Happens**: QuantConnect's `ContainsKey()` method has strict parameter type requirements that don't match Python Symbol objects in all contexts.
 
 **Best Practice**: Always use Python's native `in` operator for Securities collection membership testing.
+
+### TradingCalendar API Deprecation Issues
+
+#### ISSUE: GetEconomicEvents Method Not Available
+```python
+# BROKEN - Method not found in current QC version
+fomc_events = self.TradingCalendar.GetEconomicEvents(
+    TradingDayType.FOMC, 
+    start_date, 
+    end_date
+)
+```
+
+**Error**: `AttributeError: 'TradingCalendar' object has no attribute 'GetEconomicEvents'`
+
+#### SOLUTION: Use GetDaysByType Method
+```python
+# FIXED - Use available GetDaysByType method
+fomc_days = self.TradingCalendar.GetDaysByType(
+    TradingDayType.FOMC,
+    start_date,
+    end_date  
+)
+
+# Convert to boolean check
+is_fomc_day = len(fomc_days) > 0
+```
+
+**Why This Happens**: QuantConnect API methods can be deprecated or renamed between versions. Always verify method availability in current documentation.
+
+#### ROBUST FOMC Detection Pattern
+```python
+def is_fomc_day_safe(self) -> bool:
+    """Safe FOMC detection with fallback logic"""
+    
+    try:
+        # Primary: Use QC TradingCalendar if available
+        fomc_days = self.TradingCalendar.GetDaysByType(
+            TradingDayType.FOMC,
+            self.Time.date(),
+            self.Time.date()
+        )
+        return len(fomc_days) > 0
+        
+    except (AttributeError, Exception) as e:
+        # Fallback: Calendar heuristics for FOMC
+        self.Debug(f"[FOMC] Using calendar heuristics: {e}")
+        return self._fomc_calendar_heuristic()
+    
+def _fomc_calendar_heuristic(self) -> bool:
+    """Backup FOMC detection using calendar patterns"""
+    
+    # FOMC meets 8 times per year, typically:
+    # - January/March/May/July/September/November: 3rd Wednesday
+    # - December: 2nd Wednesday  
+    # - June: Sometimes 2nd Wednesday
+    
+    current_date = self.Time.date()
+    
+    # Check if it's a Wednesday
+    if current_date.weekday() != 2:  # 0=Monday, 2=Wednesday
+        return False
+    
+    # Get the week of the month (1-5)
+    week_of_month = (current_date.day - 1) // 7 + 1
+    
+    # FOMC months and typical weeks
+    fomc_schedule = {
+        1: 3,   # January: 3rd Wednesday
+        3: 3,   # March: 3rd Wednesday  
+        5: 3,   # May: 3rd Wednesday
+        6: [2, 3],  # June: 2nd or 3rd Wednesday
+        7: 3,   # July: 3rd Wednesday
+        9: 3,   # September: 3rd Wednesday
+        11: 3,  # November: 3rd Wednesday
+        12: 2   # December: 2nd Wednesday
+    }
+    
+    month = current_date.month
+    if month not in fomc_schedule:
+        return False
+    
+    expected_week = fomc_schedule[month]
+    if isinstance(expected_week, list):
+        return week_of_month in expected_week
+    else:
+        return week_of_month == expected_week
+```
+
+**Best Practice**: Always provide fallback logic for critical calendar-dependent functionality.
 
 ### Symbol Value Access Pattern
 

@@ -195,6 +195,39 @@ MAX_POSITIONS = {
 
 **Why:** August 5, 2024: 14 positions led to £308,000 loss. Limit prevents repeat.
 
+## 14. Integration Verification - MANDATORY
+
+### NEVER Skip Integration Verification:
+```python
+def Initialize(self):
+    # Setup all components
+    self.setup_managers()
+    self.setup_strategies() 
+    self.setup_optimizations()
+    
+    # MANDATORY - DO NOT SKIP
+    if not self.run_complete_integration_verification():
+        raise ValueError("Integration verification failed")
+    
+    self.Log("[Critical] Integration verification PASSED - system ready")
+```
+
+**Why:** "Forgotten integrations" are the #1 cause of production failures. Components can be added but not properly integrated, or optimizations can accidentally disable critical functionality.
+
+### NEVER Assume Integration Worked:
+```python
+# WRONG - DANGEROUS ASSUMPTION
+self.new_manager = NewManager(self)
+# Assume it worked - NO VERIFICATION!
+
+# CORRECT - EXPLICIT VERIFICATION
+self.new_manager = NewManager(self)
+if not hasattr(self.new_manager, 'required_method'):
+    raise ValueError(f"Integration failed: missing required_method")
+```
+
+**Why:** Silent integration failures can go undetected until live trading when they cause catastrophic losses.
+
 ## Common "Optimization" Traps to Avoid
 
 ### Trap 1: "Simplify by removing safety checks"

@@ -16,6 +16,8 @@
 - [SPY Concentration Management](Architecture/SPY_CONCENTRATION_MANAGEMENT.md) - Preventing over-exposure
 - [Atomic Order Execution](Architecture/ATOMIC_ORDER_EXECUTION.md) - All-or-nothing multi-leg orders
 - [QuantConnect API Patterns](Architecture/QUANTCONNECT_API_PATTERNS.md) - Proper QC API usage without fallbacks
+- [Performance Optimization Patterns](Architecture/PERFORMANCE_OPTIMIZATION_PATTERNS.md) - 80% API reduction, intelligent caching
+- [Integration Verification Patterns](Architecture/INTEGRATION_VERIFICATION_PATTERNS.md) - Systematic integration verification methodology
 - [Timing Windows and Scheduling](Architecture/TIMING_WINDOWS_AND_SCHEDULING.md) - Why specific times matter
 - [Fail-Fast Error Philosophy](Architecture/FAIL_FAST_ERROR_PHILOSOPHY.md) - Why we don't use try/catch everywhere
 - [ObjectStore State Persistence](Architecture/OBJECTSTORE_STATE_PERSISTENCE.md) - Crash recovery and state management
@@ -99,6 +101,7 @@
 3. **Atomic Execution** - All legs or none for multi-leg
 4. **SPY Concentration Limits** - Maximum exposure across strategies
 5. **Circuit Breakers** - Emergency halt on rapid losses
+6. **Integration Verification** - Mandatory verification of all component integrations
 
 ## Production Status
 
@@ -136,7 +139,7 @@ Documentation/
 ├── 📋 COMPLETE_REFERENCE_GUIDE.md  # START HERE - Quick answers
 ├── ⚠️ CRITICAL_DO_NOT_CHANGE.md    # Must read - never modify these
 ├── 📊 IMPLEMENTATION_SUMMARY.md    # Framework overview & status
-├── Architecture/ (10 docs)         # System design patterns
+├── Architecture/ (12 docs)         # System design patterns (NEW: Performance & Integration)
 ├── Methodology/ (6 docs)           # Trading rules & risk
 ├── Strategies/ (1 doc)             # All 10 strategies detailed
 ├── Testing/ (1 doc)                # Test requirements
