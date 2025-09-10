@@ -1,16 +1,17 @@
 # Tom King Trading Framework Documentation
 
 ## Quick Start
-- 📋 [COMPLETE REFERENCE GUIDE](COMPLETE_REFERENCE_GUIDE.md) - **⚠️ START HERE** - Quick answers to all questions
-- 🔧 [TROUBLESHOOTING GUIDE](TROUBLESHOOTING_GUIDE.md) - Common issues and solutions
-- 🚫 [CRITICAL: Do Not Change](CRITICAL_DO_NOT_CHANGE.md) - Things that must NEVER be modified
-- 📊 [Implementation Summary](IMPLEMENTATION_SUMMARY.md) - Complete framework overview
-- 📄 [System Documentation](../TomKingTrading/SYSTEM_DOCUMENTATION.md) - Technical details
+- 📋 [SESSION STARTUP PROTOCOL](SESSION_STARTUP_PROTOCOL.md) - **🚀 START HERE FOR NEW SESSIONS** - Essential docs to read first
+- 🚫 [CRITICAL: Do Not Change](CRITICAL_DO_NOT_CHANGE.md) - Things that must NEVER be modified (includes systematic methodology)
+- 🔧 [TROUBLESHOOTING GUIDE](TROUBLESHOOTING_GUIDE.md) - Common issues and development best practices
+- 🛠️ [Implementation Audit Protocol](Development/implementation-audit-protocol.md) - **MANDATORY** systematic development approach
+- 📄 [Quick Reference](Development/quick-reference.md) - Instant consultation guide
 
 ## Architecture Documentation
 
 ### Core Systems
 - [State Machine Architecture](Architecture/STATE_MACHINE_ARCHITECTURE.md) - Why each strategy needs states
+- [Enhanced State Machine Patterns](Architecture/ENHANCED_STATE_MACHINE_PATTERNS.md) - Production-ready state management with error recovery
 - [Multi-Strategy Coordination](Architecture/MULTI_STRATEGY_COORDINATION.md) - How strategies work together
 - [VIX Management Design](Architecture/VIX_MANAGEMENT_DESIGN.md) - Central data, strategy-specific filters
 - [SPY Concentration Management](Architecture/SPY_CONCENTRATION_MANAGEMENT.md) - Preventing over-exposure
@@ -18,6 +19,9 @@
 - [QuantConnect API Patterns](Architecture/QUANTCONNECT_API_PATTERNS.md) - Proper QC API usage without fallbacks
 - [Performance Optimization Patterns](Architecture/PERFORMANCE_OPTIMIZATION_PATTERNS.md) - 80% API reduction, intelligent caching
 - [Integration Verification Patterns](Architecture/INTEGRATION_VERIFICATION_PATTERNS.md) - Systematic integration verification methodology
+- [Automated Interface Integrity Testing](Architecture/AUTOMATED_INTERFACE_INTEGRITY_TESTING.md) - Prevent interface mismatches through systematic verification
+- [Systematic Interface Auditing](Architecture/SYSTEMATIC_INTERFACE_AUDITING.md) - "Audit before assume" methodology for accurate system assessment
+- [Framework Organization Patterns](Architecture/FRAMEWORK_ORGANIZATION_PATTERNS.md) - Directory structure and git history preservation patterns
 - [Timing Windows and Scheduling](Architecture/TIMING_WINDOWS_AND_SCHEDULING.md) - Why specific times matter
 - [Fail-Fast Error Philosophy](Architecture/FAIL_FAST_ERROR_PHILOSOPHY.md) - Why we don't use try/catch everywhere
 - [ObjectStore State Persistence](Architecture/OBJECTSTORE_STATE_PERSISTENCE.md) - Crash recovery and state management
@@ -139,7 +143,7 @@ Documentation/
 ├── 📋 COMPLETE_REFERENCE_GUIDE.md  # START HERE - Quick answers
 ├── ⚠️ CRITICAL_DO_NOT_CHANGE.md    # Must read - never modify these
 ├── 📊 IMPLEMENTATION_SUMMARY.md    # Framework overview & status
-├── Architecture/ (12 docs)         # System design patterns (NEW: Performance & Integration)
+├── Architecture/ (16 docs)         # System design patterns (NEW: Interface Testing & Auditing)
 ├── Methodology/ (6 docs)           # Trading rules & risk
 ├── Strategies/ (1 doc)             # All 10 strategies detailed
 ├── Testing/ (1 doc)                # Test requirements
@@ -168,6 +172,12 @@ Documentation/
 
 #### **How to test the system:**
 → [Testing Requirements](Testing/TESTING_REQUIREMENTS.md)
+
+#### **How to develop safely and systematically:**
+→ [Systematic Interface Auditing](Architecture/SYSTEMATIC_INTERFACE_AUDITING.md) - Audit before assume methodology  
+→ [Automated Interface Integrity Testing](Architecture/AUTOMATED_INTERFACE_INTEGRITY_TESTING.md) - Prevent interface mismatches  
+→ [Framework Organization Patterns](Architecture/FRAMEWORK_ORGANIZATION_PATTERNS.md) - Directory structure with history preservation  
+→ [Implementation Audit Protocol](Development/implementation-audit-protocol.md) - Prevent redundant implementations
 
 ## Support
 

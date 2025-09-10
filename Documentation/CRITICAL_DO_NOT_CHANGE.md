@@ -228,6 +228,47 @@ if not hasattr(self.new_manager, 'required_method'):
 
 **Why:** Silent integration failures can go undetected until live trading when they cause catastrophic losses.
 
+## 11. Systematic Development Methodology - MANDATORY
+
+### NEVER Skip Pre-Development Auditing:
+```python
+# WRONG - ASSUME PROBLEMS EXIST
+def start_development():
+    # Start implementing fixes without understanding current state
+    # Add new methods without checking if they already exist
+    # Risk: Unnecessary work, system instability
+
+# CORRECT - AUDIT BEFORE ASSUME
+def start_development():
+    # 1. Run comprehensive interface audit first
+    audit_results = run_interface_integrity_tests()
+    
+    # 2. Map current architecture state
+    current_state = map_system_architecture()
+    
+    # 3. Identify genuine gaps vs assumptions
+    genuine_gaps = identify_real_issues(audit_results, current_state)
+    
+    # 4. Apply minimal fixes only to verified issues
+    for gap in genuine_gaps:
+        apply_minimal_fix(gap)
+```
+
+**Why:** The "audit before assume" methodology prevents unnecessary work, reduces system risk, and provides accurate assessment of framework quality. Systematic auditing revealed the Tom King framework was already 95% compliant, requiring only 2 missing methods rather than extensive interface work.
+
+### ALWAYS Use Implementation Audit Protocol:
+```bash
+# Before ANY changes
+cd Documentation/Development
+./audit-tools.sh audit <concept>     # Search for existing implementations
+./audit-tools.sh map                 # Map current architecture  
+./audit-tools.sh interfaces          # Verify interface integrity
+
+# Make evidence-based decisions, not assumptions
+```
+
+**Why:** This prevents redundant implementations and ensures comprehensive system understanding before making changes. See [Implementation Audit Protocol](Development/implementation-audit-protocol.md) for complete methodology.
+
 ## Common "Optimization" Traps to Avoid
 
 ### Trap 1: "Simplify by removing safety checks"

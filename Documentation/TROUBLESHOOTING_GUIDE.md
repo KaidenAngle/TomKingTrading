@@ -47,10 +47,52 @@
 
 ### 7. "21 DTE defensive exit triggered"
 **Cause**: Position reached 21 days to expiration
+**Solution**: This is CORRECT - prevents gamma disasters
+
+### 8. "Interface integrity test failed"
+**Cause**: Component missing expected methods after changes
 **Solution**:
-- This is MANDATORY - no override
-- Position will be closed automatically
-- Gamma risk too high after 21 DTE
+- Run `python test_interface_integrity.py` to identify specific missing methods
+- Add only the missing methods identified in the test report
+- This prevents runtime crashes in production
+
+### 9. "Framework directory organization issues"
+**Cause**: Files moved without preserving git history
+**Solution**:
+- Always use `git mv` instead of copy/delete
+- Check `git log --follow <file>` to verify history preservation
+- See [Framework Organization Patterns](Architecture/FRAMEWORK_ORGANIZATION_PATTERNS.md)
+
+### 10. "Redundant implementation detected"
+**Cause**: Adding functionality that already exists elsewhere
+**Solution**:
+- Run implementation audit: `./audit-tools.sh audit <concept>`
+- Use existing systems instead of creating duplicates
+- Follow [Implementation Audit Protocol](Development/implementation-audit-protocol.md)
+
+### 11. "Assuming problems exist without verification"
+**Cause**: Starting development work based on assumptions
+**Solution**:
+- STOP - Run systematic interface audit first
+- Use "audit before assume" methodology
+- See [Systematic Interface Auditing](Architecture/SYSTEMATIC_INTERFACE_AUDITING.md)
+- Most "problems" are actually assumptions - verify before fixing
+
+## Development Best Practices
+
+### Before Making ANY Changes:
+1. **Audit existing implementations**: `./audit-tools.sh audit <concept>`
+2. **Map current architecture**: `./audit-tools.sh map`
+3. **Verify interface integrity**: `./audit-tools.sh interfaces` 
+4. **Check for redundancy**: `./audit-tools.sh health`
+
+### Never Skip These Verifications:
+- Interface integrity testing before deployment
+- Git history preservation during reorganization  
+- Implementation audit protocol before adding new features
+- Evidence-based development instead of assumption-driven work
+
+**Remember**: Every line of code exists for a reason. Understand before changing.
 
 ### 8. "Order rejected - insufficient buying power"
 **Cause**: Not enough margin for position

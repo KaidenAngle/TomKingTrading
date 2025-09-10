@@ -22,3 +22,8 @@ PROJECT_DIR=D:\OneDrive\Trading\Claude
 PROJECT_NAME=Tom King Trading Framework
 PROJECT_GOAL=35k-to-80k-transformation
 PROJECT_STANDARD=nothing-but-100-adequate
+
+# Documentation Startup Protocol
+CLAUDE_STARTUP_DOCS_REQUIRED=true
+CLAUDE_ESSENTIAL_DOCS=Documentation/CRITICAL_DO_NOT_CHANGE.md,Documentation/TROUBLESHOOTING_GUIDE.md,Documentation/Development/implementation-audit-protocol.md,Documentation/Development/quick-reference.md
+CLAUDE_DEVELOPMENT_METHODOLOGY=audit-before-assume

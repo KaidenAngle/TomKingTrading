@@ -1,6 +1,10 @@
 # IMPLEMENTATION AUDIT PROTOCOL
 **Purpose:** Prevent redundant implementations and ensure comprehensive system understanding before making changes
 
+**Location:** `Documentation/Development/implementation-audit-protocol.md`  
+**Version:** 1.0  
+**Last Updated:** 2025-01-15
+
 ## MANDATORY STEPS BEFORE ANY CHANGES
 
 ### 1. **COMPREHENSIVE SYSTEM MAPPING**
@@ -113,27 +117,21 @@ Before ANY modification, document:
 
 ### 6. **APPROVED IMPLEMENTATION PATTERNS**
 
-#### ✅ CORRECT Pattern: Layered Fallback System
+#### ✅ CORRECT Pattern: Use Existing Systems
 ```python
 def _calculate_position_size(self):
-    # 1. Try unified system first
+    # Use unified position sizer
     if hasattr(self.algo, 'position_sizer'):
         return self.algo.position_sizer.calculate_0dte_size()
-    
-    # 2. Try specialized calculator
-    if hasattr(self.algo, 'kelly_calculator'):
-        return self._use_kelly_calculator()
-    
-    # 3. Conservative fallback
+    # Fallback to conservative sizing
     return self._minimum_safe_size()
 ```
 
-#### ❌ WRONG Pattern: Duplicate Implementation
+#### ❌ WRONG Pattern: Duplicate Implementation  
 ```python
 def _calculate_position_size(self):
-    # Implementing Kelly formula again (WRONG - already exists)
-    win_rate = 0.88
-    kelly_pct = (win_rate * b - q) / b  # REDUNDANT
+    # Re-implementing existing Kelly formula (REDUNDANT)
+    kelly_pct = (win_rate * reward - loss_rate) / reward
 ```
 
 #### ✅ CORRECT Pattern: Data Validation
