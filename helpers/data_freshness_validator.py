@@ -261,6 +261,10 @@ class DataFreshnessValidator:
         
         return conditions
         
+    def get_status(self) -> Dict:
+        """Get current data validation status (alias for get_statistics for compatibility)"""
+        return self.get_statistics()
+        
     def get_statistics(self) -> Dict:
         """Get data validation statistics"""
         
