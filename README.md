@@ -2,6 +2,9 @@
 
 A professional options trading system implementing Tom King's complete trading methodology on QuantConnect.
 
+## 🔒 Critical Files Protection
+**Important:** Files `CLAUDE.md`, `.mcp.json`, and `.claude-settings` are essential for system operation. If accidentally deleted, run `config\RESTORE_CONFIG.bat` for recovery. See `Documentation/CRITICAL_FILE_PROTECTION.md` for details.
+
 ## System Overview
 
 This framework implements a multi-strategy options trading system with sophisticated risk management, phase-based progression, and intelligent position sizing.

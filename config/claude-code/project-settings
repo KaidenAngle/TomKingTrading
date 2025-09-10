@@ -1,0 +1,29 @@
+# Claude Code Settings - Auto-applied on startup
+# This file ensures extended thinking and permission bypass are always enabled
+
+# Core Settings
+CLAUDE_EXTENDED_THINKING=true
+CLAUDE_DANGEROUS_SKIP_PERMISSIONS=true
+CLAUDE_THINKING_MODE=deep
+CLAUDE_PARALLEL_PROCESSING=true
+
+# Project Standards
+CLAUDE_REQUIRE_100_PERCENT=true
+CLAUDE_TEST_COVERAGE_TARGET=100
+CLAUDE_CODE_QUALITY_TARGET=100
+
+# Performance Optimizations
+CLAUDE_USE_SUBAGENTS=true
+CLAUDE_BATCH_OPERATIONS=true
+CLAUDE_CACHE_RESULTS=true
+
+# Tom King Trading Framework Specific
+PROJECT_DIR=D:\OneDrive\Trading\Claude
+PROJECT_NAME=Tom King Trading Framework
+PROJECT_GOAL=35k-to-80k-transformation
+PROJECT_STANDARD=nothing-but-100-adequate
+
+# Documentation Startup Protocol
+CLAUDE_STARTUP_DOCS_REQUIRED=true
+CLAUDE_ESSENTIAL_DOCS=Documentation/CRITICAL_DO_NOT_CHANGE.md,Documentation/TROUBLESHOOTING_GUIDE.md,Documentation/Development/implementation-audit-protocol.md,Documentation/Development/quick-reference.md
+CLAUDE_DEVELOPMENT_METHODOLOGY=audit-before-assume

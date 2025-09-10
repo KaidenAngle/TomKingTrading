@@ -62,6 +62,7 @@
     },
     "includeCoAuthoredBy": true,
     "cleanupPeriodDays": 30,
+    "enableAllProjectMcpServers": true,
     "hooks": {
       "SessionStart": [
         {

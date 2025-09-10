@@ -57,6 +57,9 @@ log-*.txt
 debug-*.txt
 error-*.log
 
+# Reports (generated)
+reports/BACKTEST_*.md
+
 # Temporary files
 temp/
 tmp/
@@ -70,6 +73,18 @@ credentials.json
 api-keys.json
 *.bak
 positions-backup-*.json
+
+# Critical configuration files - DO NOT IGNORE
+!.mcp.json
+!.claude-settings
+!quantconnect_mcp_config.json
+!config/
+!config/**/*
+
+# But ignore sensitive data in config
+config/**/credentials.json
+config/**/api-keys.json
+config/critical/backup_*/
 
 # Test results
 test-results.json
