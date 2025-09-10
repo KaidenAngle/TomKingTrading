@@ -1,3 +1,9 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
 # Node.js
 node_modules/
 npm-debug.log*
@@ -6,36 +12,50 @@ yarn-error.log*
 package-lock.json
 yarn.lock
 
-# Environment variables
+# IDE configurations
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+*~
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+coverage/
+*.lcov
+.nyc_output
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+out/
+
+# Environment variables and credentials
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
+config/tastytrade_credentials.py
 
 # Logs
 logs/
 *.log
 log-*.txt
-
-# Test coverage
-coverage/
-*.lcov
-.nyc_output
-
-# IDE and Editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
-
-# Build outputs
-dist/
-build/
-out/
+debug-*.txt
+error-*.log
 
 # Temporary files
 temp/
@@ -55,16 +75,21 @@ positions-backup-*.json
 test-results.json
 test-report-*.html
 
-# Claude Code specific (keep settings)
-# .claude/ is kept for settings
+# Jupyter Notebook
+.ipynb_checkpoints
 
-# System files
+# QuantConnect local files
+backtests/
+
+# OS specific
 .DS_Store
+Thumbs.db
 desktop.ini
 
-# Debug files
-debug-*.txt
-error-*.log
+# Documentation build
+docs/_build/
+docs/_static/
+docs/_templates/
 
 # Keep important docs
 !CLAUDE.md

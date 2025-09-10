@@ -1,0 +1,374 @@
+# Order State Recovery System - Handles recovery after system crashes
+# Critical for multi-leg option strategies to prevent naked positions
+
+from AlgorithmImports import *
+from typing import Dict, List, Optional, Tuple
+from datetime import datetime, timedelta
+import json
+
+class OrderStateRecovery:
+    """
+    Persists order state to ObjectStore and recovers after crashes.
+    Ensures multi-leg orders are properly completed or rolled back.
+    """
+    
+    def __init__(self, algorithm):
+        self.algo = algorithm
+        
+        # Track incomplete multi-leg orders
+        self.incomplete_groups = {}
+        
+        # Recovery status
+        self.recovery_attempted = False
+        self.recovery_successful = False
+        
+        # State persistence keys
+        self.STATE_KEY = "order_state_recovery"
+        self.INCOMPLETE_KEY = "incomplete_orders"
+        
+    def persist_order_group_start(self, group_id: str, legs: List[Tuple], strategy: str):
+        """
+        Persist order group before execution starts.
+        Called BEFORE placing any orders.
+        
+        Args:
+            group_id: Unique identifier for this order group
+            legs: List of (symbol, quantity) tuples
+            strategy: Strategy name for context
+        """
+        
+        try:
+            # Create order group record
+            group_record = {
+                'group_id': group_id,
+                'strategy': strategy,
+                'legs': [(str(symbol), qty) for symbol, qty in legs],
+                'started_at': self.algo.Time.isoformat(),
+                'status': 'INITIATED',
+                'filled_legs': [],
+                'pending_legs': legs,
+                'recovery_needed': True
+            }
+            
+            # Add to incomplete groups
+            self.incomplete_groups[group_id] = group_record
+            
+            # Persist to ObjectStore
+            self._save_to_object_store()
+            
+            self.algo.Debug(f"[Recovery] Persisted order group start: {group_id}")
+            
+        except Exception as e:
+            self.algo.Error(f"[Recovery] Failed to persist order group: {e}")
+    
+    def update_order_group_progress(self, group_id: str, filled_leg: Tuple, order_id: int):
+        """
+        Update progress as legs fill.
+        
+        Args:
+            group_id: Order group identifier
+            filled_leg: (symbol, quantity) that filled
+            order_id: QuantConnect order ID
+        """
+        
+        if group_id not in self.incomplete_groups:
+            return
+        
+        try:
+            group = self.incomplete_groups[group_id]
+            
+            # Move from pending to filled
+            leg_str = (str(filled_leg[0]), filled_leg[1])
+            if leg_str in group['pending_legs']:
+                group['pending_legs'].remove(leg_str)
+                group['filled_legs'].append({
+                    'leg': leg_str,
+                    'order_id': order_id,
+                    'filled_at': self.algo.Time.isoformat()
+                })
+            
+            # Update status
+            if len(group['pending_legs']) == 0:
+                group['status'] = 'COMPLETED'
+                group['recovery_needed'] = False
+            else:
+                group['status'] = 'PARTIAL'
+            
+            # Persist update
+            self._save_to_object_store()
+            
+            self.algo.Debug(f"[Recovery] Updated group {group_id}: {len(group['filled_legs'])} filled")
+            
+        except Exception as e:
+            self.algo.Error(f"[Recovery] Failed to update progress: {e}")
+    
+    def mark_order_group_complete(self, group_id: str):
+        """Mark order group as successfully completed"""
+        
+        if group_id in self.incomplete_groups:
+            self.incomplete_groups[group_id]['status'] = 'COMPLETED'
+            self.incomplete_groups[group_id]['recovery_needed'] = False
+            self.incomplete_groups[group_id]['completed_at'] = self.algo.Time.isoformat()
+            
+            # Persist and remove from incomplete
+            self._save_to_object_store()
+            
+            # Clean up after successful completion
+            del self.incomplete_groups[group_id]
+            
+            self.algo.Debug(f"[Recovery] Order group {group_id} completed successfully")
+    
+    def mark_order_group_failed(self, group_id: str, reason: str):
+        """Mark order group as failed and needing recovery"""
+        
+        if group_id in self.incomplete_groups:
+            self.incomplete_groups[group_id]['status'] = 'FAILED'
+            self.incomplete_groups[group_id]['failure_reason'] = reason
+            self.incomplete_groups[group_id]['failed_at'] = self.algo.Time.isoformat()
+            
+            self._save_to_object_store()
+            
+            self.algo.Error(f"[Recovery] Order group {group_id} failed: {reason}")
+    
+    def check_and_recover_incomplete_orders(self) -> List[Dict]:
+        """
+        Check for incomplete orders from previous session and attempt recovery.
+        Called at algorithm startup.
+        
+        Returns:
+            List of orders needing manual intervention
+        """
+        
+        if self.recovery_attempted:
+            return []
+        
+        self.recovery_attempted = True
+        manual_intervention_needed = []
+        
+        try:
+            # Load persisted state
+            self._load_from_object_store()
+            
+            if not self.incomplete_groups:
+                self.algo.Debug("[Recovery] No incomplete orders found")
+                self.recovery_successful = True
+                return []
+            
+            self.algo.Log(f"[Recovery] Found {len(self.incomplete_groups)} incomplete order groups")
+            
+            for group_id, group in list(self.incomplete_groups.items()):
+                recovery_result = self._recover_order_group(group)
+                
+                if recovery_result['status'] == 'RECOVERED':
+                    self.algo.Log(f"[Recovery] Successfully recovered {group_id}")
+                    del self.incomplete_groups[group_id]
+                    
+                elif recovery_result['status'] == 'MANUAL_NEEDED':
+                    self.algo.Error(f"[Recovery] Manual intervention needed for {group_id}")
+                    manual_intervention_needed.append({
+                        'group_id': group_id,
+                        'group': group,
+                        'issue': recovery_result['issue']
+                    })
+                    
+                elif recovery_result['status'] == 'EXPIRED':
+                    self.algo.Debug(f"[Recovery] Order group {group_id} expired, cleaning up")
+                    del self.incomplete_groups[group_id]
+            
+            # Persist cleaned state
+            self._save_to_object_store()
+            
+            if not manual_intervention_needed:
+                self.recovery_successful = True
+            
+        except Exception as e:
+            self.algo.Error(f"[Recovery] Recovery check failed: {e}")
+        
+        return manual_intervention_needed
+    
+    def _recover_order_group(self, group: Dict) -> Dict:
+        """
+        Attempt to recover a single order group.
+        
+        Returns:
+            Recovery result with status and details
+        """
+        
+        try:
+            # Check age - old orders might be expired
+            started_at = datetime.fromisoformat(group['started_at'].replace('Z', '+00:00'))
+            age_hours = (self.algo.Time - started_at).total_seconds() / 3600
+            
+            # If older than 24 hours, consider expired
+            if age_hours > 24:
+                return {'status': 'EXPIRED', 'age_hours': age_hours}
+            
+            # Analyze current position state
+            filled_legs = group.get('filled_legs', [])
+            pending_legs = group.get('pending_legs', [])
+            
+            # If all legs filled, just mark complete
+            if not pending_legs:
+                return {'status': 'RECOVERED', 'action': 'marked_complete'}
+            
+            # If no legs filled, safe to ignore (nothing executed)
+            if not filled_legs:
+                return {'status': 'RECOVERED', 'action': 'cancelled_unfilled'}
+            
+            # CRITICAL: Partial fill detected - need careful handling
+            self.algo.Error(f"[Recovery] CRITICAL: Partial fill detected for {group['group_id']}")
+            
+            # Attempt to complete or reverse the position
+            if group['strategy'] == 'IronCondor':
+                return self._recover_iron_condor(group, filled_legs, pending_legs)
+            elif group['strategy'] == 'PutSpread':
+                return self._recover_spread(group, filled_legs, pending_legs)
+            elif group['strategy'] == 'Strangle':
+                return self._recover_strangle(group, filled_legs, pending_legs)
+            else:
+                return {
+                    'status': 'MANUAL_NEEDED',
+                    'issue': f"Unknown strategy type: {group['strategy']}"
+                }
+                
+        except Exception as e:
+            return {
+                'status': 'MANUAL_NEEDED',
+                'issue': f"Recovery error: {str(e)}"
+            }
+    
+    def _recover_iron_condor(self, group: Dict, filled: List, pending: List) -> Dict:
+        """Recover partially filled iron condor"""
+        
+        # Identify what's filled vs pending
+        filled_symbols = [leg['leg'][0] for leg in filled]
+        
+        # Check for naked positions (one side filled, protective not filled)
+        has_naked = False
+        
+        for filled_leg in filled:
+            symbol_str, qty = filled_leg['leg']
+            
+            # If this is a short position
+            if qty < 0:
+                # Check if protective leg is filled
+                # Would need to parse option details to find protective
+                # For now, flag for manual review
+                has_naked = True
+                break
+        
+        if has_naked:
+            self.algo.Error("[Recovery] NAKED OPTION DETECTED - Manual intervention required")
+            return {
+                'status': 'MANUAL_NEEDED',
+                'issue': 'Potential naked option position detected'
+            }
+        
+        # Attempt to close all filled positions
+        for filled_leg in filled:
+            symbol_str, qty = filled_leg['leg']
+            
+            # Place offsetting order
+            try:
+                symbol = self.algo.Symbol(symbol_str)
+                offset_qty = -qty  # Reverse the position
+                
+                if symbol in self.algo.Securities:
+                    order = self.algo.MarketOrder(symbol, offset_qty)
+                    self.algo.Log(f"[Recovery] Placed offsetting order: {symbol_str} x{offset_qty}")
+                
+            except Exception as e:
+                self.algo.Error(f"[Recovery] Failed to place offsetting order: {e}")
+        
+        return {'status': 'RECOVERED', 'action': 'positions_closed'}
+    
+    def _recover_spread(self, group: Dict, filled: List, pending: List) -> Dict:
+        """Recover partially filled spread"""
+        
+        # Similar logic to iron condor but simpler (only 2 legs)
+        if len(filled) == 1 and len(pending) == 1:
+            filled_leg = filled[0]['leg']
+            
+            # If short leg filled but long didn't, we have naked risk
+            if filled_leg[1] < 0:  # Short position
+                self.algo.Error("[Recovery] Naked short detected in spread")
+                
+                # Immediately close the short position
+                try:
+                    symbol = self.algo.Symbol(filled_leg[0])
+                    offset_qty = -filled_leg[1]
+                    
+                    if symbol in self.algo.Securities:
+                        order = self.algo.MarketOrder(symbol, offset_qty)
+                        self.algo.Log(f"[Recovery] Emergency close: {filled_leg[0]} x{offset_qty}")
+                        return {'status': 'RECOVERED', 'action': 'emergency_close'}
+                    
+                except Exception as e:
+                    return {
+                        'status': 'MANUAL_NEEDED',
+                        'issue': f"Failed to close naked position: {e}"
+                    }
+        
+        return {'status': 'RECOVERED', 'action': 'spread_recovery'}
+    
+    def _recover_strangle(self, group: Dict, filled: List, pending: List) -> Dict:
+        """Recover partially filled strangle"""
+        
+        # Strangles are both short positions, so any partial fill needs closing
+        for filled_leg in filled:
+            symbol_str, qty = filled_leg['leg']
+            
+            try:
+                symbol = self.algo.Symbol(symbol_str)
+                offset_qty = -qty
+                
+                if symbol in self.algo.Securities:
+                    order = self.algo.MarketOrder(symbol, offset_qty)
+                    self.algo.Log(f"[Recovery] Closing strangle leg: {symbol_str} x{offset_qty}")
+                
+            except Exception as e:
+                self.algo.Error(f"[Recovery] Failed to close strangle leg: {e}")
+        
+        return {'status': 'RECOVERED', 'action': 'strangle_legs_closed'}
+    
+    def _save_to_object_store(self):
+        """Persist state to QuantConnect ObjectStore"""
+        
+        try:
+            state = {
+                'incomplete_groups': self.incomplete_groups,
+                'last_updated': self.algo.Time.isoformat()
+            }
+            
+            # Convert to JSON and save
+            json_data = json.dumps(state, default=str)
+            self.algo.ObjectStore.Save(self.INCOMPLETE_KEY, json_data)
+            
+        except Exception as e:
+            self.algo.Error(f"[Recovery] Failed to save state: {e}")
+    
+    def _load_from_object_store(self):
+        """Load persisted state from ObjectStore"""
+        
+        try:
+            if self.algo.ObjectStore.ContainsKey(self.INCOMPLETE_KEY):
+                json_data = self.algo.ObjectStore.Read(self.INCOMPLETE_KEY)
+                if json_data:
+                    state = json.loads(json_data)
+                    self.incomplete_groups = state.get('incomplete_groups', {})
+                    
+                    self.algo.Debug(f"[Recovery] Loaded {len(self.incomplete_groups)} incomplete groups")
+                    
+        except Exception as e:
+            self.algo.Error(f"[Recovery] Failed to load state: {e}")
+            self.incomplete_groups = {}
+    
+    def get_recovery_status(self) -> Dict:
+        """Get current recovery status"""
+        
+        return {
+            'recovery_attempted': self.recovery_attempted,
+            'recovery_successful': self.recovery_successful,
+            'incomplete_groups': len(self.incomplete_groups),
+            'groups': list(self.incomplete_groups.keys())
+        }
