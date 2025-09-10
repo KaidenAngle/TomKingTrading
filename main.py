@@ -39,7 +39,7 @@ from helpers.option_order_executor import OptionOrderExecutor
 from helpers.atomic_order_executor import EnhancedAtomicOrderExecutor
 
 # Position Management
-from position_state_manager import QuantConnectPositionStateManager
+from position_state_manager import PositionStateManagerQC as QuantConnectPositionStateManager
 
 # Greeks and Analytics
 from greeks.greeks_monitor import GreeksMonitor

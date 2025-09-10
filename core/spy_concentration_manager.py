@@ -273,6 +273,11 @@ class SPYConcentrationManager:
             
             self.algo.Log("[SPY Manager] Emergency limits activated due to high VIX")
     
+    def get_total_spy_exposure(self) -> float:
+        """Public method to get total SPY exposure (for main.py compatibility)"""
+        exposure = self._calculate_total_spy_exposure()
+        return exposure['total_delta']
+    
     def _get_current_vix(self) -> float:
         """Get current VIX level"""
         
