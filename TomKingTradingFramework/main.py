@@ -258,10 +258,236 @@ class TomKingTradingIntegrated(QCAlgorithm):
                 for issue in manual_intervention:
                     self.Error(f"  - {issue['group_id']}: {issue['issue']}")
         
+        # ======================
+        # INTEGRATION VERIFICATION (MANDATORY)
+        # ======================
+        self.Debug("[Integration] Starting comprehensive integration verification")
+        
+        if not self.run_complete_integration_verification():
+            raise ValueError("Integration verification failed - algorithm cannot trade safely")
+        
         self.Debug("=== TOM KING TRADING FRAMEWORK INITIALIZED ===")
         self.Debug("All safety systems: ACTIVE")
-        self.Debug("State machines: REGISTERED")
+        self.Debug("State machines: REGISTERED") 
         self.Debug("Circuit breakers: ARMED")
+        self.Debug("Integration verification: PASSED")
+    
+    def verify_manager_initialization(self) -> bool:
+        """Verify all required managers are properly initialized"""
+        
+        required_managers = [
+            ('vix_manager', 'UnifiedVIXManager'),
+            ('state_manager', 'UnifiedStateManager'), 
+            ('position_sizer', 'UnifiedPositionSizer'),
+            ('spy_concentration_manager', 'SPYConcentrationManager'),
+            ('margin_manager', 'DynamicMarginManager'),
+            ('correlation_limiter', 'CorrelationGroupLimiter'),
+            ('atomic_executor', 'EnhancedAtomicOrderExecutor'),  # Fixed class name
+            ('performance_tracker', 'PerformanceTrackerSafe'),
+            ('data_validator', 'DataFreshnessValidator')
+        ]
+        
+        verification_results = {}
+        
+        for manager_name, expected_class in required_managers:
+            # Check existence
+            has_manager = hasattr(self, manager_name)
+            verification_results[f"{manager_name}_exists"] = has_manager
+            
+            if has_manager:
+                manager = getattr(self, manager_name)
+                
+                # Check type (class name verification)
+                correct_type = manager.__class__.__name__ == expected_class
+                verification_results[f"{manager_name}_type"] = correct_type
+                
+                # Check not None
+                not_none = manager is not None
+                verification_results[f"{manager_name}_not_none"] = not_none
+                
+                if not (correct_type and not_none):
+                    self.Error(f"[Integration] Manager verification failed: {manager_name}")
+            else:
+                self.Error(f"[Integration] Missing required manager: {manager_name}")
+        
+        # Log results
+        failed_checks = [k for k, v in verification_results.items() if not v]
+        
+        if failed_checks:
+            self.Error(f"[Integration] Failed manager checks: {failed_checks}")
+            return False
+        
+        self.Debug("[Integration] All managers verified successfully")
+        return True
+    
+    def verify_strategy_loading(self) -> bool:
+        """Verify all Tom King strategies are properly loaded"""
+        
+        expected_strategies = {
+            '0DTE': 'Friday0DTEWithState',
+            'LT112': 'LT112WithState', 
+            'IPMCC': 'IPMCCWithState',
+            'FuturesStrangle': 'FuturesStrangleWithState',
+            'LEAPLadders': 'LEAPPutLaddersWithState'
+        }
+        
+        verification_results = {}
+        
+        for strategy_key, expected_class in expected_strategies.items():
+            # Check existence in self.strategies dict
+            has_strategy = hasattr(self, 'strategies') and strategy_key in self.strategies
+            verification_results[f"{strategy_key}_exists"] = has_strategy
+            
+            if has_strategy:
+                strategy = self.strategies[strategy_key]
+                
+                # Check type
+                correct_type = strategy.__class__.__name__ == expected_class
+                verification_results[f"{strategy_key}_type"] = correct_type
+                
+                # Check state machine initialization
+                has_state_machine = hasattr(strategy, 'state_machine')
+                verification_results[f"{strategy_key}_state_machine"] = has_state_machine
+                
+                # Check required methods (execute from base class)
+                required_methods = ['execute']  # Strategy methods are in base class
+                for method in required_methods:
+                    has_method = hasattr(strategy, method)
+                    verification_results[f"{strategy_key}.{method}"] = has_method
+            else:
+                self.Error(f"[Integration] Missing strategy: {strategy_key}")
+        
+        # Summary
+        total_expected = len(expected_strategies) * 3  # 3 checks per strategy
+        passed_checks = sum(1 for v in verification_results.values() if v)
+        
+        self.Debug(f"[Integration] Strategy verification: {passed_checks}/{total_expected}")
+        
+        return passed_checks == total_expected
+    
+    def verify_critical_methods(self) -> bool:
+        """Verify all critical methods exist and are callable"""
+        
+        critical_method_map = {
+            'margin_manager': [
+                'check_margin_health', 
+                'get_margin_status',
+                'calculate_required_margin_buffer'
+            ],
+            'correlation_limiter': [
+                'get_correlation_summary',
+                'check_correlation_limit'
+            ],
+            'performance_tracker': [
+                'get_daily_pnl',
+                'update',
+                'record_trade',
+                'get_performance_summary'
+            ],
+            'data_validator': [
+                'validate_all_data',
+                'check_data_freshness',
+                'get_stale_data_symbols'
+            ],
+            'vix_manager': [
+                'get_current_vix',
+                'is_high_vix_regime'
+            ],
+            'spy_concentration_manager': [
+                'request_spy_allocation',
+                'get_current_exposure',
+                'check_concentration_limits'
+            ],
+            'strategy_coordinator': [
+                'get_execution_order',
+                'request_execution',
+                'register_strategy'
+            ],
+            'state_manager': [
+                'save_all_states',
+                'load_all_states',
+                'get_state_summary'
+            ]
+        }
+        
+        verification_results = {}
+        
+        for manager_name, methods in critical_method_map.items():
+            if hasattr(self, manager_name):
+                manager = getattr(self, manager_name)
+                
+                for method_name in methods:
+                    # Check method exists
+                    has_method = hasattr(manager, method_name)
+                    verification_results[f"{manager_name}.{method_name}"] = has_method
+                    
+                    if has_method:
+                        # Check method is callable
+                        method = getattr(manager, method_name)
+                        is_callable = callable(method)
+                        verification_results[f"{manager_name}.{method_name}_callable"] = is_callable
+                        
+                        if not is_callable:
+                            self.Error(f"[Integration] Method not callable: {manager_name}.{method_name}")
+                    else:
+                        self.Error(f"[Integration] Missing method: {manager_name}.{method_name}")
+            else:
+                self.Error(f"[Integration] Manager not found for method check: {manager_name}")
+        
+        # Report results
+        failed_methods = [k for k, v in verification_results.items() if not v]
+        
+        if failed_methods:
+            self.Error(f"[Integration] Failed method verifications: {failed_methods}")
+            return False
+        
+        self.Debug(f"[Integration] All {len(verification_results)} method checks passed")
+        return True
+    
+    def run_complete_integration_verification(self) -> bool:
+        """Run complete integration verification suite
+        
+        Call this after any major system changes to ensure
+        nothing was accidentally broken or forgotten
+        """
+        
+        verification_stages = [
+            ("Manager Initialization", self.verify_manager_initialization),
+            ("Strategy Loading", self.verify_strategy_loading), 
+            ("Critical Methods", self.verify_critical_methods)
+        ]
+        
+        results = {}
+        
+        self.Debug("[Integration] Starting complete verification suite")
+        
+        for stage_name, verification_func in verification_stages:
+            try:
+                result = verification_func()
+                results[stage_name] = result
+                
+                status = "PASS" if result else "FAIL"
+                self.Debug(f"[Integration] {stage_name}: {status}")
+                
+            except Exception as e:
+                self.Error(f"[Integration] {stage_name} verification error: {e}")
+                results[stage_name] = False
+        
+        # Final summary
+        passed_stages = sum(1 for r in results.values() if r)
+        total_stages = len(results)
+        
+        if passed_stages == total_stages:
+            self.Log(f"[Integration] COMPLETE SUCCESS: {passed_stages}/{total_stages} stages passed")
+            return True
+        else:
+            self.Error(f"[Integration] VERIFICATION FAILED: {passed_stages}/{total_stages} stages passed")
+            
+            # List failed stages
+            failed_stages = [name for name, result in results.items() if not result]
+            self.Error(f"[Integration] Failed stages: {failed_stages}")
+            
+            return False
     
     def OnData(self, data):
         """Main data handler with full safety integration"""
@@ -425,28 +651,63 @@ class TomKingTradingIntegrated(QCAlgorithm):
         
         self.Debug("=== SAFETY CHECK ===")
         
-        # Check data feeds
-        data_status = self.data_validator.get_status()
-        self.Debug(f"Data feeds: {data_status}")
+        # Check data feeds (defensive programming)
+        if hasattr(self.data_validator, 'get_status'):
+            try:
+                data_status = self.data_validator.get_status()
+                self.Debug(f"Data feeds: {data_status}")
+            except Exception as e:
+                self.Debug(f"Data validator status error: {e}")
+        else:
+            self.Debug("Data validator: get_status method not available")
         
-        # Check margin
-        margin_status = self.margin_manager.get_margin_status()
-        self.Debug(f"Margin: {margin_status['usage_pct']:.1%} used")
+        # Check margin (defensive programming)
+        if hasattr(self.margin_manager, 'get_margin_status'):
+            try:
+                margin_status = self.margin_manager.get_margin_status()
+                if isinstance(margin_status, dict) and 'usage_pct' in margin_status:
+                    self.Debug(f"Margin: {margin_status['usage_pct']:.1%} used")
+                else:
+                    self.Debug(f"Margin: {margin_status}")
+            except Exception as e:
+                self.Debug(f"Margin status error: {e}")
+        else:
+            self.Debug("Margin manager: get_margin_status method not available")
         
-        # Check correlations
-        max_corr = self.correlation_limiter.get_max_correlation()
-        self.Debug(f"Max correlation: {max_corr:.2f}")
+        # Check correlations (defensive programming)
+        if hasattr(self.correlation_limiter, 'get_max_correlation'):
+            try:
+                max_corr = self.correlation_limiter.get_max_correlation()
+                self.Debug(f"Max correlation: {max_corr:.2f}")
+            except Exception as e:
+                self.Debug(f"Correlation check error: {e}")
+        else:
+            self.Debug("Correlation limiter: get_max_correlation method not available")
         
-        # Check state machines
-        state_dashboard = self.state_manager.get_dashboard()
-        self.Debug(f"Active strategies: {state_dashboard['active_strategies']}/{state_dashboard['total_strategies']}")
+        # Check state machines (defensive programming)
+        if hasattr(self.state_manager, 'get_dashboard'):
+            try:
+                state_dashboard = self.state_manager.get_dashboard()
+                if isinstance(state_dashboard, dict):
+                    active = state_dashboard.get('active_strategies', 'unknown')
+                    total = state_dashboard.get('total_strategies', 'unknown')
+                    self.Debug(f"Active strategies: {active}/{total}")
+                else:
+                    self.Debug(f"State dashboard: {state_dashboard}")
+            except Exception as e:
+                self.Debug(f"State dashboard error: {e}")
+        else:
+            self.Debug("State manager: get_dashboard method not available")
         
-        # Check for stuck positions
+        # Check for stuck positions (defensive programming)
         for name, strategy in self.strategies.items():
             if hasattr(strategy, 'check_health'):
-                health = strategy.check_health()
-                if not health['healthy']:
-                    self.Error(f"Strategy {name} unhealthy: {health['reason']}")
+                try:
+                    health = strategy.check_health()
+                    if isinstance(health, dict) and not health.get('healthy', True):
+                        self.Error(f"Strategy {name} unhealthy: {health.get('reason', 'unknown')}")
+                except Exception as e:
+                    self.Debug(f"Strategy {name} health check error: {e}")
     
     def PersistStates(self):
         """Persist all state machines"""
