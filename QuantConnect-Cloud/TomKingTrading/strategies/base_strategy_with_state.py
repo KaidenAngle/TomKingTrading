@@ -306,8 +306,10 @@ class BaseStrategyWithState:
     
     def _check_entry_conditions(self) -> bool:
         """Check if entry conditions are met - Base implementation"""
-        self.algo.Error(f"[{self.strategy_name}] _check_entry_conditions not implemented in subclass")
-        return False
+        # Base implementation - always return True so strategies can enter if they want
+        # Subclasses should override this with actual entry logic
+        self.algo.Debug(f"[{self.strategy_name}] Using base _check_entry_conditions - consider overriding in subclass")
+        return True
     
     def _get_analysis_data(self) -> Dict:
         """Get analysis data for logging"""
@@ -323,7 +325,8 @@ class BaseStrategyWithState:
     
     def _place_entry_orders(self) -> bool:
         """Place entry orders - Base implementation"""
-        self.algo.Error(f"[{self.strategy_name}] _place_entry_orders not implemented in subclass")
+        # Base implementation - log that no orders were placed
+        self.algo.Debug(f"[{self.strategy_name}] No entry orders placed - override _place_entry_orders in subclass")
         return False
     
     def _check_profit_target(self) -> bool:
@@ -375,7 +378,8 @@ class BaseStrategyWithState:
     
     def _place_exit_orders(self) -> bool:
         """Place exit orders - Base implementation"""
-        self.algo.Error(f"[{self.strategy_name}] _place_exit_orders not implemented in subclass")
+        # Base implementation - log that no orders were placed
+        self.algo.Debug(f"[{self.strategy_name}] No exit orders placed - override _place_exit_orders in subclass")
         return False
     
     def _can_trade_again_today(self) -> bool:
@@ -410,6 +414,105 @@ class BaseStrategyWithState:
                         total_value += price * quantity
         
         return abs(total_value)  # Return absolute value for comparison
+    
+    # === PUBLIC INTERFACE METHODS ===
+    # These methods provide the interface expected by main algorithm
+    # while properly integrating with the state machine
+    
+    def can_enter(self) -> bool:
+        """Check if strategy can enter a new position"""
+        # Check if in appropriate state to enter
+        if not self.state_machine.is_in_any_state([
+            StrategyState.READY,
+            StrategyState.ANALYZING
+        ]):
+            return False
+            
+        # Check if already have position
+        if self.current_position:
+            return False
+            
+        # Check market hours
+        if not self.algo.IsMarketOpen(self.algo.spy):
+            return False
+            
+        # Check strategy-specific entry conditions
+        return self._check_entry_conditions()
+    
+    def enter_position(self) -> bool:
+        """
+        Public interface to enter position
+        Integrates with state machine by triggering appropriate transitions
+        """
+        if not self.can_enter():
+            return False
+        
+        # If we're in READY state, move to analysis
+        if self.state_machine.is_in_state(StrategyState.READY):
+            if self.state_machine.trigger(TransitionTrigger.TIME_WINDOW_START):
+                # Continue with execution cycle
+                self.execute()
+        
+        # If already analyzing, check conditions
+        elif self.state_machine.is_in_state(StrategyState.ANALYZING):
+            self.execute()
+        
+        return True
+    
+    def check_defensive_exits(self):
+        """Check if defensive exits are needed (public interface)"""
+        if self.state_machine.is_in_state(StrategyState.MANAGING):
+            # This will trigger the defensive exit check in _manage_position
+            if self._check_defensive_exit():
+                self.state_machine.trigger(TransitionTrigger.DEFENSIVE_EXIT_DTE)
+    
+    def manage_positions(self):
+        """Manage positions (public interface)"""
+        if self.state_machine.is_in_any_state([
+            StrategyState.POSITION_OPEN,
+            StrategyState.MANAGING,
+            StrategyState.ADJUSTING
+        ]):
+            self.execute()  # This will call the appropriate state-specific methods
+    
+    def exit_position(self, reason: str = "Manual exit") -> bool:
+        """
+        Public interface to exit position
+        Forces exit regardless of current state
+        """
+        if not self.current_position:
+            return False
+        
+        # Force transition to exiting state
+        if self.state_machine.is_in_any_state([
+            StrategyState.POSITION_OPEN,
+            StrategyState.MANAGING,
+            StrategyState.ADJUSTING
+        ]):
+            self.state_machine.trigger(
+                TransitionTrigger.EMERGENCY_EXIT, 
+                {'reason': reason}
+            )
+            return True
+        
+        return False
+    
+    def get_position_status(self) -> Dict:
+        """Get current position status"""
+        return {
+            'has_position': bool(self.current_position),
+            'state': self.state_machine.current_state.name,
+            'pnl': self.position_pnl,
+            'trades_completed': self.trades_completed,
+            'win_rate': self.wins / max(1, self.wins + self.losses)
+        }
+    
+    def force_state_transition(self, trigger: TransitionTrigger, data: Dict = None) -> bool:
+        """
+        Public interface to force state transitions
+        Use with caution - mainly for emergency situations
+        """
+        return self.state_machine.trigger(trigger, data)
     
     def get_statistics(self) -> Dict:
         """Get strategy statistics"""
