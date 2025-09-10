@@ -78,10 +78,49 @@ class TomKingTradingIntegrated(QCAlgorithm):
         self.spy = self.AddEquity("SPY", Resolution.Minute).Symbol
         self.vix = self.AddIndex("VIX", Resolution.Minute).Symbol
         
-        # Options configuration with Tastytrade fee model
-        option = self.AddOption("SPY", Resolution.Minute)
-        option.SetFilter(lambda x: x.Strikes(-50, 50)
-                                   .Expiration(timedelta(0), timedelta(180)))
+        # Add all equity instruments from BacktestConfig
+        from config.backtest_config import BacktestConfig
+        self.equity_symbols = {}
+        for ticker in BacktestConfig.BACKTEST_SYMBOLS['equities']:
+            self.equity_symbols[ticker] = self.AddEquity(ticker, BacktestConfig.EQUITY_RESOLUTION).Symbol
+            # Add options for major equity ETFs
+            if ticker in ['SPY', 'QQQ', 'IWM', 'DIA']:
+                option = self.AddOption(ticker, BacktestConfig.OPTION_RESOLUTION)
+                option.SetFilter(lambda x: x.Strikes(-50, 50)
+                                           .Expiration(timedelta(0), timedelta(180)))
+        
+        # Add all futures instruments
+        self.futures_symbols = {}
+        for ticker in BacktestConfig.BACKTEST_SYMBOLS['futures']:
+            try:
+                # Use continuous contract for backtesting
+                future = self.AddFuture(ticker, BacktestConfig.FUTURES_RESOLUTION)
+                future.SetFilter(lambda x: x.FrontMonth())
+                self.futures_symbols[ticker] = future.Symbol
+                
+                # Add options on futures for major contracts
+                if ticker in ['ES', 'NQ', 'CL', 'GC']:
+                    future_option = self.AddFutureOption(ticker, BacktestConfig.OPTION_RESOLUTION)
+                    future_option.SetFilter(lambda x: x.Strikes(-50, 50)
+                                                      .Expiration(timedelta(0), timedelta(90)))
+            except Exception as e:
+                self.Error(f"Failed to add future {ticker}: {str(e)}")
+        
+        # Add micro futures
+        self.micro_futures_symbols = {}
+        for ticker in BacktestConfig.BACKTEST_SYMBOLS['micro_futures']:
+            try:
+                # Use continuous contract for backtesting
+                future = self.AddFuture(ticker, BacktestConfig.FUTURES_RESOLUTION)
+                future.SetFilter(lambda x: x.FrontMonth())
+                self.micro_futures_symbols[ticker] = future.Symbol
+            except Exception as e:
+                self.Error(f"Failed to add micro future {ticker}: {str(e)}")
+        
+        # Log all subscribed instruments
+        self.Error(f"[DATA] SUBSCRIBED EQUITIES: {list(self.equity_symbols.keys())}")
+        self.Error(f"[DATA] SUBSCRIBED FUTURES: {list(self.futures_symbols.keys())}")
+        self.Error(f"[DATA] SUBSCRIBED MICRO FUTURES: {list(self.micro_futures_symbols.keys())}")
         
         # Set Tastytrade fee model for all securities
         for security in self.Securities.Values:
@@ -186,6 +225,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             self.state_manager.register_strategy(name, strategy.state_machine)
             priority = strategy_priorities.get(name, StrategyPriority.MEDIUM)
             self.strategy_coordinator.register_strategy(name, priority=priority)
+            self.Error(f"[MAIN] REGISTERED STRATEGY: {name} with priority {priority}")
         
         # ======================
         # CIRCUIT BREAKERS
@@ -209,7 +249,11 @@ class TomKingTradingIntegrated(QCAlgorithm):
         self.option_check_interval = timedelta(minutes=15)
         
         self.trades_today = 0
-        self.daily_trade_limit = 10
+        # Dynamic trade limit based on account size and VIX
+        self.daily_trade_limit = TomKingParameters.get_max_trades_per_day(
+            self.Portfolio.TotalPortfolioValue, 
+            self.unified_vix_manager.current_vix if hasattr(self, 'unified_vix_manager') else None
+        )
         
         self.current_phase = 1  # Start in Phase 1
         
@@ -492,6 +536,9 @@ class TomKingTradingIntegrated(QCAlgorithm):
     def OnData(self, data):
         """Main data handler with full safety integration"""
         
+        # MINIMAL TEST: Confirm OnData is called
+        self.Error(f"[MINIMAL TEST] OnData called at {self.Time} - data keys: {list(data.Keys)}")
+        
         # ======================
         # PERFORMANCE CACHING
         # ======================
@@ -558,31 +605,43 @@ class TomKingTradingIntegrated(QCAlgorithm):
             self.greeks_monitor.update()
         
         # Get execution order from coordinator
+        self.Error(f"[MAIN] OnData called at {self.Time}")
         execution_order = self.strategy_coordinator.get_execution_order()
+        self.Error(f"[MAIN] EXECUTION ORDER: {execution_order}")
         
         for strategy_name in execution_order:
+            self.Debug(f"[MAIN] CHECKING STRATEGY: {strategy_name}")
+            
             # Check if strategy can execute
-            if not self.state_manager.can_enter_new_position(strategy_name):
+            can_enter = self.state_manager.can_enter_new_position(strategy_name)
+            self.Debug(f"[MAIN] CAN_ENTER_NEW_POSITION: {strategy_name} = {can_enter}")
+            
+            if not can_enter:
+                self.Debug(f"[MAIN] SKIPPING: {strategy_name} cannot enter new position")
                 continue
             
             # Check daily trade limit
             if self.trades_today >= self.daily_trade_limit:
-                self.Debug("Daily trade limit reached")
+                self.Debug(f"[MAIN] LIMIT REACHED: Daily trade limit {self.daily_trade_limit} reached (current: {self.trades_today})")
                 break
             
             # Check strategy-specific conditions
             strategy = self.strategies.get(strategy_name)
             if strategy:
+                self.Debug(f"[MAIN] EXECUTING: {strategy_name}")
                 try:
                     # Execute through state machine
                     strategy.execute()
                     
                     # Update coordinator
                     self.strategy_coordinator.record_execution(strategy_name)
+                    self.Debug(f"[MAIN] EXECUTED: {strategy_name} completed successfully")
                     
                 except Exception as e:
-                    self.Error(f"Strategy {strategy_name} error: {e}")
+                    self.Error(f"[MAIN] ERROR: Strategy {strategy_name} error: {e}")
                     self.state_manager.force_strategy_exit(strategy_name, str(e))
+            else:
+                self.Error(f"[MAIN] MISSING: Strategy {strategy_name} not found in self.strategies")
         
         # ======================
         # POSITION MANAGEMENT

@@ -50,24 +50,38 @@ class August2024CorrelationLimiter:
         self.override_password = None  # Only for emergency
     
     def _get_dynamic_limits(self):
-        """Get position limits that scale with account size"""
+        """Get position limits that scale with account size using Tom King phase system"""
         account_value = float(self.algorithm.Portfolio.TotalPortfolioValue)
-        account_gbp = account_value / 1.27  # USD to GBP
         
-        if account_gbp < 30000:  # Small account
+        # Import TomKingParameters for consistency
+        from config.strategy_parameters import TomKingParameters
+        account_phase = TomKingParameters.get_phase_for_account_size(account_value)
+        
+        # Phase-based correlation limits aligned with Tom King methodology
+        if account_phase == 0:  # MES-only accounts (under $40k)
+            return {
+                'A1': 1, 'A2': 1, 'B1': 1, 'B2': 1,
+                'C1': 1, 'C2': 1, 'D1': 1, 'D2': 1, 'E': 1
+            }
+        elif account_phase == 1:  # Phase 1 ($40k-55k): Foundation
             return {
                 'A1': 1, 'A2': 2, 'B1': 1, 'B2': 1,
                 'C1': 1, 'C2': 1, 'D1': 1, 'D2': 1, 'E': 1
             }
-        elif account_gbp < 65000:  # Medium account
+        elif account_phase == 2:  # Phase 2 ($55k-75k): Growth
+            return {
+                'A1': 2, 'A2': 2, 'B1': 2, 'B2': 1,
+                'C1': 2, 'C2': 1, 'D1': 1, 'D2': 1, 'E': 2
+            }
+        elif account_phase == 3:  # Phase 3 ($75k-95k): Advanced
             return {
                 'A1': 2, 'A2': 3, 'B1': 2, 'B2': 2,
                 'C1': 2, 'C2': 1, 'D1': 2, 'D2': 1, 'E': 2
             }
-        else:  # Large account
+        else:  # Phase 4 ($95k+): Professional
             return {
-                'A1': 2, 'A2': 3, 'B1': 2, 'B2': 2,
-                'C1': 2, 'C2': 1, 'D1': 2, 'D2': 1, 'E': 2
+                'A1': 3, 'A2': 3, 'B1': 2, 'B2': 2,
+                'C1': 3, 'C2': 2, 'D1': 2, 'D2': 2, 'E': 2
             }
     
     def get_correlation_group(self, symbol):

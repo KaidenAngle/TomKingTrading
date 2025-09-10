@@ -352,6 +352,59 @@ class TomKingParameters:
         # Return the smaller of the two limits
         return min(max_positions_by_margin, max_positions_by_limit)
     
+    @classmethod
+    def get_max_trades_per_day(cls, account_value, vix_level=None):
+        """Calculate dynamic max trades per day based on account phase and conditions
+        
+        Tom King Philosophy: More trades allowed as account grows and experience is proven
+        Phase-based progression ensures proper scaling without overtrading
+        """
+        # Get account phase
+        account_phase = cls.get_phase_for_account_size(account_value)
+        
+        # Base trades per day by phase (accounts for increasing complexity and opportunities)
+        base_trades_by_phase = {
+            0: 2,  # MES-only accounts (under $40k): Very conservative
+            1: 3,  # Phase 1 ($40k-55k): Foundation - limited complexity
+            2: 5,  # Phase 2 ($55k-75k): Growth - more strategies unlocked
+            3: 7,  # Phase 3 ($75k-95k): Advanced - multiple strategies active
+            4: 10  # Phase 4 ($95k+): Professional - full system deployment
+        }
+        
+        base_trades = base_trades_by_phase.get(account_phase, 3)
+        
+        # VIX adjustments (if provided)
+        if vix_level is not None:
+            if vix_level > 40:
+                # High VIX: Reduce trading frequency (risk management)
+                base_trades = max(1, int(base_trades * 0.5))
+            elif vix_level > 30:
+                # Elevated VIX: Slightly reduce
+                base_trades = max(2, int(base_trades * 0.75))
+            elif vix_level < 12:
+                # Very low VIX: Increase opportunities (complacency periods)
+                base_trades = min(15, int(base_trades * 1.2))
+        
+        # Account size scaling within phase
+        phase_configs = {
+            0: {'min': 0, 'max': 39999},
+            1: {'min': 40000, 'max': 54999}, 
+            2: {'min': 55000, 'max': 74999},
+            3: {'min': 75000, 'max': 94999},
+            4: {'min': 95000, 'max': 999999}
+        }
+        
+        if account_phase in phase_configs:
+            phase_config = phase_configs[account_phase]
+            phase_range = phase_config['max'] - phase_config['min']
+            if phase_range > 0:
+                position_in_phase = (account_value - phase_config['min']) / phase_range
+                # Scale by 20% within phase range
+                scaling_factor = 1.0 + (position_in_phase * 0.2)
+                base_trades = int(base_trades * scaling_factor)
+        
+        return max(1, base_trades)  # Never allow 0 trades
+    
     @staticmethod
     def gbp_to_usd(gbp_amount: float, rate: float = 1.27) -> float:
         """Convert GBP to USD (for reference - all phases now use USD)"""

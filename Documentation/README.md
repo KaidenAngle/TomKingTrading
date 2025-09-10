@@ -26,6 +26,7 @@
 - [Fail-Fast Error Philosophy](Architecture/FAIL_FAST_ERROR_PHILOSOPHY.md) - Why we don't use try/catch everywhere
 - [ObjectStore State Persistence](Architecture/OBJECTSTORE_STATE_PERSISTENCE.md) - Crash recovery and state management
 - [Circuit Breaker Thresholds](Architecture/CIRCUIT_BREAKER_THRESHOLDS.md) - Why these specific numbers
+- [Dynamic Position Scaling Patterns](Architecture/DYNAMIC_POSITION_SCALING_PATTERNS.md) - Intelligent scaling that preserves risk tolerance
 
 ## Methodology Documentation
 
@@ -143,7 +144,7 @@ Documentation/
 ├── 📋 COMPLETE_REFERENCE_GUIDE.md  # START HERE - Quick answers
 ├── ⚠️ CRITICAL_DO_NOT_CHANGE.md    # Must read - never modify these
 ├── 📊 IMPLEMENTATION_SUMMARY.md    # Framework overview & status
-├── Architecture/ (16 docs)         # System design patterns (NEW: Interface Testing & Auditing)
+├── Architecture/ (17 docs)         # System design patterns (NEW: Dynamic Position Scaling Patterns)
 ├── Methodology/ (6 docs)           # Trading rules & risk
 ├── Strategies/ (1 doc)             # All 10 strategies detailed
 ├── Testing/ (1 doc)                # Test requirements
@@ -166,6 +167,9 @@ Documentation/
 
 #### **Why VIX requirements differ:**
 → [VIX Management Design](Architecture/VIX_MANAGEMENT_DESIGN.md)
+
+#### **How position scaling preserves risk tolerance:**
+→ [Dynamic Position Scaling Patterns](Architecture/DYNAMIC_POSITION_SCALING_PATTERNS.md)
 
 #### **The August 5 disaster:**
 → [August 5, 2024 Correlation Disaster](Methodology/AUGUST_5_2024_CORRELATION_DISASTER.md)

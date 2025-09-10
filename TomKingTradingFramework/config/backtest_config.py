@@ -14,7 +14,7 @@ class BacktestConfig:
     BACKTEST_END_DATE = datetime(2025, 1, 1)
     
     # Initial capital and currency
-    STARTING_CASH = 30000  # $30,000 starting capital (smaller for faster backtesting)
+    STARTING_CASH = 100000  # $100,000 starting capital (increased for maximum strategy utilization)
     ACCOUNT_CURRENCY = "USD"  # QuantConnect standard currency
     
     # Data resolution settings

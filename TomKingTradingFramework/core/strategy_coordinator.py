@@ -281,15 +281,29 @@ class StrategyCoordinator:
     def get_execution_order(self) -> List[str]:
         """Get recommended execution order based on priority"""
         
+        self.algo.Error(f"[COORDINATOR] GET_EXECUTION_ORDER START - Registered strategies: {list(self.registered_strategies.keys())}")
+        self.algo.Error(f"[COORDINATOR] Blocked strategies: {list(self.blocked_strategies)}")
+        
         order = []
         
         for priority in [StrategyPriority.CRITICAL, StrategyPriority.HIGH, 
                         StrategyPriority.MEDIUM, StrategyPriority.LOW]:
+            self.algo.Error(f"[COORDINATOR] Checking priority {priority}")
+            
             for name, info in self.registered_strategies.items():
+                self.algo.Error(f"[COORDINATOR] Strategy {name}: priority={info['priority']}, blocked={name in self.blocked_strategies}")
+                
                 if info['priority'] == priority and name not in self.blocked_strategies:
-                    if self.is_in_execution_window(name):
+                    in_window = self.is_in_execution_window(name)
+                    self.algo.Error(f"[COORDINATOR] Strategy {name}: in_execution_window={in_window}")
+                    
+                    if in_window:
                         order.append(name)
+                        self.algo.Error(f"[COORDINATOR] ADDED {name} to execution order")
+                    else:
+                        self.algo.Error(f"[COORDINATOR] BLOCKED {name} - outside execution window")
                         
+        self.algo.Error(f"[COORDINATOR] FINAL EXECUTION ORDER: {order}")
         return order
         
     def should_throttle_strategy(self, strategy_name: str, 

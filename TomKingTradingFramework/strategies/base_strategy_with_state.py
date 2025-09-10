@@ -19,6 +19,9 @@ class BaseStrategyWithState:
         # Initialize state machine
         self.state_machine = StrategyStateMachine(algorithm, strategy_name)
         
+        # Setup basic state transitions (required for all strategies)
+        self._setup_basic_transitions()
+        
         # Setup state callbacks
         self._setup_state_callbacks()
         
@@ -91,6 +94,68 @@ class BaseStrategyWithState:
             lambda ctx: self._on_error(ctx)
         )
     
+    def _setup_basic_transitions(self):
+        """Setup fundamental state transitions required by all strategies"""
+        from core.state_machine import StateTransition
+        
+        # CRITICAL: INITIALIZING -> READY transition (without this, strategies never trade)
+        self.state_machine.add_transition(
+            StrategyState.INITIALIZING,
+            StrategyState.READY,
+            TransitionTrigger.MARKET_OPEN
+        )
+        
+        # READY -> ANALYZING transition (when entry window opens)
+        self.state_machine.add_transition(
+            StrategyState.READY,
+            StrategyState.ANALYZING,
+            TransitionTrigger.TIME_WINDOW_START
+        )
+        
+        # ANALYZING -> ENTERING transition (when conditions met)
+        self.state_machine.add_transition(
+            StrategyState.ANALYZING,
+            StrategyState.ENTERING,
+            TransitionTrigger.ENTRY_CONDITIONS_MET
+        )
+        
+        # ENTERING -> POSITION_OPEN transition (when order filled)
+        self.state_machine.add_transition(
+            StrategyState.ENTERING,
+            StrategyState.POSITION_OPEN,
+            TransitionTrigger.ORDER_FILLED
+        )
+        
+        # POSITION_OPEN -> MANAGING transition (automatic)
+        self.state_machine.add_transition(
+            StrategyState.POSITION_OPEN,
+            StrategyState.MANAGING,
+            TransitionTrigger.MARKET_OPEN
+        )
+        
+        # MANAGING -> EXITING transition (when exit conditions met)
+        self.state_machine.add_transition(
+            StrategyState.MANAGING,
+            StrategyState.EXITING,
+            TransitionTrigger.TIME_WINDOW_END
+        )
+        
+        # EXITING -> CLOSED transition (when position closed)
+        self.state_machine.add_transition(
+            StrategyState.EXITING,
+            StrategyState.CLOSED,
+            TransitionTrigger.ORDER_FILLED
+        )
+        
+        # CLOSED -> READY transition (ready for next trade)
+        self.state_machine.add_transition(
+            StrategyState.CLOSED,
+            StrategyState.READY,
+            TransitionTrigger.MARKET_OPEN
+        )
+        
+        self.algo.Debug(f"[{self.strategy_name}] Complete basic transitions setup completed")
+    
     def execute(self):
         """Main execution method called by algorithm"""
         
@@ -98,44 +163,63 @@ class BaseStrategyWithState:
             # Check current state and execute appropriate logic
             state = self.state_machine.current_state
             
+            # VERBOSE LOGGING: Track every execution call
+            self.algo.Debug(f"[{self.strategy_name}] EXECUTE: Current state = {state.name}, Time = {self.algo.Time}")
+            
             if state == StrategyState.INITIALIZING:
+                self.algo.Debug(f"[{self.strategy_name}] TRACE: Checking initialization...")
                 self._check_initialization()
             
             elif state == StrategyState.READY:
+                self.algo.Debug(f"[{self.strategy_name}] TRACE: Checking entry window...")
                 self._check_entry_window()
             
             elif state == StrategyState.ANALYZING:
+                self.algo.Debug(f"[{self.strategy_name}] TRACE: Analyzing market conditions...")
                 self._analyze_market()
             
             elif state == StrategyState.PENDING_ENTRY:
+                self.algo.Debug(f"[{self.strategy_name}] TRACE: Preparing entry...")
                 self._prepare_entry()
             
             elif state == StrategyState.ENTERING:
+                self.algo.Debug(f"[{self.strategy_name}] TRACE: Executing entry...")
                 self._execute_entry()
             
             elif state == StrategyState.POSITION_OPEN:
+                self.algo.Debug(f"[{self.strategy_name}] TRACE: Checking position status...")
                 self._check_position_status()
             
             elif state == StrategyState.MANAGING:
+                self.algo.Debug(f"[{self.strategy_name}] TRACE: Managing position...")
                 self._manage_position()
             
             elif state == StrategyState.ADJUSTING:
+                self.algo.Debug(f"[{self.strategy_name}] TRACE: Adjusting position...")
                 self._adjust_position()
             
             elif state == StrategyState.PENDING_EXIT:
+                self.algo.Debug(f"[{self.strategy_name}] TRACE: Preparing exit...")
                 self._prepare_exit()
             
             elif state == StrategyState.EXITING:
+                self.algo.Debug(f"[{self.strategy_name}] TRACE: Executing exit...")
                 self._execute_exit()
             
             elif state == StrategyState.CLOSED:
+                self.algo.Debug(f"[{self.strategy_name}] TRACE: Cleaning up after close...")
                 self._cleanup_after_close()
             
             elif state == StrategyState.ERROR:
+                self.algo.Debug(f"[{self.strategy_name}] TRACE: Handling error state...")
                 self._handle_error_state()
             
             elif state == StrategyState.SUSPENDED:
+                self.algo.Debug(f"[{self.strategy_name}] TRACE: Checking suspension conditions...")
                 self._check_suspension_conditions()
+            
+            else:
+                self.algo.Error(f"[{self.strategy_name}] UNKNOWN STATE: {state.name}")
         
         except Exception as e:
             self.algo.Error(f"[{self.strategy_name}] Execution error: {e}")
@@ -146,31 +230,55 @@ class BaseStrategyWithState:
     def _check_initialization(self):
         """Check if strategy is ready to start"""
         # Market open check
-        if self.algo.IsMarketOpen(self.algo.spy):
+        market_open = self.algo.IsMarketOpen(self.algo.spy)
+        self.algo.Debug(f"[{self.strategy_name}] INIT CHECK: Market open = {market_open}, SPY = {self.algo.spy}")
+        
+        if market_open:
+            self.algo.Debug(f"[{self.strategy_name}] INIT TRIGGER: Market is open, triggering MARKET_OPEN")
             self.state_machine.trigger(TransitionTrigger.MARKET_OPEN)
+        else:
+            self.algo.Debug(f"[{self.strategy_name}] INIT WAIT: Market is closed, staying in INITIALIZING")
     
     def _check_entry_window(self):
         """Check if we're in the entry time window"""
         current_time = self.algo.Time.time()
         
+        self.algo.Debug(f"[{self.strategy_name}] ENTRY WINDOW CHECK: Current time = {current_time}, Entry time = {self.entry_time}")
+        
         if self.entry_time and current_time >= self.entry_time:
+            self.algo.Debug(f"[{self.strategy_name}] ENTRY TRIGGER: Entry window open, triggering TIME_WINDOW_START")
             self.state_machine.trigger(TransitionTrigger.TIME_WINDOW_START)
+        else:
+            if not self.entry_time:
+                self.algo.Debug(f"[{self.strategy_name}] ENTRY WAIT: No entry time configured")
+            else:
+                self.algo.Debug(f"[{self.strategy_name}] ENTRY WAIT: Current time {current_time} < entry time {self.entry_time}")
     
     def _analyze_market(self):
         """Analyze market conditions for entry (OVERRIDE IN SUBCLASS)"""
         # This is where strategy-specific analysis goes
         # Example structure:
+        self.algo.Debug(f"[{self.strategy_name}] ANALYSIS: Checking entry conditions...")
         conditions_met = self._check_entry_conditions()
         
+        self.algo.Debug(f"[{self.strategy_name}] ANALYSIS RESULT: Entry conditions met = {conditions_met}")
+        
         if conditions_met:
+            self.algo.Debug(f"[{self.strategy_name}] ANALYSIS TRIGGER: Entry conditions met, triggering ENTRY_CONDITIONS_MET")
             self.state_machine.trigger(
                 TransitionTrigger.ENTRY_CONDITIONS_MET,
                 {'analysis': self._get_analysis_data()}
             )
         else:
             # Check if window expired
-            if self._is_entry_window_expired():
+            window_expired = self._is_entry_window_expired()
+            self.algo.Debug(f"[{self.strategy_name}] ANALYSIS CHECK: Entry window expired = {window_expired}")
+            
+            if window_expired:
+                self.algo.Debug(f"[{self.strategy_name}] ANALYSIS TRIGGER: Entry window expired, triggering ENTRY_CONDITIONS_FAILED")
                 self.state_machine.trigger(TransitionTrigger.ENTRY_CONDITIONS_FAILED)
+            else:
+                self.algo.Debug(f"[{self.strategy_name}] ANALYSIS WAIT: Conditions not met, waiting...")
     
     def _prepare_entry(self):
         """Prepare to enter position"""
@@ -306,7 +414,8 @@ class BaseStrategyWithState:
     
     def _check_entry_conditions(self) -> bool:
         """Check if entry conditions are met - Base implementation"""
-        self.algo.Error(f"[{self.strategy_name}] _check_entry_conditions not implemented in subclass")
+        self.algo.Error(f"[{self.strategy_name}] CRITICAL: _check_entry_conditions not implemented in subclass - will NEVER enter trades!")
+        self.algo.Error(f"[{self.strategy_name}] CRITICAL: Strategy subclass must override _check_entry_conditions() method")
         return False
     
     def _get_analysis_data(self) -> Dict:
@@ -323,7 +432,8 @@ class BaseStrategyWithState:
     
     def _place_entry_orders(self) -> bool:
         """Place entry orders - Base implementation"""
-        self.algo.Error(f"[{self.strategy_name}] _place_entry_orders not implemented in subclass")
+        self.algo.Error(f"[{self.strategy_name}] CRITICAL: _place_entry_orders not implemented in subclass - cannot execute trades!")
+        self.algo.Error(f"[{self.strategy_name}] CRITICAL: Strategy subclass must override _place_entry_orders() method")
         return False
     
     def _check_profit_target(self) -> bool:

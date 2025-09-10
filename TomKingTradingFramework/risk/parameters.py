@@ -70,17 +70,26 @@ class RiskParameters:
             },
             
             # Strategy-specific BP requirements (percentage of account)
+            # NOTE: max_positions are now dynamically calculated based on account phase
             'strategy_bp_requirements': {
-                '0DTE': {'micro': 0.02, 'full': 0.02, 'max_positions': 5},
-                'STRANGLE': {'micro': 0.025, 'full': 0.035, 'max_positions': 8},
-                'LT112': {'micro': 0.03, 'full': 0.06, 'max_positions': 6},
-                'IPMCC': {'micro': 0.08, 'full': 0.08, 'max_positions': 4},
-                'BUTTERFLY': {'micro': 0.005, 'full': 0.005, 'max_positions': 10},
-                'RATIO_SPREAD': {'micro': 0.02, 'full': 0.02, 'max_positions': 8},
-                'DIAGONAL': {'micro': 0.015, 'full': 0.015, 'max_positions': 6},
-                'LEAP_PUTS': {'micro': 0.02, 'full': 0.02, 'max_positions': 10},
-                'BOX_SPREAD': {'micro': 0.0, 'full': 0.0, 'max_positions': 5},
-                'CALENDAR': {'micro': 0.01, 'full': 0.01, 'max_positions': 8},
+                '0DTE': {'micro': 0.02, 'full': 0.02, 'base_max_positions': 2},
+                'STRANGLE': {'micro': 0.025, 'full': 0.035, 'base_max_positions': 3},
+                'LT112': {'micro': 0.03, 'full': 0.06, 'base_max_positions': 2},
+                'IPMCC': {'micro': 0.08, 'full': 0.08, 'base_max_positions': 1},
+                'BUTTERFLY': {'micro': 0.005, 'full': 0.005, 'base_max_positions': 4},
+                'RATIO_SPREAD': {'micro': 0.02, 'full': 0.02, 'base_max_positions': 2},
+                'DIAGONAL': {'micro': 0.015, 'full': 0.015, 'base_max_positions': 2},
+                'LEAP_PUTS': {'micro': 0.02, 'full': 0.02, 'base_max_positions': 3},
+                'BOX_SPREAD': {'micro': 0.0, 'full': 0.0, 'base_max_positions': 2},
+                'CALENDAR': {'micro': 0.01, 'full': 0.01, 'base_max_positions': 3},
+            },
+            
+            # Dynamic position scaling by phase (Tom King methodology)
+            'phase_position_multipliers': {
+                1: 1.0,    # Phase 1: Use base positions (conservative)
+                2: 1.5,    # Phase 2: 50% more positions (growth)
+                3: 2.0,    # Phase 3: Double positions (optimization)
+                4: 2.5,    # Phase 4: 2.5x positions (professional)
             }
         }
     
@@ -504,6 +513,53 @@ class RiskParameters:
             'risk_rating': self.strategies['risk_ratings'].get(strategy_upper, 'MODERATE')
         }
     
+    def get_dynamic_strategy_position_limit(self, strategy: str, account_value: float, vix_level: float = None) -> int:
+        """Calculate dynamic position limits for strategy based on account phase and VIX
+        
+        Tom King Philosophy: Position limits should scale with account size and experience
+        More sophisticated accounts can handle more complexity while maintaining risk control
+        """
+        strategy_upper = strategy.upper()
+        
+        # Get account phase for scaling
+        account_phase = self.get_account_phase(account_value)['phase']
+        
+        # Get base position limit for strategy
+        strategy_config = self.position_sizing['strategy_bp_requirements'].get(strategy_upper)
+        if not strategy_config:
+            strategy_config = self.position_sizing['strategy_bp_requirements']['0DTE']
+        
+        base_positions = strategy_config.get('base_max_positions', 2)
+        
+        # Get phase multiplier
+        phase_multiplier = self.position_sizing['phase_position_multipliers'].get(account_phase, 1.0)
+        
+        # Calculate base dynamic limit
+        dynamic_limit = int(base_positions * phase_multiplier)
+        
+        # VIX adjustments (higher VIX = fewer positions for risk control)
+        if vix_level is not None:
+            if vix_level > 35:      # Extreme VIX: reduce by 50%
+                dynamic_limit = max(1, int(dynamic_limit * 0.5))
+            elif vix_level > 25:    # High VIX: reduce by 25%
+                dynamic_limit = max(1, int(dynamic_limit * 0.75))
+            elif vix_level < 15:    # Very low VIX: allow 25% more
+                dynamic_limit = int(dynamic_limit * 1.25)
+        
+        # Strategy-specific caps (prevent runaway positions)
+        strategy_caps = {
+            'LT112': 8,      # Correlation risk limit (Tom King disaster prevention)
+            'IPMCC': 6,      # Capital intensive limit
+            'RATIO_SPREAD': 5,  # Unlimited risk limit
+            '0DTE': 12,      # Gamma risk limit
+        }
+        
+        max_cap = strategy_caps.get(strategy_upper, 15)  # Default cap of 15
+        dynamic_limit = min(dynamic_limit, max_cap)
+        
+        # Minimum of 1 position always allowed
+        return max(1, dynamic_limit)
+    
     def get_emergency_level(self, portfolio_loss: float, vix_level: float, 
                           correlation: float) -> Dict:
         """Determine current emergency level based on conditions"""
@@ -742,6 +798,11 @@ def get_strategy_info(strategy: str) -> Dict:
 def check_emergency_status(portfolio_loss: float, vix_level: float, correlation: float) -> Dict:
     """Convenience function to check emergency status"""
     return RISK_PARAMETERS.get_emergency_level(portfolio_loss, vix_level, correlation)
+
+
+def get_dynamic_position_limit(strategy: str, account_value: float, vix_level: float = None) -> int:
+    """Convenience function to get dynamic position limits for strategy"""
+    return RISK_PARAMETERS.get_dynamic_strategy_position_limit(strategy, account_value, vix_level)
 
 
 # Example usage and validation

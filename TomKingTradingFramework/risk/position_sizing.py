@@ -57,6 +57,10 @@ class PositionSizer:
     """
     
     def __init__(self):
+        # Import centralized risk parameters for consistency
+        from risk.parameters import get_risk_parameters
+        self.risk_params = get_risk_parameters()
+        
         # VIX regime thresholds and BP limits - Exact Tom King specifications
         self.vix_regimes = {
             VIXRegime.EXTREMELY_LOW: {
@@ -221,6 +225,10 @@ class PositionSizer:
             deployment_strategy = self._get_deployment_strategy(vix_regime)
             warning_message = vix_config.get('warning')
         
+        # Get dynamic position limits from centralized risk parameters
+        account_phase_info = self.risk_params.get_account_phase(account_value)
+        dynamic_max_positions = account_phase_info['config']['max_positions']
+        
         return {
             'vix_regime': vix_regime.value,
             'account_phase': account_phase.value,
@@ -229,9 +237,9 @@ class PositionSizer:
             'max_bp_usage': effective_bp_limit,
             'conservative_bp_usage': conservative_bp_limit,
             'base_bp_usage': phase_config['base_bp_limit'],
-            'max_positions': phase_config['max_positions'],
+            'max_positions': dynamic_max_positions,  # Now uses dynamic scaling
             'current_positions': current_positions,
-            'available_positions': phase_config['max_positions'] - current_positions,
+            'available_positions': dynamic_max_positions - current_positions,
             'deployment_strategy': deployment_strategy,
             'warning_message': warning_message,
             'vix_spike_opportunity': is_vix_spike,
@@ -276,6 +284,10 @@ class PositionSizer:
         # Calculate Kelly fraction
         kelly_fraction = self._calculate_kelly_fraction(win_rate, avg_return, max_loss)
         
+        # Get VIX regime and account phase for return values
+        vix_regime = self.get_vix_regime(vix_level)
+        account_phase = self.get_account_phase(account_value)
+        
         # CRITICAL: If Kelly calculation fails, DO NOT TRADE
         if kelly_fraction is None:
             return {
@@ -284,7 +296,7 @@ class PositionSizer:
                 'max_positions_by_phase': 0,
                 'kelly_position_size': 0,
                 'vix_regime': vix_regime.value,
-                'account_phase': phase,
+                'account_phase': account_phase.value,
                 'strategy': strategy_key,
                 'deployment_strategy': 'SKIP_TRADE',
                 'risk_warning': 'Invalid risk metrics - cannot calculate safe position size',
@@ -302,12 +314,17 @@ class PositionSizer:
         # Kelly-adjusted position size
         kelly_position_size = int(kelly_fraction * account_value / (account_value * strategy_bp_req))
         
+        # Get dynamic strategy-specific position limit (preserves risk tolerance)
+        strategy_limit = self.risk_params.get_dynamic_strategy_position_limit(
+            strategy_key, account_value, vix_level
+        )
+        
         # Final position size (minimum of all constraints)
         recommended_positions = min(
             max_positions_by_bp,
             max_positions_by_phase,
             kelly_position_size,
-            5  # Hard limit for risk management
+            strategy_limit  # Dynamic limit based on account phase and VIX
         )
         
         # Calculate actual BP usage

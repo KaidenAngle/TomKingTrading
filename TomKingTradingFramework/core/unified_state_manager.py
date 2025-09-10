@@ -209,21 +209,29 @@ class UnifiedStateManager:
         
         # Check system state
         if self.system_state not in [SystemState.MARKET_OPEN]:
+            self.algo.Debug(f"[StateManager] {strategy_name} BLOCKED: System state = {self.system_state.name} (need MARKET_OPEN)")
             return False
         
         # Check emergency mode
         if self.emergency_mode:
+            self.algo.Debug(f"[StateManager] {strategy_name} BLOCKED: Emergency mode active")
             return False
         
         # Check strategy state
         machine = self.strategy_machines.get(strategy_name)
         if not machine:
+            self.algo.Debug(f"[StateManager] {strategy_name} BLOCKED: Strategy machine not found")
             return False
         
-        return machine.is_in_any_state([
+        current_state = machine.current_state
+        can_trade = machine.is_in_any_state([
             StrategyState.READY,
             StrategyState.ANALYZING
         ])
+        
+        self.algo.Debug(f"[StateManager] {strategy_name} STATE CHECK: Current={current_state.name}, Can trade={can_trade}")
+        
+        return can_trade
     
     def force_strategy_exit(self, strategy_name: str, reason: str):
         """Force a strategy to exit its position"""
