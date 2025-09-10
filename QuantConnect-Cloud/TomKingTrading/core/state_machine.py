@@ -3,37 +3,28 @@
 
 from AlgorithmImports import *
 from enum import Enum, auto
-from typing import Dict, Optional, Callable, Any, List, Tuple
+from typing import Dict, Optional, Callable, Any, List
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 import json
 
 class StrategyState(Enum):
     """Universal strategy states for all trading strategies"""
-    # Initialization states
-    INITIALIZING = auto()      # Strategy being configured
-    READY = auto()             # Ready to trade, waiting for entry conditions
-    
-    # Entry states
-    ANALYZING = auto()         # Analyzing market conditions
-    PENDING_ENTRY = auto()     # Entry conditions met, awaiting execution
-    ENTERING = auto()          # Actively entering position
-    
-    # Position management states
-    POSITION_OPEN = auto()     # Position successfully opened
-    MANAGING = auto()          # Actively managing position
-    ADJUSTING = auto()         # Making adjustments to position
-    
-    # Exit states
-    PENDING_EXIT = auto()      # Exit conditions met, awaiting execution
-    EXITING = auto()           # Actively exiting position
-    PARTIAL_EXIT = auto()      # Partially exiting position
-    
-    # Terminal states
-    CLOSED = auto()            # Position closed successfully
-    ERROR = auto()             # Error state requiring intervention
-    SUSPENDED = auto()         # Temporarily suspended (e.g., due to events)
-    TERMINATED = auto()        # Strategy terminated
+    INITIALIZING = 100
+    READY = 200
+    ANALYZING = 300
+    PENDING_ENTRY = 400
+    ENTERING = 500
+    POSITION_OPEN = 600
+    MANAGING = 700
+    ADJUSTING = 800
+    PENDING_EXIT = 900
+    EXITING = 1000
+    PARTIAL_EXIT = 1100
+    CLOSED = 1200
+    ERROR = 1300
+    SUSPENDED = 1400
+    TERMINATED = 1500
 
 class TransitionTrigger(Enum):
     """Events that trigger state transitions"""
@@ -240,12 +231,12 @@ class StrategyStateMachine:
         # Error recovery transition
         self.add_transition(
             StrategyState.ERROR,
-            StrategyState.IDLE,
+            StrategyState.READY,
             TransitionTrigger.RESET
         )
         
         # Suspension transitions (from operational states)
-        for state in [StrategyState.IDLE, StrategyState.ANALYZING, StrategyState.PENDING_ENTRY]:
+        for state in [StrategyState.READY, StrategyState.ANALYZING, StrategyState.PENDING_ENTRY]:
             self.add_transition(
                 state,
                 StrategyState.SUSPENDED,
@@ -406,7 +397,7 @@ class StrategyStateMachine:
             if time_in_error >= self.error_recovery_timeout:
                 self.algorithm.Log(f"[StateMachine] {self.strategy_name} auto-recovering from ERROR state after {time_in_error}")
                 
-                # Transition to IDLE state
+                # Transition to READY state
                 self.transition(TransitionTrigger.RESET)
                 self.error_count = 0  # Reset error count
                 self.error_state_entry_time = None
