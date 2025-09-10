@@ -274,3 +274,14 @@ class UnifiedVIXManager:
             f"Size Adj: {self.get_position_size_adjustment():.2f}x | "
             f"Max BP: {max_bp:.0%}"
         )
+    
+    def update(self):
+        """Update method for compatibility with legacy code
+        
+        This method exists for backward compatibility with any legacy code
+        that might be calling vix_manager.update(). The VIX manager doesn't
+        actually need updating since it pulls data on-demand from QC APIs.
+        """
+        # VIX manager pulls fresh data on-demand, no periodic update needed
+        # This is just a no-op for compatibility
+        pass
