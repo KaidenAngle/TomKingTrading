@@ -70,15 +70,19 @@ class UnifiedVIXManager:
         
         # Get fresh VIX value
         try:
-            if hasattr(self.algo, 'vix'):
-                vix_symbol = self.algo.vix
-            else:
-                vix_symbol = self.algo.vix
+            # Get VIX symbol - already initialized in main.py as Symbol object
+            vix_symbol = self.algo.vix
             
-            if self.algo.Securities.ContainsKey(vix_symbol):
-                self._cached_vix = self.algo.Securities[vix_symbol].Price
-                self._cache_time = current_time
-                return self._cached_vix
+            # Check if VIX security exists and get price
+            if vix_symbol in self.algo.Securities:
+                vix_security = self.algo.Securities[vix_symbol]
+                if vix_security.Price > 0:
+                    self._cached_vix = float(vix_security.Price)
+                    self._cache_time = current_time
+                    return self._cached_vix
+                else:
+                    self.algo.Debug("[VIX] VIX price is zero - using default")
+                    return 20.0  # Default to normal regime
             else:
                 self.algo.Error("[VIX] VIX symbol not found in securities")
                 return 20.0  # Default to normal regime
