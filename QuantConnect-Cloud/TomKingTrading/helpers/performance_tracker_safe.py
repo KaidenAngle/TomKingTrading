@@ -225,3 +225,56 @@ class SafePerformanceTracker:
         ]
         
         return all(checks)
+    
+    def update(self):
+        """Update performance tracker - called from main.py:158"""
+        # Add trade P&L from portfolio changes
+        try:
+            portfolio_value = self.algo.Portfolio.TotalPortfolioValue
+            unrealized_profit = self.algo.Portfolio.TotalUnrealizedProfit
+            
+            # Update with current state (this is just a refresh, actual P&L added via add_trade_pnl)
+            self.algo.Debug(f"[Performance] Portfolio: ${portfolio_value:,.2f}, Unrealized: ${unrealized_profit:,.2f}")
+        except Exception as e:
+            self.algo.Error(f"[Performance] Update error: {e}")
+    
+    def get_daily_pnl(self) -> float:
+        """Get daily P&L - called from main.py:215"""
+        try:
+            # Get today's trades from history
+            today = self.algo.Time.date()
+            daily_trades = [h for h in self.pnl_history if h['timestamp'].date() == today]
+            
+            return sum(trade['pnl'] for trade in daily_trades)
+        except Exception as e:
+            self.algo.Error(f"[Performance] Daily P&L error: {e}")
+            return 0.0
+    
+    def generate_final_report(self):
+        """Generate final performance report for end of algorithm"""
+        
+        try:
+            stats = self.get_statistics()
+            
+            self.algo.Log("=== Tom King Trading Framework - Final Performance Report ===")
+            self.algo.Log(f"Cumulative P&L: ${stats['cumulative_pnl']:.2f}")
+            self.algo.Log(f"Net P&L (after fees/slippage): ${stats['net_pnl']:.2f}")
+            self.algo.Log(f"Total Fees: ${stats['cumulative_fees']:.2f}")
+            self.algo.Log(f"Total Slippage: ${stats['cumulative_slippage']:.2f}")
+            self.algo.Log(f"Win Rate: {stats['win_rate']:.1%}")
+            self.algo.Log(f"Total Trades: {stats['total']}")
+            self.algo.Log(f"Wins: {stats['wins']}, Losses: {stats['losses']}")
+            self.algo.Log(f"Max Drawdown: {stats['max_dd']:.1%}")
+            self.algo.Log(f"Current Drawdown: {stats['current_dd']:.1%}")
+            self.algo.Log(f"Sharpe Ratio: {stats['sharpe_ratio']:.2f}")
+            self.algo.Log(f"Performance History Entries: {stats['history_entries']}")
+            self.algo.Log("=== End Performance Report ===")
+            
+            # Validate final state
+            if self.validate_calculations():
+                self.algo.Log("✓ All performance calculations validated successfully")
+            else:
+                self.algo.Error("✗ Performance calculation validation failed")
+                
+        except Exception as e:
+            self.algo.Error(f"Error generating final performance report: {e}")
