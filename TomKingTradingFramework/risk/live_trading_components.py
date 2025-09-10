@@ -257,8 +257,8 @@ class LiveCommissionModel:
         self.algo = algorithm
         
         # Import and use the centralized fee model
-        from fee_models import TastyWorksFeeModel
-        self.fee_model = TastyWorksFeeModel()
+        from optimization.fee_models import TastyTradeFeeModel
+        self.fee_model = TastyTradeFeeModel()
         
         # Map old attributes to fee model for compatibility
         self.option_commission = self.fee_model.option_commission

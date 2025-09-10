@@ -384,3 +384,34 @@ class StrategyCoordinator:
                 self.algo.Log(f"  {conflict['strategy']} blocked by {conflict['blocked_by']}")
                 
         self.algo.Log("=" * 60)
+    
+    def record_execution(self, strategy_name: str):
+        """Record strategy execution - called from main.py after strategy.execute()
+        
+        This method tracks that a strategy completed its execute() method
+        and updates execution statistics.
+        """
+        
+        if strategy_name not in self.registered_strategies:
+            self.algo.Error(f"[Coordinator] Cannot record execution for unregistered strategy: {strategy_name}")
+            return
+            
+        try:
+            # Update execution count
+            self.registered_strategies[strategy_name]['executions'] += 1
+            self.registered_strategies[strategy_name]['last_execution'] = self.algo.Time
+            self.registered_strategies[strategy_name]['status'] = 'COMPLETED'
+            
+            # Log execution
+            self.execution_history.append({
+                'timestamp': self.algo.Time,
+                'strategy': strategy_name,
+                'priority': self.registered_strategies[strategy_name]['priority'].name,
+                'method': 'execute',
+                'success': True
+            })
+            
+            self.algo.Debug(f"[Coordinator] Recorded execution for {strategy_name}")
+            
+        except Exception as e:
+            self.algo.Error(f"[Coordinator] Error recording execution for {strategy_name}: {e}")

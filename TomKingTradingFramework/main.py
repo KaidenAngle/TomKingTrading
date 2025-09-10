@@ -5,7 +5,7 @@ from AlgorithmImports import *
 from datetime import timedelta, time
 
 # Fee models
-from fee_models import TastyTradeFeeModel
+from optimization.fee_models import TastyTradeFeeModel
 
 # Configuration and Constants
 from config.strategy_parameters import TomKingParameters
@@ -844,8 +844,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             
             # Update consecutive losses if needed
             if orderEvent.Direction == OrderDirection.Sell and quantity < 0:
-                # Opening position
-                pass
+                # Opening position - no action needed for loss tracking
             elif orderEvent.Direction == OrderDirection.Buy and quantity > 0:
                 # Closing position - check P&L
                 pnl = self.position_manager.calculate_position_pnl(symbol)

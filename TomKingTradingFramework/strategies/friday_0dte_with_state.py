@@ -39,11 +39,8 @@ class Friday0DTEWithState(BaseStrategyWithState):
         self.target_profit = TradingConstants.FRIDAY_0DTE_PROFIT_TARGET  # 50% profit target
         self.stop_loss = TradingConstants.FRIDAY_0DTE_STOP_LOSS  # 200% stop loss
         
-        # VIX requirements (DIAGNOSTIC: Temporarily relaxed for testing)
-        # ORIGINAL: self.min_vix_for_entry = 22  # Tom King's rule: Only trade when VIX > 22
-        self.min_vix_for_entry = 12  # DIAGNOSTIC: Relaxed to 12 to test if this blocks trades
-        self.algo.Debug(f"[0DTE] DIAGNOSTIC MODE: VIX threshold relaxed to {self.min_vix_for_entry} (original: 22)")
-        self.algo.Error(f"[0DTE] WARNING: Running in DIAGNOSTIC mode with relaxed VIX requirement!")
+        # VIX requirements - Tom King's strict methodology
+        self.min_vix_for_entry = 22  # Tom King's rule: Only trade when VIX > 22
         
         # Market analysis
         self.market_open_price = None
@@ -81,7 +78,7 @@ class Friday0DTEWithState(BaseStrategyWithState):
         )
     
     def _check_entry_conditions(self) -> bool:
-        """Check if all entry conditions are met - COMPREHENSIVE DIAGNOSTIC VERSION"""
+        """Check if all entry conditions are met for 0DTE strategy"""
         
         self.algo.Error(f"[0DTE] ========== COMPLETE ENTRY CONDITIONS TRACE ==========")
         self.algo.Error(f"[0DTE] Time: {self.algo.Time}, Market: {self.algo.IsMarketOpen(self.algo.spy)}")
@@ -102,10 +99,9 @@ class Friday0DTEWithState(BaseStrategyWithState):
             return False
         self.algo.Error(f"[0DTE] TIME PASS: After entry time, continuing...")
         
-        # VIX check (DIAGNOSTIC: Enhanced logging)
+        # VIX check - Tom King methodology
         vix_value = self._get_vix_value()
-        self.algo.Error(f"[0DTE] VIX CHECK: Value = {vix_value:.2f}, Min required = {self.min_vix_for_entry}")
-        self.algo.Error(f"[0DTE] VIX INFO: Relaxed from 22 to {self.min_vix_for_entry} for diagnostics")
+        self.algo.Debug(f"[0DTE] VIX CHECK: Value = {vix_value:.2f}, Min required = {self.min_vix_for_entry}")
         
         if vix_value <= self.min_vix_for_entry:
             self.algo.Error(f"[0DTE] VIX FAIL: {vix_value:.2f} <= {self.min_vix_for_entry}, exiting")
@@ -472,7 +468,6 @@ class Friday0DTEWithState(BaseStrategyWithState):
         """Get current VIX value from UnifiedVIXManager
         
         IMPORTANT: VIX is CRITICAL for 0DTE - strategy cannot trade without it
-        DIAGNOSTIC: Enhanced error handling and logging
         """
         self.algo.Debug(f"[0DTE] VIX RETRIEVAL: Requesting VIX from unified manager...")
         
@@ -486,17 +481,16 @@ class Friday0DTEWithState(BaseStrategyWithState):
                 self.algo.Error(f"[0DTE] VIX MANAGER STATUS: {type(self.algo.vix_manager)}")
                 self.algo.Error(f"[0DTE] VIX CRITICAL: Cannot trade 0DTE without valid VIX data")
                 
-                # DIAGNOSTIC: Return safe fallback instead of crashing
-                self.algo.Error(f"[0DTE] VIX FALLBACK: Using safe fallback value of 15 for diagnostic testing")
-                return 15.0  # Safe fallback for diagnostic testing
+                # FAIL FAST: Cannot trade 0DTE without valid VIX data
+                raise ValueError("VIX data required for 0DTE trading - cannot proceed with invalid data")
             
             self.algo.Debug(f"[0DTE] VIX SUCCESS: Valid value = {vix:.2f}")
             return vix
             
         except Exception as e:
             self.algo.Error(f"[0DTE] VIX EXCEPTION: {e}")
-            self.algo.Error(f"[0DTE] VIX FALLBACK: Using emergency fallback for diagnostic testing")
-            return 15.0  # Emergency fallback
+            # FAIL FAST: Re-raise exception, don't trade with invalid data
+            raise ValueError(f"Critical VIX data error in 0DTE strategy: {e}")
     
     def _check_vix_too_high(self, data) -> bool:
         """Check if VIX is too high for safe trading"""

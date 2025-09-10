@@ -233,8 +233,8 @@ class CorporateEventsChecker:
                     date = datetime(current_year, quarter_month, day).date()
                     dates.append(date)
                 except ValueError:
-                    # Handle invalid dates (e.g., Feb 30)
-                    pass
+                    # Handle invalid dates (e.g., Feb 30) - skip silently
+                    continue
                     
         return dates
         

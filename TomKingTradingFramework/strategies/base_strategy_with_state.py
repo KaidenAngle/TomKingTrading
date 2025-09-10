@@ -293,7 +293,6 @@ class BaseStrategyWithState:
         
         if order_placed:
             # Will transition to POSITION_OPEN when filled
-            pass
         else:
             self.state_machine.trigger(TransitionTrigger.ORDER_REJECTED)
     
@@ -342,7 +341,6 @@ class BaseStrategyWithState:
         
         if exit_complete:
             # Will transition to CLOSED when filled
-            pass
     
     def _cleanup_after_close(self):
         """Clean up after position closed"""

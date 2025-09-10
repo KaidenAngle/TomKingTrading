@@ -225,3 +225,63 @@ class SafePerformanceTracker:
         ]
         
         return all(checks)
+    
+    def update_performance_metrics(self):
+        """Update performance metrics - called from main.py OnData
+        
+        This method updates performance tracking based on current portfolio state.
+        Called periodically to maintain performance statistics.
+        """
+        
+        try:
+            # Get current portfolio value
+            current_value = self.algo.Portfolio.TotalPortfolioValue
+            
+            # Calculate current unrealized P&L if we have a baseline
+            if hasattr(self, '_last_portfolio_value'):
+                unrealized_change = current_value - self._last_portfolio_value
+                
+                # Only record if there's a meaningful change (> $0.01)
+                if abs(unrealized_change) > 0.01:
+                    # Add to performance tracking (this includes validation)
+                    self.add_trade_pnl(unrealized_change, 0, 0)
+            
+            # Update baseline for next comparison
+            self._last_portfolio_value = current_value
+            
+            # Validate calculations periodically
+            if not self.validate_calculations():
+                self.algo.Error("[Performance] Validation failed - creating checkpoint")
+                self._create_checkpoint()
+                
+        except Exception as e:
+            self.algo.Error(f"[Performance] Error updating metrics: {e}")
+    
+    def record_trade(self, order_event):
+        """Record completed trade from order event
+        
+        This method is called from OnOrderEvent when trades are filled.
+        """
+        
+        try:
+            if hasattr(order_event, 'FillPrice') and hasattr(order_event, 'FillQuantity'):
+                # Calculate trade P&L (simplified - full calculation would need entry price)
+                fill_value = float(order_event.FillPrice * order_event.FillQuantity)
+                
+                # Record the trade (basic implementation)
+                trade_record = {
+                    'timestamp': self.algo.Time,
+                    'symbol': str(order_event.Symbol),
+                    'quantity': order_event.FillQuantity,
+                    'price': order_event.FillPrice,
+                    'value': fill_value
+                }
+                
+                self.trade_history.append(trade_record)
+                
+                # Maintain rolling window
+                if len(self.trade_history) > self.MAX_HISTORY:
+                    self.trade_history.pop(0)
+                    
+        except Exception as e:
+            self.algo.Error(f"[Performance] Error recording trade: {e}")

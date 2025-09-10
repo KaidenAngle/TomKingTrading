@@ -319,8 +319,9 @@ class QuantConnectEventCalendar:
             if hasattr(fundamentals, 'EarningReports'):
                 # Check historical announcement times if available
                 return True  # Default to pre-market for safety
-        except:
-            pass
+        except Exception as e:
+            # Failed to determine announcement time - default to pre-market for safety
+            self.algo.Debug(f"Failed to get announcement time for {symbol}: {e}")
         return True
     
     def _is_cache_valid(self, cache_key: str) -> bool:

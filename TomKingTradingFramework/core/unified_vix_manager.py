@@ -14,7 +14,7 @@
 
 from AlgorithmImports import *
 from typing import Optional, Dict, Tuple
-from config.constants import VIX_LOW, VIX_NORMAL, VIX_ELEVATED, VIX_HIGH
+from config.constants import TradingConstants
 
 class UnifiedVIXManager:
     """
@@ -31,11 +31,11 @@ class UnifiedVIXManager:
         
         # Standard VIX thresholds from Tom King methodology
         self.thresholds = {
-            'low': VIX_LOW,           # 16
-            'normal': VIX_NORMAL,     # 20
-            'elevated': VIX_ELEVATED, # 25
-            'high': VIX_HIGH,         # 30
-            'extreme': 40,            # Emergency level
+            'low': TradingConstants.VIX_LOW,           # 16
+            'normal': TradingConstants.VIX_NORMAL,     # 20
+            'elevated': TradingConstants.VIX_ELEVATED, # 25
+            'high': TradingConstants.VIX_HIGH,         # 30
+            'extreme': TradingConstants.VIX_EXTREME,   # 35
             'crisis': 50,             # System halt level
             'august_2024': 65.73      # Historical reference
         }
@@ -283,5 +283,4 @@ class UnifiedVIXManager:
         actually need updating since it pulls data on-demand from QC APIs.
         """
         # VIX manager pulls fresh data on-demand, no periodic update needed
-        # This is just a no-op for compatibility
-        pass
+        return  # No-op for backward compatibility
