@@ -1,0 +1,1231 @@
+# Tom King Trading Framework
+# Production implementation with all strategies and risk management
+
+from AlgorithmImports import *
+from datetime import timedelta, time
+
+# Fee models
+from optimization.fee_models import TastyTradeFeeModel
+
+# Configuration and Constants
+from config.strategy_parameters import TomKingParameters
+from config.constants import TradingConstants
+from config.strategy_validator import StrategyValidator
+
+# Core State Management - CRITICAL INTEGRATION
+from core.unified_state_manager import UnifiedStateManager
+from core.strategy_coordinator import StrategyCoordinator
+from core.unified_vix_manager import UnifiedVIXManager
+from core.unified_position_sizer import UnifiedPositionSizer
+
+# State Machine Strategies - NEW IMPLEMENTATIONS
+from strategies.friday_0dte_with_state import Friday0DTEWithState
+from strategies.lt112_with_state import LT112WithState
+from strategies.ipmcc_with_state import IPMCCWithState
+from strategies.futures_strangle_with_state import FuturesStrangleWithState
+from strategies.leap_put_ladders_with_state import LEAPPutLaddersWithState
+
+# Risk Management
+# VIX management now handled by UnifiedVIXManager
+from risk.dynamic_margin_manager import DynamicMarginManager
+from risk.correlation_group_limiter import August2024CorrelationLimiter
+
+# Helpers and Safety Systems
+from helpers.data_freshness_validator import DataFreshnessValidator
+from helpers.performance_tracker_safe import SafePerformanceTracker
+from helpers.quantconnect_event_calendar import QuantConnectEventCalendar
+from helpers.option_chain_manager import OptionChainManager
+from helpers.option_order_executor import OptionOrderExecutor
+from helpers.atomic_order_executor import EnhancedAtomicOrderExecutor
+from helpers.future_options_manager import FutureOptionsManager
+
+# Position Management
+from position_state_manager import PositionStateManagerQC
+
+# Greeks and Analytics
+from greeks.greeks_monitor import GreeksMonitor
+
+class TomKingTradingIntegrated(QCAlgorithm):
+    """
+    PRODUCTION-READY Tom King Trading Framework
+    All safety systems integrated, state machines active
+    """
+    
+    def Initialize(self):
+        """Initialize with all safety systems properly wired"""
+        
+        # Core configuration - Using backtest config
+        from config.backtest_config import BacktestConfig
+        self.SetStartDate(BacktestConfig.BACKTEST_START_DATE)
+        self.SetEndDate(BacktestConfig.BACKTEST_END_DATE)
+        self.SetCash(BacktestConfig.STARTING_CASH)  # $30,000 for faster backtesting
+        
+        # Timezone
+        self.SetTimeZone("America/New_York")
+        
+        # Brokerage model configuration removed - using QuantConnect defaults
+        # Custom fee models applied per security below
+        
+        # Performance optimization flags
+        self.is_backtest = not self.LiveMode
+        
+        # Initialize performance optimizations
+        self.initialize_performance_optimizations()
+        
+        # Initialize caching for performance
+        self.last_safety_check = None
+        self.last_margin_check = None
+        self.last_correlation_check = None
+        
+        # Data resolution
+        self.UniverseSettings.Resolution = Resolution.Minute
+        
+        # Set warmup period for indicators and data initialization
+        self.SetWarmUp(timedelta(days=30))
+        
+        # Add core symbols
+        self.spy = self.AddEquity("SPY", Resolution.Minute).Symbol
+        self.vix = self.AddIndex("VIX", Resolution.Minute).Symbol
+        
+        # Initialize caching systems BEFORE symbol addition
+        self.initialize_caching_systems()
+        
+        # INITIALIZE FUTURE OPTIONS MANAGER BEFORE FUTURES ADDITION
+        self.future_options_manager = FutureOptionsManager(self)
+        
+        # Add all equity instruments from BacktestConfig
+        from config.backtest_config import BacktestConfig
+        self.equity_symbols = {}
+        for ticker in BacktestConfig.BACKTEST_SYMBOLS['equities']:
+            self.equity_symbols[ticker] = self.AddEquity(ticker, BacktestConfig.EQUITY_RESOLUTION).Symbol
+            # Add options for major equity ETFs
+            if ticker in ['SPY', 'QQQ', 'IWM', 'DIA']:
+                option = self.AddOption(ticker, BacktestConfig.OPTION_RESOLUTION)
+                option.SetFilter(lambda x: x.Strikes(-50, 50)
+                                           .Expiration(timedelta(0), timedelta(180)))
+        
+        # Add all futures instruments with robust option handling
+        self.futures_symbols = {}
+        self.future_option_info = {}
+        
+        for ticker in BacktestConfig.BACKTEST_SYMBOLS['futures']:
+            try:
+                # Use continuous contract for backtesting
+                future = self.AddFuture(ticker, BacktestConfig.FUTURES_RESOLUTION)
+                future.SetFilter(lambda x: x.FrontMonth())
+                self.futures_symbols[ticker] = future.Symbol
+                
+                # Add options on futures using robust manager
+                if ticker in ['ES', 'NQ', 'CL', 'GC', 'SI', 'YM', 'RTY']:  # Major contracts likely to have options
+                    option_info = self.future_options_manager.add_future_option_safely(
+                        ticker, 
+                        self.FutureOptionFilter
+                    )
+                    self.future_option_info[ticker] = option_info
+                    
+                    if option_info.status.value == 'supported':
+                        if not self.is_backtest:
+                            self.Debug(f"[MAIN] Successfully added options for future {ticker}")
+                    else:
+                        if not self.is_backtest:
+                            self.Debug(f"[MAIN] Options not available for future {ticker}: {option_info.error_message}")
+                
+            except Exception as e:
+                self.Error(f"Failed to add future {ticker}: {str(e)}")
+        
+        # Add micro futures
+        self.micro_futures_symbols = {}
+        for ticker in BacktestConfig.BACKTEST_SYMBOLS['micro_futures']:
+            try:
+                # Use continuous contract for backtesting
+                future = self.AddFuture(ticker, BacktestConfig.FUTURES_RESOLUTION)
+                future.SetFilter(lambda x: x.FrontMonth())
+                self.micro_futures_symbols[ticker] = future.Symbol
+            except Exception as e:
+                self.Error(f"Failed to add micro future {ticker}: {str(e)}")
+        
+        # Log all subscribed instruments
+        # Conditional logging for performance
+        if not self.is_backtest or self.Time.hour == 9 and self.Time.minute < 5:
+            self.Debug(f"[DATA] SUBSCRIBED EQUITIES: {list(self.equity_symbols.keys())}")
+            self.Debug(f"[DATA] SUBSCRIBED FUTURES: {list(self.futures_symbols.keys())}")
+            self.Debug(f"[DATA] SUBSCRIBED MICRO FUTURES: {list(self.micro_futures_symbols.keys())}")
+        
+        # Set Tastytrade fee model for all securities
+        for security in self.Securities.Values:
+            security.SetFeeModel(TastyTradeFeeModel())
+        
+        # ======================
+        # CRITICAL SAFETY SYSTEMS
+        # ======================
+        
+        # 1. Data Freshness Validator - PREVENTS STALE DATA TRADING
+        self.data_validator = DataFreshnessValidator(self)
+        
+        # 2. Dynamic Margin Manager - VIX-BASED MARGIN CONTROL
+        self.Error("[EARLY_DEBUG] About to initialize DynamicMarginManager...")
+        try:
+            self.margin_manager = DynamicMarginManager(self)
+            self.Error("[EARLY_DEBUG] ✓ DynamicMarginManager initialized successfully")
+        except Exception as e:
+            self.Error(f"[EARLY_DEBUG] ✗ DynamicMarginManager failed: {e}")
+            raise
+        
+        # 3. Strategy Coordinator - PRIORITY EXECUTION QUEUE
+        self.strategy_coordinator = StrategyCoordinator(self)
+        
+        # 3.5 SPY Concentration Manager - PREVENT OVER-EXPOSURE
+        from core.spy_concentration_manager import SPYConcentrationManager
+        self.spy_concentration_manager = SPYConcentrationManager(self)
+        
+        # 4. Performance Tracker - OVERFLOW PROTECTED
+        self.performance_tracker = SafePerformanceTracker(self)
+        
+        # 5. Event Calendar - REAL-TIME QUANTCONNECT API DATA
+        self.event_calendar = QuantConnectEventCalendar(self)
+        
+        # 6. Unified State Manager - SYSTEM-WIDE STATE CONTROL
+        self.Error("[EARLY_DEBUG] About to initialize UnifiedStateManager...")
+        try:
+            self.state_manager = UnifiedStateManager(self)
+            self.Error("[EARLY_DEBUG] ✓ UnifiedStateManager initialized successfully")
+        except Exception as e:
+            self.Error(f"[EARLY_DEBUG] ✗ UnifiedStateManager failed: {e}")
+            raise
+        
+        # 6.5 Order State Recovery - CRASH RECOVERY FOR MULTI-LEG ORDERS
+        from helpers.order_state_recovery import OrderStateRecovery
+        self.order_recovery = OrderStateRecovery(self)
+        
+        # ======================
+        # RISK MANAGEMENT
+        # ======================
+        
+        # Unified VIX Manager - Single source of truth
+        self.vix_manager = UnifiedVIXManager(self)
+        
+        # Unified Position Sizer - Single source of truth
+        self.Error("[EARLY_DEBUG] About to initialize UnifiedPositionSizer...")
+        try:
+            self.position_sizer = UnifiedPositionSizer(self)
+            self.Error("[EARLY_DEBUG] ✓ UnifiedPositionSizer initialized successfully")
+        except Exception as e:
+            self.Error(f"[EARLY_DEBUG] ✗ UnifiedPositionSizer failed: {e}")
+            raise
+        
+        # Correlation Limiter
+        self.correlation_limiter = August2024CorrelationLimiter(self)
+        
+        # Position Manager
+        self.position_manager = PositionStateManagerQC(self)
+        
+        # Greeks Monitor
+        self.Error("[EARLY_DEBUG] About to initialize GreeksMonitor...")
+        try:
+            self.greeks_monitor = GreeksMonitor(self)
+            self.Error("[EARLY_DEBUG] ✓ GreeksMonitor initialized successfully")
+        except Exception as e:
+            self.Error(f"[EARLY_DEBUG] ✗ GreeksMonitor failed: {e}")
+            raise
+        
+        # CRITICAL DEBUGGING: Verify all managers are actually initialized after creation
+        self.Error("[INIT_DEBUG] Checking manager initialization status...")
+        
+        managers_to_check = [
+            'margin_manager', 'state_manager', 'position_sizer', 'greeks_monitor', 
+            'vix_manager', 'strategy_coordinator', 'data_validator'
+        ]
+        
+        for manager_name in managers_to_check:
+            if hasattr(self, manager_name):
+                manager = getattr(self, manager_name)
+                if manager is not None:
+                    self.Error(f"[INIT_DEBUG] ✓ {manager_name}: {type(manager).__name__}")
+                else:
+                    self.Error(f"[INIT_DEBUG] ✗ {manager_name}: None")
+            else:
+                self.Error(f"[INIT_DEBUG] ✗ {manager_name}: Not found as attribute")
+        
+        # ======================
+        # HELPER SYSTEMS
+        # ======================
+        
+        # Option chain manager
+        self.option_chain_manager = OptionChainManager(self)
+        
+        # Order executor
+        self.order_executor = OptionOrderExecutor(self)
+        
+        # Atomic order executor for multi-leg strategies
+        self.atomic_executor = EnhancedAtomicOrderExecutor(self)
+        
+        # Unified order pricing - Single source for limit order pricing
+        from helpers.unified_order_pricing import UnifiedOrderPricing
+        self.unified_pricing = UnifiedOrderPricing(self)
+        
+        # Strategy validator
+        self.strategy_validator = StrategyValidator(self)
+        
+        # ======================
+        # STATE MACHINE STRATEGIES
+        # ======================
+        
+        # Initialize strategies with state machines
+        self.strategies = {
+            '0DTE': Friday0DTEWithState(self),
+            'LT112': LT112WithState(self),
+            'IPMCC': IPMCCWithState(self),
+            'FuturesStrangle': FuturesStrangleWithState(self),
+            'LEAPLadders': LEAPPutLaddersWithState(self)
+        }
+        
+        # Register all strategies with state manager and coordinator
+        # Import priority enum
+        from core.strategy_coordinator import StrategyPriority
+        
+        # Strategy priorities based on Tom King methodology
+        strategy_priorities = {
+            '0DTE': StrategyPriority.HIGH,        # Time-sensitive Friday expiration
+            'LT112': StrategyPriority.MEDIUM,     # Regular trading strategy
+            'IPMCC': StrategyPriority.MEDIUM,     # Regular PMCC management  
+            'FuturesStrangle': StrategyPriority.MEDIUM,  # Regular futures strategy
+            'LEAPLadders': StrategyPriority.LOW   # Long-term position management
+        }
+        
+        for name, strategy in self.strategies.items():
+            self.state_manager.register_strategy(name, strategy.state_machine)
+            priority = strategy_priorities.get(name, StrategyPriority.MEDIUM)
+            self.strategy_coordinator.register_strategy(name, priority=priority)
+            self.Error(f"[MAIN] REGISTERED STRATEGY: {name} with priority {priority}")
+        
+        # ======================
+        # CIRCUIT BREAKERS
+        # ======================
+        
+        self.circuit_breakers = {
+            'rapid_drawdown': {'threshold': -0.03, 'window': timedelta(minutes=5)},
+            'correlation_spike': {'threshold': 0.90},
+            'margin_spike': {'threshold': 0.80},
+            'consecutive_losses': {'threshold': 3}
+        }
+        
+        self.drawdown_window = []
+        self.consecutive_losses = 0
+        
+        # ======================
+        # TRACKING VARIABLES
+        # ======================
+        
+        self.last_option_check = self.Time
+        self.option_check_interval = timedelta(minutes=15)
+        
+        self.trades_today = 0
+        # Dynamic trade limit based on account size and VIX
+        self.daily_trade_limit = TomKingParameters.get_max_trades_per_day(
+            self.Portfolio.TotalPortfolioValue, 
+            self.unified_vix_manager.current_vix if hasattr(self, 'unified_vix_manager') else None
+        )
+        
+        self.current_phase = 1  # Start in Phase 1
+        
+        # Performance tracking
+        self.winning_trades = 0
+        self.losing_trades = 0
+        self.total_pnl = 0
+        
+        # Performance optimization: Track invested positions
+        self.invested_positions = set()
+        
+        # ======================
+        # SCHEDULING
+        # ======================
+        
+        # Schedule regular safety checks (less frequent in backtest)
+        safety_check_interval = 30 if self.is_backtest else 5
+        self.Schedule.On(
+            self.DateRules.EveryDay(self.spy),
+            self.TimeRules.Every(timedelta(minutes=safety_check_interval)),
+            self.SafetyCheck
+        )
+        
+        # Schedule state persistence at end of day
+        self.Schedule.On(
+            self.DateRules.EveryDay(self.spy),
+            self.TimeRules.At(15, 45),  # End of day persistence
+            self.PersistStates
+        )
+        
+        # Schedule EOD reconciliation
+        self.Schedule.On(
+            self.DateRules.EveryDay(self.spy),
+            self.TimeRules.At(15, 45),
+            self.EndOfDayReconciliation
+        )
+        
+        # Load any saved states
+        self.state_manager.load_all_states()
+        
+        # Check for incomplete orders from previous session
+        if hasattr(self, 'order_recovery'):
+            manual_intervention = self.order_recovery.check_and_recover_incomplete_orders()
+            if manual_intervention:
+                self.Error(f"MANUAL INTERVENTION REQUIRED: {len(manual_intervention)} incomplete order groups")
+                for issue in manual_intervention:
+                    self.Error(f"  - {issue['group_id']}: {issue['issue']}")
+        
+        # ======================
+        # INTEGRATION VERIFICATION (MANDATORY)
+        # ======================
+        # Conditional integration logging for performance
+        if not self.is_backtest:
+            self.Debug("[Integration] Starting comprehensive integration verification")
+        
+        if not self.run_complete_integration_verification():
+            raise ValueError("Integration verification failed - algorithm cannot trade safely")
+        
+        # Always log successful initialization 
+        if not self.is_backtest:
+            self.Debug("=== TOM KING TRADING FRAMEWORK INITIALIZED ===")
+            self.Debug("All safety systems: ACTIVE")
+            self.Debug("State machines: REGISTERED") 
+            self.Debug("Circuit breakers: ARMED")
+            self.Debug("Integration verification: PASSED")
+    
+    def FutureOptionFilter(self, option_filter_universe):
+        """Filter for future options - strikes and expiration"""
+        return option_filter_universe.Strikes(-50, 50).Expiration(timedelta(0), timedelta(90))
+    
+    def verify_manager_initialization(self) -> bool:
+        """Verify all required managers are properly initialized"""
+        
+        required_managers = [
+            ('vix_manager', 'UnifiedVIXManager'),
+            ('state_manager', 'UnifiedStateManager'), 
+            ('position_sizer', 'UnifiedPositionSizer'),
+            ('spy_concentration_manager', 'SPYConcentrationManager'),
+            ('strategy_coordinator', 'StrategyCoordinator'),
+            ('margin_manager', 'DynamicMarginManager'),
+            ('correlation_limiter', 'August2024CorrelationLimiter'),
+            ('atomic_executor', 'EnhancedAtomicOrderExecutor'),  # Fixed class name
+            ('performance_tracker', 'SafePerformanceTracker'),
+            ('data_validator', 'DataFreshnessValidator'),
+            ('future_options_manager', 'FutureOptionsManager'),  # Production-grade future options
+            ('greeks_monitor', 'GreeksMonitor')  # Critical missing manager for Greeks verification
+        ]
+        
+        verification_results = {}
+        
+        for manager_name, expected_class in required_managers:
+            # Check existence
+            has_manager = hasattr(self, manager_name)
+            verification_results[f"{manager_name}_exists"] = has_manager
+            
+            if has_manager:
+                manager = getattr(self, manager_name)
+                
+                # Check type (class name verification)
+                correct_type = manager.__class__.__name__ == expected_class
+                verification_results[f"{manager_name}_type"] = correct_type
+                
+                # Check not None
+                not_none = manager is not None
+                verification_results[f"{manager_name}_not_none"] = not_none
+                
+                if not (correct_type and not_none):
+                    self.Error(f"[Integration] Manager verification failed: {manager_name}")
+            else:
+                self.Error(f"[Integration] Missing required manager: {manager_name}")
+        
+        # Log results
+        failed_checks = [k for k, v in verification_results.items() if not v]
+        
+        if failed_checks:
+            self.Error(f"[Integration] Failed manager checks: {failed_checks}")
+            return False
+        
+        self.Debug("[Integration] All managers verified successfully")
+        return True
+    
+    def verify_strategy_loading(self) -> bool:
+        """Verify all Tom King strategies are properly loaded"""
+        
+        expected_strategies = {
+            '0DTE': 'Friday0DTEWithState',
+            'LT112': 'LT112WithState', 
+            'IPMCC': 'IPMCCWithState',
+            'FuturesStrangle': 'FuturesStrangleWithState',
+            'LEAPLadders': 'LEAPPutLaddersWithState'
+        }
+        
+        verification_results = {}
+        
+        for strategy_key, expected_class in expected_strategies.items():
+            # Check existence in self.strategies dict
+            has_strategy = hasattr(self, 'strategies') and strategy_key in self.strategies
+            verification_results[f"{strategy_key}_exists"] = has_strategy
+            
+            if has_strategy:
+                strategy = self.strategies[strategy_key]
+                
+                # Check type
+                correct_type = strategy.__class__.__name__ == expected_class
+                verification_results[f"{strategy_key}_type"] = correct_type
+                
+                # Check state machine initialization
+                has_state_machine = hasattr(strategy, 'state_machine')
+                verification_results[f"{strategy_key}_state_machine"] = has_state_machine
+                
+                # Check required methods (execute from base class)
+                required_methods = ['execute']  # Strategy methods are in base class
+                for method in required_methods:
+                    has_method = hasattr(strategy, method)
+                    verification_results[f"{strategy_key}.{method}"] = has_method
+            else:
+                self.Error(f"[Integration] Missing strategy: {strategy_key}")
+        
+        # Summary and detailed reporting
+        total_expected = len(expected_strategies) * 4  # 4 checks per strategy: exists, type, state_machine, execute method
+        passed_checks = sum(1 for v in verification_results.values() if v)
+        
+        self.Debug(f"[Integration] Strategy verification: {passed_checks}/{total_expected}")
+        
+        # Report any failures for debugging
+        failed_checks = [k for k, v in verification_results.items() if not v]
+        if failed_checks:
+            self.Error(f"[Integration] Failed strategy checks: {failed_checks}")
+        else:
+            self.Debug("[Integration] All strategy checks passed")
+        
+        return passed_checks == total_expected
+    
+    def verify_critical_methods(self) -> bool:
+        """Verify all critical methods exist and are callable"""
+        
+        critical_method_map = {
+            'margin_manager': [
+                'check_margin_health', 
+                'get_margin_status',
+                'calculate_required_margin_buffer',
+                'get_available_buying_power',  # Critical missing method
+                'calculate_required_margin'    # Critical missing method
+            ],
+            'correlation_limiter': [
+                'get_correlation_summary',
+                'enforce_correlation_limits'
+            ],
+            'performance_tracker': [
+                'add_trade_pnl',
+                'update_performance_metrics',
+                'record_trade',
+                'get_statistics'
+            ],
+            'data_validator': [
+                'validate_option_chain',
+                'get_status',
+                'get_statistics'
+            ],
+            'vix_manager': [
+                'get_current_vix',
+                'get_vix_regime'
+            ],
+            'spy_concentration_manager': [
+                'request_spy_allocation',
+                'get_total_spy_exposure',
+                'can_strategy_trade_spy'
+            ],
+            'strategy_coordinator': [
+                'get_execution_order',
+                'request_execution',
+                'register_strategy'
+            ],
+            'state_manager': [
+                'save_all_states',
+                'load_all_states',
+                'get_dashboard',
+                'get_system_state'              # Critical missing method
+            ],
+            'position_sizer': [               # Critical missing manager
+                'get_max_position_size'        # Critical missing method
+            ],
+            'greeks_monitor': [              # Critical missing manager
+                'get_portfolio_greeks',        # Critical missing method
+                'calculate_position_greeks'    # Critical missing method
+            ]
+        }
+        
+        # DIRECT METHOD TESTING: Try to directly call methods to isolate verification issue
+        self.Error("[DIRECT_TEST] Starting direct method testing to isolate verification issue...")
+        
+        try:
+            # Test margin manager methods directly
+            if hasattr(self, 'margin_manager') and self.margin_manager:
+                self.Error(f"[DIRECT_TEST] margin_manager type: {type(self.margin_manager).__name__}")
+                
+                # Test get_available_buying_power
+                if hasattr(self.margin_manager, 'get_available_buying_power'):
+                    try:
+                        bp_result = self.margin_manager.get_available_buying_power()
+                        self.Error(f"[DIRECT_TEST] get_available_buying_power() SUCCESS: {bp_result}")
+                    except Exception as e:
+                        self.Error(f"[DIRECT_TEST] get_available_buying_power() ERROR: {e}")
+                else:
+                    self.Error("[DIRECT_TEST] get_available_buying_power() NOT FOUND")
+                
+                # Test calculate_required_margin
+                if hasattr(self.margin_manager, 'calculate_required_margin'):
+                    try:
+                        margin_result = self.margin_manager.calculate_required_margin([])
+                        self.Error(f"[DIRECT_TEST] calculate_required_margin([]) SUCCESS: {margin_result}")
+                    except Exception as e:
+                        self.Error(f"[DIRECT_TEST] calculate_required_margin([]) ERROR: {e}")
+                else:
+                    self.Error("[DIRECT_TEST] calculate_required_margin() NOT FOUND")
+            else:
+                self.Error("[DIRECT_TEST] margin_manager NOT AVAILABLE")
+            
+            # Test state manager methods  
+            if hasattr(self, 'state_manager') and self.state_manager:
+                self.Error(f"[DIRECT_TEST] state_manager type: {type(self.state_manager).__name__}")
+                
+                if hasattr(self.state_manager, 'get_system_state'):
+                    try:
+                        state_result = self.state_manager.get_system_state()
+                        self.Error(f"[DIRECT_TEST] get_system_state() SUCCESS: keys={list(state_result.keys()) if isinstance(state_result, dict) else type(state_result)}")
+                    except Exception as e:
+                        self.Error(f"[DIRECT_TEST] get_system_state() ERROR: {e}")
+                else:
+                    self.Error("[DIRECT_TEST] get_system_state() NOT FOUND")
+            else:
+                self.Error("[DIRECT_TEST] state_manager NOT AVAILABLE")
+            
+            # Test position sizer methods
+            if hasattr(self, 'position_sizer') and self.position_sizer:
+                self.Error(f"[DIRECT_TEST] position_sizer type: {type(self.position_sizer).__name__}")
+                
+                if hasattr(self.position_sizer, 'get_max_position_size'):
+                    try:
+                        max_size_result = self.position_sizer.get_max_position_size('0DTE')
+                        self.Error(f"[DIRECT_TEST] get_max_position_size('0DTE') SUCCESS: {max_size_result}")
+                    except Exception as e:
+                        self.Error(f"[DIRECT_TEST] get_max_position_size('0DTE') ERROR: {e}")
+                else:
+                    self.Error("[DIRECT_TEST] get_max_position_size() NOT FOUND")
+            else:
+                self.Error("[DIRECT_TEST] position_sizer NOT AVAILABLE")
+            
+            # Test greeks monitor methods
+            if hasattr(self, 'greeks_monitor') and self.greeks_monitor:
+                self.Error(f"[DIRECT_TEST] greeks_monitor type: {type(self.greeks_monitor).__name__}")
+                
+                if hasattr(self.greeks_monitor, 'get_portfolio_greeks'):
+                    try:
+                        portfolio_greeks_result = self.greeks_monitor.get_portfolio_greeks()
+                        self.Error(f"[DIRECT_TEST] get_portfolio_greeks() SUCCESS: keys={list(portfolio_greeks_result.keys()) if isinstance(portfolio_greeks_result, dict) else type(portfolio_greeks_result)}")
+                    except Exception as e:
+                        self.Error(f"[DIRECT_TEST] get_portfolio_greeks() ERROR: {e}")
+                else:
+                    self.Error("[DIRECT_TEST] get_portfolio_greeks() NOT FOUND")
+                    
+                if hasattr(self.greeks_monitor, 'calculate_position_greeks'):
+                    try:
+                        pos_greeks_result = self.greeks_monitor.calculate_position_greeks({})
+                        self.Error(f"[DIRECT_TEST] calculate_position_greeks({{}}) SUCCESS: keys={list(pos_greeks_result.keys()) if isinstance(pos_greeks_result, dict) else type(pos_greeks_result)}")
+                    except Exception as e:
+                        self.Error(f"[DIRECT_TEST] calculate_position_greeks({{}}) ERROR: {e}")
+                else:
+                    self.Error("[DIRECT_TEST] calculate_position_greeks() NOT FOUND")
+            else:
+                self.Error("[DIRECT_TEST] greeks_monitor NOT AVAILABLE")
+        
+        except Exception as e:
+            self.Error(f"[DIRECT_TEST] Exception during direct testing: {e}")
+        
+        # Now proceed with normal verification
+        # DEBUGGING: Start critical methods verification
+        self.Debug(f"[Integration] Starting critical methods verification for {len(critical_method_map)} managers")
+        
+        verification_results = {}
+        
+        for manager_name, methods in critical_method_map.items():
+            if hasattr(self, manager_name):
+                manager = getattr(self, manager_name)
+                
+                # DEBUGGING: Log manager details for critical missing methods (using Error level for visibility)
+                if manager_name in ['margin_manager', 'state_manager', 'position_sizer', 'greeks_monitor']:
+                    self.Error(f"[DEBUG] {manager_name} exists, type: {type(manager).__name__}")
+                    
+                    # Introspect actual methods available
+                    actual_methods = [attr for attr in dir(manager) if not attr.startswith('_') and callable(getattr(manager, attr, None))]
+                    self.Error(f"[DEBUG] {manager_name} methods: {actual_methods[:15]}")  # First 15 methods
+                
+                for method_name in methods:
+                    # Check method exists
+                    has_method = hasattr(manager, method_name)
+                    verification_results[f"{manager_name}.{method_name}"] = has_method
+                    
+                    # DEBUGGING: Extra detail for the 6 critical missing methods (using Error for visibility)
+                    if f"{manager_name}.{method_name}" in [
+                        'margin_manager.get_available_buying_power',
+                        'margin_manager.calculate_required_margin',
+                        'state_manager.get_system_state',
+                        'position_sizer.get_max_position_size',
+                        'greeks_monitor.get_portfolio_greeks',
+                        'greeks_monitor.calculate_position_greeks'
+                    ]:
+                        if has_method:
+                            method = getattr(manager, method_name)
+                            self.Error(f"[DEBUG] ✓ {manager_name}.{method_name} EXISTS, callable: {callable(method)}")
+                        else:
+                            self.Error(f"[DEBUG] ✗ {manager_name}.{method_name} NOT FOUND on {type(manager).__name__}")
+                    
+                    if has_method:
+                        # Check method is callable
+                        method = getattr(manager, method_name)
+                        is_callable = callable(method)
+                        verification_results[f"{manager_name}.{method_name}_callable"] = is_callable
+                        
+                        if not is_callable:
+                            self.Error(f"[Integration] Method not callable: {manager_name}.{method_name}")
+                    else:
+                        self.Error(f"[Integration] Missing method: {manager_name}.{method_name}")
+            else:
+                self.Error(f"[Integration] Manager not found for method check: {manager_name}")
+                # DEBUGGING: Log what managers we actually have
+                if manager_name in ['margin_manager', 'state_manager', 'position_sizer', 'greeks_monitor']:
+                    available_managers = [attr for attr in dir(self) if not attr.startswith('_') and hasattr(getattr(self, attr, None), '__class__')]
+                    self.Debug(f"[Integration] DEBUG: Available managers: {[m for m in available_managers if 'manager' in m or 'sizer' in m or 'monitor' in m]}")
+        
+        # Report results
+        failed_methods = [k for k, v in verification_results.items() if not v]
+        
+        # DEBUGGING: Detailed results analysis
+        self.Debug(f"[Integration] DEBUG: Total verification results: {len(verification_results)}")
+        self.Debug(f"[Integration] DEBUG: Failed methods count: {len(failed_methods)}")
+        
+        # Filter out '_callable' checks for cleaner reporting
+        missing_methods = [k for k in failed_methods if not k.endswith('_callable')]
+        self.Debug(f"[Integration] DEBUG: Missing methods (excluding callable checks): {missing_methods}")
+        
+        if failed_methods:
+            self.Error(f"[Integration] Failed method verifications: {failed_methods}")
+            
+            # DEBUGGING: Show what passed for context
+            passed_methods = [k for k, v in verification_results.items() if v and not k.endswith('_callable')]
+            self.Debug(f"[Integration] DEBUG: Methods that passed verification: {len(passed_methods)} total")
+            
+            return False
+        
+        self.Debug(f"[Integration] All {len(verification_results)} method checks passed")
+        return True
+    
+    def run_complete_integration_verification(self) -> bool:
+        """Run complete integration verification suite
+        
+        Call this after any major system changes to ensure
+        nothing was accidentally broken or forgotten
+        """
+        
+        verification_stages = [
+            ("Manager Initialization", self.verify_manager_initialization),
+            ("Strategy Loading", self.verify_strategy_loading), 
+            ("Critical Methods", self.verify_critical_methods)
+        ]
+        
+        results = {}
+        
+        self.Debug("[Integration] Starting complete verification suite")
+        
+        for stage_name, verification_func in verification_stages:
+            try:
+                result = verification_func()
+                results[stage_name] = result
+                
+                status = "PASS" if result else "FAIL"
+                self.Debug(f"[Integration] {stage_name}: {status}")
+                
+            except Exception as e:
+                self.Error(f"[Integration] {stage_name} verification error: {e}")
+                results[stage_name] = False
+        
+        # Final summary
+        passed_stages = sum(1 for r in results.values() if r)
+        total_stages = len(results)
+        
+        if passed_stages == total_stages:
+            self.Log(f"[Integration] COMPLETE SUCCESS: {passed_stages}/{total_stages} stages passed")
+            return True
+        else:
+            self.Error(f"[Integration] VERIFICATION FAILED: {passed_stages}/{total_stages} stages passed")
+            
+            # List failed stages
+            failed_stages = [name for name, result in results.items() if not result]
+            self.Error(f"[Integration] Failed stages: {failed_stages}")
+            
+            return False
+    
+    def OnData(self, data):
+        """Main data handler with full safety integration"""
+        
+        # Conditional OnData logging for performance
+        if not self.is_backtest or self.Time.hour == 9 and self.Time.minute < 5:
+            self.Debug(f"[MINIMAL TEST] OnData called at {self.Time} - data keys: {list(data.Keys)}")
+        
+        # ======================
+        # PERFORMANCE CACHING
+        # ======================
+        
+        # Cache frequently accessed values for this cycle
+        self.current_portfolio_value = self.Portfolio.TotalPortfolioValue
+        self.current_margin_used = self.Portfolio.TotalMarginUsed
+        self.current_margin_remaining = self.Portfolio.MarginRemaining
+        
+        # Cache current prices
+        self.current_prices = {}
+        for symbol in [self.spy, self.vix]:
+            if symbol in self.Securities:
+                self.current_prices[symbol] = self.Securities[symbol].Price
+        
+        # Initialize option chain cache if needed (time-based expiry)
+        if not hasattr(self, 'option_chain_cache'):
+            self.option_chain_cache = {}
+            self.option_cache_expiry = {}
+        
+        # ======================
+        # SAFETY CHECKS FIRST
+        # ======================
+        
+        # 1. Validate data freshness (conditional frequency)
+        if self.should_run_safety_check():
+            # Use existing data validation methods
+            data_status = self.data_validator.get_status()
+            if data_status.get('data_quality_score', 0) < 80:
+                if not self.is_backtest:
+                    self.Debug("Data validation failed, skipping cycle")
+                return
+            self.last_safety_check = self.Time
+        
+        # 2. Check circuit breakers (always check - critical)
+        if self._check_circuit_breakers():
+            if not self.is_backtest:
+                self.Debug("Circuit breaker triggered, halting trading")
+            self.state_manager.halt_all_trading("Circuit breaker triggered")
+            return
+        
+        # 3. Update system state
+        self.state_manager.update_system_state()
+        
+        # 4. Check if we can trade
+        if not self.IsMarketOpen(self.spy):
+            return
+        
+        # 5. Check margin availability (conditional frequency)
+        if self.should_run_margin_check():
+            margin_health = self.margin_manager.check_margin_health()
+            if margin_health.get('margin_ratio', 0) > 0.8:  # Above 80% usage
+                if not self.is_backtest:
+                    self.Debug("Insufficient margin, skipping cycle")
+                return
+            self.last_margin_check = self.Time
+        
+        # 6. Check correlation limits (conditional frequency)
+        if self.should_run_correlation_check():
+            correlation_summary = self.correlation_limiter.get_correlation_summary(1)  # Phase 1 default
+            if correlation_summary.get('risk_score', 0) > 80:
+                if not self.is_backtest:
+                    self.Debug("Correlation limit reached")
+                return
+            self.last_correlation_check = self.Time
+        
+        # ======================
+        # STRATEGY EXECUTION
+        # ======================
+        
+        # Update VIX status (only log periodically to avoid overhead)
+        if not self.is_backtest or self.Time.minute % 30 == 0:
+            if hasattr(self.vix_manager, 'log_vix_status'):
+                self.vix_manager.log_vix_status()
+        
+        # Update Greeks (only when positions change)
+        if hasattr(self, 'greeks_monitor') and hasattr(self.greeks_monitor, 'update'):
+            self.greeks_monitor.update()
+        
+        # Get execution order from coordinator (conditional logging)
+        if not self.is_backtest or self.Time.minute % 60 == 0:
+            self.Debug(f"[MAIN] OnData called at {self.Time}")
+        execution_order = self.strategy_coordinator.get_execution_order()
+        if not self.is_backtest or self.Time.minute % 60 == 0:
+            self.Debug(f"[MAIN] EXECUTION ORDER: {execution_order}")
+        
+        for strategy_name in execution_order:
+            if not self.is_backtest or self.Time.minute % 60 == 0:
+                self.Debug(f"[MAIN] CHECKING STRATEGY: {strategy_name}")
+            
+            # Check if strategy can execute
+            can_enter = self.state_manager.can_enter_new_position(strategy_name)
+            if not self.is_backtest or self.Time.minute % 60 == 0:
+                self.Debug(f"[MAIN] CAN_ENTER_NEW_POSITION: {strategy_name} = {can_enter}")
+            
+            if not can_enter:
+                if not self.is_backtest or self.Time.minute % 60 == 0:
+                    self.Debug(f"[MAIN] SKIPPING: {strategy_name} cannot enter new position")
+                continue
+            
+            # Check daily trade limit
+            if self.trades_today >= self.daily_trade_limit:
+                if not self.is_backtest:
+                    self.Debug(f"[MAIN] LIMIT REACHED: Daily trade limit {self.daily_trade_limit} reached (current: {self.trades_today})")
+                break
+            
+            # Check strategy-specific conditions
+            strategy = self.strategies.get(strategy_name)
+            if strategy:
+                if not self.is_backtest or self.Time.minute % 60 == 0:
+                    self.Debug(f"[MAIN] EXECUTING: {strategy_name}")
+                try:
+                    # Execute through state machine
+                    strategy.execute()
+                    
+                    # Update coordinator
+                    self.strategy_coordinator.record_execution(strategy_name)
+                    if not self.is_backtest or self.Time.minute % 60 == 0:
+                        self.Debug(f"[MAIN] EXECUTED: {strategy_name} completed successfully")
+                    
+                except Exception as e:
+                    # Critical errors always logged
+                    self.Error(f"[MAIN] ERROR: Strategy {strategy_name} error: {e}")
+                    self.state_manager.force_strategy_exit(strategy_name, str(e))
+            else:
+                self.Error(f"[MAIN] MISSING: Strategy {strategy_name} not found in self.strategies")
+        
+        # ======================
+        # POSITION MANAGEMENT
+        # ======================
+        
+        # Check existing positions
+        self._manage_existing_positions()
+        
+        # Update performance tracking
+        self.performance_tracker.update()
+    
+    def _check_circuit_breakers(self) -> bool:
+        """Check all circuit breakers"""
+        
+        # Rapid drawdown check
+        current_value = self.Portfolio.TotalPortfolioValue
+        self.drawdown_window.append((self.Time, current_value))
+        
+        # Remove old entries
+        cutoff_time = self.Time - self.circuit_breakers['rapid_drawdown']['window']
+        self.drawdown_window = [(t, v) for t, v in self.drawdown_window if t > cutoff_time]
+        
+        if len(self.drawdown_window) > 1:
+            max_value = max(v for _, v in self.drawdown_window)
+            drawdown = (current_value - max_value) / max_value if max_value > 0 else 0
+            
+            if drawdown < self.circuit_breakers['rapid_drawdown']['threshold']:
+                self.Error(f"CIRCUIT BREAKER: Rapid drawdown {drawdown:.2%}")
+                return True
+        
+        # Correlation spike check
+        if hasattr(self, 'correlation_limiter'):
+            if self.correlation_limiter.get_max_correlation() > self.circuit_breakers['correlation_spike']['threshold']:
+                self.Error("CIRCUIT BREAKER: Correlation spike")
+                return True
+        
+        # Margin spike check
+        margin_usage = self.Portfolio.TotalMarginUsed / self.Portfolio.TotalPortfolioValue if self.Portfolio.TotalPortfolioValue > 0 else 0
+        if margin_usage > self.circuit_breakers['margin_spike']['threshold']:
+            self.Error(f"CIRCUIT BREAKER: Margin spike {margin_usage:.2%}")
+            return True
+        
+        # Consecutive losses check
+        if self.consecutive_losses >= self.circuit_breakers['consecutive_losses']['threshold']:
+            self.Error(f"CIRCUIT BREAKER: {self.consecutive_losses} consecutive losses")
+            return True
+        
+        return False
+    
+    def _manage_existing_positions(self):
+        """Manage all existing positions"""
+        
+        for symbol in self.Portfolio.Keys:
+            holding = self.Portfolio[symbol]
+            
+            if holding.Invested and symbol.SecurityType == SecurityType.Option:
+                # Let strategies manage their own positions through state machines
+                strategy_name = self.position_manager.get_strategy_for_symbol(symbol)
+                
+                if strategy_name and strategy_name in self.strategies:
+                    strategy = self.strategies[strategy_name]
+                    strategy.check_position_management()
+    
+    def SafetyCheck(self):
+        """Regular safety check routine with conditional logging"""
+        
+        # Conditional logging for performance
+        if not self.is_backtest or self.Time.minute % 30 == 0:
+            self.Debug("=== SAFETY CHECK ===")
+        
+        # Check data feeds (defensive programming)
+        if hasattr(self.data_validator, 'get_status'):
+            try:
+                data_status = self.data_validator.get_status()
+                if not self.is_backtest or self.Time.minute % 30 == 0:
+                    self.Debug(f"Data feeds: {data_status}")
+            except Exception as e:
+                if not self.is_backtest:
+                    self.Debug(f"Data validator status error: {e}")
+        else:
+            if not self.is_backtest:
+                self.Debug("Data validator: get_status method not available")
+        
+        # Check margin (defensive programming)
+        if hasattr(self.margin_manager, 'get_margin_status'):
+            try:
+                margin_status = self.margin_manager.get_margin_status()
+                if isinstance(margin_status, dict) and 'usage_pct' in margin_status:
+                    self.Debug(f"Margin: {margin_status['usage_pct']:.1%} used")
+                else:
+                    self.Debug(f"Margin: {margin_status}")
+            except Exception as e:
+                self.Debug(f"Margin status error: {e}")
+        else:
+            self.Debug("Margin manager: get_margin_status method not available")
+        
+        # Check correlations (defensive programming)
+        if hasattr(self.correlation_limiter, 'get_max_correlation'):
+            try:
+                max_corr = self.correlation_limiter.get_max_correlation()
+                self.Debug(f"Max correlation: {max_corr:.2f}")
+            except Exception as e:
+                self.Debug(f"Correlation check error: {e}")
+        else:
+            self.Debug("Correlation limiter: get_max_correlation method not available")
+        
+        # Check state machines (defensive programming)
+        if hasattr(self.state_manager, 'get_dashboard'):
+            try:
+                state_dashboard = self.state_manager.get_dashboard()
+                if isinstance(state_dashboard, dict):
+                    active = state_dashboard.get('active_strategies', 'unknown')
+                    total = state_dashboard.get('total_strategies', 'unknown')
+                    self.Debug(f"Active strategies: {active}/{total}")
+                else:
+                    self.Debug(f"State dashboard: {state_dashboard}")
+            except Exception as e:
+                self.Debug(f"State dashboard error: {e}")
+        else:
+            self.Debug("State manager: get_dashboard method not available")
+        
+        # Check for stuck positions (defensive programming)
+        for name, strategy in self.strategies.items():
+            if hasattr(strategy, 'check_health'):
+                try:
+                    health = strategy.check_health()
+                    if isinstance(health, dict) and not health.get('healthy', True):
+                        self.Error(f"Strategy {name} unhealthy: {health.get('reason', 'unknown')}")
+                except Exception as e:
+                    self.Debug(f"Strategy {name} health check error: {e}")
+    
+    def PersistStates(self):
+        """Persist all state machines"""
+        
+        self.state_manager.save_all_states()
+        self.Debug("States persisted to ObjectStore")
+    
+    def EndOfDayReconciliation(self):
+        """End of day reconciliation and reporting"""
+        
+        self.Debug("=== END OF DAY RECONCILIATION ===")
+        
+        # Performance summary
+        daily_pnl = self.performance_tracker.get_daily_pnl()
+        self.Debug(f"Daily P&L: ${daily_pnl:.2f}")
+        self.Debug(f"Win rate: {self.winning_trades}/{self.winning_trades + self.losing_trades}")
+        
+        # Position summary
+        open_positions = self.state_manager.get_active_strategies()
+        self.Debug(f"Open positions: {open_positions}")
+        
+        # Risk summary
+        portfolio_greeks = self.greeks_monitor.get_portfolio_greeks()
+        self.Debug(f"Portfolio Greeks: Delta={portfolio_greeks['delta']:.2f}, Gamma={portfolio_greeks['gamma']:.4f}")
+        
+        # Reset daily counters
+        self.trades_today = 0
+        self.consecutive_losses = 0 if daily_pnl > 0 else self.consecutive_losses
+        
+        # Check for phase advancement
+        self._check_phase_advancement()
+    
+    def _check_phase_advancement(self):
+        """Check if ready to advance to next phase"""
+        
+        # Simple phase advancement based on performance
+        total_trades = self.winning_trades + self.losing_trades
+        
+        if total_trades >= 20:  # Minimum trades for phase advancement
+            win_rate = self.winning_trades / total_trades if total_trades > 0 else 0
+            
+            if self.current_phase == 1 and win_rate > 0.60:
+                self.current_phase = 2
+                self.Debug("ADVANCED TO PHASE 2")
+            elif self.current_phase == 2 and win_rate > 0.65 and total_trades >= 50:
+                self.current_phase = 3
+                self.Debug("ADVANCED TO PHASE 3")
+            elif self.current_phase == 3 and win_rate > 0.70 and total_trades >= 100:
+                self.current_phase = 4
+                self.Debug("ADVANCED TO PHASE 4")
+    
+    def OnOrderEvent(self, orderEvent):
+        """Handle order events with safety checks"""
+        
+        if orderEvent.Status == OrderStatus.Filled:
+            # Update trades today
+            self.trades_today += 1
+            
+            # Track performance
+            symbol = orderEvent.Symbol
+            fill_price = orderEvent.FillPrice
+            quantity = orderEvent.FillQuantity
+            
+            # Let performance tracker handle it
+            self.performance_tracker.record_trade(orderEvent)
+            
+            # Update invested positions tracking for performance
+            if self.Portfolio[symbol].Quantity != 0:
+                self.invested_positions.add(symbol)
+            else:
+                self.invested_positions.discard(symbol)
+            
+            # Persist states on position changes (more important than time-based)
+            self.PersistStates()
+            
+            # Update consecutive losses if needed
+            if orderEvent.Direction == OrderDirection.Sell and quantity < 0:
+                # Opening position - no action needed for loss tracking
+            elif orderEvent.Direction == OrderDirection.Buy and quantity > 0:
+                # Closing position - check P&L
+                pnl = self.position_manager.calculate_position_pnl(symbol)
+                
+                if pnl < 0:
+                    self.consecutive_losses += 1
+                else:
+                    self.consecutive_losses = 0
+    
+    def GetCachedOptionChain(self, symbol):
+        """Get option chain with time-based caching to avoid duplicate API calls"""
+        # Check if cache exists and is still fresh (5-minute expiry)
+        cache_duration = timedelta(minutes=5)
+        
+        if (symbol not in self.option_chain_cache or 
+            symbol not in self.option_cache_expiry or
+            self.Time > self.option_cache_expiry[symbol]):
+            
+            # Fetch fresh option chain
+            self.option_chain_cache[symbol] = self.OptionChainProvider.GetOptionContractList(symbol, self.Time)
+            self.option_cache_expiry[symbol] = self.Time + cache_duration
+            
+        return self.option_chain_cache[symbol]
+    
+    def initialize_performance_optimizations(self):
+        """Initialize performance optimization settings based on environment"""
+        
+        if self.is_backtest:
+            # Backtest optimizations - reduce frequency for performance
+            self.safety_check_interval = timedelta(minutes=30)  # Every 30 minutes vs every minute
+            self.margin_check_interval = timedelta(minutes=15)  # Every 15 minutes
+            self.correlation_check_interval = timedelta(minutes=10)  # Every 10 minutes
+            self.log_interval = timedelta(minutes=60)  # Only log once per hour
+            
+            # Cache settings for backtests
+            self.vix_cache_duration = timedelta(minutes=5)
+            self.option_cache_duration = timedelta(minutes=5)
+        else:
+            # Live trading - maintain tight safety intervals
+            self.safety_check_interval = timedelta(minutes=1)  
+            self.margin_check_interval = timedelta(minutes=2)  
+            self.correlation_check_interval = timedelta(minutes=1)  
+            self.log_interval = timedelta(minutes=5)
+            
+            # Shorter cache for live accuracy
+            self.vix_cache_duration = timedelta(minutes=1)
+            self.option_cache_duration = timedelta(minutes=2)
+        
+        self.Debug(f"[Performance] Environment: {'BACKTEST' if self.is_backtest else 'LIVE'}")
+        self.Debug(f"[Performance] Safety check interval: {self.safety_check_interval}")
+        
+    def initialize_caching_systems(self):
+        """Initialize all caching systems for performance"""
+        
+        # Option chain cache
+        self.option_chain_cache = {}
+        self.option_cache_expiry = {}
+        
+        # VIX cache
+        self.vix_cache = None
+        self.vix_cache_expiry = None
+        
+        # Greeks cache
+        self.greeks_cache = {}
+        self.greeks_cache_expiry = {}
+        
+        # Performance tracking
+        self.cache_hits = 0
+        self.cache_misses = 0
+        
+        if not self.is_backtest:
+            self.Debug("[Performance] Caching systems initialized")
+    
+    def should_run_safety_check(self) -> bool:
+        """Determine if safety checks should run based on environment and timing"""
+        
+        if not self.is_backtest:
+            return True  # Always run in live trading
+        
+        # In backtests, run less frequently
+        if self.last_safety_check is None:
+            self.last_safety_check = self.Time
+            return True
+        
+        return self.Time - self.last_safety_check >= self.safety_check_interval
+    
+    def should_run_margin_check(self) -> bool:
+        """Determine if margin checks should run"""
+        
+        if not self.is_backtest:
+            return True
+        
+        if self.last_margin_check is None:
+            self.last_margin_check = self.Time
+            return True
+        
+        return self.Time - self.last_margin_check >= self.margin_check_interval
+    
+    def should_run_correlation_check(self) -> bool:
+        """Determine if correlation checks should run"""
+        
+        if not self.is_backtest:
+            return True
+        
+        if self.last_correlation_check is None:
+            self.last_correlation_check = self.Time
+            return True
+        
+        return self.Time - self.last_correlation_check >= self.correlation_check_interval
+    
+    def OnEndOfAlgorithm(self):
+        """Clean shutdown with state persistence"""
+        
+        self.Debug("=== ALGORITHM SHUTDOWN ===")
+        
+        # Shutdown state manager
+        self.state_manager.shutdown()
+        
+        # Final performance report
+        self.performance_tracker.generate_final_report()
+        
+        # Save final states
+        self.PersistStates()
+        
+        self.Debug("Shutdown complete")

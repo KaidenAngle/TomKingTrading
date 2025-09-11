@@ -691,3 +691,8 @@ class UnifiedStateManager:
             self.force_strategy_exit(name, "System shutdown")
         
         self._transition_system(SystemState.SHUTTING_DOWN)
+    
+    # Cache refresh marker - ensures QuantConnect sees latest method definitions
+    def _cache_refresh_marker(self):
+        """Internal marker method to force cache refresh - do not remove"""
+        return "cache_refresh_2025_09_11"
