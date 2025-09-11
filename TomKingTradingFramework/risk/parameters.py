@@ -1,5 +1,6 @@
 # region imports
 from AlgorithmImports import *
+from config.constants import TradingConstants
 # endregion
 """
 Risk Parameters and Thresholds for QuantConnect LEAN
@@ -76,12 +77,10 @@ class RiskParameters:
                 'STRANGLE': {'micro': 0.025, 'full': 0.035, 'base_max_positions': 3},
                 'LT112': {'micro': 0.03, 'full': 0.06, 'base_max_positions': 2},
                 'IPMCC': {'micro': 0.08, 'full': 0.08, 'base_max_positions': 1},
-                'BUTTERFLY': {'micro': 0.005, 'full': 0.005, 'base_max_positions': 4},
                 'RATIO_SPREAD': {'micro': 0.02, 'full': 0.02, 'base_max_positions': 2},
                 'DIAGONAL': {'micro': 0.015, 'full': 0.015, 'base_max_positions': 2},
                 'LEAP_PUTS': {'micro': 0.02, 'full': 0.02, 'base_max_positions': 3},
                 'BOX_SPREAD': {'micro': 0.0, 'full': 0.0, 'base_max_positions': 2},
-                'CALENDAR': {'micro': 0.01, 'full': 0.01, 'base_max_positions': 3},
             },
             
             # Dynamic position scaling by phase (Tom King methodology)
@@ -142,7 +141,7 @@ class RiskParameters:
         self.defensive = {
             # Time-based management rules
             'time_management': {
-                'dte_management_threshold': 21,          # 21 DTE rule (non-negotiable)
+                'dte_management_threshold': TradingConstants.DEFENSIVE_EXIT_DTE,          # Tom King's 21 DTE rule (non-negotiable)
                 'emergency_dte_threshold': 7,            # Emergency management at 7 DTE
                 'expiration_day_close_time': {'hour': 15, 'minute': 0},  # 3 PM close
                 'friday_0dte_exit_time': {'hour': 15, 'minute': 0},      # Friday 3 PM 0DTE exit
@@ -151,13 +150,12 @@ class RiskParameters:
             
             # Profit and loss management
             'pnl_management': {
-                'default_profit_target': 0.50,           # 50% profit target
+                'default_profit_target': TradingConstants.FRIDAY_0DTE_PROFIT_TARGET,           # 50% profit target
                 'strategy_profit_targets': {
-                    '0DTE': 0.50,                        # 50% of credit
-                    'STRANGLE': 0.50,                    # 50% of credit  
+                    '0DTE': TradingConstants.FRIDAY_0DTE_PROFIT_TARGET,                        # 50% of credit
+                    'STRANGLE': TradingConstants.FUTURES_STRANGLE_PROFIT_TARGET,                    # 50% of credit  
                     'LT112': 0.90,                       # 90% of credit on naked puts
                     'IPMCC': 0.50,                       # 50% on short calls
-                    'BUTTERFLY': 0.75,                   # 75% of max profit
                     'RATIO_SPREAD': 0.60,                # 60% of credit
                 },
                 'default_stop_loss': -2.00,              # 200% of credit
@@ -166,7 +164,6 @@ class RiskParameters:
                     'STRANGLE': -2.00,                   # 200% of credit
                     'LT112': -3.00,                      # 300% of debit
                     'IPMCC': -0.30,                      # 30% loss on LEAP
-                    'BUTTERFLY': -1.00,                  # 100% of debit
                     'RATIO_SPREAD': -2.50,               # 250% of credit
                 },
             },
@@ -271,20 +268,13 @@ class RiskParameters:
                     'monthly_trades': 52,                # Weekly rolls
                     'expected_monthly_return': 0.08,     # 8% monthly
                 },
-                'BUTTERFLY': {
-                    'target_win_rate': 0.65,             # 65% win rate
-                    'avg_return': 0.75,                  # 75% of max profit
-                    'max_loss': -1.00,                   # 100% of debit
-                    'monthly_trades': 8,                 # Bi-weekly
-                    'expected_monthly_return': 0.04,     # 4% monthly
-                },
             },
             
             # Strategy allocation by phase
             'phase_allocations': {
                 1: ['0DTE', 'STRANGLE', 'IPMCC'],                           # Phase 1: Foundation
                 2: ['0DTE', 'STRANGLE', 'IPMCC', 'LT112', 'LEAP_PUTS'],    # Phase 2: Expansion
-                3: ['0DTE', 'STRANGLE', 'IPMCC', 'LT112', 'BUTTERFLY', 'RATIO_SPREAD'],  # Phase 3: Optimization
+                3: ['0DTE', 'STRANGLE', 'IPMCC', 'LT112', 'LEAP_PUTS'],  # Phase 3: Optimization
                 4: ['ALL_STRATEGIES'],                                       # Phase 4: Full deployment
             },
             
@@ -294,7 +284,6 @@ class RiskParameters:
                 'STRANGLE': 'LOW',                       # Stable, predictable
                 'LT112': 'HIGH',                         # Complex, correlation risk
                 'IPMCC': 'MODERATE',                     # LEAP risk, assignment risk
-                'BUTTERFLY': 'LOW',                      # Limited risk
                 'RATIO_SPREAD': 'HIGH',                  # Unlimited risk potential
                 'DIAGONAL': 'MODERATE',                  # Time risk
                 'LEAP_PUTS': 'LOW',                      # Limited downside

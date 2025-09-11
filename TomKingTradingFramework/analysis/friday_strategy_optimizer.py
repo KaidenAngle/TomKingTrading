@@ -9,7 +9,7 @@ from core.base_component import BaseComponent
 class FridayStrategyOptimizer(BaseComponent):
     """
     Tom King's Progressive Friday pattern detection
-    Identifies high-probability 0DTE setups with enhanced win rates
+    Identifies high-probability 0DTE setups with improved win rates
     
     Progressive Friday characteristics:
     - Moderate overnight gap (0.3-0.8%)
@@ -329,11 +329,11 @@ class FridayStrategyOptimizer(BaseComponent):
         else:
             return 'NONE'
             
-    def get_enhanced_0dte_parameters(self, is_progressive: bool) -> Dict:
+    def get_improved_0dte_parameters(self, is_progressive: bool) -> Dict:
         """Get adjusted parameters for Progressive Friday"""
         
         if is_progressive:
-            # Enhanced parameters for Progressive Friday
+            # Improved parameters for Progressive Friday
             return {
                 'position_multiplier': 1.5,      # 50% larger position
                 'stop_loss_multiplier': 1.5,     # Tighter stop (1.5x vs 2x)
@@ -382,7 +382,7 @@ class FridayStrategyOptimizer(BaseComponent):
         Breadth: {signals['breadth']['strength']} ({signals['breadth']['adv_dec']:.2f})
         Momentum: {signals['momentum']['momentum']:.2f}% ({signals['momentum']['direction']})
         
-        ENHANCED PARAMETERS:
+        IMPROVED PARAMETERS:
         -------------------
         • Position size: +50%
         • Stop loss: 1.5x credit (vs 2x)
@@ -393,7 +393,7 @@ class FridayStrategyOptimizer(BaseComponent):
         RECOMMENDED STRATEGIES:
         ----------------------
         1. Standard 0DTE Iron Condor
-        2. Broken Wing Butterfly (if VIX > 20)
+        2. Put Spread (if VIX > 20)
         3. 1x2 Put Ratio Spread (if gap down)
         
         Historical Accuracy: {self.get_historical_accuracy():.1f}%

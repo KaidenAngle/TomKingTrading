@@ -56,7 +56,6 @@ class TechnicalAnalysisSystem:
             '0dte': {'atr_multiplier': 0.7, 'min_distance': 10},
             'strangle': {'atr_multiplier': 1.0, 'asymmetric': True},
             'lt112': {'atr_multiplier': 1.5, 'otm_percent': 0.07},
-            'butterfly': {'atr_multiplier': 0.5, 'max_width': 50}
         }
         
         # Quality scoring weights
@@ -341,19 +340,6 @@ class TechnicalAnalysisSystem:
                 'calculation': f'Debit spread: {debit_spread_distance:.0f}pts OTM, Naked: {naked_put_distance:.0f}pts OTM'
             })
         
-        elif strategy_type == 'butterfly':
-            # Butterfly using ATR × 0.5 for movement-based strikes
-            wing_width = rules.get('max_width', 50)  # 50 point max width
-            center_adjustment = max(5, atr * atr_multiplier)
-            
-            strikes.update({
-                'lower_wing': round(current_price - center_adjustment - wing_width/2),
-                'body': round(current_price - center_adjustment),
-                'upper_wing': round(current_price - center_adjustment + wing_width/2),
-                'width': wing_width,
-                'calculation': f'Center adjusted by ATR({atr:.2f}) × {atr_multiplier}'
-            })
-        
         return strikes
     
     def calculate_pattern_quality_score(self, symbol, current_price, strategy_type=None):
@@ -491,15 +477,6 @@ class TechnicalAnalysisSystem:
                 signals['confidence'] = 70
                 signals['timing_factors'].append(f'Trend favorable for puts ({trend["direction"]})')
         
-        elif strategy_type == 'butterfly':
-            # Butterflies need specific volatility conditions
-            bb_width = values['bb_width']
-            if bb_width < 0.04:  # Low volatility
-                signals['primary_signal'] = 'GOOD_ENTRY'
-                signals['confidence'] = 65
-                signals['timing_factors'].append(f'Low volatility environment (BB Width: {bb_width:.3f})')
-            else:
-                signals['warnings'].append('High volatility may hurt butterfly performance')
         
         return signals
     

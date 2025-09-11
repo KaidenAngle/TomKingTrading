@@ -3,6 +3,7 @@
 
 from AlgorithmImports import *
 from core.state_machine import StrategyStateMachine, StrategyState, TransitionTrigger
+from config.constants import TradingConstants
 from typing import Dict, Optional, Any
 from datetime import time, timedelta
 
@@ -28,8 +29,8 @@ class BaseStrategyWithState:
         # Strategy-specific configuration (override in subclasses)
         self.entry_time = None
         self.exit_time = None
-        self.target_profit = 0.50  # Tom King standard
-        self.stop_loss = -2.00     # Tom King standard
+        self.target_profit = TradingConstants.FRIDAY_0DTE_PROFIT_TARGET  # Tom King standard 50%
+        self.stop_loss = TradingConstants.FRIDAY_0DTE_STOP_LOSS     # Tom King standard -200%
         
         # Position tracking
         self.current_position = None

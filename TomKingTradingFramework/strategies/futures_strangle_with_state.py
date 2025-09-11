@@ -4,6 +4,7 @@
 from AlgorithmImports import *
 from strategies.base_strategy_with_state import BaseStrategyWithState
 from core.state_machine import StrategyState, TransitionTrigger
+from config.constants import TradingConstants
 from datetime import time, timedelta
 from typing import Dict, List, Optional
 
@@ -19,13 +20,13 @@ class FuturesStrangleWithState(BaseStrategyWithState):
         
         # Tom King Futures parameters
         self.entry_time = time(10, 0)   # 10:00 AM ET entry
-        self.target_profit = 0.25       # 25% profit target
-        self.stop_loss = -1.00          # 100% stop loss
+        self.target_profit = TradingConstants.FUTURES_STRANGLE_PROFIT_TARGET  # 50% profit target per Tom King methodology
+        self.stop_loss = TradingConstants.FUTURES_STRANGLE_STOP_LOSS  # Use centralized stop loss
         
         # DTE targets
         self.min_dte = 45               # Minimum 45 DTE
         self.max_dte = 60               # Maximum 60 DTE
-        self.defensive_exit_dte = 21    # Exit at 21 DTE
+        self.defensive_exit_dte = TradingConstants.DEFENSIVE_EXIT_DTE  # Tom King's 21 DTE rule
         
         # Strike selection
         self.strangle_width = 0.15      # 15% OTM for both sides
@@ -34,7 +35,7 @@ class FuturesStrangleWithState(BaseStrategyWithState):
         
         # Position tracking
         self.strangle_positions = []
-        self.max_positions = 2          # Max 2 concurrent strangles
+        self.max_positions = self._get_max_positions()
         
         # Futures symbols
         self.futures_symbols = ['/ES', '/NQ', '/RTY']  # E-mini S&P, NASDAQ, Russell
@@ -343,7 +344,7 @@ class FuturesStrangleWithState(BaseStrategyWithState):
         """Calculate position size for strangle using unified position sizer"""
         
         # UnifiedPositionSizer is always initialized in main.py
-        return self.algo.position_sizer.calculate_futures_strangle_size()
+        return self.algo.position_sizer.calculate_futures_size()
     
     def _calculate_strangle_credit(self, call, put) -> float:
         """Calculate total credit for strangle"""
@@ -433,6 +434,19 @@ class FuturesStrangleWithState(BaseStrategyWithState):
             
         except Exception as e:
             self.algo.Error(f"[Strangle] Close position error: {e}")
+    
+    def _get_max_positions(self) -> int:
+        """Get maximum futures strangle positions based on phase"""
+        # Conservative phase-based limits for futures (more risky than equity options)
+        phase_limits = {
+            1: 1,  # Phase 1: 1 futures strangle (learning)
+            2: 2,  # Phase 2: 2 futures strangles (proven)
+            3: 2,  # Phase 3: 2 futures strangles (still conservative)
+            4: 3   # Phase 4: 3 futures strangles (experienced)
+        }
+        
+        phase = getattr(self.algo, 'current_phase', 1)
+        return phase_limits.get(phase, 1)
     
     def _get_vix_value(self) -> float:
         """Get current VIX value from UnifiedVIXManager"""

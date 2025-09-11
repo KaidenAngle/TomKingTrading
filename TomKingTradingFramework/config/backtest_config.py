@@ -5,6 +5,7 @@ QuantConnect LEAN Platform Implementation
 
 from datetime import datetime
 from AlgorithmImports import *
+from config.constants import TradingConstants
 
 class BacktestConfig:
     """Backtesting configuration for Tom King strategies"""
@@ -124,12 +125,12 @@ class BacktestConfig:
             'days': ['Wednesday'],  # First Wednesday of month
             'frequency': 'monthly',
             'target_dte': 45,
-            'management_dte': 21
+            'management_dte': TradingConstants.DEFENSIVE_EXIT_DTE
         },
         'futures_strangles': {
             'days': ['Monday', 'Thursday'],
             'target_dte': 90,
-            'management_dte': 21
+            'management_dte': TradingConstants.DEFENSIVE_EXIT_DTE
         }
     }
     

@@ -1,6 +1,7 @@
 # Defensive Management Module for LEAN
 # Implements Tom King's 21 DTE rule and VIX spike protocols
 from AlgorithmImports import *
+from config.constants import TradingConstants
 from datetime import timedelta
 
 class DefensiveManager:
@@ -8,7 +9,7 @@ class DefensiveManager:
         self.algo = algorithm
         self.vix_spike_threshold = 35
         self.vix_emergency_threshold = 40
-        self.defensive_dte = 21
+        self.defensive_dte = TradingConstants.DEFENSIVE_EXIT_DTE
         
     def CheckAllPositions(self):
         """Check all positions for defensive actions"""
@@ -181,7 +182,7 @@ class DefensiveManager:
                 contract = holding.Symbol
                 dte = (contract.ID.Date - self.algo.Time.date()).days
                 
-                if dte <= 21:
+                if dte <= TradingConstants.DEFENSIVE_EXIT_DTE:
                     dte_21_positions += 1
                     if self.IsPositionChallenged(holding):
                         challenged_positions += 1

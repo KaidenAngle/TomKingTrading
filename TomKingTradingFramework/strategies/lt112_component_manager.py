@@ -5,6 +5,7 @@ Handles partial closes and component-level management
 """
 
 from AlgorithmImports import *
+from config.constants import TradingConstants
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
@@ -20,9 +21,9 @@ class FixedLT112Management:
         
         # Tom King LT112 Parameters
         self.naked_put_profit_target = 0.90  # 90% profit target for naked puts
-        self.debit_spread_profit_target = 0.50  # 50% profit target for debit spread
+        self.debit_spread_profit_target = TradingConstants.LT112_PROFIT_TARGET  # 50% profit target for debit spread
         self.max_loss_trigger = 2.00  # 200% loss trigger
-        self.defensive_dte = 21  # 21 DTE defensive management
+        self.defensive_dte = TradingConstants.DEFENSIVE_EXIT_DTE  # Tom King's 21 DTE rule
         
     def analyze_lt112_positions(self, current_positions: List[Dict]) -> List[Dict]:
         """

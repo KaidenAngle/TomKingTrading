@@ -1,5 +1,6 @@
 # region imports
 from AlgorithmImports import *
+from config.constants import TradingConstants
 # endregion
 # Tom King Trading Framework v17 - Configuration Parameters
 # Extracted from Tom King Complete Trading System Documentation
@@ -25,56 +26,47 @@ class TomKingParameters:
     
     # VIX BP Usage - REMOVED: Use risk.position_sizing.PositionSizer instead
     
-    # Strategy Win Rates (Historical Performance)
+    # Strategy Win Rates (Historical Performance) - Core 5 Strategies + Friday 0DTE Components
     STRATEGY_WIN_RATES = {
         'zero_dte_friday': 0.88,      # 88% - Tom King's signature strategy
+        'iron_condors': 0.78,         # 78% - Iron condors (Friday 0DTE component)
         'lt112_long_term': 0.95,      # 95% - 1-1-2 Long Term
         'strangles_futures': 0.70,    # 70% - Futures strangles
-        'strangles_micro': 0.75,      # 75% - Micro futures
-        'butterflies': 0.82,          # 82% - Section 9B butterflies
-        'iron_condors': 0.78,         # 78% - Iron condors
-        'calendar_spreads': 0.85,     # 85% - Calendar spreads
-        'jade_lizard': 0.80,          # 80% - Jade lizard
-        'big_lizard': 0.77,           # 77% - Big lizard
-        'broken_wing_butterfly': 0.83 # 83% - BWB
+        'strangles_micro': 0.75,      # 75% - Micro futures (same as futures)
+        'ipmcc': 0.90,                # 90% - IPMCC strategy
+        'leap': 0.85                  # 85% - LEAP put ladders
     }
     
-    # Profit Targets by Strategy
+    # Profit Targets by Strategy (using centralized constants) - Core 5 Strategies + Friday 0DTE Components
     PROFIT_TARGETS = {
-        'zero_dte_friday': 0.50,      # 50% profit target
-        'lt112_long_term': 0.50,      # 50% profit target
-        'strangles_futures': 0.50,    # 50% profit target
-        'strangles_micro': 0.50,      # 50% profit target
-        'butterflies': 0.25,          # 25% profit target
-        'iron_condors': 0.50,         # 50% profit target
-        'calendar_spreads': 0.30,     # 30% profit target
-        'jade_lizard': 0.50,          # 50% profit target
-        'big_lizard': 0.50,           # 50% profit target
-        'broken_wing_butterfly': 0.25 # 25% profit target
+        'zero_dte_friday': TradingConstants.FRIDAY_0DTE_PROFIT_TARGET,      # 50% profit target
+        'iron_condors': TradingConstants.FRIDAY_0DTE_PROFIT_TARGET,         # 50% profit target (Friday 0DTE component)
+        'lt112_long_term': TradingConstants.LT112_PROFIT_TARGET,            # 50% profit target
+        'strangles_futures': TradingConstants.FUTURES_STRANGLE_PROFIT_TARGET,    # 50% profit target
+        'strangles_micro': TradingConstants.FUTURES_STRANGLE_PROFIT_TARGET,      # 50% profit target
+        'ipmcc': TradingConstants.IPMCC_PROFIT_TARGET,                      # 50% profit target
+        'leap': TradingConstants.LEAP_PROFIT_TARGET                         # 30% profit target
     }
     
-    # Stop Loss by Strategy
+    # Stop Loss by Strategy - Core 5 Strategies + Friday 0DTE Components
     STOP_LOSS = {
-        'zero_dte_friday': 2.00,      # 200% stop loss (2x credit received)
+        'zero_dte_friday': abs(TradingConstants.FRIDAY_0DTE_STOP_LOSS),      # 200% stop loss (2x credit received)
+        'iron_condors': abs(TradingConstants.FRIDAY_0DTE_STOP_LOSS),         # 200% stop loss (Friday 0DTE component)
         'lt112_long_term': 2.00,      # 200% stop loss
-        'strangles_futures': 2.50,    # 250% stop loss
-        'strangles_micro': 2.50,      # 250% stop loss
-        'butterflies': 3.00,          # 300% stop loss
-        'iron_condors': 2.00,         # 200% stop loss
-        'calendar_spreads': 1.50,     # 150% stop loss
-        'jade_lizard': 2.00,          # 200% stop loss
-        'big_lizard': 2.00,           # 200% stop loss
-        'broken_wing_butterfly': 3.00 # 300% stop loss
+        'strangles_futures': 2.50,    # 250% stop loss (futures more volatile)
+        'strangles_micro': 2.50,      # 250% stop loss (same as futures)
+        'ipmcc': None,                # No stop loss - roll instead
+        'leap': None                  # No stop loss - hold through drawdowns
     }
     
-    # Days to Expiration Management
+    # Days to Expiration Management - Core 5 Strategies Only
     DTE_MANAGEMENT = {
         'zero_dte': 0,                # Same day expiration
-        'defensive_exit': 21,         # 21 DTE defensive management
+        'defensive_exit': TradingConstants.DEFENSIVE_EXIT_DTE,         # Tom King's 21 DTE rule
         'lt112_entry': 120,           # 120 DTE entry for LT 1-1-2
         'strangle_entry': 30,         # 30 DTE for strangles
-        'butterfly_entry': 30,        # 30 DTE for butterflies
-        'calendar_entry': 45          # 45 DTE for calendars
+        'ipmcc_entry': 60,            # 60 DTE for IPMCC
+        'leap_entry': 365             # 365 DTE for LEAP put ladders
     }
     
     # Risk Management Rules
@@ -251,8 +243,8 @@ class TomKingParameters:
             }
         },
         'max_bp_usage_single_0dte': 0.25,  # Never exceed 25% BP on single 0DTE deployment
-        'profit_target': 0.50,             # 50% profit target
-        'stop_loss': 2.00,                 # 200% stop loss (2x credit received)
+        'profit_target': TradingConstants.FRIDAY_0DTE_PROFIT_TARGET,             # 50% profit target
+        'stop_loss': abs(TradingConstants.FRIDAY_0DTE_STOP_LOSS),                 # 200% stop loss (2x credit received)
         'win_rate_target': 0.88            # 88% win rate expectation
     }
     

@@ -410,12 +410,8 @@ class StrategyValidator:
                 'min_credit_per_contract': 20,  # $20 minimum per weekly call
                 'max_acceptable_ratio': 0.05  # Max 5% weekly (too good to be true)
             },
-            'BUTTERFLY_0DTE': {
-                'min_credit_ratio': 0.33,  # Minimum 33% of max risk (1:2 risk/reward)
-                'min_credit_per_contract': 30,  # $30 minimum per butterfly
-                'max_acceptable_ratio': 0.67  # Max 67% credit ratio
-            },
-            'BEAR_TRAP': {
+            # BUTTERFLY_0DTE and BEAR_TRAP removed - not part of core 5 strategies
+            'IPMCC': {
                 'min_credit_ratio': 0.30,  # Minimum 30% of max risk
                 'min_credit_per_contract': 75,  # $75 minimum
                 'max_acceptable_ratio': 0.50  # Max 50% credit ratio

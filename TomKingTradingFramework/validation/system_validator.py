@@ -52,8 +52,7 @@ class SystemValidator:
             ('ipmcc_strategy', 'IPMCC strategy'),
             ('leap_strategy', 'LEAP ladder strategy'),
             ('option_chain_manager', 'Option chain manager'),
-            ('bear_trap_strategy', 'Bear trap strategy'),
-            ('butterfly_0dte', 'Butterfly 0DTE strategy')
+            # bear_trap_strategy and butterfly_0dte removed - not part of core 5 strategies
         ]
         
         for attr, name in required_components:
@@ -140,7 +139,7 @@ class SystemValidator:
                 test_cases = [
                     ('friday_0dte', 50000, 2, 20),
                     ('lt112', 100000, 3, 25),
-                    ('bear_trap', 150000, 4, 30)
+                    ('ipmcc', 150000, 4, 30)
                 ]
                 
                 for strategy, account, phase, vix in test_cases:

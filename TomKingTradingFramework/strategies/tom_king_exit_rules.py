@@ -2,6 +2,7 @@
 # Based on complete methodology documentation
 
 from AlgorithmImports import *
+from config.constants import TradingConstants
 from datetime import timedelta
 from helpers.timezone_handler import TimezoneHandler
 
@@ -21,11 +22,11 @@ class TomKingExitRules:
         
         # Tom King's actual profit targets (from documentation)
         self.profit_targets = {
-            '0DTE': 0.50,           # 50% of credit received
-            'Strangle': 0.50,       # 50% of credit (not 25%!)
-            'Futures_Strangle': 0.50,  # Same as regular strangles
-            'LT112': 0.50,          # 50% profit target
-            'IPMCC': 0.50,          # Roll short call at 50% or 21 DTE
+            '0DTE': TradingConstants.FRIDAY_0DTE_PROFIT_TARGET,           # 50% of credit received
+            'Strangle': TradingConstants.FUTURES_STRANGLE_PROFIT_TARGET,       # 50% of credit (not 25%!)
+            'Futures_Strangle': TradingConstants.FUTURES_STRANGLE_PROFIT_TARGET,  # Same as regular strangles
+            'LT112': TradingConstants.LT112_PROFIT_TARGET,          # 50% profit target
+            'IPMCC': TradingConstants.IPMCC_PROFIT_TARGET,          # Roll short call at 50% or 21 DTE
             'LEAP': 0.30            # 30% profit target (longer term)
         }
         
@@ -42,10 +43,10 @@ class TomKingExitRules:
         # DTE management rules
         self.dte_rules = {
             '0DTE': 0,              # Same day exit
-            'Strangle': 21,         # Close or roll at 21 DTE
-            'Futures_Strangle': 21,
-            'LT112': 21,            # 21 DTE rule
-            'IPMCC': 21,            # Roll short call at 21 DTE
+            'Strangle': TradingConstants.DEFENSIVE_EXIT_DTE,         # Tom King's 21 DTE rule
+            'Futures_Strangle': TradingConstants.DEFENSIVE_EXIT_DTE,
+            'LT112': TradingConstants.DEFENSIVE_EXIT_DTE,            # Tom King's 21 DTE rule
+            'IPMCC': TradingConstants.DEFENSIVE_EXIT_DTE,            # Roll short call at 21 DTE
             'LEAP': 150             # Roll at 150 DTE
         }
         
@@ -163,7 +164,7 @@ class TomKingExitRules:
                 reason = f"Roll at {dte_threshold} DTE"
             else:
                 action = 'close'
-                reason = f"21 DTE rule"
+                reason = f"{TradingConstants.DEFENSIVE_EXIT_DTE} DTE rule"
             
             self.algo.Log(f"[DTE] {strategy} at {current_dte} DTE - {action}")
             return (True, reason, action)

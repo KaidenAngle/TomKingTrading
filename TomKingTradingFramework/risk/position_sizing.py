@@ -149,7 +149,6 @@ class PositionSizer:
             'STRANGLE': {'micro': 0.025, 'full': 0.035},
             'LT112': {'micro': 0.03, 'full': 0.06},
             'IPMCC': {'micro': 0.08, 'full': 0.08},
-            'BUTTERFLY': {'micro': 0.005, 'full': 0.005},
             'RATIO_SPREAD': {'micro': 0.02, 'full': 0.02},
             'DIAGONAL': {'micro': 0.015, 'full': 0.015},
             'LEAP_PUTS': {'micro': 0.02, 'full': 0.02},
@@ -373,7 +372,7 @@ class PositionSizer:
                 'action': 'DEPLOY_AGGRESSIVELY',
                 'target_bp_usage': min(0.85, current_bp_usage + 0.30),
                 'max_new_positions': 3,
-                'preferred_strategies': ['STRANGLE', '0DTE', 'BUTTERFLY'],
+                'preferred_strategies': ['STRANGLE', '0DTE', 'IPMCC'],
                 'timeframe': '1-3 days maximum',
                 'expected_return': '15-25% monthly during normalization',
                 'risk_warning': 'High risk/high reward - only for experienced traders'
@@ -384,7 +383,7 @@ class PositionSizer:
                 'action': 'SELECTIVE_DEPLOYMENT',
                 'target_bp_usage': min(0.70, current_bp_usage + 0.15),
                 'max_new_positions': 2,
-                'preferred_strategies': ['STRANGLE', 'BUTTERFLY'],
+                'preferred_strategies': ['STRANGLE', 'LEAP_PUTS'],
                 'timeframe': '1 week',
                 'expected_return': '8-12% monthly',
                 'risk_warning': 'Moderate increase in deployment'
