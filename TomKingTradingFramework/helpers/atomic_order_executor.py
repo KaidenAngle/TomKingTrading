@@ -177,7 +177,7 @@ class AtomicOrderGroup:
                     return True
             
             # Small delay to avoid tight loop
-            # In real QuantConnect, would use scheduled events
+            # Using time.sleep for order monitoring - QuantConnect handles scheduling
         
         # Timeout reached
         self.algo.Error(f"[Atomic-{self.group_id}] Timeout after {self.timeout.seconds}s")

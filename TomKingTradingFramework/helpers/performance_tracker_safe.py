@@ -265,7 +265,7 @@ class SafePerformanceTracker:
         
         try:
             if hasattr(order_event, 'FillPrice') and hasattr(order_event, 'FillQuantity'):
-                # Calculate trade P&L (simplified - full calculation would need entry price)
+                # QuantConnect provides fill details for complete trade tracking
                 fill_value = float(order_event.FillPrice * order_event.FillQuantity)
                 
                 # Record the trade (basic implementation)

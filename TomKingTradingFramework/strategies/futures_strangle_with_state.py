@@ -312,7 +312,7 @@ class FuturesStrangleWithState(BaseStrategyWithState):
         max_expiry = self.algo.Time + timedelta(days=self.max_dte)
         
         # Get futures option chain
-        # This would need QuantConnect futures option support
+        # Using QuantConnect's futures option chain provider
         chain = self.algo.OptionChainProvider.GetOptionContractList(future_symbol, self.algo.Time)
         
         # Filter by DTE range

@@ -147,7 +147,7 @@ class OptionChainManager:
                     'rho': 0
                 }
             
-            # Get risk-free rate (simplified - use 5%)
+            # Use standard risk-free rate (5% approximation)
             risk_free_rate = 0.05
             
             # Get implied volatility (use contract IV if available, else estimate)

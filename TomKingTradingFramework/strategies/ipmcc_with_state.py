@@ -300,32 +300,41 @@ class IPMCCWithState(BaseStrategyWithState):
         if not typed_contracts:
             return None
         
-        # Calculate deltas and find closest
-        # Simplified - would use actual Greeks calculation
-        underlying_price = self.algo.Securities[typed_contracts[0].Underlying].Price
-        
+        # Calculate deltas using QuantConnect Greeks
         best_contract = None
         best_delta_diff = float('inf')
         
         for contract in typed_contracts:
-            # Approximate delta based on moneyness
-            moneyness = contract.ID.StrikePrice / underlying_price
-            
-            if option_type == "call":
-                # Rough call delta approximation
-                if moneyness < 0.95:
-                    approx_delta = 0.8
-                elif moneyness < 1.0:
-                    approx_delta = 0.5
-                elif moneyness < 1.05:
-                    approx_delta = 0.3
-                else:
-                    approx_delta = 0.15
+            # Use QuantConnect's native Greeks when available
+            if hasattr(contract, 'Greeks') and contract.Greeks:
+                actual_delta = abs(contract.Greeks.Delta)
             else:
-                # Rough put delta approximation
-                approx_delta = 1 - approx_delta if 'approx_delta' in locals() else 0.3
+                # Fallback delta approximation based on moneyness
+                underlying_price = self.algo.Securities[contract.Underlying].Price
+                moneyness = contract.ID.StrikePrice / underlying_price
+                
+                if option_type == "call":
+                    # Rough call delta approximation
+                    if moneyness < 0.95:
+                        actual_delta = 0.8
+                    elif moneyness < 1.0:
+                        actual_delta = 0.5
+                    elif moneyness < 1.05:
+                        actual_delta = 0.3
+                    else:
+                        actual_delta = 0.15
+                else:
+                    # Rough put delta approximation (inverse of call delta)
+                    if moneyness > 1.05:
+                        actual_delta = 0.8
+                    elif moneyness > 1.0:
+                        actual_delta = 0.5
+                    elif moneyness > 0.95:
+                        actual_delta = 0.3
+                    else:
+                        actual_delta = 0.15
             
-            delta_diff = abs(approx_delta - target_delta)
+            delta_diff = abs(actual_delta - target_delta)
             if delta_diff < best_delta_diff:
                 best_delta_diff = delta_diff
                 best_contract = contract

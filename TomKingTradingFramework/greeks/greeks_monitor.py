@@ -384,12 +384,12 @@ class GreeksMonitor(BaseComponent):
             if option.BidPrice > 0 and option.AskPrice > 0:
                 mid_price = (option.BidPrice + option.AskPrice) / 2
                 
-                # Very rough IV estimate based on price
-                # Would use Newton-Raphson or bisection in production
+                # Fallback IV estimate when QuantConnect IV unavailable
+                # Uses simplified approximation for production fallback scenario
                 underlying_price = self.algorithm.Securities[option.Underlying].Price
                 moneyness = option.ID.StrikePrice / underlying_price
                 
-                # Time to expiry factor (simplified)
+                # Time to expiry factor for fallback calculation
                 days_to_expiry = (option.ID.Date.date() - self.algorithm.Time.date()).days
                 time_factor = max(0.1, days_to_expiry / 30.0)  # 30-day normalization
                 

@@ -462,37 +462,3 @@ class StrategyValidator:
         
         return True, f"Credit validated: ${expected_credit:.2f} on ${max_risk:.2f} risk ({risk_reward_ratio:.1%})"
     
-    def calculate_expected_credit(self, contracts: List) -> Tuple[float, float]:
-        """
-        Calculate expected credit and max risk from option contracts
-        Returns (expected_credit, max_risk)
-        """
-        try:
-            total_credit = 0
-            total_debit = 0
-            
-            for contract in contracts:
-                if not contract:
-                    continue
-                    
-                # Determine if we're buying or selling based on contract type
-                # This is a simplified calculation - in production use actual order direction
-                if hasattr(contract, 'BidPrice') and hasattr(contract, 'AskPrice'):
-                    # Use mid price for estimation
-                    mid_price = (contract.BidPrice + contract.AskPrice) / 2
-                    
-                    # Assume selling if it's a short strike (would need actual order info)
-                    # This is simplified - you'd track actual buy/sell from order placement
-                    if hasattr(contract, 'Strike'):
-                        # Just for demonstration - would need actual order direction
-                        total_credit += mid_price * 100  # Assuming 1 contract = 100 shares
-            
-            # Calculate max risk based on strike widths
-            # This is strategy-specific and would need proper implementation
-            max_risk = abs(total_credit * 3)  # Simplified - use actual strike width calculation
-            
-            return total_credit, max_risk
-            
-        except Exception as e:
-            self.algo.Debug(f"Error calculating expected credit: {e}")
-            return 0, 0
