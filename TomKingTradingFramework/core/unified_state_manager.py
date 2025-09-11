@@ -3,6 +3,7 @@
 
 from AlgorithmImports import *
 from core.state_machine import StrategyStateMachine, StrategyState, TransitionTrigger
+from core.performance_cache import HighPerformanceCache
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from enum import Enum, auto
@@ -33,6 +34,24 @@ class UnifiedStateManager:
         # System-wide triggers
         self.global_triggers = []
         
+        # PRODUCTION CACHING: State validation and checks caching
+        self.state_cache = HighPerformanceCache(
+            algorithm,
+            max_size=300,  # Cache state validation results
+            ttl_minutes=1 if algorithm.LiveMode else 3,  # Short TTL for state checks
+            max_memory_mb=10,  # Small memory footprint
+            enable_stats=True
+        )
+        
+        # System condition cache (VIX, margin, etc.)
+        self.condition_cache = HighPerformanceCache(
+            algorithm,
+            max_size=100,
+            ttl_minutes=0.5 if algorithm.LiveMode else 2,  # Very short TTL for conditions
+            max_memory_mb=5,
+            enable_stats=True
+        )
+        
         # State persistence
         self.state_file = "state_machines.json"
         self.last_save = datetime.min
@@ -45,10 +64,45 @@ class UnifiedStateManager:
         # Performance tracking
         self.state_statistics = {}
         
+        # Cache performance tracking
+        self.cache_stats_log_interval = timedelta(minutes=30 if algorithm.LiveMode else 60)
+        self.last_cache_stats_log = algorithm.Time
+        
         # Initialize system transitions
         self._setup_system_transitions()
         
         self.algo.Debug("[StateManager] Unified state manager initialized")
+    
+    def _setup_system_transitions(self):
+        """Set up system-level state transitions and triggers"""
+        
+        # Initialize global triggers list
+        self.global_triggers = [
+            # Market hours triggers
+            {
+                'name': 'market_open',
+                'condition': lambda: self.algo.IsMarketOpen(self.algo.spy),
+                'target_state': SystemState.MARKET_OPEN
+            },
+            {
+                'name': 'market_close', 
+                'condition': lambda: not self.algo.IsMarketOpen(self.algo.spy),
+                'target_state': SystemState.MARKET_CLOSED
+            },
+            # Emergency triggers
+            {
+                'name': 'high_vix',
+                'condition': self._check_vix_spike,
+                'target_state': SystemState.EMERGENCY
+            },
+            {
+                'name': 'margin_call',
+                'condition': self._check_margin_call,
+                'target_state': SystemState.EMERGENCY
+            }
+        ]
+        
+        self.algo.Debug("[StateManager] System transitions configured")
     
     def register_strategy(self, name: str, state_machine: StrategyStateMachine):
         """Register a strategy's state machine"""
@@ -81,12 +135,23 @@ class UnifiedStateManager:
         )
     
     def update_system_state(self):
-        """Update overall system state based on market conditions"""
+        """Update overall system state with caching optimization"""
         
         current_time = self.algo.Time
         
-        # Check market hours
-        if not self.algo.IsMarketOpen(self.algo.spy):
+        # Run cache maintenance
+        self.state_cache.periodic_maintenance()
+        self.condition_cache.periodic_maintenance()
+        
+        # Log cache statistics periodically
+        if (current_time - self.last_cache_stats_log) > self.cache_stats_log_interval:
+            self._log_cache_performance()
+            self.last_cache_stats_log = current_time
+        
+        # Check market hours with caching
+        market_state = self._get_cached_market_state()
+        
+        if market_state == 'closed':
             if current_time.hour < 9:
                 self._transition_system(SystemState.PRE_MARKET)
             else:
@@ -97,7 +162,7 @@ class UnifiedStateManager:
             else:
                 self._transition_system(SystemState.EMERGENCY)
         
-        # Check for system-wide triggers
+        # Check for system-wide triggers with caching
         self._check_global_triggers()
         
         # Save state periodically
@@ -205,7 +270,21 @@ class UnifiedStateManager:
         return active
     
     def can_enter_new_position(self, strategy_name: str) -> bool:
-        """Check if strategy can enter new position"""
+        """Check if strategy can enter new position with caching"""
+        
+        # Create cache key for this position check
+        cache_key = f'can_enter_{strategy_name}_{self.system_state.name}_{self.emergency_mode}'
+        
+        # Try to get cached result
+        cached_result = self.state_cache.get(
+            cache_key,
+            lambda: self._check_position_entry_internal(strategy_name)
+        )
+        
+        return cached_result if cached_result is not None else False
+    
+    def _check_position_entry_internal(self, strategy_name: str) -> bool:
+        """Internal position entry check (cached by can_enter_new_position)"""
         
         # Check system state
         if self.system_state not in [SystemState.MARKET_OPEN]:
@@ -342,8 +421,16 @@ class UnifiedStateManager:
         self.algo.Debug(f"[StateManager] {name} suspended: {context.message}")
     
     def _check_vix_spike(self) -> bool:
-        """Check for VIX spike"""
+        """Check for VIX spike with caching"""
         
+        cache_key = 'vix_spike_check'
+        return self.condition_cache.get(
+            cache_key,
+            lambda: self._check_vix_spike_internal()
+        )
+    
+    def _check_vix_spike_internal(self) -> bool:
+        """Internal VIX spike check (cached)"""
         try:
             vix = self.algo.vix
             if vix in self.algo.Securities:
@@ -354,8 +441,16 @@ class UnifiedStateManager:
         return False
     
     def _check_margin_call(self) -> bool:
-        """Check for margin call risk"""
+        """Check for margin call risk with caching"""
         
+        cache_key = 'margin_call_check'
+        return self.condition_cache.get(
+            cache_key,
+            lambda: self._check_margin_call_internal()
+        )
+    
+    def _check_margin_call_internal(self) -> bool:
+        """Internal margin call check (cached)"""
         margin_used = self.algo.Portfolio.TotalMarginUsed
         portfolio_value = self.algo.Portfolio.TotalPortfolioValue
         
@@ -366,21 +461,95 @@ class UnifiedStateManager:
         return False
     
     def _check_correlation_breach(self) -> bool:
-        """Check if correlation limits breached"""
+        """Check if correlation limits breached with caching"""
         
+        cache_key = 'correlation_check'
+        return self.condition_cache.get(
+            cache_key,
+            lambda: self._check_correlation_breach_internal()
+        )
+    
+    def _check_correlation_breach_internal(self) -> bool:
+        """Internal correlation check (cached)"""
         # Would check actual correlation
         # For now, return False
         return False
     
     def _check_data_stale(self) -> bool:
-        """Check if data is stale"""
+        """Check if data is stale with caching"""
         
+        cache_key = 'data_stale_check'
+        return self.condition_cache.get(
+            cache_key,
+            lambda: self._check_data_stale_internal()
+        )
+    
+    def _check_data_stale_internal(self) -> bool:
+        """Internal data staleness check (cached)"""
         # Would check data freshness
         # For now, return False
         return False
     
+    def _get_cached_market_state(self) -> str:
+        """Get market state with caching"""
+        
+        cache_key = 'market_state'
+        return self.condition_cache.get(
+            cache_key,
+            lambda: 'open' if self.algo.IsMarketOpen(self.algo.spy) else 'closed'
+        )
+    
+    def _log_cache_performance(self):
+        """Log state management cache performance"""
+        try:
+            state_stats = self.state_cache.get_statistics()
+            condition_stats = self.condition_cache.get_statistics()
+            
+            if not self.algo.LiveMode:  # Only detailed logging in backtest
+                self.algo.Debug(
+                    f"[State Cache] State Hit Rate: {state_stats['hit_rate']:.1%} | "
+                    f"Condition Hit Rate: {condition_stats['hit_rate']:.1%} | "
+                    f"State Size: {state_stats['cache_size']}/{state_stats['max_size']} | "
+                    f"Condition Size: {condition_stats['cache_size']}/{condition_stats['max_size']} | "
+                    f"Total Memory: {state_stats['memory_usage_mb'] + condition_stats['memory_usage_mb']:.1f}MB"
+                )
+            
+            # Performance warnings
+            if state_stats['hit_rate'] < 0.3:  # Less than 30% hit rate
+                self.algo.Log(f"[Performance Warning] State cache hit rate low: {state_stats['hit_rate']:.1%}")
+                
+        except Exception as e:
+            self.algo.Debug(f"[State Cache] Error logging statistics: {e}")
+    
+    def get_cache_statistics(self) -> Dict:
+        """Get state management cache statistics"""
+        try:
+            return {
+                'state_cache': self.state_cache.get_statistics(),
+                'condition_cache': self.condition_cache.get_statistics(),
+                'total_memory_mb': (
+                    self.state_cache.get_statistics()['memory_usage_mb'] +
+                    self.condition_cache.get_statistics()['memory_usage_mb']
+                )
+            }
+        except Exception as e:
+            self.algo.Error(f"[State Cache] Error getting statistics: {e}")
+            return {}
+    
+    def invalidate_state_cache(self, reason: str = "manual"):
+        """Manually invalidate state caches"""
+        try:
+            state_count = self.state_cache.invalidate_all()
+            condition_count = self.condition_cache.invalidate_all()
+            
+            self.algo.Debug(
+                f"[State Cache] Invalidated {state_count} state + {condition_count} condition checks. Reason: {reason}"
+            )
+        except Exception as e:
+            self.algo.Error(f"[State Cache] Error invalidating cache: {e}")
+    
     def get_dashboard(self) -> Dict:
-        """Get state management dashboard data"""
+        """Get state management dashboard data with cache performance"""
         
         dashboard = {
             'system_state': self.system_state.name,
@@ -388,7 +557,8 @@ class UnifiedStateManager:
             'active_strategies': len(self.get_active_strategies()),
             'total_strategies': len(self.strategy_machines),
             'strategy_states': self.get_strategy_states(),
-            'statistics': {}
+            'statistics': {},
+            'cache_performance': self.get_cache_statistics()
         }
         
         # Add statistics
@@ -403,6 +573,111 @@ class UnifiedStateManager:
         
         return dashboard
     
+    def get_system_state(self) -> Dict[str, Any]:
+        """Get comprehensive system state information
+        
+        Critical method for monitoring and debugging - provides complete system status
+        including states, health metrics, and operational conditions.
+        
+        Returns:
+            Dict: Complete system state information with structure:
+                {
+                    'system_state': str,
+                    'emergency_mode': bool,
+                    'market_state': str,
+                    'strategies': dict,
+                    'active_count': int,
+                    'halt_reasons': list,
+                    'health_indicators': dict,
+                    'cache_performance': dict,
+                    'timestamp': str
+                }
+        """
+        try:
+            current_time = self.algo.Time
+            
+            # Get basic system state
+            system_info = {
+                'system_state': self.system_state.name,
+                'emergency_mode': self.emergency_mode,
+                'market_state': self._get_cached_market_state(),
+                'timestamp': str(current_time)
+            }
+            
+            # Get strategy information
+            strategy_states = {}
+            active_count = 0
+            
+            for name, machine in self.strategy_machines.items():
+                state_info = {
+                    'current_state': machine.current_state.name,
+                    'can_trade': machine.is_in_any_state([
+                        StrategyState.READY,
+                        StrategyState.ANALYZING
+                    ]),
+                    'has_position': machine.is_in_any_state([
+                        StrategyState.POSITION_OPEN,
+                        StrategyState.MANAGING,
+                        StrategyState.ADJUSTING
+                    ]),
+                    'error_count': machine.error_count,
+                    'statistics': machine.get_statistics() if hasattr(machine, 'get_statistics') else {}
+                }
+                
+                if state_info['has_position']:
+                    active_count += 1
+                    
+                strategy_states[name] = state_info
+            
+            system_info.update({
+                'strategies': strategy_states,
+                'active_count': active_count,
+                'total_strategies': len(self.strategy_machines)
+            })
+            
+            # Add halt reasons if any
+            system_info['halt_reasons'] = self.halt_reasons
+            
+            # Add health indicators
+            health_indicators = {
+                'vix_spike': self._check_vix_spike(),
+                'margin_risk': self._check_margin_call(), 
+                'correlation_breach': self._check_correlation_breach(),
+                'data_stale': self._check_data_stale(),
+                'can_enter_positions': not self.emergency_mode and self.system_state == SystemState.MARKET_OPEN
+            }
+            system_info['health_indicators'] = health_indicators
+            
+            # Add cache performance
+            system_info['cache_performance'] = self.get_cache_statistics()
+            
+            # Add operational metrics
+            system_info['operational_metrics'] = {
+                'last_save': str(self.last_save),
+                'save_interval_minutes': self.save_interval.total_seconds() / 60,
+                'total_transitions': sum(stats['transitions'] for stats in self.state_statistics.values()),
+                'total_errors': sum(stats['errors'] for stats in self.state_statistics.values())
+            }
+            
+            return system_info
+            
+        except Exception as e:
+            self.algo.Error(f"[StateManager] Error getting system state: {e}")
+            # Return minimal safe state
+            return {
+                'system_state': self.system_state.name if hasattr(self, 'system_state') else 'UNKNOWN',
+                'emergency_mode': getattr(self, 'emergency_mode', True),
+                'market_state': 'unknown',
+                'strategies': {},
+                'active_count': 0,
+                'total_strategies': 0,
+                'halt_reasons': [],
+                'health_indicators': {},
+                'cache_performance': {},
+                'timestamp': str(self.algo.Time),
+                'error': str(e)
+            }
+
     def shutdown(self):
         """Graceful shutdown of state management"""
         

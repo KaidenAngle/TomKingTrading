@@ -52,10 +52,17 @@ class UnifiedVIXManager:
             'HISTORIC': {'phase1': 0.15, 'phase2': 0.20, 'phase3': 0.25, 'phase4': 0.30}
         }
         
-        # Cache for performance
+        # Performance optimization based on environment
+        self.is_backtest = not algorithm.LiveMode
+        
+        # Cache for performance - different durations for backtest vs live
         self._cached_vix = None
         self._cache_time = None
-        self._cache_duration = timedelta(seconds=5)
+        self._cache_duration = timedelta(minutes=5 if self.is_backtest else 1)
+        
+        # Status logging frequency
+        self.last_status_log = None
+        self.status_log_interval = timedelta(minutes=30 if self.is_backtest else 5)
         
     def get_current_vix(self) -> float:
         """Get current VIX value with caching"""
@@ -80,11 +87,13 @@ class UnifiedVIXManager:
                 self._cache_time = current_time
                 return self._cached_vix
             else:
-                self.algo.Error("[VIX] VIX symbol not found in securities")
+                if not self.is_backtest:
+                    self.algo.Error("[VIX] VIX symbol not found in securities")
                 return 20.0  # Default to normal regime
                 
         except Exception as e:
-            self.algo.Error(f"[VIX] Error getting VIX: {e}")
+            if not self.is_backtest:
+                self.algo.Error(f"[VIX] Error getting VIX: {e}")
             return 20.0  # Default to normal regime
     
     def get_vix_regime(self) -> str:
@@ -243,7 +252,8 @@ class UnifiedVIXManager:
         bp_limits = self.bp_limits.get(regime, self.bp_limits['NORMAL'])
         max_bp = bp_limits.get(phase_key, 0.40)  # Default 40%
         
-        self.algo.Debug(f"[VIX] Regime: {regime}, Phase: {account_phase}, Max BP: {max_bp:.0%}")
+        if not self.is_backtest:
+            self.algo.Debug(f"[VIX] Regime: {regime}, Phase: {account_phase}, Max BP: {max_bp:.0%}")
         return max_bp
     
     def get_account_phase(self) -> int:
@@ -261,19 +271,30 @@ class UnifiedVIXManager:
             return 4
     
     def log_vix_status(self):
-        """Log current VIX status"""
+        """Log current VIX status with conditional frequency for performance"""
         
+        current_time = self.algo.Time
+        
+        # Check if enough time has passed since last status log
+        if (self.last_status_log is not None and 
+            current_time - self.last_status_log < self.status_log_interval):
+            return
+        
+        # Log VIX status conditionally
         details = self.get_vix_details()
         phase = self.get_account_phase()
         max_bp = self.get_max_buying_power_usage(phase)
         
-        self.algo.Debug(
-            f"[VIX] Value: {details['value']:.2f} | "
-            f"Regime: {details['regime']} | "
-            f"0DTE: {'Yes' if details['can_trade_0dte'] else 'No'} | "
-            f"Size Adj: {self.get_position_size_adjustment():.2f}x | "
-            f"Max BP: {max_bp:.0%}"
-        )
+        if not self.is_backtest or current_time.minute % 30 == 0:
+            self.algo.Debug(
+                f"[VIX] Value: {details['value']:.2f} | "
+                f"Regime: {details['regime']} | "
+                f"0DTE: {'Yes' if details['can_trade_0dte'] else 'No'} | "
+                f"Size Adj: {self.get_position_size_adjustment():.2f}x | "
+                f"Max BP: {max_bp:.0%}"
+            )
+        
+        self.last_status_log = current_time
     
     def update(self):
         """Update method for compatibility with legacy code

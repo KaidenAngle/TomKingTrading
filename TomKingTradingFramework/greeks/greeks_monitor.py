@@ -5,6 +5,7 @@ from scipy.stats import norm
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 from core.base_component import BaseComponent
+from core.performance_cache import PositionAwareCache, CacheStats
 from helpers.data_freshness_validator import DataFreshnessValidator
 # endregion
 
@@ -21,10 +22,32 @@ class GreeksMonitor(BaseComponent):
         self.portfolio_greeks_history = []
         self.data_validator = DataFreshnessValidator(algorithm)
         
-        # Performance optimization: Track position changes
+        # PRODUCTION CACHING: High-performance Greeks caching
+        self.greeks_cache = PositionAwareCache(
+            algorithm,
+            max_size=500,  # Cache up to 500 Greeks calculations
+            ttl_minutes=2 if algorithm.LiveMode else 5,  # Shorter TTL for live trading
+            max_memory_mb=25,  # Limit memory usage
+            enable_stats=True
+        )
+        
+        # Black-Scholes calculation cache (separate for single option Greeks)
+        self.bs_cache = PositionAwareCache(
+            algorithm,
+            max_size=1000,  # More single option calculations
+            ttl_minutes=1 if algorithm.LiveMode else 3,  # Very short TTL for option pricing
+            max_memory_mb=15,
+            enable_stats=True
+        )
+        
+        # Performance optimization: Track position changes (legacy compatibility)
         self.last_position_snapshot = {}
         self.cached_portfolio_greeks = None
         self.last_greeks_calculation = None
+        
+        # Cache statistics tracking
+        self.cache_stats_log_interval = timedelta(minutes=30 if algorithm.LiveMode else 60)
+        self.last_stats_log = algorithm.Time
         
         # Tom King's Greeks thresholds
         self.alert_thresholds = {
@@ -44,20 +67,29 @@ class GreeksMonitor(BaseComponent):
         }
     
     def update(self):
-        """Update Greeks only when positions change (performance optimization)"""
-        # Check if positions have changed
-        current_snapshot = self._get_position_snapshot()
+        """Update Greeks with advanced caching (performance optimization)"""
         
-        if current_snapshot == self.last_position_snapshot:
-            # No position changes, return cached Greeks
-            return self.cached_portfolio_greeks
+        # Run cache maintenance periodically
+        self.greeks_cache.periodic_maintenance()
+        self.bs_cache.periodic_maintenance()
         
-        # Positions changed, recalculate Greeks
-        self.last_position_snapshot = current_snapshot
-        self.cached_portfolio_greeks = self.calculate_portfolio_greeks()
+        # Log cache statistics periodically
+        if (self.algorithm.Time - self.last_stats_log) > self.cache_stats_log_interval:
+            self._log_cache_performance()
+            self.last_stats_log = self.algorithm.Time
+        
+        # Use cached portfolio Greeks with position change detection
+        cache_key = 'portfolio_greeks'
+        cached_greeks = self.greeks_cache.get(
+            cache_key, 
+            lambda: self._calculate_portfolio_greeks_internal()
+        )
+        
+        # Update legacy cached values for backward compatibility
+        self.cached_portfolio_greeks = cached_greeks
         self.last_greeks_calculation = self.algorithm.Time
         
-        return self.cached_portfolio_greeks
+        return cached_greeks
     
     def _get_position_snapshot(self):
         """Get snapshot of current positions for change detection"""
@@ -69,10 +101,24 @@ class GreeksMonitor(BaseComponent):
         
     def calculate_option_greeks(self, spot: float, strike: float, dte: float, 
                                iv: float, option_type: str, r: float = 0.05) -> Dict:
-        """Calculate Black-Scholes Greeks for single option"""
+        """Calculate Black-Scholes Greeks for single option with caching"""
         
         if dte <= 0:
             return {'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0, 'rho': 0}
+        
+        # PRODUCTION CACHING: Cache Black-Scholes calculations
+        cache_key = f'bs_{spot:.2f}_{strike:.2f}_{dte:.3f}_{iv:.4f}_{option_type}_{r:.4f}'
+        
+        cached_greeks = self.bs_cache.get(
+            cache_key,
+            lambda: self._calculate_black_scholes_greeks(spot, strike, dte, iv, option_type, r)
+        )
+        
+        return cached_greeks
+    
+    def _calculate_black_scholes_greeks(self, spot: float, strike: float, dte: float, 
+                                      iv: float, option_type: str, r: float = 0.05) -> Dict:
+        """Internal Black-Scholes calculation (cached by calculate_option_greeks)"""
             
         T = max(0.001, dte / 365.0)  # Minimum 0.001 to prevent zero
         sqrt_T = np.sqrt(T)
@@ -117,7 +163,16 @@ class GreeksMonitor(BaseComponent):
         }
         
     def calculate_portfolio_greeks(self) -> Dict:
-        """Calculate total portfolio Greeks with detailed breakdown"""
+        """Calculate total portfolio Greeks with caching"""
+        # Use cached version with position change detection
+        cache_key = 'portfolio_greeks_main'
+        return self.greeks_cache.get(
+            cache_key,
+            lambda: self._calculate_portfolio_greeks_internal()
+        )
+    
+    def _calculate_portfolio_greeks_internal(self) -> Dict:
+        """Internal portfolio Greeks calculation (cached by calculate_portfolio_greeks)"""
         
         portfolio_greeks = {
             'delta': 0,
@@ -237,6 +292,54 @@ class GreeksMonitor(BaseComponent):
         self.portfolio_greeks_history.append(portfolio_greeks.copy())
         
         return portfolio_greeks
+    
+    def _log_cache_performance(self):
+        """Log cache performance statistics"""
+        try:
+            greeks_stats = self.greeks_cache.get_statistics()
+            bs_stats = self.bs_cache.get_statistics()
+            
+            if not self.algorithm.LiveMode:  # Only log in backtest to avoid spam
+                self.algorithm.Debug(
+                    f"[Greeks Cache] Hit Rate: {greeks_stats['hit_rate']:.1%} | "
+                    f"Portfolio Cache: {greeks_stats['cache_size']}/{greeks_stats['max_size']} | "
+                    f"BS Cache: {bs_stats['cache_size']}/{bs_stats['max_size']} | "
+                    f"Memory: {greeks_stats['memory_usage_mb']:.1f}MB + {bs_stats['memory_usage_mb']:.1f}MB"
+                )
+            
+            # Log performance warnings if cache performance is poor
+            if greeks_stats['hit_rate'] < 0.5:  # Less than 50% hit rate
+                self.algorithm.Log(f"[Performance Warning] Greeks cache hit rate low: {greeks_stats['hit_rate']:.1%}")
+                
+        except Exception as e:
+            self.algorithm.Debug(f"[Greeks Cache] Error logging stats: {e}")
+    
+    def get_cache_statistics(self) -> Dict:
+        """Get comprehensive cache statistics for monitoring"""
+        try:
+            return {
+                'greeks_cache': self.greeks_cache.get_statistics(),
+                'bs_cache': self.bs_cache.get_statistics(),
+                'total_memory_mb': (
+                    self.greeks_cache.get_statistics()['memory_usage_mb'] +
+                    self.bs_cache.get_statistics()['memory_usage_mb']
+                )
+            }
+        except Exception as e:
+            self.algorithm.Error(f"[Greeks Cache] Error getting statistics: {e}")
+            return {}
+    
+    def invalidate_cache(self, reason: str = "manual"):
+        """Manually invalidate Greeks cache"""
+        try:
+            greeks_count = self.greeks_cache.invalidate_all()
+            bs_count = self.bs_cache.invalidate_all()
+            
+            self.algorithm.Debug(
+                f"[Greeks Cache] Invalidated {greeks_count} portfolio + {bs_count} BS calculations. Reason: {reason}"
+            )
+        except Exception as e:
+            self.algorithm.Error(f"[Greeks Cache] Error invalidating cache: {e}")
         
     def monitor_greeks_limits(self) -> Tuple[Dict, List[str]]:
         """Check if Greeks exceed safety thresholds"""
@@ -521,8 +624,274 @@ class GreeksMonitor(BaseComponent):
                         
         return trends
         
+    def get_portfolio_greeks(self) -> Dict:
+        """Get current portfolio Greeks with comprehensive risk analysis
+        
+        Critical method for risk monitoring - provides complete portfolio Greeks
+        including position breakdown, underlying analysis, and risk metrics.
+        
+        Returns:
+            Dict: Complete portfolio Greeks with structure:
+                {
+                    'delta': float, 'gamma': float, 'theta': float, 'vega': float, 'rho': float,
+                    'positions': list, 'by_underlying': dict, 'by_expiry': dict,
+                    'risk_analysis': dict, 'alerts': list, 'timestamp': datetime
+                }
+        """
+        try:
+            # Get base portfolio Greeks using existing cached method
+            base_greeks = self.calculate_portfolio_greeks()
+            
+            # Add comprehensive risk analysis
+            risk_analysis = {
+                'delta_exposure': {
+                    'level': abs(base_greeks['delta']),
+                    'status': 'SAFE' if abs(base_greeks['delta']) < 50 else 
+                             'WARNING' if abs(base_greeks['delta']) < 100 else 'CRITICAL',
+                    'threshold': 100
+                },
+                'gamma_risk': {
+                    'level': abs(base_greeks['gamma']),
+                    'status': 'SAFE' if abs(base_greeks['gamma']) < 10 else
+                             'WARNING' if abs(base_greeks['gamma']) < 20 else 'CRITICAL',
+                    'threshold': 20
+                },
+                'theta_decay': {
+                    'daily_pnl': base_greeks['theta'],
+                    'monthly_pnl': base_greeks['theta'] * 30,
+                    'status': 'SAFE' if base_greeks['theta'] > -200 else
+                             'WARNING' if base_greeks['theta'] > -500 else 'CRITICAL',
+                    'threshold': -500
+                },
+                'vega_exposure': {
+                    'per_iv_point': abs(base_greeks['vega']),
+                    'status': 'SAFE' if abs(base_greeks['vega']) < 500 else
+                             'WARNING' if abs(base_greeks['vega']) < 1000 else 'CRITICAL',
+                    'threshold': 1000
+                }
+            }
+            
+            # Analyze position concentration
+            concentration_analysis = {
+                'max_underlying_delta': 0,
+                'max_expiry_positions': 0,
+                'diversification_score': 0
+            }
+            
+            if base_greeks['by_underlying']:
+                # Find maximum underlying exposure
+                max_delta = max(abs(u['delta']) for u in base_greeks['by_underlying'].values())
+                concentration_analysis['max_underlying_delta'] = max_delta
+                
+                # Calculate diversification score (0-100)
+                total_delta = abs(base_greeks['delta'])
+                if total_delta > 0:
+                    diversification_score = min(100, (1 - max_delta / total_delta) * 100)
+                    concentration_analysis['diversification_score'] = diversification_score
+            
+            if base_greeks['by_expiry']:
+                # Find maximum expiry concentration
+                max_positions = max(e['positions'] for e in base_greeks['by_expiry'].values())
+                concentration_analysis['max_expiry_positions'] = max_positions
+            
+            # Generate alerts based on risk analysis
+            alerts = []
+            for risk_type, risk_data in risk_analysis.items():
+                if risk_data['status'] == 'CRITICAL':
+                    alerts.append(f"CRITICAL: {risk_type.replace('_', ' ').title()} exceeded threshold")
+                elif risk_data['status'] == 'WARNING':
+                    alerts.append(f"WARNING: {risk_type.replace('_', ' ').title()} approaching threshold")
+            
+            # Check concentration risks
+            if concentration_analysis['diversification_score'] < 30:
+                alerts.append("WARNING: Poor diversification - concentrated in single underlying")
+            if concentration_analysis['max_expiry_positions'] > 5:
+                alerts.append("WARNING: High concentration in single expiry")
+            
+            # Combine all data
+            enhanced_greeks = base_greeks.copy()
+            enhanced_greeks.update({
+                'risk_analysis': risk_analysis,
+                'concentration_analysis': concentration_analysis,
+                'alerts': alerts,
+                'overall_risk_score': self._calculate_overall_risk_score(risk_analysis),
+                'cache_performance': self.get_cache_statistics()
+            })
+            
+            return enhanced_greeks
+            
+        except Exception as e:
+            self.algorithm.Error(f"[GreeksMonitor] Error getting portfolio greeks: {e}")
+            # Return safe fallback
+            return {
+                'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0, 'rho': 0,
+                'positions': [], 'by_underlying': {}, 'by_expiry': {},
+                'risk_analysis': {}, 'alerts': [f"Error calculating greeks: {e}"],
+                'timestamp': self.algorithm.Time, 'error': str(e)
+            }
+    
+    def calculate_position_greeks(self, position_data: Dict) -> Dict:
+        """Calculate Greeks for a specific position
+        
+        Essential method for position-level risk analysis - calculates Greeks
+        for individual positions or proposed trades.
+        
+        Args:
+            position_data: Dict with position information:
+                          {
+                              'symbol': str,
+                              'quantity': int, 
+                              'underlying_price': float,
+                              'strike': float,
+                              'expiry': datetime,
+                              'option_type': str ('CALL' or 'PUT'),
+                              'implied_volatility': float (optional)
+                          }
+        
+        Returns:
+            Dict: Position Greeks with structure:
+                {
+                    'delta': float, 'gamma': float, 'theta': float, 'vega': float, 'rho': float,
+                    'notional_delta': float, 'risk_metrics': dict, 'warnings': list
+                }
+        """
+        try:
+            # Validate required fields
+            required_fields = ['symbol', 'quantity', 'underlying_price', 'strike', 'expiry', 'option_type']
+            missing_fields = [field for field in required_fields if field not in position_data]
+            
+            if missing_fields:
+                error_msg = f"Missing required fields: {missing_fields}"
+                self.algorithm.Error(f"[GreeksMonitor] {error_msg}")
+                return {'error': error_msg}
+            
+            # Extract position data
+            symbol = position_data['symbol']
+            quantity = position_data['quantity']
+            spot = position_data['underlying_price']
+            strike = position_data['strike']
+            expiry = position_data['expiry']
+            option_type = position_data['option_type'].upper()
+            
+            # Calculate days to expiry
+            if isinstance(expiry, str):
+                from datetime import datetime
+                expiry = datetime.strptime(expiry, '%Y-%m-%d')
+            
+            dte = (expiry - self.algorithm.Time).days
+            if dte < 0:
+                dte = 0  # Expired option
+            
+            # Get or estimate implied volatility
+            if 'implied_volatility' in position_data and position_data['implied_volatility'] > 0:
+                iv = position_data['implied_volatility']
+            else:
+                # Estimate IV based on moneyness and DTE
+                moneyness = strike / spot if spot > 0 else 1.0
+                if 0.95 < moneyness < 1.05:  # ATM
+                    iv = 0.20 + (dte / 365) * 0.05
+                elif 0.85 < moneyness < 1.15:  # Slightly OTM/ITM
+                    iv = 0.25 + (dte / 365) * 0.08
+                else:  # Far OTM/ITM
+                    iv = 0.30 + (dte / 365) * 0.10
+                iv = min(iv, 0.80)  # Cap at 80%
+            
+            # Calculate base Greeks using Black-Scholes
+            base_greeks = self.calculate_option_greeks(spot, strike, dte, iv, option_type)
+            
+            # Scale by position size (quantity already includes sign for short positions)
+            position_greeks = {
+                'delta': base_greeks['delta'] * quantity * 100,  # Per share delta
+                'gamma': abs(base_greeks['gamma']) * quantity * 100,  # Gamma exposure
+                'theta': base_greeks['theta'] * abs(quantity) * 100,  # Daily theta
+                'vega': abs(base_greeks['vega']) * quantity * 100,  # Vega exposure  
+                'rho': base_greeks['rho'] * quantity * 100,  # Rho exposure
+                'iv': iv
+            }
+            
+            # Calculate additional risk metrics
+            notional_value = abs(quantity) * spot * 100  # Notional exposure
+            position_greeks['notional_delta'] = position_greeks['delta'] / 100  # Equivalent shares
+            
+            risk_metrics = {
+                'notional_value': notional_value,
+                'delta_as_pct_notional': abs(position_greeks['delta']) / notional_value * 100 if notional_value > 0 else 0,
+                'gamma_dollars_per_point': position_greeks['gamma'],  # $ per 1-point move
+                'theta_dollars_per_day': position_greeks['theta'],  # $ decay per day
+                'vega_dollars_per_iv_point': position_greeks['vega'],  # $ per 1% IV move
+                'moneyness': strike / spot if spot > 0 else 1.0,
+                'time_to_expiry_days': dte,
+                'annualized_theta': position_greeks['theta'] * 365,  # Annualized theta
+            }
+            
+            # Generate warnings based on risk thresholds
+            warnings = []
+            
+            # Delta warnings
+            if abs(position_greeks['delta']) > 500:
+                warnings.append(f"High delta exposure: {position_greeks['delta']:.0f}")
+            
+            # Gamma warnings
+            if abs(position_greeks['gamma']) > 100:
+                warnings.append(f"High gamma exposure: {position_greeks['gamma']:.2f}")
+            
+            # Theta warnings
+            if position_greeks['theta'] < -100:
+                daily_loss = abs(position_greeks['theta'])
+                warnings.append(f"High theta decay: ${daily_loss:.0f}/day")
+            
+            # DTE warnings
+            if dte <= 7:
+                warnings.append(f"Near expiry: {dte} days remaining")
+            
+            # Moneyness warnings
+            if risk_metrics['moneyness'] < 0.80 or risk_metrics['moneyness'] > 1.20:
+                warnings.append(f"Far from money: {risk_metrics['moneyness']:.2f} moneyness")
+            
+            # Combine all results
+            result = position_greeks.copy()
+            result.update({
+                'risk_metrics': risk_metrics,
+                'warnings': warnings,
+                'position_info': {
+                    'symbol': symbol,
+                    'quantity': quantity,
+                    'strike': strike,
+                    'expiry': str(expiry.date()),
+                    'option_type': option_type,
+                    'underlying_price': spot
+                },
+                'calculation_timestamp': self.algorithm.Time
+            })
+            
+            return result
+            
+        except Exception as e:
+            self.algorithm.Error(f"[GreeksMonitor] Error calculating position greeks: {e}")
+            return {
+                'error': str(e),
+                'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0, 'rho': 0,
+                'warnings': [f"Calculation failed: {e}"]
+            }
+    
+    def _calculate_overall_risk_score(self, risk_analysis: Dict) -> int:
+        """Calculate overall risk score from 0-100"""
+        try:
+            score = 0
+            for risk_data in risk_analysis.values():
+                if risk_data['status'] == 'CRITICAL':
+                    score += 30
+                elif risk_data['status'] == 'WARNING':
+                    score += 15
+                elif risk_data['status'] == 'SAFE':
+                    score += 5
+            
+            return min(100, score)
+        except:
+            return 50  # Default moderate risk
+
     def get_statistics(self) -> Dict:
-        """Get Greeks monitoring statistics"""
+        """Get Greeks monitoring statistics including cache performance"""
         
         current_greeks = self.calculate_portfolio_greeks()
         
@@ -537,6 +906,11 @@ class GreeksMonitor(BaseComponent):
             'expiry_count': len(current_greeks['by_expiry']),
             'history_length': len(self.portfolio_greeks_history)
         }
+        
+        # Add cache performance statistics
+        cache_stats = self.get_cache_statistics()
+        if cache_stats:
+            stats['cache_performance'] = cache_stats
         
         # Add trends if available
         trends = self.get_greek_trends()

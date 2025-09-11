@@ -3,6 +3,7 @@
 
 from AlgorithmImports import *
 from datetime import datetime, timedelta
+from core.performance_cache import PositionAwareCache
 
 class CircuitBreaker:
     """
@@ -12,6 +13,28 @@ class CircuitBreaker:
     
     def __init__(self, algorithm):
         self.algorithm = algorithm
+        
+        # PRODUCTION CACHING: Portfolio value calculations caching
+        self.portfolio_cache = PositionAwareCache(
+            algorithm,
+            max_size=100,  # Cache portfolio calculations
+            ttl_minutes=0.5 if algorithm.LiveMode else 2,  # Very short TTL for portfolio values
+            max_memory_mb=5,  # Small memory footprint
+            enable_stats=True
+        )
+        
+        # Circuit breaker check results cache (very short TTL)
+        self.check_cache = PositionAwareCache(
+            algorithm,
+            max_size=50,
+            ttl_minutes=0.1 if algorithm.LiveMode else 0.5,  # Ultra-short TTL for safety checks
+            max_memory_mb=3,
+            enable_stats=True
+        )
+        
+        # Cache performance tracking
+        self.cache_stats_log_interval = timedelta(minutes=15 if algorithm.LiveMode else 30)
+        self.last_cache_stats_log = algorithm.Time
         
         # Daily loss limits (percentage of account)
         self.daily_loss_limit = 0.05  # 5% max daily loss
@@ -53,9 +76,13 @@ class CircuitBreaker:
     
     def check_circuit_breaker(self) -> bool:
         """
-        Main circuit breaker check - call before any trade
+        Main circuit breaker check - call before any trade with caching
         Returns: True if trading allowed, False if circuit breaker triggered
         """
+        
+        # Run cache maintenance
+        self._run_cache_maintenance()
+        
         if not self.trading_enabled:
             # Check if recovery conditions met
             if self.check_recovery_conditions():
@@ -63,7 +90,22 @@ class CircuitBreaker:
             else:
                 return False
         
-        current_value = self.algorithm.Portfolio.TotalPortfolioValue
+        # Create cache key for circuit breaker check
+        current_time = self.algorithm.Time
+        cache_key = f'circuit_check_{current_time.minute}_{current_time.second//10}'  # 10-second buckets
+        
+        # Try to get cached result
+        cached_result = self.check_cache.get(
+            cache_key,
+            lambda: self._check_circuit_breaker_internal()
+        )
+        
+        return cached_result if cached_result is not None else False
+    
+    def _check_circuit_breaker_internal(self) -> bool:
+        """Internal circuit breaker check (cached)"""
+        
+        current_value = self._get_cached_portfolio_value()
         
         # Check daily loss limit
         daily_pnl = (current_value - self.daily_start_value) / self.daily_start_value
@@ -115,6 +157,74 @@ class CircuitBreaker:
                 return False
         
         return True  # Trading allowed
+    
+    def _get_cached_portfolio_value(self) -> float:
+        """Get portfolio value with caching"""
+        cache_key = 'portfolio_value'
+        cached_value = self.portfolio_cache.get(
+            cache_key,
+            lambda: self.algorithm.Portfolio.TotalPortfolioValue
+        )
+        
+        return cached_value if cached_value else 0.0
+    
+    def _run_cache_maintenance(self):
+        """Run periodic cache maintenance"""
+        current_time = self.algorithm.Time
+        
+        # Run cache maintenance
+        self.portfolio_cache.periodic_maintenance()
+        self.check_cache.periodic_maintenance()
+        
+        # Log cache statistics periodically
+        if (current_time - self.last_cache_stats_log) > self.cache_stats_log_interval:
+            self._log_cache_performance()
+            self.last_cache_stats_log = current_time
+    
+    def _log_cache_performance(self):
+        """Log circuit breaker cache performance"""
+        try:
+            portfolio_stats = self.portfolio_cache.get_statistics()
+            check_stats = self.check_cache.get_statistics()
+            
+            if not self.algorithm.LiveMode:  # Only detailed logging in backtest
+                self.algorithm.Debug(
+                    f"[Circuit Cache] Portfolio Hit Rate: {portfolio_stats['hit_rate']:.1%} | "
+                    f"Check Hit Rate: {check_stats['hit_rate']:.1%} | "
+                    f"Portfolio Size: {portfolio_stats['cache_size']}/{portfolio_stats['max_size']} | "
+                    f"Check Size: {check_stats['cache_size']}/{check_stats['max_size']} | "
+                    f"Total Memory: {portfolio_stats['memory_usage_mb'] + check_stats['memory_usage_mb']:.1f}MB"
+                )
+            
+        except Exception as e:
+            self.algorithm.Debug(f"[Circuit Cache] Error logging statistics: {e}")
+    
+    def get_cache_statistics(self) -> dict:
+        """Get circuit breaker cache statistics"""
+        try:
+            return {
+                'portfolio_cache': self.portfolio_cache.get_statistics(),
+                'check_cache': self.check_cache.get_statistics(),
+                'total_memory_mb': (
+                    self.portfolio_cache.get_statistics()['memory_usage_mb'] +
+                    self.check_cache.get_statistics()['memory_usage_mb']
+                )
+            }
+        except Exception as e:
+            self.algorithm.Error(f"[Circuit Cache] Error getting statistics: {e}")
+            return {}
+    
+    def invalidate_circuit_cache(self, reason: str = "manual"):
+        """Manually invalidate circuit breaker caches"""
+        try:
+            portfolio_count = self.portfolio_cache.invalidate_all()
+            check_count = self.check_cache.invalidate_all()
+            
+            self.algorithm.Debug(
+                f"[Circuit Cache] Invalidated {portfolio_count} portfolio + {check_count} check calculations. Reason: {reason}"
+            )
+        except Exception as e:
+            self.algorithm.Error(f"[Circuit Cache] Error invalidating cache: {e}")
     
     def trigger_circuit_breaker(self, reason: str):
         """Trigger the circuit breaker and stop all trading"""

@@ -244,3 +244,85 @@ class UnifiedPositionSizer:
             return max_allowed
         
         return max(MIN_CONTRACTS, requested_size)
+    
+    def get_max_position_size(self, strategy: str, market_conditions: Dict = None) -> int:
+        """Get maximum allowed position size for a strategy
+        
+        Critical method for position validation - calculates maximum allowable position size
+        considering account tier, strategy limits, market conditions, and risk parameters.
+        
+        Args:
+            strategy: Strategy name ('0DTE', 'LT112', 'FuturesStrangle', etc.)
+            market_conditions: Optional dict with market condition overrides
+                              {'vix_level': float, 'account_override': float}
+        
+        Returns:
+            int: Maximum number of contracts allowed for this strategy
+        """
+        try:
+            # Get base account value
+            if market_conditions and 'account_override' in market_conditions:
+                account_value = market_conditions['account_override']
+            else:
+                account_value = self.algo.Portfolio.TotalPortfolioValue
+            
+            if account_value <= 0:
+                self.algo.Debug(f"[UnifiedSizer] Invalid account value: {account_value}")
+                return MIN_CONTRACTS
+            
+            # Get strategy-specific hard limit
+            strategy_max = self.max_contracts.get(strategy, 10)
+            
+            # Get account tier limit
+            tier_limit = self._get_tier_limit(account_value)
+            
+            # Get VIX adjustment
+            if market_conditions and 'vix_level' in market_conditions:
+                vix_level = market_conditions['vix_level']
+                # Simple VIX adjustment logic
+                if vix_level < 16:
+                    vix_multiplier = 0.8  # Reduce in low volatility
+                elif vix_level > 30:
+                    vix_multiplier = 0.6  # Reduce in high volatility
+                else:
+                    vix_multiplier = 1.0  # Normal volatility
+            else:
+                vix_multiplier = self._get_vix_adjustment()
+            
+            # Calculate maximum considering all constraints
+            base_max = min(strategy_max, tier_limit)
+            adjusted_max = int(base_max * vix_multiplier)
+            
+            # Apply minimum constraint
+            final_max = max(MIN_CONTRACTS, adjusted_max)
+            
+            # Strategy-specific additional constraints
+            if strategy == '0DTE':
+                # 0DTE should be conservative during high volatility
+                if hasattr(self.algo, 'vix_manager'):
+                    current_vix = self.algo.vix_manager.get_vix_level()
+                    if current_vix > 25:
+                        final_max = min(final_max, 3)  # Cap at 3 contracts in high VIX
+                        
+            elif strategy == 'LT112':
+                # LT112 can be more aggressive due to longer timeframe
+                pass  # No additional constraints
+                
+            elif strategy == 'FuturesStrangle':
+                # Futures need extra conservative limits due to leverage
+                final_max = min(final_max, 3)  # Hard cap at 3 for futures
+            
+            # Log calculation details for debugging
+            if not self.algo.LiveMode:  # Only in backtest to avoid spam
+                self.algo.Debug(
+                    f"[UnifiedSizer] Max size for {strategy}: "
+                    f"Strategy limit={strategy_max}, Tier limit={tier_limit}, "
+                    f"VIX multiplier={vix_multiplier:.2f}, Final max={final_max}"
+                )
+            
+            return final_max
+            
+        except Exception as e:
+            self.algo.Error(f"[UnifiedSizer] Error calculating max position size for {strategy}: {e}")
+            # Return conservative fallback
+            return MIN_CONTRACTS

@@ -1,6 +1,7 @@
 # region imports
 from AlgorithmImports import *
 from datetime import timedelta
+from core.performance_cache import HighPerformanceCache, MarketDataCache
 import numpy as np
 # endregion
 
@@ -13,8 +14,33 @@ class OptionChainManager:
     def __init__(self, algorithm):
         self.algo = algorithm
         self.option_subscriptions = {}
+        
+        # PRODUCTION CACHING: High-performance option chain caching
+        self.chain_cache = MarketDataCache(
+            algorithm,
+            max_size=200,  # Cache up to 200 different chain queries
+            ttl_minutes=5,  # 5-minute TTL for option chains
+            max_memory_mb=30,  # Limit memory usage for chain data
+            enable_stats=True,
+            price_change_threshold=0.005  # 0.5% price change invalidation
+        )
+        
+        # Greeks calculation cache for option contracts
+        self.greeks_cache = HighPerformanceCache(
+            algorithm,
+            max_size=1500,  # Cache more individual contract Greeks
+            ttl_minutes=2 if algorithm.LiveMode else 4,  # Shorter TTL for live
+            max_memory_mb=20,
+            enable_stats=True
+        )
+        
+        # Legacy cache for backward compatibility
         self.cached_chains = {}
         self.last_update = {}
+        
+        # Cache performance tracking
+        self.cache_stats_log_interval = timedelta(minutes=60)  # Log hourly
+        self.last_cache_stats_log = algorithm.Time
         
     def add_option_subscription(self, symbol_str):
         """Add option subscription for a symbol with proper configuration"""
@@ -44,47 +70,68 @@ class OptionChainManager:
             return False
     
     def get_option_chain(self, symbol_str, min_dte=0, max_dte=730):
-        """Get filtered option chain for a symbol"""
+        """Get filtered option chain with production-grade caching"""
         try:
-            # Check if we have a subscription
-            if symbol_str not in self.option_subscriptions:
-                self.add_option_subscription(symbol_str)
+            # Run periodic cache maintenance
+            self._run_cache_maintenance()
             
-            # Get option chain from current slice
-            if hasattr(self.algo, 'CurrentSlice') and self.algo.CurrentSlice:
-                option_chains = self.algo.CurrentSlice.OptionChains
-                
-                for kvp in option_chains:
-                    chain = kvp.Value
-                    underlying_symbol = chain.Underlying.Symbol.Value
-                    
-                    if underlying_symbol == symbol_str:
-                        # Filter by DTE
-                        current_date = self.algo.Time.date()
-                        filtered = [
-                            contract for contract in chain 
-                            if min_dte <= (contract.Expiry.date() - current_date).days <= max_dte
-                        ]
-                        
-                        # Cache the chain
-                        self.cached_chains[symbol_str] = filtered
-                        self.last_update[symbol_str] = self.algo.Time
-                        
-                        return filtered
+            # Create cache key for this specific request
+            cache_key = f'chain_{symbol_str}_{min_dte}_{max_dte}'
             
-            # Return cached chain if recent (within 1 minute)
-            if symbol_str in self.cached_chains:
-                if symbol_str in self.last_update:
-                    time_diff = (self.algo.Time - self.last_update[symbol_str]).total_seconds()
-                    if time_diff < 60:  # Use cache if less than 1 minute old
-                        return self.cached_chains[symbol_str]
+            # Try to get from cache first
+            cached_chain = self.chain_cache.get(
+                cache_key,
+                lambda: self._fetch_option_chain_internal(symbol_str, min_dte, max_dte)
+            )
             
-            self.algo.Debug(f"No option chain available for {symbol_str}")
-            return []
+            # Update legacy cache for backward compatibility
+            if cached_chain:
+                self.cached_chains[symbol_str] = cached_chain
+                self.last_update[symbol_str] = self.algo.Time
+            
+            return cached_chain if cached_chain else []
             
         except Exception as e:
             self.algo.Error(f"Error getting option chain for {symbol_str}: {e}")
             return []
+    
+    def _fetch_option_chain_internal(self, symbol_str, min_dte, max_dte):
+        """Internal method to fetch option chain from QuantConnect API"""
+        # Check if we have a subscription
+        if symbol_str not in self.option_subscriptions:
+            if not self.add_option_subscription(symbol_str):
+                return []
+        
+        # Get option chain from current slice
+        if hasattr(self.algo, 'CurrentSlice') and self.algo.CurrentSlice:
+            option_chains = self.algo.CurrentSlice.OptionChains
+            
+            for kvp in option_chains:
+                chain = kvp.Value
+                underlying_symbol = chain.Underlying.Symbol.Value
+                
+                if underlying_symbol == symbol_str:
+                    # Filter by DTE efficiently
+                    current_date = self.algo.Time.date()
+                    filtered = []
+                    
+                    for contract in chain:
+                        days_to_expiry = (contract.Expiry.date() - current_date).days
+                        if min_dte <= days_to_expiry <= max_dte:
+                            filtered.append(contract)
+                    
+                    return filtered
+        
+        # Fallback to legacy cache if API fails
+        if symbol_str in self.cached_chains:
+            if symbol_str in self.last_update:
+                time_diff = (self.algo.Time - self.last_update[symbol_str]).total_seconds()
+                if time_diff < 300:  # Use cache if less than 5 minutes old
+                    self.algo.Debug(f"[Option Chain] Using fallback cache for {symbol_str}")
+                    return self.cached_chains[symbol_str]
+        
+        self.algo.Debug(f"No option chain available for {symbol_str}")
+        return []
     
     def get_contracts_by_delta(self, symbol_str, target_delta, option_right, dte):
         """Find option contracts closest to target delta"""
@@ -132,7 +179,7 @@ class OptionChainManager:
             return None
     
     def calculate_greeks(self, contract, underlying_price, current_time):
-        """Calculate Black-Scholes Greeks for an option contract"""
+        """Calculate Black-Scholes Greeks with caching"""
         try:
             # Time to expiration in years
             time_to_expiry = (contract.Expiry - current_time).total_seconds() / (365.25 * 24 * 3600)
@@ -146,6 +193,25 @@ class OptionChainManager:
                     'theta': 0,
                     'rho': 0
                 }
+            
+            # Create cache key for this Greeks calculation
+            cache_key = f'greeks_{contract.Strike}_{time_to_expiry:.6f}_{underlying_price:.2f}_{contract.Right}'
+            
+            # Try to get cached Greeks
+            cached_greeks = self.greeks_cache.get(
+                cache_key,
+                lambda: self._calculate_greeks_internal(contract, underlying_price, time_to_expiry)
+            )
+            
+            return cached_greeks if cached_greeks else self._get_default_greeks()
+            
+        except Exception as e:
+            self.algo.Error(f"Error calculating Greeks: {e}")
+            return self._get_default_greeks()
+    
+    def _calculate_greeks_internal(self, contract, underlying_price, time_to_expiry):
+        """Internal Greeks calculation method (cached by calculate_greeks)"""
+        try:
             
             # Use standard risk-free rate (5% approximation)
             risk_free_rate = 0.05
@@ -195,8 +261,84 @@ class OptionChainManager:
             }
             
         except Exception as e:
-            self.algo.Error(f"Error calculating Greeks: {e}")
+            self.algo.Debug(f"Internal Greeks calculation error: {e}")
             return None
+    
+    def _get_default_greeks(self):
+        """Return default Greeks values for error cases"""
+        return {
+            'delta': 0,
+            'gamma': 0,
+            'vega': 0,
+            'theta': 0,
+            'rho': 0,
+            'iv': 0.20
+        }
+    
+    def _run_cache_maintenance(self):
+        """Run periodic cache maintenance and statistics"""
+        current_time = self.algo.Time
+        
+        # Run cache maintenance
+        self.chain_cache.periodic_maintenance()
+        self.greeks_cache.periodic_maintenance()
+        
+        # Log statistics periodically
+        if (current_time - self.last_cache_stats_log) > self.cache_stats_log_interval:
+            self._log_cache_statistics()
+            self.last_cache_stats_log = current_time
+    
+    def _log_cache_statistics(self):
+        """Log cache performance statistics"""
+        try:
+            chain_stats = self.chain_cache.get_statistics()
+            greeks_stats = self.greeks_cache.get_statistics()
+            
+            if not self.algo.LiveMode:  # Only detailed logging in backtest
+                self.algo.Debug(
+                    f"[Option Chain Cache] Chain Hit Rate: {chain_stats['hit_rate']:.1%} | "
+                    f"Greeks Hit Rate: {greeks_stats['hit_rate']:.1%} | "
+                    f"Chain Size: {chain_stats['cache_size']}/{chain_stats['max_size']} | "
+                    f"Greeks Size: {greeks_stats['cache_size']}/{greeks_stats['max_size']} | "
+                    f"Total Memory: {chain_stats['memory_usage_mb'] + greeks_stats['memory_usage_mb']:.1f}MB"
+                )
+            
+            # Performance warnings
+            if chain_stats['hit_rate'] < 0.4:  # Less than 40% hit rate for chains
+                self.algo.Log(f"[Performance Warning] Option chain cache hit rate low: {chain_stats['hit_rate']:.1%}")
+                
+        except Exception as e:
+            self.algo.Debug(f"[Option Chain Cache] Error logging statistics: {e}")
+    
+    def get_cache_statistics(self) -> dict:
+        """Get comprehensive cache statistics"""
+        try:
+            return {
+                'chain_cache': self.chain_cache.get_statistics(),
+                'greeks_cache': self.greeks_cache.get_statistics(),
+                'total_memory_mb': (
+                    self.chain_cache.get_statistics()['memory_usage_mb'] +
+                    self.greeks_cache.get_statistics()['memory_usage_mb']
+                )
+            }
+        except Exception as e:
+            self.algo.Error(f"[Option Chain Cache] Error getting statistics: {e}")
+            return {}
+    
+    def invalidate_chain_cache(self, symbol_str: str = None, reason: str = "manual"):
+        """Invalidate option chain cache"""
+        try:
+            if symbol_str:
+                # Invalidate specific symbol
+                count = self.chain_cache.invalidate_pattern(f'chain_{symbol_str}')
+                self.algo.Debug(f"[Option Chain Cache] Invalidated {count} entries for {symbol_str}. Reason: {reason}")
+            else:
+                # Invalidate all
+                count = self.chain_cache.invalidate_all()
+                self.algo.Debug(f"[Option Chain Cache] Invalidated all {count} entries. Reason: {reason}")
+                
+        except Exception as e:
+            self.algo.Error(f"[Option Chain Cache] Error invalidating cache: {e}")
     
     def get_zero_dte_chain(self, symbol_str):
         """Get 0DTE option chain for Friday trading"""
@@ -218,7 +360,7 @@ class OptionChainManager:
             chain = self.get_option_chain(symbol_str)
             
             if chain:
-                validation_results.append(f"[WARNING] {symbol_str}: {len(chain)} contracts available")
+                validation_results.append(f"[Option Chain] {symbol_str}: {len(chain)} contracts available")
                 
                 # Check different expiration ranges
                 zero_dte = self.get_zero_dte_chain(symbol_str)
@@ -228,7 +370,15 @@ class OptionChainManager:
                 validation_results.append(f"  - 0DTE: {len(zero_dte)} contracts")
                 validation_results.append(f"  - Monthly: {len(monthly)} contracts")
                 validation_results.append(f"  - LEAPs: {len(leaps)} contracts")
+                
+                # Add cache performance info
+                cache_stats = self.get_cache_statistics()
+                if cache_stats:
+                    validation_results.append(
+                        f"  - Cache Performance: Chain {cache_stats['chain_cache']['hit_rate']:.1%} | "
+                        f"Greeks {cache_stats['greeks_cache']['hit_rate']:.1%}"
+                    )
             else:
-                validation_results.append(f"[WARNING] {symbol_str}: No option data available")
+                validation_results.append(f"[Option Chain] {symbol_str}: No option data available")
         
         return validation_results

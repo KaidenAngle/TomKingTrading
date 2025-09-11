@@ -27,6 +27,7 @@
 - [ObjectStore State Persistence](Architecture/OBJECTSTORE_STATE_PERSISTENCE.md) - Crash recovery and state management
 - [Circuit Breaker Thresholds](Architecture/CIRCUIT_BREAKER_THRESHOLDS.md) - Why these specific numbers
 - [Dynamic Position Scaling Patterns](Architecture/DYNAMIC_POSITION_SCALING_PATTERNS.md) - Intelligent scaling that preserves risk tolerance
+- [Systematic Redundancy Elimination Patterns](Architecture/SYSTEMATIC_REDUNDANCY_ELIMINATION_PATTERNS.md) - Methodology for safely removing redundant code
 
 ## Methodology Documentation
 
@@ -119,6 +120,14 @@
 - No unnecessary fallbacks or redundancies
 - Clean, documented code
 
+## Development Process Documentation
+
+### Development Methodology
+- [Implementation Audit Protocol](Development/implementation-audit-protocol.md) - Systematic development approach
+- [Production Change Management](Development/PRODUCTION_CHANGE_MANAGEMENT.md) - Comprehensive change documentation methodology
+- [GitHub Integration Setup](Development/GITHUB_INTEGRATION_SETUP.md) - Version control integration
+- [Quick Reference](Development/quick-reference.md) - Development quick reference guide
+
 ## Testing & Validation
 
 ### Testing Requirements
@@ -144,9 +153,10 @@ Documentation/
 ├── 📋 COMPLETE_REFERENCE_GUIDE.md  # START HERE - Quick answers
 ├── ⚠️ CRITICAL_DO_NOT_CHANGE.md    # Must read - never modify these
 ├── 📊 IMPLEMENTATION_SUMMARY.md    # Framework overview & status
-├── Architecture/ (17 docs)         # System design patterns (NEW: Dynamic Position Scaling Patterns)
+├── Architecture/ (18 docs)         # System design patterns (NEW: Systematic Redundancy Elimination)
 ├── Methodology/ (6 docs)           # Trading rules & risk
 ├── Strategies/ (1 doc)             # All 10 strategies detailed
+├── Development/ (4 docs)           # Development process & change management
 ├── Testing/ (1 doc)                # Test requirements
 ├── Backtesting/ (1 doc)            # Historical scenarios
 ├── QuantConnect/                   # QC platform docs
@@ -176,6 +186,15 @@ Documentation/
 
 #### **How to test the system:**
 → [Testing Requirements](Testing/TESTING_REQUIREMENTS.md)
+
+#### **How to clean up redundant code safely:**
+→ [Systematic Redundancy Elimination Patterns](Architecture/SYSTEMATIC_REDUNDANCY_ELIMINATION_PATTERNS.md) - Safe removal of redundant strategies and code
+
+#### **How to deploy to QuantConnect cloud:**
+→ [QuantConnect API Patterns](Architecture/QUANTCONNECT_API_PATTERNS.md) - Includes comprehensive MCP server deployment methodology
+
+#### **How to manage production changes:**
+→ [Production Change Management](Development/PRODUCTION_CHANGE_MANAGEMENT.md) - Comprehensive change documentation and audit trails
 
 #### **How to develop safely and systematically:**
 → [Systematic Interface Auditing](Architecture/SYSTEMATIC_INTERFACE_AUDITING.md) - Audit before assume methodology  

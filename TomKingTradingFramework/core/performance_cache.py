@@ -1,0 +1,470 @@
+#!/usr/bin/env python3
+"""
+High-Performance Caching System for Tom King Trading Framework
+Production-grade caching with LRU, TTL, memory management, and statistics
+"""
+
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any, Callable, TypeVar, Generic
+from collections import OrderedDict
+from dataclasses import dataclass
+from threading import Lock
+import weakref
+import gc
+import json
+
+T = TypeVar('T')
+
+@dataclass
+class CacheEntry:
+    """Container for cached data with metadata"""
+    data: Any
+    created_at: datetime
+    access_count: int = 0
+    last_accessed: Optional[datetime] = None
+    size_bytes: int = 0
+    
+    def is_expired(self, ttl: timedelta, current_time: datetime) -> bool:
+        """Check if entry has expired"""
+        return (current_time - self.created_at) > ttl
+    
+    def touch(self, current_time: datetime):
+        """Update access metadata"""
+        self.access_count += 1
+        self.last_accessed = current_time
+
+@dataclass
+class CacheStats:
+    """Cache performance statistics"""
+    hits: int = 0
+    misses: int = 0
+    evictions: int = 0
+    total_queries: int = 0
+    memory_usage_bytes: int = 0
+    avg_hit_time_ms: float = 0.0
+    cache_size: int = 0
+    
+    def hit_rate(self) -> float:
+        """Calculate cache hit rate"""
+        return self.hits / max(1, self.total_queries)
+    
+    def miss_rate(self) -> float:
+        """Calculate cache miss rate"""
+        return self.misses / max(1, self.total_queries)
+
+class HighPerformanceCache(Generic[T]):
+    """
+    Production-grade cache with LRU eviction, TTL expiration, and memory management
+    
+    Features:
+    - LRU (Least Recently Used) eviction
+    - TTL (Time To Live) expiration
+    - Memory usage tracking and limits
+    - Detailed performance statistics
+    - Thread-safe operations
+    - Custom invalidation logic
+    - Environment-aware configuration
+    """
+    
+    def __init__(
+        self, 
+        algorithm,
+        max_size: int = 1000,
+        ttl_minutes: int = 5,
+        max_memory_mb: int = 50,
+        enable_stats: bool = True
+    ):
+        self.algo = algorithm
+        self.max_size = max_size
+        self.ttl = timedelta(minutes=ttl_minutes)
+        self.max_memory_bytes = max_memory_mb * 1024 * 1024  # Convert MB to bytes
+        self.enable_stats = enable_stats
+        
+        # Cache storage - OrderedDict for LRU behavior
+        self._cache: OrderedDict[str, CacheEntry] = OrderedDict()
+        self._lock = Lock()
+        
+        # Statistics
+        self.stats = CacheStats()
+        
+        # Environment-aware configuration
+        self.is_backtest = not algorithm.LiveMode
+        if self.is_backtest:
+            # Longer TTL for backtests (stable data)
+            self.ttl = timedelta(minutes=ttl_minutes * 2)
+            # Larger memory limit for backtests
+            self.max_memory_bytes *= 2
+        
+        # Memory cleanup
+        self._last_cleanup = algorithm.Time
+        self._cleanup_interval = timedelta(minutes=10)
+        
+        # Invalidation hooks
+        self._invalidation_hooks: Dict[str, Callable] = {}
+        
+        algorithm.Debug(f"[Cache] Initialized cache: max_size={max_size}, ttl={self.ttl}, max_memory={max_memory_mb}MB")
+    
+    def get(self, key: str, factory: Optional[Callable[[], T]] = None) -> Optional[T]:
+        """
+        Get value from cache or compute using factory function
+        
+        Args:
+            key: Cache key
+            factory: Function to compute value if cache miss
+            
+        Returns:
+            Cached or computed value, None if not found and no factory
+        """
+        with self._lock:
+            current_time = self.algo.Time
+            
+            # Update stats
+            if self.enable_stats:
+                self.stats.total_queries += 1
+            
+            # Check if key exists and is valid
+            if key in self._cache:
+                entry = self._cache[key]
+                
+                # Check TTL expiration
+                if entry.is_expired(self.ttl, current_time):
+                    self._remove_entry(key)
+                    if self.enable_stats:
+                        self.stats.misses += 1
+                else:
+                    # Cache hit - update access info and move to end (most recent)
+                    entry.touch(current_time)
+                    self._cache.move_to_end(key)
+                    
+                    if self.enable_stats:
+                        self.stats.hits += 1
+                    
+                    return entry.data
+            
+            # Cache miss - use factory if provided
+            if factory:
+                try:
+                    value = factory()
+                    self.put(key, value)
+                    return value
+                except Exception as e:
+                    self.algo.Debug(f"[Cache] Factory function failed for key {key}: {e}")
+                    return None
+            
+            # No factory and cache miss
+            if self.enable_stats:
+                self.stats.misses += 1
+            
+            return None
+    
+    def put(self, key: str, value: T, custom_ttl: Optional[timedelta] = None) -> bool:
+        """
+        Put value into cache
+        
+        Args:
+            key: Cache key
+            value: Value to cache
+            custom_ttl: Custom TTL for this entry
+            
+        Returns:
+            True if successfully cached
+        """
+        with self._lock:
+            current_time = self.algo.Time
+            
+            try:
+                # Estimate memory usage
+                size_bytes = self._estimate_size(value)
+                
+                # Check memory limits
+                if size_bytes > self.max_memory_bytes:
+                    self.algo.Debug(f"[Cache] Value too large for cache: {size_bytes} bytes > {self.max_memory_bytes} bytes")
+                    return False
+                
+                # Create cache entry
+                entry = CacheEntry(
+                    data=value,
+                    created_at=current_time,
+                    size_bytes=size_bytes,
+                    last_accessed=current_time
+                )
+                
+                # Remove existing entry if present
+                if key in self._cache:
+                    self._remove_entry(key)
+                
+                # Add new entry
+                self._cache[key] = entry
+                
+                # Update memory usage
+                if self.enable_stats:
+                    self.stats.memory_usage_bytes += size_bytes
+                    self.stats.cache_size = len(self._cache)
+                
+                # Enforce size limits
+                self._enforce_limits()
+                
+                return True
+                
+            except Exception as e:
+                self.algo.Error(f"[Cache] Failed to cache value for key {key}: {e}")
+                return False
+    
+    def invalidate(self, key: str) -> bool:
+        """Remove specific key from cache"""
+        with self._lock:
+            if key in self._cache:
+                self._remove_entry(key)
+                return True
+            return False
+    
+    def invalidate_pattern(self, pattern: str) -> int:
+        """Remove all keys matching pattern"""
+        with self._lock:
+            keys_to_remove = [k for k in self._cache.keys() if pattern in k]
+            for key in keys_to_remove:
+                self._remove_entry(key)
+            return len(keys_to_remove)
+    
+    def invalidate_all(self) -> int:
+        """Clear entire cache"""
+        with self._lock:
+            count = len(self._cache)
+            self._cache.clear()
+            if self.enable_stats:
+                self.stats.memory_usage_bytes = 0
+                self.stats.cache_size = 0
+            return count
+    
+    def add_invalidation_hook(self, name: str, hook: Callable[[str, Any], bool]):
+        """
+        Add custom invalidation logic
+        
+        Args:
+            name: Hook name
+            hook: Function that takes (key, value) and returns True if should invalidate
+        """
+        self._invalidation_hooks[name] = hook
+    
+    def remove_invalidation_hook(self, name: str):
+        """Remove invalidation hook"""
+        if name in self._invalidation_hooks:
+            del self._invalidation_hooks[name]
+    
+    def check_invalidation_hooks(self):
+        """Check all invalidation hooks and remove matching entries"""
+        if not self._invalidation_hooks:
+            return
+        
+        with self._lock:
+            keys_to_remove = []
+            for key, entry in self._cache.items():
+                for hook_name, hook in self._invalidation_hooks.items():
+                    try:
+                        if hook(key, entry.data):
+                            keys_to_remove.append(key)
+                            break
+                    except Exception as e:
+                        self.algo.Debug(f"[Cache] Invalidation hook {hook_name} failed: {e}")
+            
+            for key in keys_to_remove:
+                self._remove_entry(key)
+    
+    def cleanup_expired(self) -> int:
+        """Remove expired entries"""
+        with self._lock:
+            current_time = self.algo.Time
+            keys_to_remove = []
+            
+            for key, entry in self._cache.items():
+                if entry.is_expired(self.ttl, current_time):
+                    keys_to_remove.append(key)
+            
+            for key in keys_to_remove:
+                self._remove_entry(key)
+            
+            return len(keys_to_remove)
+    
+    def periodic_maintenance(self):
+        """Run periodic maintenance tasks"""
+        current_time = self.algo.Time
+        
+        # Run cleanup if interval has passed
+        if (current_time - self._last_cleanup) > self._cleanup_interval:
+            expired_count = self.cleanup_expired()
+            self.check_invalidation_hooks()
+            
+            # Force garbage collection if memory usage is high
+            if self.stats.memory_usage_bytes > (self.max_memory_bytes * 0.8):
+                gc.collect()
+            
+            self._last_cleanup = current_time
+            
+            if expired_count > 0:
+                self.algo.Debug(f"[Cache] Cleaned up {expired_count} expired entries")
+    
+    def get_statistics(self) -> Dict:
+        """Get cache performance statistics"""
+        with self._lock:
+            return {
+                'hit_rate': self.stats.hit_rate(),
+                'miss_rate': self.stats.miss_rate(),
+                'total_queries': self.stats.total_queries,
+                'cache_hits': self.stats.hits,
+                'cache_misses': self.stats.misses,
+                'evictions': self.stats.evictions,
+                'cache_size': len(self._cache),
+                'max_size': self.max_size,
+                'memory_usage_mb': self.stats.memory_usage_bytes / (1024 * 1024),
+                'max_memory_mb': self.max_memory_bytes / (1024 * 1024),
+                'ttl_minutes': self.ttl.total_seconds() / 60,
+                'is_backtest': self.is_backtest
+            }
+    
+    def _remove_entry(self, key: str):
+        """Remove entry and update statistics"""
+        if key in self._cache:
+            entry = self._cache[key]
+            del self._cache[key]
+            
+            if self.enable_stats:
+                self.stats.memory_usage_bytes -= entry.size_bytes
+                self.stats.cache_size = len(self._cache)
+    
+    def _enforce_limits(self):
+        """Enforce cache size and memory limits using LRU eviction"""
+        # Enforce size limit
+        while len(self._cache) > self.max_size:
+            # Remove least recently used (first item in OrderedDict)
+            oldest_key = next(iter(self._cache))
+            self._remove_entry(oldest_key)
+            if self.enable_stats:
+                self.stats.evictions += 1
+        
+        # Enforce memory limit
+        while self.stats.memory_usage_bytes > self.max_memory_bytes and self._cache:
+            oldest_key = next(iter(self._cache))
+            self._remove_entry(oldest_key)
+            if self.enable_stats:
+                self.stats.evictions += 1
+    
+    def _estimate_size(self, value: Any) -> int:
+        """Estimate memory usage of a value"""
+        try:
+            if isinstance(value, (int, float, bool)):
+                return 24  # Approximate Python object overhead
+            elif isinstance(value, str):
+                return 50 + len(value)  # String overhead + characters
+            elif isinstance(value, (list, tuple)):
+                return 64 + sum(self._estimate_size(item) for item in value[:10])  # Sample first 10 items
+            elif isinstance(value, dict):
+                size = 240  # Dict overhead
+                for k, v in list(value.items())[:10]:  # Sample first 10 items
+                    size += self._estimate_size(k) + self._estimate_size(v)
+                return size
+            else:
+                # For complex objects, use a conservative estimate
+                return 1024
+        except:
+            return 1024  # Fallback estimate
+    
+    def log_stats(self):
+        """Log cache statistics"""
+        stats = self.get_statistics()
+        self.algo.Debug(
+            f"[Cache] Hit Rate: {stats['hit_rate']:.1%} | "
+            f"Size: {stats['cache_size']}/{stats['max_size']} | "
+            f"Memory: {stats['memory_usage_mb']:.1f}/{stats['max_memory_mb']:.1f}MB | "
+            f"Evictions: {stats['evictions']}"
+        )
+
+
+class PositionAwareCache(HighPerformanceCache[T]):
+    """
+    Cache that invalidates based on position changes
+    Ideal for Greeks and portfolio-dependent calculations
+    """
+    
+    def __init__(self, algorithm, **kwargs):
+        super().__init__(algorithm, **kwargs)
+        
+        # Track position snapshot for change detection
+        self._position_snapshot = {}
+        self._last_position_check = algorithm.Time
+        self._position_check_interval = timedelta(seconds=30)
+        
+        # Add position change invalidation hook
+        self.add_invalidation_hook('position_change', self._check_position_changes)
+    
+    def _get_position_snapshot(self) -> Dict[str, float]:
+        """Get current position snapshot for change detection"""
+        snapshot = {}
+        try:
+            for symbol, holding in self.algo.Portfolio.items():
+                if holding.Invested and abs(holding.Quantity) > 0:
+                    snapshot[str(symbol)] = holding.Quantity
+        except Exception as e:
+            self.algo.Debug(f"[PositionCache] Error getting position snapshot: {e}")
+        return snapshot
+    
+    def _check_position_changes(self, key: str, value: Any) -> bool:
+        """Check if positions have changed since cache entry"""
+        current_time = self.algo.Time
+        
+        # Only check periodically to avoid performance impact
+        if (current_time - self._last_position_check) < self._position_check_interval:
+            return False
+        
+        current_snapshot = self._get_position_snapshot()
+        
+        # Check if positions have changed
+        if current_snapshot != self._position_snapshot:
+            self._position_snapshot = current_snapshot
+            self._last_position_check = current_time
+            # Invalidate position-dependent cache entries
+            return 'portfolio' in key or 'greek' in key or 'position' in key
+        
+        self._last_position_check = current_time
+        return False
+
+
+class MarketDataCache(HighPerformanceCache[T]):
+    """
+    Cache optimized for market data with price-change invalidation
+    """
+    
+    def __init__(self, algorithm, price_change_threshold: float = 0.001, **kwargs):
+        # Shorter TTL for market data
+        kwargs.setdefault('ttl_minutes', 1 if not algorithm.LiveMode else 0.5)
+        super().__init__(algorithm, **kwargs)
+        
+        self.price_change_threshold = price_change_threshold  # 0.1% default
+        self._last_prices = {}
+        
+        # Add price change invalidation hook
+        self.add_invalidation_hook('price_change', self._check_price_changes)
+    
+    def _check_price_changes(self, key: str, value: Any) -> bool:
+        """Invalidate if price has moved significantly"""
+        try:
+            # Extract symbol from key if present
+            for symbol_str in ['SPY', 'QQQ', 'VIX', 'IWM', 'TLT']:
+                if symbol_str in key:
+                    if symbol_str in self.algo.Securities:
+                        current_price = self.algo.Securities[symbol_str].Price
+                        
+                        if symbol_str in self._last_prices:
+                            last_price = self._last_prices[symbol_str]
+                            change_pct = abs(current_price - last_price) / last_price
+                            
+                            if change_pct > self.price_change_threshold:
+                                self._last_prices[symbol_str] = current_price
+                                return True
+                        else:
+                            self._last_prices[symbol_str] = current_price
+                        
+                        break
+        except Exception as e:
+            self.algo.Debug(f"[MarketDataCache] Price check error: {e}")
+        
+        return False

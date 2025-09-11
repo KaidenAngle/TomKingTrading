@@ -50,6 +50,7 @@ class TradingConstants:
     LT112_PROFIT_TARGET = 0.50  # Tom King: 50% profit maximizes expected value
     FUTURES_STRANGLE_PROFIT_TARGET = 0.50  # 50% profit target
     IPMCC_PROFIT_TARGET = 0.50  # 50% on short calls
+    LEAP_PROFIT_TARGET = 0.30  # 30% profit target for LEAP strategies
     
     # Stop Loss Levels (as decimals)
     FRIDAY_0DTE_STOP_LOSS = -2.00  # 200% stop: prevents catastrophic loss while allowing recovery

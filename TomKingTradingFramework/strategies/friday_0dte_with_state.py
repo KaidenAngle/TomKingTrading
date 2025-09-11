@@ -4,6 +4,7 @@
 from AlgorithmImports import *
 from strategies.base_strategy_with_state import BaseStrategyWithState
 from core.state_machine import StrategyState, TransitionTrigger
+from core.performance_cache import HighPerformanceCache, MarketDataCache
 from datetime import time, timedelta
 import numpy as np
 
@@ -15,6 +16,39 @@ class Friday0DTEWithState(BaseStrategyWithState):
     
     def __init__(self, algorithm):
         super().__init__(algorithm, "Friday_0DTE")
+        
+        # PRODUCTION CACHING: Entry conditions and market analysis caching
+        self.entry_conditions_cache = HighPerformanceCache(
+            algorithm,
+            max_size=100,  # Cache entry condition results
+            ttl_minutes=5,  # 5-minute TTL for entry conditions
+            max_memory_mb=5,  # Small memory footprint
+            enable_stats=True
+        )
+        
+        # Market data cache for price analysis
+        self.market_data_cache = MarketDataCache(
+            algorithm,
+            max_size=50,  # Cache market analysis results
+            ttl_minutes=2,  # Short TTL for market data
+            max_memory_mb=3,
+            enable_stats=True,
+            price_change_threshold=0.001  # 0.1% price change invalidation
+        )
+        
+        # VIX condition cache (very short TTL)
+        self.vix_cache = MarketDataCache(
+            algorithm,
+            max_size=10,
+            ttl_minutes=1,  # Very short TTL for VIX
+            max_memory_mb=2,
+            enable_stats=True,
+            price_change_threshold=0.02  # 2% VIX change invalidation
+        )
+        
+        # Cache performance tracking
+        self.cache_stats_log_interval = timedelta(minutes=30)
+        self.last_cache_stats_log = algorithm.Time
         
         # CRITICAL: Tom King uses FUTURES for 0DTE, not SPY options
         # ES for accounts >= $40k, MES for accounts < $40k
@@ -78,10 +112,31 @@ class Friday0DTEWithState(BaseStrategyWithState):
         )
     
     def _check_entry_conditions(self) -> bool:
-        """Check if all entry conditions are met for 0DTE strategy"""
+        """Check if all entry conditions are met for 0DTE strategy with caching"""
+        
+        # Run cache maintenance
+        self._run_cache_maintenance()
         
         self.algo.Error(f"[0DTE] ========== COMPLETE ENTRY CONDITIONS TRACE ==========")
         self.algo.Error(f"[0DTE] Time: {self.algo.Time}, Market: {self.algo.IsMarketOpen(self.algo.spy)}")
+        
+        # Create cache key for entry conditions
+        current_time = self.algo.Time
+        weekday = current_time.weekday()
+        time_str = current_time.strftime('%H:%M')
+        
+        cache_key = f'entry_conditions_{weekday}_{time_str}_{current_time.minute//5}'  # 5-minute buckets
+        
+        # Try to get cached entry conditions result
+        cached_result = self.entry_conditions_cache.get(
+            cache_key,
+            lambda: self._check_entry_conditions_internal()
+        )
+        
+        return cached_result if cached_result is not None else False
+    
+    def _check_entry_conditions_internal(self) -> bool:
+        """Internal entry conditions check (cached by _check_entry_conditions)"""
         
         # Must be Friday
         current_weekday = self.algo.Time.weekday()
@@ -99,8 +154,8 @@ class Friday0DTEWithState(BaseStrategyWithState):
             return False
         self.algo.Error(f"[0DTE] TIME PASS: After entry time, continuing...")
         
-        # VIX check - Tom King methodology
-        vix_value = self._get_vix_value()
+        # VIX check - Tom King methodology with caching
+        vix_value = self._get_cached_vix_value()
         self.algo.Debug(f"[0DTE] VIX CHECK: Value = {vix_value:.2f}, Min required = {self.min_vix_for_entry}")
         
         if vix_value <= self.min_vix_for_entry:
@@ -109,7 +164,7 @@ class Friday0DTEWithState(BaseStrategyWithState):
         else:
             self.algo.Error(f"[0DTE] VIX PASS: {vix_value:.2f} > {self.min_vix_for_entry}, continuing...")
         
-        # Must have analyzed pre-market move
+        # Must have analyzed pre-market move with caching
         self.algo.Error(f"[0DTE] MOVE CHECK: Analyzing pre-entry move...")
         move_analyzed = self._analyze_pre_entry_move()
         self.algo.Error(f"[0DTE] MOVE RESULT: Pre-entry move analyzed = {move_analyzed}")
@@ -118,9 +173,9 @@ class Friday0DTEWithState(BaseStrategyWithState):
             return False
         self.algo.Error(f"[0DTE] MOVE PASS: Pre-entry move analyzed successfully")
         
-        # Check margin and risk limits
+        # Check margin and risk limits with caching
         self.algo.Error(f"[0DTE] RISK CHECK: Checking margin and risk limits...")
-        risk_check = self._check_risk_limits()
+        risk_check = self._get_cached_risk_check()
         if not risk_check:
             self.algo.Error(f"[0DTE] RISK FAIL: Risk limits exceeded")
             return False
@@ -131,7 +186,21 @@ class Friday0DTEWithState(BaseStrategyWithState):
         return True
     
     def _analyze_pre_entry_move(self) -> bool:
-        """Analyze market move from 9:30 to 10:30"""
+        """Analyze market move from 9:30 to 10:30 with caching"""
+        
+        current_time = self.algo.Time.time()
+        cache_key = f'pre_entry_move_{current_time.hour}_{current_time.minute//5}'  # 5-minute buckets
+        
+        # Try to get cached analysis
+        cached_result = self.market_data_cache.get(
+            cache_key,
+            lambda: self._analyze_pre_entry_move_internal()
+        )
+        
+        return cached_result if cached_result is not None else False
+    
+    def _analyze_pre_entry_move_internal(self) -> bool:
+        """Internal pre-entry move analysis (cached)"""
         
         try:
             # Get SPY or ES price
@@ -192,11 +261,99 @@ class Friday0DTEWithState(BaseStrategyWithState):
             self.algo.Error(f"[0DTE] Analysis error: {e}")
             return False
     
+    def _get_cached_vix_value(self) -> float:
+        """Get VIX value with caching"""
+        cache_key = 'current_vix'
+        cached_vix = self.vix_cache.get(
+            cache_key,
+            lambda: self._get_vix_value()
+        )
+        return cached_vix if cached_vix else 20.0
+    
+    def _get_cached_risk_check(self) -> bool:
+        """Get risk check result with caching"""
+        cache_key = 'risk_check'
+        cached_result = self.entry_conditions_cache.get(
+            cache_key,
+            lambda: self._check_risk_limits()
+        )
+        return cached_result if cached_result is not None else False
+    
+    def _run_cache_maintenance(self):
+        """Run periodic cache maintenance"""
+        current_time = self.algo.Time
+        
+        # Run cache maintenance
+        self.entry_conditions_cache.periodic_maintenance()
+        self.market_data_cache.periodic_maintenance()
+        self.vix_cache.periodic_maintenance()
+        
+        # Log cache statistics periodically
+        if (current_time - self.last_cache_stats_log) > self.cache_stats_log_interval:
+            self._log_cache_performance()
+            self.last_cache_stats_log = current_time
+    
+    def _log_cache_performance(self):
+        """Log 0DTE strategy cache performance"""
+        try:
+            entry_stats = self.entry_conditions_cache.get_statistics()
+            market_stats = self.market_data_cache.get_statistics()
+            vix_stats = self.vix_cache.get_statistics()
+            
+            if not self.algo.LiveMode:  # Only detailed logging in backtest
+                self.algo.Debug(
+                    f"[0DTE Cache] Entry Hit Rate: {entry_stats['hit_rate']:.1%} | "
+                    f"Market Hit Rate: {market_stats['hit_rate']:.1%} | "
+                    f"VIX Hit Rate: {vix_stats['hit_rate']:.1%} | "
+                    f"Total Memory: {entry_stats['memory_usage_mb'] + market_stats['memory_usage_mb'] + vix_stats['memory_usage_mb']:.1f}MB"
+                )
+            
+        except Exception as e:
+            self.algo.Debug(f"[0DTE Cache] Error logging statistics: {e}")
+    
+    def get_cache_statistics(self) -> dict:
+        """Get 0DTE strategy cache statistics"""
+        try:
+            return {
+                'entry_conditions_cache': self.entry_conditions_cache.get_statistics(),
+                'market_data_cache': self.market_data_cache.get_statistics(),
+                'vix_cache': self.vix_cache.get_statistics(),
+                'total_memory_mb': (
+                    self.entry_conditions_cache.get_statistics()['memory_usage_mb'] +
+                    self.market_data_cache.get_statistics()['memory_usage_mb'] +
+                    self.vix_cache.get_statistics()['memory_usage_mb']
+                )
+            }
+        except Exception as e:
+            self.algo.Error(f"[0DTE Cache] Error getting statistics: {e}")
+            return {}
+    
+    def invalidate_entry_cache(self, reason: str = "manual"):
+        """Manually invalidate entry condition caches"""
+        try:
+            entry_count = self.entry_conditions_cache.invalidate_all()
+            market_count = self.market_data_cache.invalidate_all()
+            vix_count = self.vix_cache.invalidate_all()
+            
+            self.algo.Debug(
+                f"[0DTE Cache] Invalidated {entry_count} entry + {market_count} market + {vix_count} VIX calculations. Reason: {reason}"
+            )
+        except Exception as e:
+            self.algo.Error(f"[0DTE Cache] Error invalidating cache: {e}")
+    
     def _place_entry_orders(self) -> bool:
         """Place 0DTE entry orders based on analysis"""
         
+        # Invalidate entry condition caches when placing orders
+        # (positions are about to change)
         try:
-            # Check SPY concentration limits first
+            self.entry_conditions_cache.invalidate_pattern('entry_conditions')
+            self.entry_conditions_cache.invalidate_pattern('risk_check')
+        except:
+            pass  # Don't fail order placement due to cache issues
+        
+        try:
+            # Check SPY concentration limits first (with potential caching from spy_concentration_manager)
             # IMPORTANT: Prevents over-exposure when multiple strategies trade SPY
             # DO NOT REMOVE: Critical risk management across strategies
             estimated_delta = self._estimate_position_delta()

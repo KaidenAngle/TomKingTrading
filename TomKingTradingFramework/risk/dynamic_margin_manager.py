@@ -367,3 +367,95 @@ class DynamicMarginManager(BaseComponent):
             stats['max_usage_10_periods'] = max_usage
             
         return stats
+    
+    def get_available_buying_power(self) -> float:
+        """Get available buying power after applying dynamic margin buffers
+        
+        Critical method for position sizing - returns safely usable buying power
+        accounting for dynamic market conditions and required buffers.
+        
+        Returns:
+            float: Available buying power in USD, adjusted for required margin buffers
+        """
+        try:
+            portfolio = self.algorithm.Portfolio
+            
+            # Get current margin remaining
+            margin_remaining = portfolio.MarginRemaining
+            total_value = portfolio.TotalPortfolioValue
+            
+            if total_value <= 0 or margin_remaining < 0:
+                return 0.0
+                
+            # Calculate required buffer based on current conditions
+            required_buffer = self.calculate_required_margin_buffer()
+            
+            # Calculate safe buying power
+            # Use remaining margin but reserve buffer percentage of total value
+            buffer_amount = total_value * required_buffer
+            safe_buying_power = max(0.0, margin_remaining - buffer_amount)
+            
+            # Additional safety: Cap at 80% of remaining margin to prevent edge cases
+            safe_buying_power = min(safe_buying_power, margin_remaining * 0.8)
+            
+            # Log significant buffer adjustments
+            if required_buffer > 0.3:  # More than 30% buffer
+                self.algorithm.Debug(f"[DynamicMargin] Large buffer applied: {required_buffer:.1%}, "
+                                   f"Safe BP: ${safe_buying_power:,.0f} (Raw: ${margin_remaining:,.0f})")
+            
+            return safe_buying_power
+            
+        except Exception as e:
+            self.algorithm.Error(f"[DynamicMargin] Error calculating available buying power: {e}")
+            return 0.0
+    
+    def calculate_required_margin(self, positions: list) -> float:
+        """Calculate required margin for a list of positions
+        
+        Essential method for pre-trade validation - estimates margin requirements
+        for proposed positions including dynamic buffers.
+        
+        Args:
+            positions: List of position dictionaries with structure:
+                      [{'symbol': str, 'quantity': int, 'option_type': str, 
+                        'strike': float, 'underlying_price': float}, ...]
+        
+        Returns:
+            float: Total required margin in USD for all positions
+        """
+        try:
+            if not positions:
+                return 0.0
+                
+            total_margin = 0.0
+            
+            for position in positions:
+                # Validate position structure
+                required_fields = ['symbol', 'quantity', 'option_type', 'strike', 'underlying_price']
+                if not all(field in position for field in required_fields):
+                    self.algorithm.Error(f"[DynamicMargin] Invalid position structure: {position}")
+                    continue
+                
+                # Calculate margin for this position
+                position_margin = self.calculate_position_margin_impact(
+                    quantity=position['quantity'],
+                    option_type=position['option_type'], 
+                    strike=position['strike'],
+                    underlying_price=position['underlying_price']
+                )
+                
+                total_margin += position_margin
+                
+            # Add portfolio-wide buffer for complex positions
+            if len(positions) > 1:
+                # Add 5% buffer for multi-position complexity
+                complexity_buffer = total_margin * 0.05
+                total_margin += complexity_buffer
+                
+            return total_margin
+            
+        except Exception as e:
+            self.algorithm.Error(f"[DynamicMargin] Error calculating required margin: {e}")
+            # Return conservative estimate if calculation fails
+            return sum(pos.get('underlying_price', 100) * 100 * abs(pos.get('quantity', 1)) * 0.2 
+                      for pos in positions if isinstance(pos, dict))

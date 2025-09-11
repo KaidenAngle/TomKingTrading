@@ -406,3 +406,308 @@ In QuantConnect:
 - **Access prices consistently** - Through Securities[symbol].Price
 
 The QuantConnect platform is robust. If these APIs aren't available, the system has bigger problems than your algorithm.
+
+## QuantConnect Cloud Deployment via MCP Server
+
+### Overview: Production Deployment Methodology
+
+The QuantConnect MCP (Model Context Protocol) server provides systematic cloud deployment capabilities for production trading algorithms. These patterns ensure reliable deployment with comprehensive verification.
+
+### Core Principle: Systematic Deployment with Verification
+
+**Every deployment must follow a systematic process** with verification at each step. Ad-hoc file uploads and incomplete deployments are the leading cause of production failures.
+
+### MCP Server Integration Pattern
+
+#### CORRECT: Systematic File Upload with Project Coordination
+```python
+def deploy_to_quantconnect_cloud(self, project_id: int) -> bool:
+    """Deploy framework to QuantConnect cloud using MCP server tools"""
+    
+    try:
+        # 1. Core configuration files first (dependencies)
+        core_files = [
+            "config/strategy_parameters.py",
+            "config/constants.py", 
+            "risk/parameters.py"
+        ]
+        
+        for file_path in core_files:
+            success = self.upload_file_to_qc(project_id, file_path)
+            if not success:
+                self.Error(f"Failed to upload core file: {file_path}")
+                return False
+            self.Debug(f"✓ Uploaded: {file_path}")
+        
+        # 2. Framework components second (main logic)
+        framework_files = [
+            "main.py",
+            "core/unified_vix_manager.py",
+            "core/unified_position_sizing.py", 
+            "core/unified_state_manager.py"
+        ]
+        
+        for file_path in framework_files:
+            success = self.upload_file_to_qc(project_id, file_path)
+            if not success:
+                self.Error(f"Failed to upload framework file: {file_path}")
+                return False
+            self.Debug(f"✓ Uploaded: {file_path}")
+        
+        # 3. Strategy implementations last (specific logic)
+        strategy_files = [
+            "strategies/friday_0dte_with_state.py",
+            "strategies/lt112_with_state.py",
+            "strategies/ipmcc_with_state.py"
+        ]
+        
+        for file_path in strategy_files:
+            success = self.upload_file_to_qc(project_id, file_path)
+            if not success:
+                self.Error(f"Failed to upload strategy file: {file_path}")
+                return False
+            self.Debug(f"✓ Uploaded: {file_path}")
+        
+        # 4. Compilation verification (CRITICAL)
+        return self.verify_cloud_deployment(project_id)
+        
+    except Exception as e:
+        self.Error(f"Cloud deployment failed: {e}")
+        return False
+
+def upload_file_to_qc(self, project_id: int, file_path: str) -> bool:
+    """Upload single file using MCP server tools"""
+    
+    try:
+        # Read local file content
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Upload via MCP server
+        result = mcp_quantconnect_update_file_contents({
+            "projectId": project_id,
+            "name": file_path,
+            "content": content
+        })
+        
+        return result.get('success', False)
+        
+    except Exception as e:
+        self.Error(f"File upload failed for {file_path}: {e}")
+        return False
+
+def verify_cloud_deployment(self, project_id: int) -> bool:
+    """Verify deployment through compilation"""
+    
+    try:
+        # Trigger compilation
+        compile_result = mcp_quantconnect_create_compile({
+            "projectId": project_id
+        })
+        
+        if not compile_result.get('success', False):
+            self.Error("Failed to initiate compilation")
+            return False
+        
+        compile_id = compile_result['compileId']
+        self.Debug(f"Compilation initiated: {compile_id}")
+        
+        # Check compilation result
+        result = mcp_quantconnect_read_compile({
+            "projectId": project_id,
+            "compileId": compile_id
+        })
+        
+        if result['state'] == 'BuildSuccess':
+            self.Log(f"✅ Cloud deployment successful - Build ID: {compile_id}")
+            return True
+        elif result['state'] == 'BuildError':
+            self.Error(f"❌ Compilation failed: {result.get('logs', [])}")
+            return False
+        else:
+            self.Debug(f"Compilation state: {result['state']}")
+            return False
+            
+    except Exception as e:
+        self.Error(f"Deployment verification failed: {e}")
+        return False
+```
+
+#### WRONG: Ad-Hoc File Upload Without Verification
+```python
+# WRONG - No systematic order, no verification
+def bad_deployment(self, project_id: int):
+    # Random order upload
+    upload_file("main.py")
+    upload_file("strategy1.py") 
+    upload_file("config.py")
+    
+    # No compilation verification
+    # No error handling
+    # No deployment confirmation
+    # Result: Broken deployment in production
+```
+
+### Deployment Order Patterns
+
+#### Critical Upload Sequence:
+1. **Configuration Files First** - Dependencies for other components
+   - `config/strategy_parameters.py`
+   - `config/constants.py`
+   - `risk/parameters.py`
+
+2. **Core Framework Second** - Central system components
+   - `main.py` (algorithm entry point)
+   - `core/unified_*.py` (unified managers)
+
+3. **Strategy Implementations Last** - Specific trading logic
+   - `strategies/*_with_state.py`
+
+**Rationale**: This order ensures dependencies are available before dependent components are compiled.
+
+### Error Handling and Recovery
+
+#### CORRECT: Systematic Error Resolution
+```python
+def handle_compilation_errors(self, project_id: int, compile_id: str) -> bool:
+    """Systematic error resolution for failed deployments"""
+    
+    # Get compilation details
+    result = mcp_quantconnect_read_compile({
+        "projectId": project_id,
+        "compileId": compile_id
+    })
+    
+    if result['state'] != 'BuildError':
+        return True
+    
+    # Parse error logs
+    error_logs = result.get('logs', [])
+    
+    for error_log in error_logs:
+        # Common error patterns and fixes
+        if 'IndentationError' in error_log:
+            self.fix_indentation_errors(project_id, error_log)
+        elif 'ImportError' in error_log:
+            self.fix_import_errors(project_id, error_log) 
+        elif 'NameError' in error_log:
+            self.fix_name_errors(project_id, error_log)
+        else:
+            self.Error(f"Unhandled compilation error: {error_log}")
+            return False
+    
+    # Retry compilation after fixes
+    return self.retry_compilation(project_id)
+
+def fix_indentation_errors(self, project_id: int, error_log: str):
+    """Fix common indentation issues in uploaded files"""
+    
+    # Parse error to identify problematic file
+    file_match = re.search(r'Error (\w+\.py)', error_log)
+    if not file_match:
+        return
+    
+    problematic_file = file_match.group(1)
+    
+    # Read current file content from cloud
+    file_content = mcp_quantconnect_read_file({
+        "projectId": project_id,
+        "name": problematic_file
+    })
+    
+    # Apply indentation fixes
+    fixed_content = self.fix_python_indentation(file_content['content'])
+    
+    # Re-upload fixed file
+    mcp_quantconnect_update_file_contents({
+        "projectId": project_id,
+        "name": problematic_file,
+        "content": fixed_content
+    })
+    
+    self.Debug(f"Fixed indentation in {problematic_file}")
+```
+
+### Production Deployment Checklist
+
+#### Pre-Deployment Verification:
+- [ ] **Local Compilation Success** - Verify all files compile locally
+- [ ] **Dependency Analysis** - Ensure all imports are available
+- [ ] **Configuration Validation** - Verify all configuration files are updated
+- [ ] **Integration Testing** - Run local integration verification
+
+#### During Deployment:
+- [ ] **Systematic Upload Order** - Follow configuration → core → strategies sequence
+- [ ] **Upload Verification** - Confirm each file upload succeeds
+- [ ] **Progress Logging** - Log successful uploads for troubleshooting
+- [ ] **Error Capture** - Capture and log any upload failures
+
+#### Post-Deployment Verification:
+- [ ] **Compilation Success** - Verify clean compilation in cloud
+- [ ] **Integration Verification** - Confirm all components integrate properly
+- [ ] **Performance Validation** - Check for performance regressions
+- [ ] **Deployment Documentation** - Record deployment details and any issues
+
+### MCP Server Tool Usage Patterns
+
+#### Available MCP Tools for QuantConnect:
+```python
+# File management
+mcp_quantconnect_create_file()      # Create new file
+mcp_quantconnect_read_file()        # Read existing file
+mcp_quantconnect_update_file_contents()  # Update file content
+mcp_quantconnect_delete_file()      # Remove file
+
+# Compilation and verification  
+mcp_quantconnect_create_compile()   # Trigger compilation
+mcp_quantconnect_read_compile()     # Check compilation status
+
+# Project management
+mcp_quantconnect_read_project()     # Get project details
+mcp_quantconnect_list_projects()    # List available projects
+```
+
+#### Best Practices for MCP Tool Usage:
+1. **Always Check Return Values** - Verify success before proceeding
+2. **Use Appropriate Tool** - update_file_contents for existing files, create_file for new files
+3. **Handle Encoding** - Ensure proper UTF-8 encoding for all uploads
+4. **Verify Project ID** - Confirm correct project before any operations
+
+### Common Deployment Failure Patterns
+
+#### Pattern 1: Incomplete Upload
+```python
+# WRONG - Doesn't verify all files uploaded
+def incomplete_deployment():
+    upload_file("main.py")
+    # Forgets to upload dependencies
+    # Result: ImportError during compilation
+```
+
+#### Pattern 2: Wrong Upload Order
+```python
+# WRONG - Uploads strategies before dependencies
+def wrong_order_deployment():
+    upload_file("strategies/friday_0dte.py")  # Depends on config
+    upload_file("config/strategy_parameters.py")  # Uploaded after
+    # Result: Compilation fails on missing dependencies
+```
+
+#### Pattern 3: No Verification
+```python
+# WRONG - No compilation verification
+def unverified_deployment():
+    upload_all_files()
+    # Assumes deployment worked
+    # Result: Silent failures in production
+```
+
+### Summary: Cloud Deployment Best Practices
+
+**Key Principles:**
+1. **Systematic Upload Order** - Dependencies before dependent components
+2. **Comprehensive Verification** - Verify compilation success
+3. **Error Recovery** - Systematic error handling and resolution
+4. **Documentation** - Record deployment process and results
+
+**Remember**: A failed cloud deployment can result in trading system downtime. Always verify deployment success through compilation before considering deployment complete.
