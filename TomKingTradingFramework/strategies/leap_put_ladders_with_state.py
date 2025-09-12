@@ -22,7 +22,7 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
         
         # Ladder configuration
         self.ladder_rungs = 5           # Number of ladder rungs
-        self.min_dte = 365              # Minimum 1 year out
+        self.min_dte = TradingConstants.CALENDAR_DAYS_PER_YEAR              # Minimum 1 year out
         self.max_dte = 730              # Maximum 2 years out
         self.roll_dte = 90              # Roll when 90 DTE remaining
         
@@ -90,11 +90,23 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
         """Build or rebuild put ladder"""
         
         try:
-            spy = self.algo.spy
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+spy = self.algo.spy
             current_price = self.algo.Securities[spy].Price
             
-            # Calculate allocation per rung
-            portfolio_value = self.algo.Portfolio.TotalPortfolioValue
+            # Calculate allocation per rung using centralized portfolio access
+            portfolio_value = self.algo.position_sizer.get_portfolio_value()
             total_allocation = portfolio_value * self.target_allocation
             allocation_per_rung = total_allocation / self.ladder_rungs
             
@@ -227,8 +239,15 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
         
         for position in positions:
             try:
-                # Sell current position
-                self.algo.MarketOrder(position['put_contract'], -position['contracts'])
+            self.algo.MarketOrder(position['put_contract'], -position['contracts'])
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+# Sell current position
                 
                 # Find new LEAP put
                 target_strike = round(current_price * position['target_strike_pct'], 0)
@@ -262,7 +281,19 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
         """Rebalance ladder to maintain target allocation"""
         
         try:
-            portfolio_value = self.algo.Portfolio.TotalPortfolioValue
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+portfolio_value = self.algo.position_sizer.get_portfolio_value()
             target_value = portfolio_value * self.target_allocation
             current_value = self._get_ladder_value()
             
@@ -338,7 +369,7 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
     def _check_allocation_available(self) -> bool:
         """Check if allocation available for ladder"""
         
-        portfolio_value = self.algo.Portfolio.TotalPortfolioValue
+        portfolio_value = self.algo.position_sizer.get_portfolio_value()
         target_value = portfolio_value * self.target_allocation
         current_value = self._get_ladder_value()
         
@@ -356,7 +387,7 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
             return False
         
         # Check deviation from target
-        portfolio_value = self.algo.Portfolio.TotalPortfolioValue
+        portfolio_value = self.algo.position_sizer.get_portfolio_value()
         target_value = portfolio_value * self.target_allocation
         current_value = self._get_ladder_value()
         
@@ -419,8 +450,18 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
         """Take profit on deep ITM position"""
         
         try:
-            # Sell the profitable put
-            self.algo.MarketOrder(position['put_contract'], -position['contracts'])
+        self.algo.MarketOrder(position['put_contract'], -position['contracts'])
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Sell the profitable put
             
             # Calculate profit
             exit_price = self._get_option_price(position['put_contract'])
@@ -469,6 +510,284 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
         # LEAP ladders prefer to buy when VIX is low
         self.algo.Debug("[LEAPLadders] VIX data unavailable, using default 20")
         return 20.0  # Conservative default
+    
+    def _place_exit_orders(self) -> bool:
+        """Place LEAP ladder exit orders following Tom King methodology"""
+        
+        try:
+        positions_to_exit = [
+        pos for pos in self.ladder_positions
+        if pos['status'] == 'open' and self._should_exit_position(pos)
+        ]
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Find positions that need exiting
+            
+            if not positions_to_exit:
+                return True
+            
+            exit_success = True
+            
+            for position in positions_to_exit:
+                try:
+                put_contract = position['put_contract']
+                contracts = position['contracts']
+                entry_price = position['entry_price']
+                rung_index = position['rung_index']
+                except Exception as e:
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+# Get position details
+                    
+                    # Calculate current metrics
+                    current_price = self._get_option_price(put_contract)
+                    pnl = (current_price - entry_price) * 100 * contracts
+                    pnl_pct = (current_price - entry_price) / entry_price if entry_price > 0 else 0
+                    
+                    # Place exit order (sell the long put)
+                    order = self.algo.MarketOrder(put_contract, -contracts)
+                    
+                    if not order:
+                        self.algo.Error(f"[LEAPLadders] Failed to place exit order for rung {rung_index}")
+                        exit_success = False
+                        continue
+                    
+                    # Update position status
+                    position['status'] = 'closed'
+                    position['exit_time'] = self.algo.Time
+                    position['exit_price'] = current_price
+                    position['exit_reason'] = self._get_exit_reason(position)
+                    position['final_pnl'] = pnl
+                    
+                    # Update strategy statistics
+                    if pnl > 0:
+                        self.wins += 1
+                    else:
+                        self.losses += 1
+                    
+                    # Log exit details
+                    self.algo.Log(
+                        f"[LEAPLadders] Exited rung {rung_index}: "
+                        f"P&L: ${pnl:.2f} ({pnl_pct:.1%}), "
+                        f"Reason: {position['exit_reason']}, "
+                        f"Strike: {put_contract.ID.StrikePrice}, "
+                        f"Contracts: {contracts}"
+                    )
+                    
+                    # Fire exit event for position state manager
+                    if hasattr(self.algo, 'event_bus'):
+                        self.algo.event_bus.fire_event(
+                            'position_exited',
+                            {
+                                'strategy': self.strategy_name,
+                                'position_id': f"leap_rung_{rung_index}_{position['entry_time'].strftime('%Y%m%d_%H%M%S')}",
+                                'exit_time': position['exit_time'],
+                                'pnl': pnl,
+                                'reason': position['exit_reason'],
+                                'rung_index': rung_index,
+                                'strike': put_contract.ID.StrikePrice
+                            }
+                        )
+                    
+                    # Release SPY allocation if SPY concentration manager exists
+                    if hasattr(self.algo, 'spy_concentration_manager'):
+                        released_delta = 0.45 * contracts * 100  # Approximate LEAP put delta
+                        self.algo.spy_concentration_manager.release_spy_allocation(
+                            strategy_name="LEAPLadders",
+                            position_type="leap_put",
+                            released_delta=released_delta
+                        )
+                    
+                except Exception as position_error:
+                    self.algo.Error(f"[LEAPLadders] Error exiting rung {position.get('rung_index', 'unknown')}: {position_error}")
+                    exit_success = False
+                    continue
+            
+            # Update statistics
+            if exit_success:
+                self.algo.Debug(f"[LEAPLadders] Successfully exited {len(positions_to_exit)} ladder rungs")
+            else:
+                self.algo.Error("[LEAPLadders] Some rung exits failed")
+            
+            # Check if ladder needs rebuilding after exits
+            if self._ladder_needs_work():
+                self.algo.Debug("[LEAPLadders] Ladder needs rebuilding after exits")
+            
+            return exit_success
+            
+        except Exception as e:
+            self.algo.Error(f"[LEAPLadders] Critical error in _place_exit_orders: {e}")
+            return False
+    
+    def _should_exit_position(self, position) -> bool:
+        """Determine if LEAP position should be exited based on Tom King rules"""
+        
+        try:
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+put_contract = position['put_contract']
+            
+            # Check expiration - roll at 90 DTE or close if can't roll
+            days_to_expiry = (put_contract.ID.Date - self.algo.Time).days
+            if days_to_expiry <= self.roll_dte:
+                # Try to find rolling opportunity first
+                spy = self.algo.spy
+                current_price = self.algo.Securities[spy].Price
+                target_strike = round(current_price * position['target_strike_pct'], 0)
+                contracts = self._find_leap_options(spy)
+                new_put = self._find_closest_strike(contracts, target_strike, "put")
+                
+                if not new_put:
+                    # Can't roll, must exit
+                    return True
+            
+            # Check if deep ITM - take profit opportunity
+            if self._check_deep_itm(position):
+                spy = self.algo.spy
+                current_price = self.algo.Securities[spy].Price
+                strike = position['put_contract'].ID.StrikePrice
+                
+                # Deep ITM with significant profit - Tom King rule for protection ladders
+                current_option_price = self._get_option_price(position['put_contract'])
+                entry_price = position['entry_price']
+                
+                if entry_price > 0:
+                    profit_pct = (current_option_price - entry_price) / entry_price
+                    # Exit if put has doubled in value (TradingConstants.FULL_PERCENTAGE% profit)
+                    if profit_pct >= 1.0:
+                        return True
+            
+            # Check for emergency liquidation conditions
+            if self._check_emergency_exit(position):
+                return True
+            
+            return False
+            
+        except Exception as e:
+            self.algo.Debug(f"[LEAPLadders] Error checking exit condition: {e}")
+            return False
+    
+    def _check_emergency_exit(self, position) -> bool:
+        """Check for emergency exit conditions specific to LEAP ladders"""
+        
+        try:
+        portfolio_value = self.algo.position_sizer.get_portfolio_value()
+        ladder_value = self._get_ladder_value()
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Check if ladder allocation has grown too large (>10% of portfolio)
+            
+            if ladder_value > portfolio_value * 0.10:
+                return True
+            
+            # Check if individual position has grown disproportionately
+            put_price = self._get_option_price(position['put_contract'])
+            position_value = put_price * 100 * position['contracts']
+            
+            # Exit if single rung > 3% of portfolio (concentration risk)
+            if position_value > portfolio_value * 0.03:
+                return True
+            
+            # Check for black swan market conditions (VIX spike)
+            vix = self._get_vix_value()
+            if vix > 60:  # Extreme volatility - consider taking profits
+                current_price = self._get_option_price(position['put_contract'])
+                entry_price = position['entry_price']
+                if entry_price > 0 and (current_price / entry_price) > 2.0:
+                    return True  # Exit if put has more than doubled during VIX spike
+            
+            return False
+            
+        except Exception as e:
+            self.algo.Debug(f"[LEAPLadders] Error checking emergency exit: {e}")
+            return False
+    
+    def _get_exit_reason(self, position) -> str:
+        """Get the reason for LEAP position exit"""
+        
+        try:
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+put_contract = position['put_contract']
+            days_to_expiry = (put_contract.ID.Date - self.algo.Time).days
+            
+            # Check expiration
+            if days_to_expiry <= self.roll_dte:
+                return f"Expiration Approaching ({days_to_expiry} DTE)"
+            
+            # Check profit taking
+            current_price = self._get_option_price(position['put_contract'])
+            entry_price = position['entry_price']
+            
+            if entry_price > 0:
+                profit_pct = (current_price - entry_price) / entry_price
+                if profit_pct >= 1.0:
+                    return f"Profit Taking (TradingConstants.FULL_PERCENTAGE%+ gain)"
+            
+            # Check deep ITM
+            if self._check_deep_itm(position):
+                return "Deep ITM Protection Activated"
+            
+            # Check emergency conditions
+            portfolio_value = self.algo.position_sizer.get_portfolio_value()
+            ladder_value = self._get_ladder_value()
+            
+            if ladder_value > portfolio_value * 0.10:
+                return "Ladder Over-Allocation (>10%)"
+            
+            position_value = current_price * 100 * position['contracts']
+            if position_value > portfolio_value * 0.03:
+                return "Position Concentration Risk (>3%)"
+            
+            vix = self._get_vix_value()
+            if vix > 60:
+                return f"VIX Spike Profit Taking (VIX: {vix:.1f})"
+            
+            return "Manual Exit"
+            
+        except Exception as e:
+            self.algo.Debug(f"[LEAPLadders] Error determining exit reason: {e}")
+            return "Exit Error"
     
     def _can_trade_again_today(self) -> bool:
         """Ladder adjustments can happen throughout the day"""

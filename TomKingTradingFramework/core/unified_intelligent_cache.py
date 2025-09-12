@@ -251,7 +251,15 @@ class UnifiedIntelligentCache(Generic[T]):
             # Cache miss - use factory if provided
             if factory:
                 try:
-                    value = factory()
+                    
+                except Exception as e:
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+value = factory()
                     self.put(key, value, cache_type=cache_type, tags=tags)
                     return value
                 except Exception as e:
@@ -291,8 +299,18 @@ class UnifiedIntelligentCache(Generic[T]):
             current_time = self.algo.Time
             
             try:
-                # Estimate memory usage
-                size_bytes = self._estimate_size(value)
+            size_bytes = self._estimate_size(value)
+            except Exception as e:
+
+            
+                # Log and handle unexpected exception
+
+            
+                print(f'Unexpected exception: {e}')
+
+            
+                raise
+# Estimate memory usage
                 
                 # Check memory limits
                 if size_bytes > self.max_memory_bytes:
@@ -528,7 +546,15 @@ class UnifiedIntelligentCache(Generic[T]):
         """Get current position snapshot for change detection"""
         snapshot = {}
         try:
-            for symbol, holding in self.algo.Portfolio.items():
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+for symbol, holding in self.algo.Portfolio.items():
                 if holding.Invested and abs(holding.Quantity) > 0:
                     snapshot[str(symbol)] = holding.Quantity
         except Exception as e:
@@ -541,10 +567,20 @@ class UnifiedIntelligentCache(Generic[T]):
             return False
         
         try:
-            # Check tracked symbols for price changes
-            for symbol_str in self._tracked_symbols:
-                if (symbol_str in entry.invalidation_tags or 
-                    entry.cache_type == CacheType.MARKET_DATA):
+        for symbol_str in self._tracked_symbols:
+        if (symbol_str in entry.invalidation_tags or
+        entry.cache_type == CacheType.MARKET_DATA):
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Check tracked symbols for price changes
                     
                     if symbol_str in self.algo.Securities:
                         current_price = self.algo.Securities[symbol_str].Price
@@ -568,7 +604,15 @@ class UnifiedIntelligentCache(Generic[T]):
         """Check custom invalidation hooks"""
         for hook_name, hook in self._invalidation_hooks.items():
             try:
-                if hook(key, entry.data):
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+if hook(key, entry.data):
                     return True
             except Exception as e:
                 self.algo.Debug(f"[UnifiedCache] Hook {hook_name} failed: {e}")
@@ -635,7 +679,15 @@ class UnifiedIntelligentCache(Generic[T]):
     def _estimate_size(self, value: Any) -> int:
         """Estimate memory usage of a value"""
         try:
-            if isinstance(value, (int, float, bool)):
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if isinstance(value, (int, float, bool)):
                 return 24
             elif isinstance(value, str):
                 return 50 + len(value)
@@ -648,7 +700,8 @@ class UnifiedIntelligentCache(Generic[T]):
                 return size
             else:
                 return 1024
-        except:
+        except (TypeError, AttributeError, RecursionError, OverflowError) as e:
+            # Handle type errors, missing attributes, deep recursion, or numeric overflow
             return 1024
     
     def _update_type_stats(self, cache_type: CacheType, delta: int):

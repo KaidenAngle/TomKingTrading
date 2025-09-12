@@ -88,7 +88,7 @@ class TestUnifiedIntelligentCache(unittest.TestCase):
         # Advance time beyond TTL
         self.algo.Time = datetime.now() + timedelta(minutes=2)
         
-        # Should be expired (factory should be called)
+        # Should be expired (factory should be, called)
         factory_called = False
         def factory():
             nonlocal factory_called
@@ -110,7 +110,7 @@ class TestUnifiedIntelligentCache(unittest.TestCase):
         stats = self.cache.get_statistics()
         self.assertLessEqual(stats['cache_size'], 10)
         
-        # Oldest entries should be gone (LRU eviction)
+        # Oldest entries should be gone (LRU, eviction)
         self.assertIsNone(self.cache.get('key_0'))
         self.assertIsNotNone(self.cache.get('key_14'))
     
@@ -191,7 +191,7 @@ class TestPositionAwareCacheType(unittest.TestCase):
         self.cache.check_invalidation_hooks()
         
         # Position-dependent values should be invalidated
-        # (This is a simplified test - uses position-aware cache type)
+        # (This is a simplified test - uses position-aware cache, type)
         result = self.cache.put('portfolio_dependent', 'should_be_invalidated')
         self.assertTrue(result)
 
@@ -261,10 +261,10 @@ class TestMarketDataCacheManager(unittest.TestCase):
         spy_price = self.cache_manager.get_price('SPY')
         self.assertEqual(spy_price, 450.0)
         
-        # Second call should use cache (modify underlying to verify)
+        # Second call should use cache (modify underlying to, verify)
         self.algo.Securities['SPY'].Price = 999.0
         cached_price = self.cache_manager.get_price('SPY')
-        # Should still be cached value (depending on TTL)
+        # Should still be cached value (depending on, TTL)
         
         # Test fallback for unknown symbol
         unknown_price = self.cache_manager.get_price('UNKNOWN')
@@ -339,7 +339,7 @@ class TestMarketDataCacheManager(unittest.TestCase):
         self.cache_manager.invalidate_symbol_data('SPY', 'test')
         
         # Should fetch fresh data on next call
-        # (Implementation depends on cache behavior)
+        # (Implementation depends on cache, behavior)
     
     def test_comprehensive_statistics(self):
         """Test comprehensive statistics retrieval"""
@@ -399,7 +399,7 @@ class TestCachingIntegration(unittest.TestCase):
             stats = cache.get_statistics()
             total_memory += stats['memory_usage_mb']
         
-        # Should be reasonable (less than 50MB for 5 caches with 5MB limit each)
+        # Should be reasonable (less than 50MB for 5 caches with 5MB limit, each)
         self.assertLess(total_memory, 50)
     
     def test_cache_hit_rates(self):
@@ -463,7 +463,7 @@ class TestCachingPerformance(unittest.TestCase):
         
         # Second call should use cache
         result2 = cache.get('expensive', expensive_calculation, cache_type=CacheType.GENERAL)
-        self.assertEqual(calculation_count, 1)  # Still 1, not 2
+        self.assertEqual(calculation_count, 1)  # Still, 1, not 2
         self.assertEqual(result2, result1)
         
         # Multiple subsequent calls should use cache
@@ -509,13 +509,13 @@ if __name__ == '__main__':
         print("=" * 80)
         print("\nCaching Components Verified:")
         print("  ✓ Unified Intelligent Cache (LRU, TTL, Statistics)")
-        print("  ✓ Position-Aware Cache Type (Position Change Invalidation)")
-        print("  ✓ Market Data Cache Type (Price Change Invalidation)")
+        print("  ✓ Position-Aware Cache Type (Position Change, Invalidation)")
+        print("  ✓ Market Data Cache Type (Price Change, Invalidation)")
         print("  ✓ Comprehensive Market Data Manager")
         print("  ✓ Memory Management & Error Handling")
         print("  ✓ Performance Improvements & Hit Rates")
         print("\nProduction Features:")
-        print("  ✓ Environment-aware configuration (Live vs Backtest)")
+        print("  ✓ Environment-aware configuration (Live vs, Backtest)")
         print("  ✓ Automatic cache maintenance & cleanup")
         print("  ✓ Comprehensive performance statistics")
         print("  ✓ Smart invalidation based on data changes")

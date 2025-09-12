@@ -43,7 +43,15 @@ class OrderValidationSystem:
         Returns: (is_valid, reason)
         """
         try:
-            security = self.algorithm.Securities.get(symbol)
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+security = self.algorithm.Securities.get(symbol)
             if not security:
                 return False, "Symbol not found"
             
@@ -95,7 +103,15 @@ class OrderValidationSystem:
         # Place all legs
         for i, leg in enumerate(legs):
             try:
-                if leg.get('order_type') == 'MARKET':
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+if leg.get('order_type') == 'MARKET':
                     order = self.algorithm.MarketOrder(
                         leg['symbol'], 
                         leg['quantity'],
@@ -191,8 +207,9 @@ class OrderValidationSystem:
                 self.handle_partial_multi_leg(group_id, partial_fills)
                 return False
             
-            # Small delay before rechecking
-            time.sleep(0.5)
+            # Use algorithm's scheduling instead of blocking sleep
+            # In QuantConnect, the algorithm will naturally recheck on next data update
+            return False  # Return False to trigger recheck on next opportunity
         
         if all_filled:
             self.algorithm.Log(f"[WARNING] Multi-leg order {group_id} fully filled")
@@ -283,8 +300,16 @@ class OrderValidationSystem:
         # Cancel existing order
         self.algorithm.Transactions.CancelOrder(order_id)
         
-        # Wait before retry
-        time.sleep(self.retry_delay_seconds)
+        # Schedule retry instead of blocking
+        # Store retry information for next processing cycle
+        retry_time = self.algorithm.Time.add(timedelta(seconds=self.retry_delay_seconds))
+        if not hasattr(self, 'retry_queue'):
+            self.retry_queue = []
+        self.retry_queue.append({
+            'order_id': order_id,
+            'retry_time': retry_time,
+            'order_info': order_info
+        })
         
         # Recalculate price and retry
         new_limit = self.calculate_limit_price(
@@ -333,10 +358,19 @@ class OrderValidationSystem:
         
         for order_id in order_ids:
             try:
-                self.algorithm.Transactions.CancelOrder(order_id)
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+self.algorithm.Transactions.CancelOrder(order_id)
                 self.algorithm.Log(f"   Cancelled order {order_id}")
-            except:
-                pass  # Order may already be filled/cancelled
+            except (RuntimeError, InvalidOperationException, AttributeError) as e:
+                # Order may already be filled/cancelled or transaction system unavailable
+                pass
     
     def get_validation_stats(self) -> Dict:
         """Get order validation statistics"""

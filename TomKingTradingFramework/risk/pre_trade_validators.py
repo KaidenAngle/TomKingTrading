@@ -35,7 +35,15 @@ class CriticalValidations:
     def validate_broker_connection(self) -> bool:
         """Validate broker API connection before trading"""
         try:
-            if self.algo.LiveMode:
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if self.algo.LiveMode:
                 # Check TastyTrade connection
                 if hasattr(self.algo, 'tastytrade') and self.algo.tastytrade:
                     account = self.algo.tastytrade.get_account_info()
@@ -69,9 +77,16 @@ class CriticalValidations:
     def validate_margin_requirements(self, required_bp: float, strategy_name: str = "") -> bool:
         """Check if we have sufficient buying power for the trade"""
         try:
-            # Get available margin
-            available_margin = self.algo.Portfolio.MarginRemaining
-            total_value = self.algo.Portfolio.TotalPortfolioValue
+        available_margin = self.algo.Portfolio.MarginRemaining
+        total_value = self.algo.Portfolio.TotalPortfolioValue
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Get available margin
             
             # Keep 20% buffer for safety
             safety_buffer = total_value * 0.20
@@ -167,7 +182,15 @@ class CriticalValidations:
     def calculate_required_margin(self, symbol, quantity, strategy_name="") -> float:
         """Calculate required margin for a position"""
         try:
-            security = self.algo.Securities[symbol]
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+security = self.algo.Securities[symbol]
             
             if security.Type == SecurityType.Option:
                 # Rough margin calculation for options

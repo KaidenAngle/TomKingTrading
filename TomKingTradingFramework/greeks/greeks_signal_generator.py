@@ -2,6 +2,13 @@
 # Direct implementation of Tom King's approach using options mechanics
 
 from AlgorithmImports import *
+from core.unified_vix_manager import UnifiedVIXManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class GreeksSignalGenerator:
     """
@@ -24,11 +31,11 @@ class GreeksSignalGenerator:
         if vix_level < 13 or vix_level > 25:
             return False
             
-        # Find max gamma strike (pin level)
+        # Find max gamma strike (pin, level)
         max_gamma_strike = self.find_gamma_pin(spy_options)
         current_price = self.algo.Securities["SPY"].Price
         
-        # Enter if price is near gamma pin (high probability of pin)
+        # Enter if price is near gamma pin (high probability of, pin)
         distance_from_pin = abs(current_price - max_gamma_strike) / current_price
         
         return distance_from_pin < 0.005  # Within 0.5% of pin

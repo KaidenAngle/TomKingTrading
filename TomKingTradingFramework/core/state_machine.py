@@ -7,6 +7,7 @@ from typing import Dict, Optional, Callable, Any, List, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 import json
+from config.constants import TradingConstants
 
 class StrategyState(Enum):
     """Universal strategy states for all trading strategies"""
@@ -53,7 +54,7 @@ class TransitionTrigger(Enum):
     # Management triggers
     PROFIT_TARGET_HIT = auto()
     STOP_LOSS_HIT = auto()
-    DEFENSIVE_EXIT_DTE = auto()  # Tom King's 21 DTE rule
+    DEFENSIVE_EXIT_DTE = auto()  # Tom King's TradingConstants.DEFENSIVE_EXIT_DTE DTE rule
     ADJUSTMENT_NEEDED = auto()
     
     # Risk triggers
@@ -320,14 +321,30 @@ class StrategyStateMachine:
         # Execute exit callback for current state
         if self.current_state in self.on_exit_callbacks:
             try:
-                self.on_exit_callbacks[self.current_state](context)
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+self.on_exit_callbacks[self.current_state](context)
             except Exception as e:
                 self.algorithm.Error(f"[StateMachine] Exit callback error: {e}")
         
         # Execute transition action if defined
         if valid_transition.action:
             try:
-                valid_transition.action(context)
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+valid_transition.action(context)
             except Exception as e:
                 self.algorithm.Error(f"[StateMachine] Transition action error: {e}")
                 self.error_count += 1
@@ -342,7 +359,15 @@ class StrategyStateMachine:
         # Execute enter callback for new state
         if self.current_state in self.on_enter_callbacks:
             try:
-                self.on_enter_callbacks[self.current_state](context)
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+self.on_enter_callbacks[self.current_state](context)
             except Exception as e:
                 self.algorithm.Error(f"[StateMachine] Enter callback error: {e}")
         

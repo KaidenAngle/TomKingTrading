@@ -87,9 +87,19 @@ class AtomicOrderGroup:
         self.algo.Debug(f"[Atomic-{self.group_id}] Executing {len(self.target_legs)} legs")
         
         try:
-            # Place all orders
-            for symbol, quantity in self.target_legs:
-                order = self._place_smart_order(symbol, quantity)
+        for symbol, quantity in self.target_legs:
+        order = self._place_smart_order(symbol, quantity)
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Place all orders
                 
                 if order:
                     self.orders.append(order)
@@ -114,12 +124,22 @@ class AtomicOrderGroup:
         """Place order with smart routing using unified pricing"""
         
         try:
-            # Use unified pricing if available
-            if hasattr(self.algo, 'unified_pricing'):
-                is_buy = quantity > 0
-                limit_price, use_limit = self.algo.unified_pricing.calculate_limit_price(
-                    symbol, is_buy
-                )
+        if hasattr(self.algo, 'unified_pricing'):
+        is_buy = quantity > 0
+        limit_price, use_limit = self.algo.unified_pricing.calculate_limit_price(
+        symbol, is_buy
+        )
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Use unified pricing if available
                 
                 if use_limit and limit_price > 0:
                     # Place limit order with unified pricing
@@ -222,7 +242,15 @@ class AtomicOrderGroup:
         for symbol, quantity, order in self.pending_legs:
             if order.Status in [OrderStatus.Submitted, OrderStatus.PartiallyFilled]:
                 try:
-                    self.algo.Transactions.CancelOrder(order.OrderId)
+                    
+                except Exception as e:
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+self.algo.Transactions.CancelOrder(order.OrderId)
                     self.algo.Debug(f"[Atomic-{self.group_id}] Cancelled pending order for {symbol}")
                 except Exception as e:
                     self.algo.Debug(f"[Atomic-{self.group_id}] Rollback cancel failed for {order}: {e}")
@@ -230,9 +258,16 @@ class AtomicOrderGroup:
         # Reverse any filled orders
         for symbol, quantity, order in self.filled_legs:
             try:
-                # Place opposite order to flatten position
-                reverse_quantity = -quantity
-                reverse_order = self.algo.MarketOrder(symbol, reverse_quantity)
+            reverse_quantity = -quantity
+            reverse_order = self.algo.MarketOrder(symbol, reverse_quantity)
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+# Place opposite order to flatten position
                 
                 if reverse_order:
                     self.rollback_orders.append(reverse_order)

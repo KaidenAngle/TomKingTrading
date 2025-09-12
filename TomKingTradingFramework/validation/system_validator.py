@@ -1,7 +1,21 @@
 # region imports
 from AlgorithmImports import *
 from datetime import datetime, timedelta
+from core.unified_vix_manager import UnifiedVIXManager
+from core.unified_position_sizer import UnifiedPositionSizer
 # endregion
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage position_sizer from unified system
+# Consider delegating to: self.algo.position_sizer.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class SystemValidator:
     """
@@ -67,7 +81,15 @@ class SystemValidator:
         # Test Friday 0DTE
         if hasattr(self.algo, 'friday_0dte'):
             try:
-                can_enter, reason = self.algo.friday_0dte.can_enter_position(
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+can_enter, reason = self.algo.friday_0dte.can_enter_position(
                     2, [], 100000, None
                 )
                 self.info.append(f"[WARNING] Friday 0DTE validation: {reason}")
@@ -77,7 +99,15 @@ class SystemValidator:
         # Test LT112
         if hasattr(self.algo, 'lt112_strategy'):
             try:
-                can_enter, reason = self.algo.lt112_strategy.can_enter_position(
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+can_enter, reason = self.algo.lt112_strategy.can_enter_position(
                     2, [], 100000
                 )
                 self.info.append(f"[WARNING] LT112 validation: {reason}")
@@ -90,19 +120,34 @@ class SystemValidator:
         # Test correlation limits
         if hasattr(self.algo, 'correlation_manager'):
             try:
-                # Test with sample positions
-                test_positions = ['SPY', 'QQQ']
-                allowed, msg = self.algo.correlation_manager.enforce_correlation_limits(
-                    'IWM', 2
-                )
-                self.info.append(f"[WARNING] Correlation limits working")
+            test_positions = ['SPY', 'QQQ']
+            allowed, msg = self.algo.correlation_manager.enforce_correlation_limits(
+            'IWM', 2
+            )
+            self.info.append(f"[WARNING] Correlation limits working")
             except Exception as e:
-                self.critical_issues.append(f"[WARNING] Correlation manager error: {e}")
+            self.critical_issues.append(f"[WARNING] Correlation manager error: {e}")
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+# Test with sample positions
         
         # Test VIX regime
         if hasattr(self.algo, 'vix_manager'):
             try:
-                regime = self.algo.vix_manager.get_current_regime()
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+regime = self.algo.vix_manager.get_current_regime()
                 if regime:
                     self.info.append(f"[WARNING] VIX regime detected: {regime.get('name', 'Unknown')}")
                 else:
@@ -135,12 +180,19 @@ class SystemValidator:
         
         if hasattr(self.algo, 'position_size_calculator'):
             try:
-                # Test position sizing for different scenarios
-                test_cases = [
-                    ('friday_0dte', 50000, 2, 20),
-                    ('lt112', 100000, 3, 25),
-                    ('ipmcc', 150000, 4, 30)
-                ]
+            test_cases = [
+            ('friday_0dte', 50000, 2, 20),
+            ('lt112', 100000, 3, 25),
+            ('ipmcc', 150000, 4, 30)
+            ]
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+# Test position sizing for different scenarios
                 
                 for strategy, account, phase, vix in test_cases:
                     result = self.algo.position_size_calculator.calculate_position_size(
@@ -161,7 +213,19 @@ class SystemValidator:
         """Validate correlation configuration"""
         
         try:
-            from config.correlation_config import CorrelationConfig
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+from config.correlation_config import CorrelationConfig
             
             # Test dynamic limits for different account sizes
             test_accounts = [25000, 50000, 100000, 200000]
@@ -185,10 +249,18 @@ class SystemValidator:
                 
             # Check VIX regime adjustments
             try:
-                for vix in [10, 18, 25, 35]:
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+for vix in [10, 18, 25, 35]:
                     regime = self.algo.vix_manager.get_regime_for_vix(vix)
                     self.info.append(f"[WARNING] VIX {vix}: {regime['name']}")
-            except:
+            except (AttributeError, KeyError, ValueError, TypeError) as e:
                 self.warnings.append("[WARNING] VIX regime lookup issues")
     
     def _validate_option_chains(self):
@@ -196,12 +268,19 @@ class SystemValidator:
         
         if hasattr(self.algo, 'option_chain_manager'):
             try:
-                # Check option subscriptions
-                subs = self.algo.option_chain_manager.option_subscriptions
-                if subs:
-                    self.info.append(f"[WARNING] Option subscriptions: {list(subs.keys())}")
-                else:
-                    self.warnings.append("[WARNING] No option subscriptions active")
+            subs = self.algo.option_chain_manager.option_subscriptions
+            if subs:
+            self.info.append(f"[WARNING] Option subscriptions: {list(subs.keys())}")
+            else:
+            self.warnings.append("[WARNING] No option subscriptions active")
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+# Check option subscriptions
                     
                 # Validate option data
                 validation = self.algo.option_chain_manager.validate_option_data()

@@ -89,20 +89,32 @@ class MarketHolidays:
     def get_next_trading_day(self, from_date: datetime) -> datetime:
         """Get next trading day from given date"""
         next_day = from_date
+        max_attempts = TradingConstants.CALENDAR_DAYS_PER_YEAR  # Safety guard: don't search more than a year
+        attempts = 0
         
-        while True:
+        while attempts < max_attempts:
             next_day = next_day + timedelta(days=1)
+            attempts += 1
             if self.is_trading_day(next_day):
                 return next_day
+        
+        # Fallback if no trading day found within a year
+        raise ValueError(f"No trading day found within {max_attempts} days from {from_date}")
                 
     def get_previous_trading_day(self, from_date: datetime) -> datetime:
         """Get previous trading day from given date"""
         prev_day = from_date
+        max_attempts = TradingConstants.CALENDAR_DAYS_PER_YEAR  # Safety guard: don't search more than a year
+        attempts = 0
         
-        while True:
+        while attempts < max_attempts:
             prev_day = prev_day - timedelta(days=1)
+            attempts += 1
             if self.is_trading_day(prev_day):
                 return prev_day
+        
+        # Fallback if no trading day found within a year
+        raise ValueError(f"No trading day found within {max_attempts} days before {from_date}")
                 
     def days_until_next_holiday(self, from_date: datetime) -> int:
         """Days until next market holiday"""

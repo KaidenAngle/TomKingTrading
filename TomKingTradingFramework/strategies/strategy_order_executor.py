@@ -19,7 +19,15 @@ class StrategyOrderExecutor:
         Execute LT112 (1-1-2 put ratio) order
         """
         try:
-            underlying = order_structure['underlying']
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+underlying = order_structure['underlying']
             strikes = order_structure['structure']
             position_size = order_structure['position_size']
             expiry_date = order_structure['expiry_date']
@@ -84,10 +92,17 @@ class StrategyOrderExecutor:
         Execute futures strangle order
         """
         try:
-            # Create option contracts
-            call_contract = self.create_futures_option_contract(
-                futures_symbol, call_strike, expiry, OptionRight.Call
-            )
+        call_contract = self.create_futures_option_contract(
+        futures_symbol, call_strike, expiry, OptionRight.Call
+        )
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Create option contracts
             
             put_contract = self.create_futures_option_contract(
                 futures_symbol, put_strike, expiry, OptionRight.Put
@@ -118,11 +133,18 @@ class StrategyOrderExecutor:
         Execute IPMCC (Income Poor Man's Covered Call) order
         """
         try:
-            # Long dated long call (LEAP-like)
-            long_expiry = self.algo.Time + timedelta(days=365)  # 1 year out
-            long_call = self.create_option_contract(
-                underlying, long_strike, long_expiry, OptionRight.Call
-            )
+        long_expiry = self.algo.Time + timedelta(days=TradingConstants.CALENDAR_DAYS_PER_YEAR)  # 1 year out
+        long_call = self.create_option_contract(
+        underlying, long_strike, long_expiry, OptionRight.Call
+        )
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Long dated long call (LEAP-like)
             
             # Short dated short call (30-45 DTE)
             short_call = self.create_option_contract(
@@ -154,7 +176,15 @@ class StrategyOrderExecutor:
         Execute LEAP put ladder order
         """
         try:
-            orders = []
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+orders = []
             
             for strike in strikes:
                 # Create LEAP put contract
@@ -188,10 +218,17 @@ class StrategyOrderExecutor:
         Create and add option contract to algorithm
         """
         try:
-            # Get the option contract from chain provider
-            option = self.algo.OptionChainProvider.GetOptionContractList(
-                underlying_symbol, self.algo.Time
-            )
+        option = self.algo.OptionChainProvider.GetOptionContractList(
+        underlying_symbol, self.algo.Time
+        )
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Get the option contract from chain provider
             
             # Filter to find exact contract
             contracts = [x for x in option 
@@ -226,15 +263,22 @@ class StrategyOrderExecutor:
         Create futures option contract
         """
         try:
-            # For futures options, use FOP (Futures Options)
-            option_symbol = Symbol.CreateOption(
-                futures_symbol,
-                Market.USA,
-                OptionStyle.American,
-                right,
-                strike,
-                expiry
-            )
+        option_symbol = Symbol.CreateOption(
+        futures_symbol,
+        Market.USA,
+        OptionStyle.American,
+        right,
+        strike,
+        expiry
+        )
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# For futures options, use FOP (Futures Options)
             
             return self.algo.AddFutureOption(option_symbol)
             

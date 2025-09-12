@@ -2,7 +2,14 @@
 from AlgorithmImports import *
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
+from core.unified_vix_manager import UnifiedVIXManager
 # endregion
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class ManualModeFallback:
     """
@@ -181,7 +188,19 @@ class ManualModeFallback:
         """Execute trade normally when not in manual mode"""
         
         try:
-            if direction.upper() == "BUY":
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+if direction.upper() == "BUY":
                 if entry_price:
                     return self.algorithm.LimitOrder(symbol, quantity, entry_price)
                 else:

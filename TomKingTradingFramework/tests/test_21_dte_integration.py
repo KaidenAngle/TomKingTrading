@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-21 DTE INTEGRATION TESTS
-Tests integration of the critical 21 DTE fix with other defensive systems
+TradingConstants.DEFENSIVE_EXIT_DTE DTE INTEGRATION TESTS
+Tests integration of the critical TradingConstants.DEFENSIVE_EXIT_DTE DTE fix with other defensive systems
 
-This test suite validates that the CRITICAL 21 DTE fix integrates properly
+This test suite validates that the CRITICAL TradingConstants.DEFENSIVE_EXIT_DTE DTE fix integrates properly
 with other risk management systems without conflicts or unintended interactions.
 
-CRITICAL REQUIREMENT: 21 DTE exit must work alongside other risk systems
+CRITICAL REQUIREMENT: TradingConstants.DEFENSIVE_EXIT_DTE DTE exit must work alongside other risk systems
 without being overridden or causing conflicts.
 """
 
@@ -25,6 +25,7 @@ from strategies.lt112_component_manager import FixedLT112Management
 from risk.correlation_manager import CorrelationManager
 from risk.circuit_breaker import CircuitBreaker
 from strategies.tom_king_exit_rules import TomKingExitRules
+from config.constants import TradingConstants
 
 class MockAlgorithm:
     """Mock algorithm with defensive systems"""
@@ -109,7 +110,7 @@ class MockPosition:
         return self.components.pop(component_id, None)
 
 class Test21DTEWithCircuitBreakers(unittest.TestCase):
-    """Test 21 DTE integration with circuit breaker system"""
+    """Test TradingConstants.DEFENSIVE_EXIT_DTE DTE integration with circuit breaker system"""
     
     def setUp(self):
         self.algo = MockAlgorithm()
@@ -124,26 +125,26 @@ class Test21DTEWithCircuitBreakers(unittest.TestCase):
         self.lt112_manager = FixedLT112Management(self.algo, self.psm)
     
     def test_21_dte_triggers_despite_no_circuit_breach(self):
-        """21 DTE should trigger even when circuit breakers are not activated"""
+        """TradingConstants.DEFENSIVE_EXIT_DTE DTE should trigger even when circuit breakers are not activated"""
         
-        # Create position at 21 DTE with normal market conditions
+        # Create position at TradingConstants.DEFENSIVE_EXIT_DTE DTE with normal market conditions
         position = MockPosition(dte=21, pnl=500)  # Small profit
         self.psm.positions = {position.position_id: position}
         
-        # Verify no circuit breaker conditions exist (adjust based on actual API)
+        # Verify no circuit breaker conditions exist (adjust based on actual, API)
         # Note: Circuit breaker API may differ - this validates normal conditions
         
         # Run analysis
         actions = self.lt112_manager.analyze_lt112_positions([position])
         
-        # Should still trigger 21 DTE exit
-        defensive_actions = [a for a in actions if '21 DTE defensive exit' in a.get('reason', '')]
-        self.assertEqual(len(defensive_actions), 1, "21 DTE should trigger regardless of circuit breaker status")
+        # Should still trigger TradingConstants.DEFENSIVE_EXIT_DTE DTE exit
+        defensive_actions = [a for a in actions if 'TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit' in a.get('reason', '')]
+        self.assertEqual(len(defensive_actions), 1, "TradingConstants.DEFENSIVE_EXIT_DTE DTE should trigger regardless of circuit breaker status")
         
     def test_21_dte_combines_with_circuit_breaker_warnings(self):
-        """21 DTE should work alongside circuit breaker warnings"""
+        """TradingConstants.DEFENSIVE_EXIT_DTE DTE should work alongside circuit breaker warnings"""
         
-        # Create position at 21 DTE
+        # Create position at TradingConstants.DEFENSIVE_EXIT_DTE DTE
         position = MockPosition(dte=21, pnl=-1000)  # Loss
         self.psm.positions = {position.position_id: position}
         
@@ -155,16 +156,16 @@ class Test21DTEWithCircuitBreakers(unittest.TestCase):
         # Run analysis
         actions = self.lt112_manager.analyze_lt112_positions([position])
         
-        # Should have 21 DTE exit action
-        defensive_actions = [a for a in actions if '21 DTE defensive exit' in a.get('reason', '')]
-        self.assertEqual(len(defensive_actions), 1, "21 DTE exit should work with circuit breaker warnings")
+        # Should have TradingConstants.DEFENSIVE_EXIT_DTE DTE exit action
+        defensive_actions = [a for a in actions if 'TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit' in a.get('reason', '')]
+        self.assertEqual(len(defensive_actions), 1, "TradingConstants.DEFENSIVE_EXIT_DTE DTE exit should work with circuit breaker warnings")
         
-        # Verify 21 DTE action is urgent priority 
+        # Verify TradingConstants.DEFENSIVE_EXIT_DTE DTE action is urgent priority 
         defensive_action = defensive_actions[0]
         self.assertEqual(defensive_action['priority'], 'URGENT')
 
 class Test21DTEWithCorrelationLimits(unittest.TestCase):
-    """Test 21 DTE integration with correlation management"""
+    """Test TradingConstants.DEFENSIVE_EXIT_DTE DTE integration with correlation management"""
     
     def setUp(self):
         self.algo = MockAlgorithm()
@@ -179,9 +180,9 @@ class Test21DTEWithCorrelationLimits(unittest.TestCase):
         self.lt112_manager = FixedLT112Management(self.algo, self.psm)
     
     def test_21_dte_absolute_rule_in_correlation_manager(self):
-        """Verify correlation manager implements absolute 21 DTE rule"""
+        """Verify correlation manager implements absolute TradingConstants.DEFENSIVE_EXIT_DTE DTE rule"""
         
-        # Test various correlation scenarios with 21 DTE
+        # Test various correlation scenarios with TradingConstants.DEFENSIVE_EXIT_DTE DTE
         test_scenarios = [
             {'symbol': 'SPY', 'correlation_group': 'EQUITY_INDICES', 'high_correlation': True},
             {'symbol': 'QQQ', 'correlation_group': 'EQUITY_INDICES', 'high_correlation': True}, 
@@ -200,33 +201,33 @@ class Test21DTEWithCorrelationLimits(unittest.TestCase):
                 # Should defend regardless of correlation status
                 should_defend = self.correlation_manager.ShouldDefend(position_info)
                 self.assertTrue(should_defend, 
-                               f"Should defend {scenario['symbol']} at 21 DTE regardless of correlation")
+                               f"Should defend {scenario['symbol']} at TradingConstants.DEFENSIVE_EXIT_DTE DTE regardless of correlation")
     
     def test_21_dte_with_correlation_breach(self):
-        """Test 21 DTE exit when correlation breach also exists"""
+        """Test TradingConstants.DEFENSIVE_EXIT_DTE DTE exit when correlation breach also exists"""
         
-        # Create position at 21 DTE
+        # Create position at TradingConstants.DEFENSIVE_EXIT_DTE DTE
         position = MockPosition(dte=21, pnl=1500, symbol='SPY')
         self.psm.positions = {position.position_id: position}
         
-        # Simulate high VIX (correlation breach condition)
+        # Simulate high VIX (correlation breach, condition)
         self.algo.Securities['VIX'].Price = 32.0  # High VIX
         
         # Run LT112 analysis
         actions = self.lt112_manager.analyze_lt112_positions([position])
         
-        # Should have 21 DTE defensive exit
-        defensive_actions = [a for a in actions if '21 DTE defensive exit' in a.get('reason', '')]
-        self.assertEqual(len(defensive_actions), 1, "Should have 21 DTE exit despite correlation breach")
+        # Should have TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit
+        defensive_actions = [a for a in actions if 'TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit' in a.get('reason', '')]
+        self.assertEqual(len(defensive_actions), 1, "Should have TradingConstants.DEFENSIVE_EXIT_DTE DTE exit despite correlation breach")
         
         # Verify correlation manager also triggers defensive action
         should_defend = self.correlation_manager.ShouldDefend({
             'symbol': 'SPY', 'dte': 21, 'pnl': 1500, 'strategy': 'LT112'
         })
-        self.assertTrue(should_defend, "Correlation manager should also trigger at 21 DTE")
+        self.assertTrue(should_defend, "Correlation manager should also trigger at TradingConstants.DEFENSIVE_EXIT_DTE DTE")
 
 class Test21DTEWithMarginManagement(unittest.TestCase):
-    """Test 21 DTE integration with margin pressure management"""
+    """Test TradingConstants.DEFENSIVE_EXIT_DTE DTE integration with margin pressure management"""
     
     def setUp(self):
         self.algo = MockAlgorithm()
@@ -247,29 +248,29 @@ class Test21DTEWithMarginManagement(unittest.TestCase):
         self.exit_rules = TomKingExitRules(self.algo)
     
     def test_21_dte_triggers_despite_low_margin_usage(self):
-        """21 DTE should trigger even with low margin usage"""
+        """TradingConstants.DEFENSIVE_EXIT_DTE DTE should trigger even with low margin usage"""
         
         # Set low margin usage
         self.algo.Portfolio.TotalMarginUsed = 20000.0  # 20% usage
         
-        # Create position at 21 DTE
+        # Create position at TradingConstants.DEFENSIVE_EXIT_DTE DTE
         position = MockPosition(dte=21, pnl=800)
         self.psm.positions = {position.position_id: position}
         
         # Run analysis
         actions = self.lt112_manager.analyze_lt112_positions([position])
         
-        # Should trigger 21 DTE exit despite low margin
-        defensive_actions = [a for a in actions if '21 DTE defensive exit' in a.get('reason', '')]
-        self.assertEqual(len(defensive_actions), 1, "21 DTE should trigger regardless of margin usage")
+        # Should trigger TradingConstants.DEFENSIVE_EXIT_DTE DTE exit despite low margin
+        defensive_actions = [a for a in actions if 'TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit' in a.get('reason', '')]
+        self.assertEqual(len(defensive_actions), 1, "TradingConstants.DEFENSIVE_EXIT_DTE DTE should trigger regardless of margin usage")
     
     def test_21_dte_prioritized_over_margin_pressure(self):
-        """21 DTE should be prioritized even during margin pressure"""
+        """TradingConstants.DEFENSIVE_EXIT_DTE DTE should be prioritized even during margin pressure"""
         
-        # Set high margin usage (85% - triggers margin pressure in exit rules)
+        # Set high margin usage (85% - triggers margin pressure in exit, rules)
         self.algo.Portfolio.TotalMarginUsed = 85000.0  # 85% usage
         
-        # Create profitable position at 21 DTE
+        # Create profitable position at TradingConstants.DEFENSIVE_EXIT_DTE DTE
         position_dict = {
             'strategy': 'LT112',
             'dte': 21,
@@ -280,16 +281,16 @@ class Test21DTEWithMarginManagement(unittest.TestCase):
         
         # Test exit rules
         should_exit, reason, action = self.exit_rules.check_dte_rule(position_dict)
-        self.assertTrue(should_exit, "21 DTE should override margin considerations")
-        self.assertIn('21 DTE rule', reason)
+        self.assertTrue(should_exit, "TradingConstants.DEFENSIVE_EXIT_DTE DTE should override margin considerations")
+        self.assertIn('TradingConstants.DEFENSIVE_EXIT_DTE DTE rule', reason)
         
-        # Test defensive exit from margin pressure (separate check)
+        # Test defensive exit from margin pressure (separate, check)
         defensive_exit = self.exit_rules.check_defensive_exit(position_dict)
         # Should not trigger defensive margin exit on profitable position
         self.assertFalse(defensive_exit[0], "Margin pressure should not trigger on profitable positions")
 
 class Test21DTESystemCoordination(unittest.TestCase):
-    """Test 21 DTE coordination across all defensive systems"""
+    """Test TradingConstants.DEFENSIVE_EXIT_DTE DTE coordination across all defensive systems"""
     
     def setUp(self):
         self.algo = MockAlgorithm()
@@ -308,7 +309,7 @@ class Test21DTESystemCoordination(unittest.TestCase):
         self.lt112_manager = FixedLT112Management(self.algo, self.psm)
     
     def test_21_dte_consistent_across_all_systems(self):
-        """All systems should consistently apply 21 DTE rule"""
+        """All systems should consistently apply TradingConstants.DEFENSIVE_EXIT_DTE DTE rule"""
         
         position_info = {
             'symbol': 'SPY',
@@ -322,22 +323,22 @@ class Test21DTESystemCoordination(unittest.TestCase):
         
         # Test correlation manager
         correlation_defense = self.correlation_manager.ShouldDefend(position_info)
-        self.assertTrue(correlation_defense, "Correlation manager should defend at 21 DTE")
+        self.assertTrue(correlation_defense, "Correlation manager should defend at TradingConstants.DEFENSIVE_EXIT_DTE DTE")
         
         # Test exit rules
         exit_check = self.exit_rules.check_dte_rule(position_info)
-        self.assertTrue(exit_check[0], "Exit rules should trigger at 21 DTE")
+        self.assertTrue(exit_check[0], "Exit rules should trigger at TradingConstants.DEFENSIVE_EXIT_DTE DTE")
         
         # Test LT112 manager
         position = MockPosition(dte=21, pnl=0)
         self.psm.positions = {position.position_id: position}
         actions = self.lt112_manager.analyze_lt112_positions([position])
         
-        defensive_actions = [a for a in actions if '21 DTE defensive exit' in a.get('reason', '')]
-        self.assertEqual(len(defensive_actions), 1, "LT112 manager should generate 21 DTE action")
+        defensive_actions = [a for a in actions if 'TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit' in a.get('reason', '')]
+        self.assertEqual(len(defensive_actions), 1, "LT112 manager should generate TradingConstants.DEFENSIVE_EXIT_DTE DTE action")
     
     def test_21_dte_with_extreme_market_conditions(self):
-        """21 DTE should work even in extreme market conditions"""
+        """TradingConstants.DEFENSIVE_EXIT_DTE DTE should work even in extreme market conditions"""
         
         # Extreme conditions: High VIX, margin pressure, correlation spike
         self.algo.Securities['VIX'].Price = 45.0  # Extreme VIX
@@ -347,11 +348,11 @@ class Test21DTESystemCoordination(unittest.TestCase):
         position = MockPosition(dte=21, pnl=-2000)  # Losing position
         self.psm.positions = {position.position_id: position}
         
-        # Should still trigger 21 DTE exit
+        # Should still trigger TradingConstants.DEFENSIVE_EXIT_DTE DTE exit
         actions = self.lt112_manager.analyze_lt112_positions([position])
-        defensive_actions = [a for a in actions if '21 DTE defensive exit' in a.get('reason', '')]
+        defensive_actions = [a for a in actions if 'TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit' in a.get('reason', '')]
         
-        self.assertEqual(len(defensive_actions), 1, "21 DTE should work in extreme conditions")
+        self.assertEqual(len(defensive_actions), 1, "TradingConstants.DEFENSIVE_EXIT_DTE DTE should work in extreme conditions")
         
         # Verify priority is URGENT
         defensive_action = defensive_actions[0]
@@ -359,7 +360,7 @@ class Test21DTESystemCoordination(unittest.TestCase):
         self.assertEqual(defensive_action['action'], 'CLOSE_ENTIRE_POSITION')
     
     def test_no_conflicts_between_defensive_systems(self):
-        """Ensure no conflicts between 21 DTE and other defensive triggers"""
+        """Ensure no conflicts between TradingConstants.DEFENSIVE_EXIT_DTE DTE and other defensive triggers"""
         
         # Create scenario where multiple systems might trigger
         position_info = {
@@ -383,7 +384,7 @@ class Test21DTESystemCoordination(unittest.TestCase):
         self.assertEqual(exit_dte_check[2], 'close')
 
 def run_integration_tests():
-    """Run all 21 DTE integration tests"""
+    """Run all TradingConstants.DEFENSIVE_EXIT_DTE DTE integration tests"""
     
     test_classes = [
         Test21DTEWithCircuitBreakers,
@@ -405,7 +406,7 @@ def run_integration_tests():
 
 if __name__ == '__main__':
     print("=" * 80)
-    print("21 DTE INTEGRATION TESTS")
+    print("TradingConstants.DEFENSIVE_EXIT_DTE DTE INTEGRATION TESTS")
     print("Testing integration with other defensive systems")
     print("=" * 80)
     print()
@@ -422,20 +423,20 @@ if __name__ == '__main__':
     
     if success:
         print("\n" + "=" * 80)
-        print("SUCCESS: ALL 21 DTE INTEGRATION TESTS PASSED")
+        print("SUCCESS: ALL TradingConstants.DEFENSIVE_EXIT_DTE DTE INTEGRATION TESTS PASSED")
         print("=" * 80)
         print("\nValidated Integration Points:")
-        print("  * Circuit breakers work alongside 21 DTE exits")
-        print("  * Correlation management implements absolute 21 DTE rule")
-        print("  * Margin pressure does not override 21 DTE requirement")
-        print("  * All defensive systems consistently apply 21 DTE")
+        print("  * Circuit breakers work alongside TradingConstants.DEFENSIVE_EXIT_DTE DTE exits")
+        print("  * Correlation management implements absolute TradingConstants.DEFENSIVE_EXIT_DTE DTE rule")
+        print("  * Margin pressure does not override TradingConstants.DEFENSIVE_EXIT_DTE DTE requirement")
+        print("  * All defensive systems consistently apply TradingConstants.DEFENSIVE_EXIT_DTE DTE")
         print("  * No conflicts between defensive triggers")
         print("  * Extreme market conditions handled properly")
         print("\n21 DTE INTEGRATION VALIDATED - PRODUCTION READY")
         print("=" * 80)
     else:
         print("\n" + "=" * 80)
-        print("FAILURE: 21 DTE INTEGRATION TESTS FAILED")
+        print("FAILURE: TradingConstants.DEFENSIVE_EXIT_DTE DTE INTEGRATION TESTS FAILED")
         print("INTEGRATION ISSUES MUST BE RESOLVED")
         print("=" * 80)
         exit(1)

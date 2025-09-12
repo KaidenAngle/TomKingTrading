@@ -42,11 +42,21 @@ class UnifiedOrderPricing:
         """
         
         try:
-            # Get bid/ask if not provided
-            if bid_price is None or ask_price is None:
-                if symbol not in self.algo.Securities:
-                    self.algo.Error(f"[UnifiedPricing] Symbol {symbol} not in securities")
-                    return (0, False)
+        if bid_price is None or ask_price is None:
+        if symbol not in self.algo.Securities:
+        self.algo.Error(f"[UnifiedPricing] Symbol {symbol} not in securities")
+        return (0, False)
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Get bid/ask if not provided
                 
                 security = self.algo.Securities[symbol]
                 bid_price = security.BidPrice if hasattr(security, 'BidPrice') else security.Price
@@ -101,7 +111,19 @@ class UnifiedOrderPricing:
         """
         
         try:
-            if symbol not in self.algo.Securities:
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+if symbol not in self.algo.Securities:
                 return False
             
             security = self.algo.Securities[symbol]

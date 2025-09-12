@@ -82,9 +82,16 @@ class OptionChainCache:
                            max_strike: float, min_expiry: int, max_expiry: int) -> List:
         """Fetch option chain from QuantConnect API"""
         try:
-            # Get the underlying symbol
-            if underlying not in self.algo.Securities:
-                return []
+        if underlying not in self.algo.Securities:
+        return []
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Get the underlying symbol
             
             underlying_price = self.algo.Securities[underlying].Price
             

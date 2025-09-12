@@ -13,15 +13,17 @@ class TastytradeCredentials:
     - TASTYTRADE_PASSWORD
     - TASTYTRADE_CLIENT_ID
     - TASTYTRADE_CLIENT_SECRET
-    - TASTYTRADE_REMEMBER_TOKEN (optional, for faster auth)
+    - TASTYTRADE_ACCOUNT_CASH (cash account, number)
+    - TASTYTRADE_ACCOUNT_MARGIN (margin account, number)
+    - TASTYTRADE_REMEMBER_TOKEN (optional, for faster, auth)
     """
     
-    # Authentication Tokens (from environment or config)
+    # Authentication Tokens (from environment or, config)
     REMEMBER_TOKEN = os.getenv('TASTYTRADE_REMEMBER_TOKEN', '')
     
-    # Account Configuration
-    ACCOUNT_NUMBER_CASH = "5WX12569"  # Cash account
-    ACCOUNT_NUMBER_MARGIN = "5WW81442"  # Margin account
+    # Account Configuration (secured via environment, variables)
+    ACCOUNT_NUMBER_CASH = os.getenv('TASTYTRADE_ACCOUNT_CASH', '')  # Cash account
+    ACCOUNT_NUMBER_MARGIN = os.getenv('TASTYTRADE_ACCOUNT_MARGIN', '')  # Margin account
     
     # API Configuration
     API_BASE_URL = "https://api.tastyworks.com"
@@ -47,6 +49,10 @@ class TastytradeCredentials:
             missing.append('TASTYTRADE_CLIENT_ID')
         if not TastytradeCredentials.CLIENT_SECRET:
             missing.append('TASTYTRADE_CLIENT_SECRET')
+        if not TastytradeCredentials.ACCOUNT_NUMBER_CASH:
+            missing.append('TASTYTRADE_ACCOUNT_CASH')
+        if not TastytradeCredentials.ACCOUNT_NUMBER_MARGIN:
+            missing.append('TASTYTRADE_ACCOUNT_MARGIN')
         
         if missing:
             raise ValueError(f"Missing required environment variables: {', '.join(missing)}")

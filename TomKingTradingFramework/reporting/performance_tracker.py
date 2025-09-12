@@ -3,6 +3,13 @@
 from AlgorithmImports import *
 from datetime import datetime, timedelta
 import json
+from core.unified_vix_manager import UnifiedVIXManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class PerformanceTracker:
     def __init__(self, algorithm):

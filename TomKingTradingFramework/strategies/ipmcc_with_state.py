@@ -6,6 +6,13 @@ from strategies.base_strategy_with_state import BaseStrategyWithState
 from core.state_machine import StrategyState, TransitionTrigger
 from datetime import time, timedelta
 from typing import Dict, List, Optional
+from core.unified_vix_manager import UnifiedVIXManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class IPMCCWithState(BaseStrategyWithState):
     """
@@ -79,7 +86,19 @@ class IPMCCWithState(BaseStrategyWithState):
         """Place IPMCC covered call orders"""
         
         try:
-            positions_opened = False
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+positions_opened = False
             
             for symbol_str in self.ipmcc_symbols:
                 # Use cached symbol if available
@@ -186,8 +205,15 @@ class IPMCCWithState(BaseStrategyWithState):
         success = True
         for position in positions_to_roll:
             try:
-                # Buy back current call
-                self.algo.MarketOrder(position['call'], position['contracts'])
+            self.algo.MarketOrder(position['call'], position['contracts'])
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+# Buy back current call
                 
                 # Find new call to sell
                 symbol = position['underlying']
@@ -375,8 +401,18 @@ class IPMCCWithState(BaseStrategyWithState):
         """Close an IPMCC position"""
         
         try:
-            # Buy back the call
-            self.algo.MarketOrder(position['call'], position['contracts'])
+        self.algo.MarketOrder(position['call'], position['contracts'])
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Buy back the call
             
             # Update position status
             position['status'] = 'closed'
@@ -396,6 +432,351 @@ class IPMCCWithState(BaseStrategyWithState):
             
         except Exception as e:
             self.algo.Error(f"[IPMCC] Close position error: {e}")
+    
+    def _place_exit_orders(self) -> bool:
+        """Place IPMCC covered call exit orders following Tom King methodology"""
+        
+        try:
+        positions_to_exit = [
+        pos for pos in self.covered_positions
+        if pos['status'] == 'open' and self._should_exit_position(pos)
+        ]
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Find covered call positions that need closing
+            
+            if not positions_to_exit:
+                return True
+            
+            exit_success = True
+            
+            for position in positions_to_exit:
+                try:
+                call_contract = position['call']
+                contracts = position['contracts']
+                entry_premium = position['entry_premium']
+                underlying = position['underlying']
+                except Exception as e:
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+# Get position details
+                    
+                    # Calculate current metrics
+                    current_value = self._get_option_price(call_contract)
+                    pnl = (entry_premium - current_value) * 100 * contracts
+                    pnl_pct = (entry_premium - current_value) / entry_premium if entry_premium > 0 else 0
+                    
+                    # Place exit order (buy back the short call)
+                    order = self.algo.MarketOrder(call_contract, contracts)
+                    
+                    if not order:
+                        self.algo.Error(f"[IPMCC] Failed to place exit order for {underlying}")
+                        exit_success = False
+                        continue
+                    
+                    # Update position status
+                    position['status'] = 'closed'
+                    position['exit_time'] = self.algo.Time
+                    position['exit_premium'] = current_value
+                    position['exit_reason'] = self._get_exit_reason(position)
+                    position['final_pnl'] = pnl
+                    
+                    # Update strategy statistics
+                    if pnl > 0:
+                        self.wins += 1
+                    else:
+                        self.losses += 1
+                    
+                    # Log exit details
+                    self.algo.Log(
+                        f"[IPMCC] Closed {underlying} covered call: "
+                        f"P&L: ${pnl:.2f} ({pnl_pct:.1%}), "
+                        f"Reason: {position['exit_reason']}, "
+                        f"Strike: {call_contract.Strike}, "
+                        f"Contracts: {contracts}"
+                    )
+                    
+                    # Fire exit event for position state manager
+                    if hasattr(self.algo, 'event_bus'):
+                        self.algo.event_bus.fire_event(
+                            'position_exited',
+                            {
+                                'strategy': self.strategy_name,
+                                'position_id': f"ipmcc_{str(underlying)}_{position['entry_time'].strftime('%Y%m%d_%H%M%S')}",
+                                'exit_time': position['exit_time'],
+                                'pnl': pnl,
+                                'reason': position['exit_reason'],
+                                'underlying': str(underlying),
+                                'strike': call_contract.Strike
+                            }
+                        )
+                    
+                    # Release SPY allocation if this was a SPY covered call
+                    if hasattr(self.algo, 'spy_concentration_manager') and str(underlying) == 'SPY':
+                        released_delta = 0.30 * contracts * 100  # Approximate covered call delta
+                        self.algo.spy_concentration_manager.release_spy_allocation(
+                            strategy_name="IPMCC",
+                            position_type="covered_call",
+                            released_delta=released_delta
+                        )
+                    
+                except Exception as position_error:
+                    self.algo.Error(f"[IPMCC] Error exiting {position.get('underlying', 'unknown')} position: {position_error}")
+                    exit_success = False
+                    continue
+            
+            # Update statistics
+            if exit_success:
+                self.algo.Debug(f"[IPMCC] Successfully closed {len(positions_to_exit)} covered call positions")
+            else:
+                self.algo.Error("[IPMCC] Some position closures failed")
+            
+            return exit_success
+            
+        except Exception as e:
+            self.algo.Error(f"[IPMCC] Critical error in _place_exit_orders: {e}")
+            return False
+    
+    def _should_exit_position(self, position) -> bool:
+        """Determine if IPMCC position should be exited based on Tom King rules"""
+        
+        try:
+        if self._check_position_profit(position, self.target_profit):
+        return True
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Check profit target (20% profit for covered calls)
+            
+            # Check if needs rolling (approaching expiration)
+            if self._check_needs_rolling(position):
+                # Try to find rolling opportunity first
+                symbol = position['underlying']
+                contracts = self._find_target_dte_options(symbol)
+                new_call = self._find_delta_strike(contracts, self.call_delta, "call")
+                
+                if not new_call:
+                    # Can't roll, must close
+                    return True
+            
+            # Check for assignment risk (call is deep ITM)
+            if self._check_assignment_risk(position):
+                return True
+            
+            # Check for emergency conditions
+            if self._check_emergency_exit_conditions(position):
+                return True
+            
+            return False
+            
+        except Exception as e:
+            self.algo.Debug(f"[IPMCC] Error checking exit condition: {e}")
+            return False
+    
+    def _check_assignment_risk(self, position) -> bool:
+        """Check if call is at risk of assignment"""
+        
+        try:
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+call = position['call']
+            underlying = position['underlying']
+            
+            # Get current price
+            if underlying in self.algo.Securities:
+                current_price = self.algo.Securities[underlying].Price
+            else:
+                return False
+            
+            # Check if call is deep ITM (assignment likely)
+            call_strike = call.Strike
+            
+            # Assignment risk if underlying is more than 5% above strike
+            if current_price > call_strike * 1.05:
+                return True
+            
+            # Also check days to expiration - higher risk as we approach expiry
+            days_to_expiry = (call.ID.Date - self.algo.Time).days
+            
+            # If within 7 days and ITM, close to avoid assignment
+            if days_to_expiry <= 7 and current_price > call_strike:
+                return True
+            
+            return False
+            
+        except Exception as e:
+            self.algo.Debug(f"[IPMCC] Error checking assignment risk: {e}")
+            return False
+    
+    def _check_emergency_exit_conditions(self, position) -> bool:
+        """Check for emergency exit conditions for covered calls"""
+        
+        try:
+        vix = 20.0  # Default
+        if hasattr(self.algo, 'vix_manager'):
+        vix_val = self.algo.vix_manager.get_current_vix()
+        if vix_val and vix_val > 0:
+        vix = vix_val
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Check for extreme market conditions requiring closure
+            # If VIX spikes above 40, close calls to preserve upside
+            
+            if vix > 40:
+                # In high volatility, close calls early to preserve upside
+                current_value = self._get_option_price(position['call'])
+                entry_premium = position['entry_premium']
+                
+                if entry_premium > 0:
+                    pnl_pct = (entry_premium - current_value) / entry_premium
+                    # Close if at least 10% profit during volatility spike
+                    if pnl_pct >= 0.10:
+                        return True
+            
+            # Check if underlying has run up significantly
+            underlying = position['underlying']
+            if underlying in self.algo.Securities:
+                current_price = self.algo.Securities[underlying].Price
+                
+                # If we have SMA data, check for strong uptrend
+                if hasattr(self.algo, 'Indicators'):
+                    try:
+                        
+                    except Exception as e:
+
+                        # Log and handle unexpected exception
+
+                        print(f'Unexpected exception: {e}')
+
+                        raise
+sma20 = self.algo.Indicators.SMA(underlying, 20)
+                        if sma20.IsReady:
+                            # If stock is more than 5% above 20-day MA, consider closing
+                            if current_price > sma20.Current.Value * 1.05:
+                                # Check if we have some profit to take
+                                current_call_value = self._get_option_price(position['call'])
+                                entry_premium = position['entry_premium']
+                                if entry_premium > 0:
+                                    pnl_pct = (entry_premium - current_call_value) / entry_premium
+                                    if pnl_pct >= 0.10:  # At least 10% profit
+                                        return True
+                    except (AttributeError, KeyError, ZeroDivisionError, ValueError) as e:
+                        pass  # Ignore SMA errors
+            
+            return False
+            
+        except Exception as e:
+            self.algo.Debug(f"[IPMCC] Error checking emergency exit: {e}")
+            return False
+    
+    def _get_exit_reason(self, position) -> str:
+        """Get the reason for IPMCC position exit"""
+        
+        try:
+        if self._check_position_profit(position, self.target_profit):
+        return f"Profit Target Hit (20%)"
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Check profit target
+            
+            # Check rolling expiration
+            if self._check_needs_rolling(position):
+                return f"Rolling at {self.roll_dte} DTE"
+            
+            # Check assignment risk
+            if self._check_assignment_risk(position):
+                call_strike = position['call'].Strike
+                underlying = position['underlying']
+                current_price = self.algo.Securities[underlying].Price if underlying in self.algo.Securities else 0
+                
+                days_to_expiry = (position['call'].ID.Date - self.algo.Time).days
+                
+                if days_to_expiry <= 7:
+                    return f"Assignment Risk (ITM at {days_to_expiry} DTE)"
+                else:
+                    return f"Deep ITM Risk ({current_price:.2f} vs {call_strike} strike)"
+            
+            # Check emergency conditions
+            vix = 20.0
+            if hasattr(self.algo, 'vix_manager'):
+                vix_val = self.algo.vix_manager.get_current_vix()
+                if vix_val and vix_val > 0:
+                    vix = vix_val
+            
+            if vix > 40:
+                return f"High VIX Early Close (VIX: {vix:.1f})"
+            
+            # Check strong uptrend
+            underlying = position['underlying']
+            if underlying in self.algo.Securities:
+                current_price = self.algo.Securities[underlying].Price
+                
+                if hasattr(self.algo, 'Indicators'):
+                    try:
+                        
+                    except Exception as e:
+
+                        # Log and handle unexpected exception
+
+                        print(f'Unexpected exception: {e}')
+
+                        raise
+sma20 = self.algo.Indicators.SMA(underlying, 20)
+                        if sma20.IsReady and current_price > sma20.Current.Value * 1.05:
+                            return f"Strong Uptrend Exit (5%+ above SMA20)"
+                    except (AttributeError, KeyError, ValueError, TypeError) as e:
+                        pass
+            
+            return "Manual Exit"
+            
+        except Exception as e:
+            self.algo.Debug(f"[IPMCC] Error determining exit reason: {e}")
+            return "Exit Error"
     
     def _can_trade_again_today(self) -> bool:
         """IPMCC can check for new positions daily"""

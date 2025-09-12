@@ -102,10 +102,20 @@ class DataFreshnessValidator:
         issues = []
         
         try:
-            # Check bid/ask spread
-            if hasattr(contract, 'BidPrice') and hasattr(contract, 'AskPrice'):
-                bid = contract.BidPrice
-                ask = contract.AskPrice
+        if hasattr(contract, 'BidPrice') and hasattr(contract, 'AskPrice'):
+        bid = contract.BidPrice
+        ask = contract.AskPrice
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Check bid/ask spread
                 
                 # Check for valid bid/ask
                 if bid <= 0 or ask <= 0:
@@ -143,7 +153,15 @@ class DataFreshnessValidator:
         Returns (is_valid, price, issue_description)
         """
         try:
-            if symbol not in self.algo.Securities:
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if symbol not in self.algo.Securities:
                 return False, 0, f"{symbol} not in Securities"
                 
             security = self.algo.Securities[symbol]

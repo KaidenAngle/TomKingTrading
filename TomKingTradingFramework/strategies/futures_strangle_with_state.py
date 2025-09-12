@@ -12,7 +12,7 @@ class FuturesStrangleWithState(BaseStrategyWithState):
     """
     Tom King's Futures Strangle strategy with state machine pattern
     Sells strangles on /ES with 45-60 DTE
-    25% profit target, 100% stop loss, dynamic adjustments
+    25% profit target, TradingConstants.FULL_PERCENTAGE% stop loss, dynamic adjustments
     """
     
     def __init__(self, algorithm):
@@ -26,7 +26,7 @@ class FuturesStrangleWithState(BaseStrategyWithState):
         # DTE targets
         self.min_dte = 45               # Minimum 45 DTE
         self.max_dte = 60               # Maximum 60 DTE
-        self.defensive_exit_dte = TradingConstants.DEFENSIVE_EXIT_DTE  # Tom King's 21 DTE rule
+        self.defensive_exit_dte = TradingConstants.DEFENSIVE_EXIT_DTE  # Tom King's TradingConstants.DEFENSIVE_EXIT_DTE DTE rule
         
         # Strike selection
         self.strangle_width = 0.15      # 15% OTM for both sides
@@ -90,13 +90,23 @@ class FuturesStrangleWithState(BaseStrategyWithState):
         """Place futures strangle orders"""
         
         try:
-            # Get futures contract (use cached if available)
-            if hasattr(self.algo, 'symbols') and self.active_future in self.algo.symbols:
-                future = self.algo.symbols[self.active_future]
-            else:
-                future = self.algo.Symbol(self.active_future)
-            if future not in self.algo.Securities:
-                self.algo.AddFuture(self.active_future)
+        if hasattr(self.algo, 'symbols') and self.active_future in self.algo.symbols:
+        future = self.algo.symbols[self.active_future]
+        else:
+        future = self.algo.Symbol(self.active_future)
+        if future not in self.algo.Securities:
+        self.algo.AddFuture(self.active_future)
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Get futures contract (use cached if available)
             
             current_price = self.algo.Securities[future].Price
             
@@ -184,7 +194,7 @@ class FuturesStrangleWithState(BaseStrategyWithState):
             
             # Check defensive exit
             if self._check_dte_exit(position):
-                self.algo.Debug(f"[Strangle] 21 DTE defensive exit")
+                self.algo.Debug(f"[Strangle] TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit")
                 self._close_position(position)
                 continue
             
@@ -209,7 +219,19 @@ class FuturesStrangleWithState(BaseStrategyWithState):
             return True
         
         try:
-            future = position_to_adjust['underlying']
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+future = position_to_adjust['underlying']
             current_price = self.algo.Securities[future].Price
             
             # Determine which side is tested
@@ -412,9 +434,19 @@ class FuturesStrangleWithState(BaseStrategyWithState):
         """Close a strangle position"""
         
         try:
-            # Buy back both sides
-            self.algo.MarketOrder(position['short_call'], position['contracts'])
-            self.algo.MarketOrder(position['short_put'], position['contracts'])
+        self.algo.MarketOrder(position['short_call'], position['contracts'])
+        self.algo.MarketOrder(position['short_put'], position['contracts'])
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Buy back both sides
             
             # Update position status
             position['status'] = 'closed'
@@ -460,6 +492,226 @@ class FuturesStrangleWithState(BaseStrategyWithState):
         # Futures strangle needs VIX for entry decisions
         self.algo.Debug("[FuturesStrangle] VIX data unavailable, using default 20")
         return 20.0  # Conservative default
+    
+    def _place_exit_orders(self) -> bool:
+        """Place futures strangle exit orders following Tom King methodology"""
+        
+        try:
+        positions_to_exit = [
+        pos for pos in self.strangle_positions
+        if pos['status'] == 'open' and self._should_exit_position(pos)
+        ]
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Find positions that need closing
+            
+            if not positions_to_exit:
+                return True
+            
+            exit_success = True
+            
+            for position in positions_to_exit:
+                try:
+                short_call = position['short_call']
+                short_put = position['short_put']
+                contracts = position['contracts']
+                except Exception as e:
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+# Get position details
+                    
+                    # Calculate exit metrics
+                    current_value = self._get_strangle_value(position)
+                    entry_credit = position['entry_credit']
+                    pnl_pct = (entry_credit - current_value) / entry_credit if entry_credit > 0 else 0
+                    
+                    # Use atomic executor if available for coordinated exit
+                    if hasattr(self.algo, 'atomic_executor'):
+                        group = self.algo.atomic_executor.create_atomic_group("FuturesStrangleExit")
+                        
+                        # Add both legs to atomic group
+                        group.add_leg(short_call, contracts)   # Buy back call
+                        group.add_leg(short_put, contracts)    # Buy back put
+                        
+                        # Execute atomically
+                        atomic_success = group.execute()
+                        
+                        if not atomic_success:
+                            self.algo.Error(
+                                f"[FuturesStrangle] Atomic exit failed for position. "
+                                f"Status: {group.get_status()}"
+                            )
+                            exit_success = False
+                            continue
+                    else:
+                        # Fallback to individual orders
+                        call_order = self.algo.MarketOrder(short_call, contracts)
+                        put_order = self.algo.MarketOrder(short_put, contracts)
+                        
+                        if not call_order or not put_order:
+                            self.algo.Error("[FuturesStrangle] Failed to place exit orders")
+                            exit_success = False
+                            continue
+                    
+                    # Update position status
+                    position['status'] = 'closed'
+                    position['exit_time'] = self.algo.Time
+                    position['exit_reason'] = self._get_exit_reason(position)
+                    
+                    # Calculate final P&L
+                    final_pnl = entry_credit - current_value
+                    position['final_pnl'] = final_pnl
+                    
+                    # Update strategy statistics
+                    if final_pnl > 0:
+                        self.wins += 1
+                    else:
+                        self.losses += 1
+                    
+                    # Log exit details
+                    self.algo.Log(
+                        f"[FuturesStrangle] Exited position: "
+                        f"P&L: ${final_pnl:.2f} ({pnl_pct:.1%}), "
+                        f"Reason: {position['exit_reason']}, "
+                        f"Call: {short_call.ID.StrikePrice}, "
+                        f"Put: {short_put.ID.StrikePrice}"
+                    )
+                    
+                    # Fire exit event for position state manager
+                    if hasattr(self.algo, 'event_bus'):
+                        self.algo.event_bus.fire_event(
+                            'position_exited',
+                            {
+                                'strategy': self.strategy_name,
+                                'position_id': f"strangle_{position['entry_time'].strftime('%Y%m%d_%H%M%S')}",
+                                'exit_time': position['exit_time'],
+                                'pnl': final_pnl,
+                                'reason': position['exit_reason'],
+                                'underlying': str(position['underlying'])
+                            }
+                        )
+                    
+                except Exception as position_error:
+                    self.algo.Error(f"[FuturesStrangle] Error exiting individual position: {position_error}")
+                    exit_success = False
+                    continue
+            
+            # Update current position if it was closed
+            if self.current_position and self.current_position['status'] == 'closed':
+                self.current_position = None
+            
+            if exit_success:
+                self.algo.Debug(f"[FuturesStrangle] Successfully exited {len(positions_to_exit)} positions")
+            else:
+                self.algo.Error("[FuturesStrangle] Some position exits failed")
+            
+            return exit_success
+            
+        except Exception as e:
+            self.algo.Error(f"[FuturesStrangle] Critical error in _place_exit_orders: {e}")
+            return False
+    
+    def _should_exit_position(self, position) -> bool:
+        """Determine if position should be exited based on Tom King rules"""
+        
+        # Check profit target (50% profit)
+        current_value = self._get_strangle_value(position)
+        entry_credit = position['entry_credit']
+        
+        if entry_credit > 0:
+            pnl_pct = (entry_credit - current_value) / entry_credit
+            
+            # Tom King 50% profit target
+            if pnl_pct >= self.target_profit:
+                return True
+            
+            # Tom King TradingConstants.FULL_PERCENTAGE% stop loss
+            if pnl_pct <= -self.stop_loss:
+                return True
+        
+        # Tom King TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit (absolute rule)
+        call = position['short_call']
+        days_to_expiry = (call.ID.Date - self.algo.Time).days
+        
+        if days_to_expiry <= self.defensive_exit_dte:
+            return True
+        
+        # Side tested requiring immediate closure
+        if self._is_severely_tested(position):
+            return True
+        
+        return False
+    
+    def _is_severely_tested(self, position) -> bool:
+        """Check if either side is severely tested requiring immediate closure"""
+        
+        try:
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+future = position['underlying']
+            current_price = self.algo.Securities[future].Price
+            
+            call_strike = position['short_call'].ID.StrikePrice
+            put_strike = position['short_put'].ID.StrikePrice
+            
+            # Severe test: price within 2% of strike
+            call_distance = abs(current_price - call_strike) / current_price
+            put_distance = abs(current_price - put_strike) / current_price
+            
+            return call_distance < 0.02 or put_distance < 0.02
+            
+        except Exception as e:
+            self.algo.Debug(f"[FuturesStrangle] Error checking tested sides: {e}")
+            return False
+    
+    def _get_exit_reason(self, position) -> str:
+        """Get the reason for position exit"""
+        
+        current_value = self._get_strangle_value(position)
+        entry_credit = position['entry_credit']
+        
+        if entry_credit > 0:
+            pnl_pct = (entry_credit - current_value) / entry_credit
+            
+            if pnl_pct >= self.target_profit:
+                return "Profit Target (50%)"
+            elif pnl_pct <= -self.stop_loss:
+                return "Stop Loss (TradingConstants.FULL_PERCENTAGE%)"
+        
+        # Check DTE
+        call = position['short_call']
+        days_to_expiry = (call.ID.Date - self.algo.Time).days
+        
+        if days_to_expiry <= self.defensive_exit_dte:
+            return "TradingConstants.DEFENSIVE_EXIT_DTE DTE Defensive Exit"
+        
+        # Check tested sides
+        if self._is_severely_tested(position):
+            return "Side Severely Tested"
+        
+        return "Manual Exit"
     
     def _can_trade_again_today(self) -> bool:
         """Strangles can enter multiple times if conditions met"""

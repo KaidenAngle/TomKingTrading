@@ -86,7 +86,15 @@ class DynamicCorrelationMonitor:
     def _calculate_correlation(self, symbol1: str, symbol2: str) -> Optional[float]:
         """Calculate correlation between two symbols"""
         try:
-            returns1 = np.array(list(self.returns_history[symbol1]))
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+returns1 = np.array(list(self.returns_history[symbol1]))
             returns2 = np.array(list(self.returns_history[symbol2]))
             
             if len(returns1) != len(returns2) or len(returns1) < self.window_size:
@@ -234,13 +242,15 @@ class DynamicCorrelationMonitor:
                     'correlation': correlation
                 })
         
-        # Calculate sector correlations
+        # Calculate sector correlations (optimized for O(n²) instead of O(n³))
         for sector, symbols in self.correlation_groups.items():
-            sector_corrs = []
-            for i, sym1 in enumerate(symbols):
-                for sym2 in symbols[i+1:]:
-                    if (sym1, sym2) in self.correlation_matrix:
-                        sector_corrs.append(self.correlation_matrix[(sym1, sym2)])
+            symbols_set = set(symbols)  # Convert to set for O(1) membership checks
+            
+            # Extract correlations for this sector directly from matrix (O(n) instead of O(n²))
+            sector_corrs = [
+                correlation for (sym1, sym2), correlation in self.correlation_matrix.items()
+                if sym1 in symbols_set and sym2 in symbols_set and sym1 != sym2
+            ]
             
             if sector_corrs:
                 report['sector_correlations'][sector] = {

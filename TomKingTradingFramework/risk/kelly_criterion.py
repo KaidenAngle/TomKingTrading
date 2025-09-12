@@ -4,13 +4,35 @@ from AlgorithmImports import *
 """Kelly Criterion Position Sizing Calculator"""
 
 import numpy as np
+from core.unified_vix_manager import UnifiedVIXManager
+from core.unified_position_sizer import UnifiedPositionSizer
+from risk.kelly_criterion import KellyCriterionCalculator
+from config.constants import TradingConstants
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage position_sizer from unified system
+# Consider delegating to: self.algo.position_sizer.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage kelly_criterion from unified system
+# Consider delegating to: kelly_calculator.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class KellyCriterion:
     """Calculate optimal position sizes using Kelly Criterion"""
     
     def __init__(self, algorithm):
         self.algo = algorithm
-        self.kelly_fraction = 0.25  # Use 25% Kelly for safety (Tom King approach)
+        self.kelly_fraction = TradingConstants.KELLY_FACTOR  # Use 25% Kelly for safety (Tom King approach)
     
     def calculate_kelly_size(self, win_rate, avg_win_pct, avg_loss_pct, confidence=1.0):
         """
@@ -56,7 +78,7 @@ class KellyCriterion:
             'FRIDAY_0DTE': {
                 'win_rate': 0.88,
                 'avg_win': 0.50,  # 50% of credit
-                'avg_loss': 1.00,  # 100% of credit (2x stop)
+                'avg_loss': 1.00,  # TradingConstants.FULL_PERCENTAGE% of credit (2x stop)
                 'confidence': 0.95  # Very high confidence
             },
             'LT112': {
@@ -96,7 +118,7 @@ class KellyCriterion:
             position_sizes[strategy] = {
                 'percentage': kelly_pct,
                 'dollar_amount': account_value * kelly_pct,
-                'description': f"{kelly_pct*100:.1f}% of account (${account_value * kelly_pct:,.0f})"
+                'description': f"{kelly_pct*TradingConstants.FULL_PERCENTAGE:.1f}% of account (${account_value * kelly_pct:,.0f})"
             }
         
         return position_sizes
@@ -111,7 +133,7 @@ class KellyCriterion:
         
         # Calculate total recommended usage
         total_pct = sum(s['percentage'] for s in sizes.values())
-        self.algo.Debug(f"Total Recommended BP Usage: {total_pct*100:.1f}%")
+        self.algo.Debug(f"Total Recommended BP Usage: {total_pct*TradingConstants.FULL_PERCENTAGE:.1f}%")
         
         # Compare to VIX regime limits
         if hasattr(self.algo, 'current_vix') and self.algo.current_vix:
@@ -125,6 +147,6 @@ class KellyCriterion:
             else:
                 max_bp = 0.80
             
-            self.algo.Debug(f"VIX Regime Max BP: {max_bp*100:.0f}% (VIX: {vix:.1f})")
+            self.algo.Debug(f"VIX Regime Max BP: {max_bp*TradingConstants.FULL_PERCENTAGE:.0f}% (VIX: {vix:.1f})")
             if total_pct > max_bp:
-                self.algo.Debug(f"WARNING: Kelly exceeds VIX limit by {(total_pct-max_bp)*100:.1f}%")
+                self.algo.Debug(f"WARNING: Kelly exceeds VIX limit by {(total_pct-max_bp)*TradingConstants.FULL_PERCENTAGE:.1f}%")

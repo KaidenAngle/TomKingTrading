@@ -2,6 +2,21 @@
 # All magic numbers documented and centralized
 
 from AlgorithmImports import *
+from enum import Enum
+from core.unified_vix_manager import UnifiedVIXManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
+
+class AccountPhase(Enum):
+    """Account size phases with different position limits - Centralized definition"""
+    PHASE_1 = 1  # $38-51k: 3 positions max
+    PHASE_2 = 2  # $51-76k: 8 positions max  
+    PHASE_3 = 3  # $76-95k: 12 positions max
+    PHASE_4 = 4  # $95k+: 20 positions max
 
 class TradingConstants:
     """
@@ -45,14 +60,14 @@ class TradingConstants:
     
     # ==================== PROFIT & LOSS TARGETS ====================
     
-    # Profit Targets (as decimals)
+    # Profit Targets (as, decimals)
     FRIDAY_0DTE_PROFIT_TARGET = 0.50  # Tom King: 50% profit target balances risk/reward
     LT112_PROFIT_TARGET = 0.50  # Tom King: 50% profit maximizes expected value
     FUTURES_STRANGLE_PROFIT_TARGET = 0.50  # 50% profit target
     IPMCC_PROFIT_TARGET = 0.50  # 50% on short calls
     LEAP_PROFIT_TARGET = 0.30  # 30% profit target for LEAP strategies
     
-    # Stop Loss Levels (as decimals)
+    # Stop Loss Levels (as, decimals)
     FRIDAY_0DTE_STOP_LOSS = -2.00  # 200% stop: prevents catastrophic loss while allowing recovery
     LT112_STOP_LOSS = -2.00  # 200% stop: Tom King's tested optimal stop level
     LT112_LOSS_LIMIT = 200  # 200% loss limit prevents runaway losses
@@ -74,7 +89,7 @@ class TradingConstants:
     VIX_SPIKE_MAX_DEPLOYMENT = 0.20  # 20% max deployment during VIX spikes
     MAX_STRATEGY_ALLOCATION = 0.25  # 25% max allocation per strategy
     
-    # VIX Thresholds (Tom King's 6-regime framework)
+    # VIX Thresholds (Tom King's 6-regime, framework)
     VIX_EXTREMELY_LOW = 12  # Below 12: Premium too low, reduce positions
     VIX_LOW = 16  # 12-16: Low vol, normal sizing
     VIX_NORMAL = 20  # 16-20: Sweet spot for premium selling
@@ -90,13 +105,32 @@ class TradingConstants:
     MAX_RISK_PER_TRADE = 0.05  # 5% max risk: Kelly Criterion with safety factor
     MAX_PORTFOLIO_DRAWDOWN = 0.15  # 15% max drawdown trigger for emergency exit
     
+    # ==================== CIRCUIT BREAKER CONSTANTS ====================
+    
+    # Loss Limits (August, 5, 2024 disaster, protection)
+    DAILY_LOSS_LIMIT = 0.05    # 5% max daily loss
+    WEEKLY_LOSS_LIMIT = 0.10   # 10% max weekly loss
+    MONTHLY_LOSS_LIMIT = 0.15  # 15% max monthly loss
+    INTRADAY_DRAWDOWN_LIMIT = 0.03  # 3% intraday drawdown (flash crash, protection)
+    
+    # Consecutive Loss Management
+    MAX_CONSECUTIVE_LOSSES = 3  # Statistical anomaly at 65% win rate
+    
+    # Recovery Parameters
+    RECOVERY_PERIOD_HOURS = 24  # Must wait 24 hours before re-enabling
+    RECOVERY_THRESHOLD = 0.02   # Must recover 2% before re-enabling
+    
+    # Loss Rate Thresholds
+    MAX_DAILY_LOSS_RATE = 0.5   # 50% loss rate triggers circuit breaker
+    MIN_TRADES_FOR_LOSS_RATE = 3  # Minimum trades before loss rate check
+    
     # Buying Power Usage
     BASE_BP_USAGE = 0.35  # 35% BP: Leaves room for adjustments and margin requirements
     
     # VIX Spike Deployment - Scaled by account size
     # Tom King's £15k deployment = ~20% of £75k account
     VIX_SPIKE_BP_DEPLOYMENT_PCT = 0.20  # Deploy 20% during VIX spikes
-    VIX_SPIKE_MIN_DEPLOYMENT = 5000  # Minimum $5k (protect small accounts)
+    VIX_SPIKE_MIN_DEPLOYMENT = 5000  # Minimum $5k (protect small, accounts)
     VIX_SPIKE_MAX_DEPLOYMENT = 50000  # Maximum $50k (prevent over-concentration)
     
     # ==================== GREEKS LIMITS ====================
@@ -119,7 +153,7 @@ class TradingConstants:
     # Implied Volatility
     IV_DAILY_MOVE_MULTIPLIER = 0.0397  # Convert annual IV to 1-day expected move
     # Formula: Daily Move = Stock Price × IV × sqrt(1/252)
-    # 0.0397 = sqrt(1/252) ≈ 0.063 × 0.63 (empirical adjustment for actual vs theoretical)
+    # 0.0397 = sqrt(1/252) ≈ 0.063 × 0.63 (empirical adjustment for actual vs, theoretical)
     
     DEFAULT_IMPLIED_VOLATILITY = 0.20  # 20% default IV if not available
     
@@ -132,7 +166,7 @@ class TradingConstants:
     
     # ==================== MONEY MANAGEMENT ====================
     
-    # Account Phases (Tom King's progressive scaling system)
+    # Account Phases (Tom King's progressive scaling, system)
     # USD converted from GBP at 1.27 USD/GBP rate
     PHASE1_MIN = 38100  # £30k: Learning phase, conservative sizing
     PHASE1_MAX = 50800  # £40k: Transition to Phase 2
@@ -193,7 +227,7 @@ class TradingConstants:
     
     # ==================== COMMISSIONS & FEES ====================
     
-    # TastyTrade Commission Structure (per contract)
+    # TastyTrade Commission Structure (per, contract)
     OPTION_COMMISSION_OPEN = 0.65  # Tom King: $0.65 to open per contract
     OPTION_COMMISSION_CLOSE = 0.65  # Tom King: $0.65 to close per contract
     OPTION_COMMISSION_MAX = 10.00  # $10 cap per leg: Helps with larger positions

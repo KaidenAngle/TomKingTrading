@@ -124,7 +124,15 @@ class FutureOptionsManager:
         
         # Attempt to add future option with robust error handling
         try:
-            if not self.is_backtest:
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if not self.is_backtest:
                 self.algo.Debug(f"[FutureOptions] Attempting to add options for {future_symbol}")
             
             # Try to add the future option
@@ -139,7 +147,15 @@ class FutureOptionsManager:
             # Set the option filter if provided
             if option_filter_func:
                 try:
-                    future_option.SetFilter(option_filter_func)
+                    
+                except Exception as e:
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+future_option.SetFilter(option_filter_func)
                 except Exception as filter_error:
                     if not self.is_backtest:
                         self.algo.Debug(f"[FutureOptions] Filter error for {future_symbol}: {filter_error}")
@@ -244,7 +260,15 @@ class FutureOptionsManager:
         
         # Try to get option chain
         try:
-            if info.symbol in self.algo.CurrentSlice.OptionChains:
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if info.symbol in self.algo.CurrentSlice.OptionChains:
                 option_chain = self.algo.CurrentSlice.OptionChains[info.symbol]
                 
                 # Cache the result

@@ -45,59 +45,72 @@ class MockAlgorithm:
     def _initialize_components(self):
         """Initialize actual trading components for testing"""
         try:
-            # Import actual components
-            from core.unified_vix_manager import UnifiedVIXManager
-            from core.unified_state_manager import UnifiedStateManager
-            from core.strategy_coordinator import StrategyCoordinator
-            from core.unified_position_sizer import UnifiedPositionSizer
-            from risk.circuit_breaker import CircuitBreaker
-            from risk.dynamic_margin_manager import DynamicMarginManager
-            from core.spy_concentration_manager import SPYConcentrationManager
-            
-            # Initialize components
-            print("[AUDIT] Initializing components for validation...")
-            
-            self.margin_manager = DynamicMarginManager(self)
-            self.vix_manager = UnifiedVIXManager(self)
-            self.state_manager = UnifiedStateManager(self)
-            self.position_sizer = UnifiedPositionSizer(self)
-            self.circuit_breaker = CircuitBreaker(self)
-            self.spy_concentration_manager = SPYConcentrationManager(self)
-            self.strategy_coordinator = StrategyCoordinator(self)
-            
-            print("[AUDIT] ✅ Components initialized successfully")
-            
+        # Import actual components
+        from core.unified_vix_manager import UnifiedVIXManager
+        from core.unified_state_manager import UnifiedStateManager
+        from core.strategy_coordinator import StrategyCoordinator
+        from core.unified_position_sizer import UnifiedPositionSizer
+        from risk.circuit_breaker import CircuitBreaker
+        from risk.dynamic_margin_manager import DynamicMarginManager
+        from core.spy_concentration_manager import SPYConcentrationManager
+
+        # Initialize components
+        print("[AUDIT] Initializing components for validation...")
+
+        self.margin_manager = DynamicMarginManager(self)
+        self.vix_manager = UnifiedVIXManager(self)
+        self.state_manager = UnifiedStateManager(self)
+        self.position_sizer = UnifiedPositionSizer(self)
+        self.circuit_breaker = CircuitBreaker(self)
+        self.spy_concentration_manager = SPYConcentrationManager(self)
+        self.strategy_coordinator = StrategyCoordinator(self)
+
+        print("[AUDIT] ✅ Components initialized successfully")
+
         except Exception as e:
-            print(f"[AUDIT] ❌ Component initialization failed: {str(e)}")
-            print(f"[AUDIT] Stack trace: {traceback.format_exc()}")
-    
-    def Log(self, message):
+        print(f"[AUDIT] ❌ Component initialization failed: {str(e)}")
+        print(f"[AUDIT] Stack trace: {traceback.format_exc()}")
+
+        def Log(self, message):
         print(f"[LOG] {message}")
-        
-    def Debug(self, message):
-        print(f"[DEBUG] {message}")
-        
-    def Error(self, message):
-        print(f"[ERROR] {message}")
-    
-    def IsMarketOpen(self, symbol):
+
+        def Debug(self, message):
+        self.Debug(f""[RUN_POSITION_OPENING_AUDIT]  {message}"")
+
+        def Error(self, message):
+        self.Error(f""[RUN_POSITION_OPENING_AUDIT]  {message}"")
+
+        def IsMarketOpen(self, symbol):
         return True  # Mock market open
-    
-def run_comprehensive_audit():
-    """Execute comprehensive position opening audit"""
-    
-    print("=" * 80)
-    print("COMPREHENSIVE POSITION OPENING AUDIT - EXECUTION")
-    print("=" * 80)
-    print("Testing all 47 failure points from deep_position_opening_audit.md")
-    print("=" * 80)
-    
-    # Create mock algorithm
-    mock_algo = MockAlgorithm()
-    
-    # Import and run validation framework
-    try:
-        from validation.comprehensive_position_opening_validator import PositionOpeningValidator
+
+        def run_comprehensive_audit():
+        """Execute comprehensive position opening audit"""
+
+        print("=" * 80)
+        print("COMPREHENSIVE POSITION OPENING AUDIT - EXECUTION")
+        print("=" * 80)
+        print("Testing all 47 failure points from deep_position_opening_audit.md")
+        print("=" * 80)
+
+        # Create mock algorithm
+        mock_algo = MockAlgorithm()
+
+        # Import and run validation framework
+        try:
+        except Exception as e:
+        # Log and handle unexpected exception
+        except Exception as e:
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+
+        # Log and handle unexpected exception
+
+        print(f'Unexpected exception: {e}')
+
+        raise
+from validation.comprehensive_position_opening_validator import PositionOpeningValidator
         
         print("[AUDIT] 🔍 Starting comprehensive validation...")
         validator = PositionOpeningValidator(mock_algo)
@@ -147,7 +160,7 @@ def run_comprehensive_audit():
         # Display detailed error analysis
         error_logs = validation_report.get('detailed_errors', [])
         if error_logs:
-            print(f"\nDETAILED ERROR ANALYSIS:")
+            self.Error(f"\nDETAILED ERROR ANALYSIS:"")
             print("-" * 50)
             
             # Group errors by category
@@ -166,7 +179,7 @@ def run_comprehensive_audit():
                     print(f"  [FAILURE-{fp:02d}] {msg}")
                 
                 if len(errors) > 5:
-                    print(f"  ... and {len(errors)-5} more failures in {category}")
+                    self.Error(f"  ... and {len(errors")
         
         print("\n" + "=" * 80)
         print("AUDIT EXECUTION COMPLETE")

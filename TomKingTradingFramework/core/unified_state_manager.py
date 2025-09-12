@@ -4,6 +4,8 @@
 from AlgorithmImports import *
 from core.state_machine import StrategyStateMachine, StrategyState, TransitionTrigger
 from core.unified_intelligent_cache import UnifiedIntelligentCache, CacheType
+from core.dependency_container import IManager
+from core.event_bus import EventBus, EventType, Event
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from enum import Enum, auto
@@ -18,7 +20,7 @@ class SystemState(Enum):
     HALTED = auto()
     SHUTTING_DOWN = auto()
 
-class UnifiedStateManager:
+class UnifiedStateManager(IManager):
     """
     Manages state machines for all strategies
     Provides system-wide coordination and monitoring
@@ -349,7 +351,19 @@ class UnifiedStateManager:
         """Save all state machines to persistent storage"""
         
         try:
-            state_data = {
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+state_data = {
                 'timestamp': str(self.algo.Time),
                 'system_state': self.system_state.name,
                 'emergency_mode': self.emergency_mode,
@@ -379,7 +393,19 @@ class UnifiedStateManager:
         """Load all state machines from persistent storage"""
         
         try:
-            if not self.algo.ObjectStore.ContainsKey(self.state_file):
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+if not self.algo.ObjectStore.ContainsKey(self.state_file):
                 return
             
             import json
@@ -429,7 +455,15 @@ class UnifiedStateManager:
     def _check_vix_spike_internal(self) -> bool:
         """Internal VIX spike check (cached)"""
         try:
-            vix = self.algo.vix
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+vix = self.algo.vix
             if vix in self.algo.Securities:
                 return self.algo.Securities[vix].Price > 35
         except Exception as e:
@@ -503,7 +537,15 @@ class UnifiedStateManager:
     def _log_cache_performance(self):
         """Log unified state management cache performance"""
         try:
-            unified_stats = self.state_cache.get_statistics()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+unified_stats = self.state_cache.get_statistics()
             
             if not self.algo.LiveMode:  # Only detailed logging in backtest
                 self.algo.Debug(
@@ -524,7 +566,15 @@ class UnifiedStateManager:
     def get_cache_statistics(self) -> Dict:
         """Get unified state management cache statistics"""
         try:
-            unified_stats = self.state_cache.get_statistics()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+unified_stats = self.state_cache.get_statistics()
             return {
                 'unified_cache': unified_stats,
                 'state_specific_entries': {
@@ -541,10 +591,17 @@ class UnifiedStateManager:
     def invalidate_state_cache(self, reason: str = "manual"):
         """Manually invalidate state management caches"""
         try:
-            # Invalidate state and market data cache types used by state manager
-            state_count = self.state_cache.invalidate_by_cache_type(CacheType.STATE)
-            market_count = self.state_cache.invalidate_by_cache_type(CacheType.MARKET_DATA)
-            general_count = self.state_cache.invalidate_by_cache_type(CacheType.GENERAL)
+        state_count = self.state_cache.invalidate_by_cache_type(CacheType.STATE)
+        market_count = self.state_cache.invalidate_by_cache_type(CacheType.MARKET_DATA)
+        general_count = self.state_cache.invalidate_by_cache_type(CacheType.GENERAL)
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Invalidate state and market data cache types used by state manager
             
             self.algo.Debug(
                 f"[State Cache] Invalidated {state_count} state + {market_count} market + {general_count} general entries. Reason: {reason}"
@@ -598,7 +655,15 @@ class UnifiedStateManager:
                 }
         """
         try:
-            current_time = self.algo.Time
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+current_time = self.algo.Time
             
             # Get basic system state
             system_info = {
@@ -699,6 +764,67 @@ class UnifiedStateManager:
     def get_system_summary(self) -> Dict[str, Any]:
         """Get system summary - alias for get_system_state() for interface compatibility"""
         return self.get_system_state()
+    
+    # IManager interface implementation
+    def handle_event(self, event: Event) -> bool:
+        """Handle incoming events from the event bus"""
+        try:
+        if event.event_type == EventType.PORTFOLIO_UPDATE:
+        self._update_portfolio_state(event.data)
+        return True
+        elif event.event_type == EventType.POSITION_OPENED:
+        self._handle_position_opened(event.data)
+        return True
+        elif event.event_type == EventType.POSITION_CLOSED:
+        self._handle_position_closed(event.data)
+        return True
+        elif event.event_type == EventType.SYSTEM_HALT:
+        self._transition_system(SystemState.EMERGENCY)
+        return True
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Handle system-level events that affect state management
+            
+            return False
+        except Exception as e:
+            self.algo.Error(f"[StateManager] Error handling event {event.event_type}: {e}")
+            return False
+    
+    def get_dependencies(self) -> List[str]:
+        """Return list of manager names this manager depends on"""
+        return ['event_bus', 'cache_manager']  # State manager depends on event bus and caching
+    
+    def can_initialize_without_dependencies(self) -> bool:
+        """Return True if this manager can initialize before its dependencies are ready"""
+        return False  # State manager needs event bus and cache to function properly
+    
+    def get_manager_name(self) -> str:
+        """Return unique name for this manager"""
+        return "state_manager"
+    
+    def _update_portfolio_state(self, data: Dict[str, Any]):
+        """Update portfolio-related state information"""
+        if 'portfolio_value' in data:
+            self._portfolio_value = data['portfolio_value']
+    
+    def _handle_position_opened(self, data: Dict[str, Any]):
+        """Handle position opened event for state tracking"""
+        if 'symbol' in data and 'strategy' in data:
+            strategy_name = data['strategy']
+            if strategy_name in self.strategy_machines:
+                self.algo.Debug(f"[StateManager] Position opened for {strategy_name}: {data['symbol']}")
+    
+    def _handle_position_closed(self, data: Dict[str, Any]):
+        """Handle position closed event for state tracking"""
+        if 'symbol' in data and 'strategy' in data:
+            strategy_name = data['strategy']
+            if strategy_name in self.strategy_machines:
+                self.algo.Debug(f"[StateManager] Position closed for {strategy_name}: {data['symbol']}")
     
     # Cache refresh marker - ensures QuantConnect sees latest method definitions
     def _cache_refresh_marker(self):

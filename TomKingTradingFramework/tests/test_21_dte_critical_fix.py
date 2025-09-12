@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-CRITICAL 21 DTE FIX UNIT TESTS
-Tests the absolute 21 DTE exit rule implementation across all components
+CRITICAL TradingConstants.DEFENSIVE_EXIT_DTE DTE FIX UNIT TESTS
+Tests the absolute TradingConstants.DEFENSIVE_EXIT_DTE DTE exit rule implementation across all components
 
-This test suite validates the CRITICAL fix for the 21 DTE methodology violation
+This test suite validates the CRITICAL fix for the TradingConstants.DEFENSIVE_EXIT_DTE DTE methodology violation
 discovered during the DEEP LOGIC ANALYSIS PROTOCOL execution.
 
 BACKGROUND:
-- Tom King's methodology: "Exit all positions at 21 DTE to avoid gamma risk"
+- Tom King's methodology: "Exit all positions at TradingConstants.DEFENSIVE_EXIT_DTE DTE to avoid gamma risk"
 - Original violation: LT112 component manager added 25% profit conditions
 - Fixed components: lt112_component_manager.py, correlation_manager.py
 - Removed: defensive_manager.py (unused legacy with incorrect logic)
 
-CRITICAL REQUIREMENT: 21 DTE exit must be ABSOLUTE with NO CONDITIONS
+CRITICAL REQUIREMENT: TradingConstants.DEFENSIVE_EXIT_DTE DTE exit must be ABSOLUTE with NO CONDITIONS
 """
 
 import unittest
@@ -31,7 +31,7 @@ from risk.correlation_manager import CorrelationManager
 from strategies.tom_king_exit_rules import TomKingExitRules
 
 class MockAlgorithm:
-    """Mock algorithm for testing 21 DTE functionality"""
+    """Mock algorithm for testing TradingConstants.DEFENSIVE_EXIT_DTE DTE functionality"""
     
     def __init__(self):
         self.Time = datetime(2024, 3, 15, 10, 0, 0)  # Base test time
@@ -148,7 +148,7 @@ class MockPosition:
         return self.components.pop(component_id, None)
 
 class Test21DTEAbsoluteExitRule(unittest.TestCase):
-    """Test the absolute 21 DTE exit rule across all components"""
+    """Test the absolute TradingConstants.DEFENSIVE_EXIT_DTE DTE exit rule across all components"""
     
     def setUp(self):
         self.algo = MockAlgorithm()
@@ -160,9 +160,9 @@ class Test21DTEAbsoluteExitRule(unittest.TestCase):
         self.exit_rules = TomKingExitRules(self.algo)
     
     def test_21_dte_absolute_exit_regardless_of_profit(self):
-        """CRITICAL: Verify 21 DTE exit triggers REGARDLESS of P&L"""
+        """CRITICAL: Verify TradingConstants.DEFENSIVE_EXIT_DTE DTE exit triggers REGARDLESS of P&L"""
         
-        # Create position at exactly 21 DTE with MASSIVE PROFIT (500% gain)
+        # Create position at exactly TradingConstants.DEFENSIVE_EXIT_DTE DTE with MASSIVE PROFIT (500% gain)
         expiry_date = self.algo.Time + timedelta(days=21)
         position = MockPosition(expiry=expiry_date)
         
@@ -176,23 +176,23 @@ class Test21DTEAbsoluteExitRule(unittest.TestCase):
         # Run analysis
         actions = self.lt112_manager.analyze_lt112_positions([position])
         
-        # CRITICAL ASSERTION: Must have 21 DTE defensive exit action
-        self.assertGreater(len(actions), 0, "Should generate actions at 21 DTE")
+        # CRITICAL ASSERTION: Must have TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit action
+        self.assertGreater(len(actions), 0, "Should generate actions at TradingConstants.DEFENSIVE_EXIT_DTE DTE")
         
-        # Find the 21 DTE defensive action
-        defensive_actions = [a for a in actions if '21 DTE defensive exit' in a.get('reason', '')]
+        # Find the TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive action
+        defensive_actions = [a for a in actions if 'TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit' in a.get('reason', '')]
         self.assertEqual(len(defensive_actions), 1, "Should have exactly 1 defensive exit action")
         
         defensive_action = defensive_actions[0]
         self.assertEqual(defensive_action['action'], 'CLOSE_ENTIRE_POSITION')
         self.assertEqual(defensive_action['priority'], 'URGENT')
-        self.assertIn('21 DTE defensive exit', defensive_action['reason'])
+        self.assertIn('TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit', defensive_action['reason'])
         self.assertIn('ABSOLUTE', defensive_action['tom_king_rule'])
     
     def test_21_dte_absolute_exit_with_huge_losses(self):
-        """CRITICAL: Verify 21 DTE exit triggers even with massive losses"""
+        """CRITICAL: Verify TradingConstants.DEFENSIVE_EXIT_DTE DTE exit triggers even with massive losses"""
         
-        # Create position at exactly 21 DTE with MASSIVE LOSSES
+        # Create position at exactly TradingConstants.DEFENSIVE_EXIT_DTE DTE with MASSIVE LOSSES
         expiry_date = self.algo.Time + timedelta(days=21)
         position = MockPosition(expiry=expiry_date)
         
@@ -206,21 +206,21 @@ class Test21DTEAbsoluteExitRule(unittest.TestCase):
         # Run analysis
         actions = self.lt112_manager.analyze_lt112_positions([position])
         
-        # CRITICAL ASSERTION: Must have 21 DTE defensive exit action DESPITE massive losses
+        # CRITICAL ASSERTION: Must have TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit action DESPITE massive losses
         self.assertGreater(len(actions), 0, "Should generate actions even with massive losses")
         
-        # Find the 21 DTE defensive action
-        defensive_actions = [a for a in actions if '21 DTE defensive exit' in a.get('reason', '')]
+        # Find the TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive action
+        defensive_actions = [a for a in actions if 'TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit' in a.get('reason', '')]
         self.assertEqual(len(defensive_actions), 1, "Should have defensive exit despite losses")
         
         defensive_action = defensive_actions[0]
         self.assertEqual(defensive_action['action'], 'CLOSE_ENTIRE_POSITION')
         self.assertEqual(defensive_action['priority'], 'URGENT')
-        self.assertIn('21 DTE defensive exit', defensive_action['reason'])
+        self.assertIn('TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit', defensive_action['reason'])
         self.assertIn('mandatory closure', defensive_action['reason'])
     
     def test_20_dte_triggers_absolute_exit(self):
-        """Verify positions with < 21 DTE also trigger absolute exit"""
+        """Verify positions with < TradingConstants.DEFENSIVE_EXIT_DTE DTE also trigger absolute exit"""
         
         # Create position at 20 DTE (less than threshold)
         expiry_date = self.algo.Time + timedelta(days=20)
@@ -236,7 +236,7 @@ class Test21DTEAbsoluteExitRule(unittest.TestCase):
         self.assertEqual(actions[0]['priority'], 'URGENT')
     
     def test_22_dte_no_exit_yet(self):
-        """Verify positions with > 21 DTE do NOT trigger defensive exit"""
+        """Verify positions with > TradingConstants.DEFENSIVE_EXIT_DTE DTE do NOT trigger defensive exit"""
         
         # Create position at 22 DTE (above threshold)
         expiry_date = self.algo.Time + timedelta(days=22)
@@ -247,14 +247,14 @@ class Test21DTEAbsoluteExitRule(unittest.TestCase):
         actions = self.lt112_manager.analyze_lt112_positions([position])
         
         # Should NOT trigger defensive exit yet (might have profit/loss exits)
-        defensive_actions = [a for a in actions if '21 DTE' in a.get('reason', '')]
+        defensive_actions = [a for a in actions if 'TradingConstants.DEFENSIVE_EXIT_DTE DTE' in a.get('reason', '')]
         self.assertEqual(len(defensive_actions), 0, 
-                        "Should not trigger 21 DTE exit at 22 DTE")
+                        "Should not trigger TradingConstants.DEFENSIVE_EXIT_DTE DTE exit at 22 DTE")
     
     def test_correlation_manager_absolute_should_defend(self):
         """Test correlation manager ShouldDefend implements absolute rule"""
         
-        # Test exactly 21 DTE
+        # Test exactly TradingConstants.DEFENSIVE_EXIT_DTE DTE
         position_info = {
             'symbol': 'SPY',
             'dte': 21,
@@ -263,16 +263,16 @@ class Test21DTEAbsoluteExitRule(unittest.TestCase):
         }
         
         should_defend = self.correlation_manager.ShouldDefend(position_info)
-        self.assertTrue(should_defend, "Should defend at exactly 21 DTE")
+        self.assertTrue(should_defend, "Should defend at exactly TradingConstants.DEFENSIVE_EXIT_DTE DTE")
         
         # Verify log shows absolute trigger
-        self.assertTrue(any('21 DTE absolute defense triggered' in msg 
+        self.assertTrue(any('TradingConstants.DEFENSIVE_EXIT_DTE DTE absolute defense triggered' in msg 
                           for msg in self.algo.log_messages))
     
     def test_correlation_manager_no_conditions_check(self):
         """CRITICAL: Verify correlation manager has NO profit/loss conditions"""
         
-        # Test with various P&L scenarios - all should trigger at 21 DTE
+        # Test with various P&L scenarios - all should trigger at TradingConstants.DEFENSIVE_EXIT_DTE DTE
         test_scenarios = [
             {'dte': 21, 'pnl': 10000.0, 'description': 'massive_profit'},
             {'dte': 21, 'pnl': -10000.0, 'description': 'massive_loss'},
@@ -297,7 +297,7 @@ class Test21DTEAbsoluteExitRule(unittest.TestCase):
                                f"Should defend in {scenario['description']} scenario")
     
     def test_exit_rules_21_dte_check(self):
-        """Test TomKingExitRules 21 DTE implementation"""
+        """Test TomKingExitRules TradingConstants.DEFENSIVE_EXIT_DTE DTE implementation"""
         
         position = {
             'strategy': 'LT112',
@@ -309,12 +309,12 @@ class Test21DTEAbsoluteExitRule(unittest.TestCase):
         
         should_exit, reason, action = self.exit_rules.check_dte_rule(position)
         
-        self.assertTrue(should_exit, "Should exit at 21 DTE")
+        self.assertTrue(should_exit, "Should exit at TradingConstants.DEFENSIVE_EXIT_DTE DTE")
         self.assertEqual(action, 'close')
-        self.assertIn('21 DTE rule', reason)
+        self.assertIn('TradingConstants.DEFENSIVE_EXIT_DTE DTE rule', reason)
 
 class Test21DTEEdgeCases(unittest.TestCase):
-    """Test edge cases for 21 DTE implementation"""
+    """Test edge cases for TradingConstants.DEFENSIVE_EXIT_DTE DTE implementation"""
     
     def setUp(self):
         self.algo = MockAlgorithm()
@@ -324,16 +324,16 @@ class Test21DTEEdgeCases(unittest.TestCase):
     def test_fractional_dte_handling(self):
         """Test handling of fractional DTE values"""
         
-        # Test 21.9 DTE - Important: .days calculation truncates to 21, so WILL trigger
+        # Test TradingConstants.DEFENSIVE_EXIT_DTE.9 DTE - Important: .days calculation truncates to 21, so WILL trigger
         # This is correct behavior - we don't want fractional precision in defensive exits
         expiry_date = self.algo.Time + timedelta(days=21, hours=22)
         position = MockPosition(expiry=expiry_date)
         self.psm.positions['TEST_001'] = position
         
         actions = self.lt112_manager.analyze_lt112_positions([position])
-        defensive_actions = [a for a in actions if '21 DTE' in a.get('reason', '')]
-        # 21.9 DTE becomes 21 DTE in calculation - should trigger (correct behavior)
-        self.assertEqual(len(defensive_actions), 1, "21.9 DTE truncates to 21 DTE - should trigger")
+        defensive_actions = [a for a in actions if 'TradingConstants.DEFENSIVE_EXIT_DTE DTE' in a.get('reason', '')]
+        # TradingConstants.DEFENSIVE_EXIT_DTE.9 DTE becomes TradingConstants.DEFENSIVE_EXIT_DTE DTE in calculation - should trigger (correct behavior)
+        self.assertEqual(len(defensive_actions), 1, "TradingConstants.DEFENSIVE_EXIT_DTE.9 DTE truncates to TradingConstants.DEFENSIVE_EXIT_DTE DTE - should trigger")
         
         # Test 22.1 DTE (should NOT trigger - truncates to 22)
         expiry_date = self.algo.Time + timedelta(days=22, hours=2) 
@@ -345,7 +345,7 @@ class Test21DTEEdgeCases(unittest.TestCase):
         self.psm.positions['TEST_002'] = position
         
         actions = self.lt112_manager.analyze_lt112_positions([position])
-        defensive_actions = [a for a in actions if '21 DTE' in a.get('reason', '')]
+        defensive_actions = [a for a in actions if 'TradingConstants.DEFENSIVE_EXIT_DTE DTE' in a.get('reason', '')]
         self.assertEqual(len(defensive_actions), 0, "22.1 DTE truncates to 22 DTE - should not trigger")
     
     def test_weekend_market_closure_dte(self):
@@ -363,7 +363,7 @@ class Test21DTEEdgeCases(unittest.TestCase):
         actions = self.lt112_manager.analyze_lt112_positions([position])
         
         # With 24 calendar days, should not trigger yet
-        defensive_actions = [a for a in actions if '21 DTE' in a.get('reason', '')]
+        defensive_actions = [a for a in actions if 'TradingConstants.DEFENSIVE_EXIT_DTE DTE' in a.get('reason', '')]
         self.assertEqual(len(defensive_actions), 0, "24 calendar days should not trigger")
     
     def test_same_day_expiry_zero_dte(self):
@@ -377,7 +377,7 @@ class Test21DTEEdgeCases(unittest.TestCase):
         actions = self.lt112_manager.analyze_lt112_positions([position])
         
         # Should trigger absolute exit at 0 DTE
-        defensive_actions = [a for a in actions if '21 DTE' in a.get('reason', '')]
+        defensive_actions = [a for a in actions if 'TradingConstants.DEFENSIVE_EXIT_DTE DTE' in a.get('reason', '')]
         self.assertEqual(len(defensive_actions), 1, "0 DTE should trigger absolute exit")
     
     def test_negative_dte_expired_options(self):
@@ -391,7 +391,7 @@ class Test21DTEEdgeCases(unittest.TestCase):
         actions = self.lt112_manager.analyze_lt112_positions([position])
         
         # Should trigger exit for expired positions
-        defensive_actions = [a for a in actions if '21 DTE' in a.get('reason', '')]
+        defensive_actions = [a for a in actions if 'TradingConstants.DEFENSIVE_EXIT_DTE DTE' in a.get('reason', '')]
         self.assertEqual(len(defensive_actions), 1, "Expired options should trigger exit")
 
 class Test21DTEMethodologyCompliance(unittest.TestCase):
@@ -402,9 +402,9 @@ class Test21DTEMethodologyCompliance(unittest.TestCase):
         self.correlation_manager = CorrelationManager(self.algo)
     
     def test_no_profit_conditions_in_defensive_logic(self):
-        """CRITICAL: Verify no profit conditions exist in 21 DTE logic"""
+        """CRITICAL: Verify no profit conditions exist in TradingConstants.DEFENSIVE_EXIT_DTE DTE logic"""
         
-        # Test various profit scenarios - none should affect 21 DTE decision
+        # Test various profit scenarios - none should affect TradingConstants.DEFENSIVE_EXIT_DTE DTE decision
         profit_scenarios = [
             -50000,  # Massive loss
             -5000,   # Significant loss
@@ -431,7 +431,7 @@ class Test21DTEMethodologyCompliance(unittest.TestCase):
                 
                 # CRITICAL: Must always return True regardless of profit
                 self.assertTrue(should_defend, 
-                               f"Must exit at 21 DTE regardless of P&L (tested: ${profit})")
+                               f"Must exit at TradingConstants.DEFENSIVE_EXIT_DTE DTE regardless of P&L (tested: ${profit})")
     
     def test_tom_king_rule_documentation_strings(self):
         """Verify Tom King rule strings match documentation"""
@@ -439,7 +439,7 @@ class Test21DTEMethodologyCompliance(unittest.TestCase):
         psm = MockPositionStateManager()
         lt112_manager = FixedLT112Management(self.algo, psm)
         
-        # Create position at 21 DTE
+        # Create position at TradingConstants.DEFENSIVE_EXIT_DTE DTE
         expiry_date = self.algo.Time + timedelta(days=21)
         position = MockPosition(expiry=expiry_date)
         psm.positions['TEST_001'] = position
@@ -453,10 +453,10 @@ class Test21DTEMethodologyCompliance(unittest.TestCase):
         self.assertIn('tom_king_rule', action)
         self.assertIn('ABSOLUTE', action['tom_king_rule'])
         self.assertIn('gamma risk', action['tom_king_rule'])
-        self.assertIn('21 DTE', action['tom_king_rule'])
+        self.assertIn('TradingConstants.DEFENSIVE_EXIT_DTE DTE', action['tom_king_rule'])
 
 class Test21DTESystemIntegration(unittest.TestCase):
-    """Test 21 DTE integration across system components"""
+    """Test TradingConstants.DEFENSIVE_EXIT_DTE DTE integration across system components"""
     
     def setUp(self):
         self.algo = MockAlgorithm()
@@ -468,19 +468,29 @@ class Test21DTESystemIntegration(unittest.TestCase):
         # incorrect conditional logic is not imported or referenced
         
         try:
-            # This should fail since we removed the file
-            from risk.defensive_manager import DefensiveManager
-            self.fail("DefensiveManager should not exist - it was removed for methodology violations")
+        from risk.defensive_manager import DefensiveManager
+        self.fail("DefensiveManager should not exist - it was removed for methodology violations")
         except ImportError:
-            # Expected - file was properly removed
-            pass
+        # Expected - file was properly removed
+        pass
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# This should fail since we removed the file
     
     def test_consistent_21_dte_across_components(self):
-        """Verify 21 DTE threshold is consistent across all components"""
+        """Verify TradingConstants.DEFENSIVE_EXIT_DTE DTE threshold is consistent across all components"""
         
         from config.constants import TradingConstants
         
-        # All these should use the same 21 DTE value
+        # All these should use the same TradingConstants.DEFENSIVE_EXIT_DTE DTE value
         expected_dte = 21
         
         # Check TradingConstants
@@ -493,7 +503,7 @@ class Test21DTESystemIntegration(unittest.TestCase):
         self.assertEqual(exit_rules.dte_rules['Futures_Strangle'], expected_dte)
 
 def run_21_dte_critical_tests():
-    """Run all 21 DTE critical fix tests"""
+    """Run all TradingConstants.DEFENSIVE_EXIT_DTE DTE critical fix tests"""
     
     test_classes = [
         Test21DTEAbsoluteExitRule,
@@ -515,13 +525,13 @@ def run_21_dte_critical_tests():
 
 if __name__ == '__main__':
     print("=" * 80)
-    print("CRITICAL 21 DTE FIX UNIT TESTS")
+    print("CRITICAL TradingConstants.DEFENSIVE_EXIT_DTE DTE FIX UNIT TESTS")
     print("Testing absolute exit rule implementation")
     print("=" * 80)
     print()
     print("BACKGROUND:")
-    print("- Original Issue: LT112 component manager added 25% profit conditions to 21 DTE rule")
-    print("- Tom King Rule: 'Exit all positions at 21 DTE to avoid gamma risk' - NO CONDITIONS")
+    print("- Original Issue: LT112 component manager added 25% profit conditions to TradingConstants.DEFENSIVE_EXIT_DTE DTE rule")
+    print("- Tom King Rule: 'Exit all positions at TradingConstants.DEFENSIVE_EXIT_DTE DTE to avoid gamma risk' - NO CONDITIONS")
     print("- Fixed Components: lt112_component_manager.py, correlation_manager.py") 
     print("- Removed: defensive_manager.py (unused legacy with incorrect logic)")
     print()
@@ -531,10 +541,10 @@ if __name__ == '__main__':
     
     if success:
         print("\n" + "=" * 80)
-        print("SUCCESS: ALL 21 DTE CRITICAL TESTS PASSED")
+        print("SUCCESS: ALL TradingConstants.DEFENSIVE_EXIT_DTE DTE CRITICAL TESTS PASSED")
         print("=" * 80)
         print("\nValidated Functionality:")
-        print("  * Absolute exit at 21 DTE regardless of P&L")
+        print("  * Absolute exit at TradingConstants.DEFENSIVE_EXIT_DTE DTE regardless of P&L")
         print("  * No profit conditions in defensive logic")
         print("  * Edge case handling (fractional DTE, weekends, 0 DTE)")
         print("  * Tom King methodology compliance")
@@ -544,7 +554,7 @@ if __name__ == '__main__':
         print("=" * 80)
     else:
         print("\n" + "=" * 80)
-        print("FAILURE: CRITICAL 21 DTE TESTS FAILED")
+        print("FAILURE: CRITICAL TradingConstants.DEFENSIVE_EXIT_DTE DTE TESTS FAILED")
         print("DO NOT DEPLOY - FIX ISSUES FIRST")
         print("=" * 80)
         exit(1)

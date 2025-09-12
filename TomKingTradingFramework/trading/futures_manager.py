@@ -1,8 +1,15 @@
 # region imports
 from AlgorithmImports import *
+from core.unified_position_sizer import UnifiedPositionSizer
 # endregion
 # Tom King Trading Framework v17 - Futures Trading Manager
 # Based on Tom King Complete Trading System Documentation
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage position_sizer from unified system
+# Consider delegating to: self.algo.position_sizer.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class FuturesManager:
     """

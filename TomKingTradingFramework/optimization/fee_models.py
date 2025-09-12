@@ -44,7 +44,7 @@ class TastyTradeFeeModel(FeeModel):
         self.regulatory_fee = 0.05  # Estimated regulatory fee per trade
         self.assignment_fee = 5.00  # Assignment/exercise fee
         
-        # Exchange fees (simplified - actual varies by exchange)
+        # Exchange fees (simplified - actual varies by, exchange)
         self.exchange_fees = {
             'options': 0.50,  # Average exchange fee for options
             'futures': 1.50,  # Average exchange fee for futures
@@ -97,7 +97,7 @@ class TastyTradeFeeModel(FeeModel):
             commission = 0.0
             exchange_fee = 0.0
         
-        # Add regulatory fee (applied to all trades)
+        # Add regulatory fee (applied to all, trades)
         regulatory = self.regulatory_fee if quantity > 0 else 0.0
         
         # Total fees
@@ -116,7 +116,7 @@ class TastyTradeFeeModel(FeeModel):
         Returns:
             Tuple of (commission, exchange_fee)
         """
-        # Check if closing trade under threshold (free to close)
+        # Check if closing trade under threshold (free to, close)
         if hasattr(order, 'Tag') and 'close' in str(order.Tag).lower():
             # Check if premium is under threshold
             if hasattr(order, 'Price') and order.Price < self.option_closing_threshold:
@@ -232,7 +232,7 @@ class InteractiveBrokersFeeModel(FeeModel):
     
     def __init__(self):
         """Initialize IB fee model"""
-        # Option commission (using mid-tier rate)
+        # Option commission (using mid-tier, rate)
         self.option_commission = 0.50  # Per contract
         
         # Futures commission

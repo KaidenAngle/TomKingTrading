@@ -5,6 +5,13 @@ from AlgorithmImports import *
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 import json
+from core.unified_state_manager import UnifiedStateManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage state_manager from unified system
+# Consider delegating to: self.algo.state_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class OrderStateRecovery:
     """
@@ -38,17 +45,27 @@ class OrderStateRecovery:
         """
         
         try:
-            # Create order group record
-            group_record = {
-                'group_id': group_id,
-                'strategy': strategy,
-                'legs': [(str(symbol), qty) for symbol, qty in legs],
-                'started_at': self.algo.Time.isoformat(),
-                'status': 'INITIATED',
-                'filled_legs': [],
-                'pending_legs': legs,
-                'recovery_needed': True
-            }
+        group_record = {
+        'group_id': group_id,
+        'strategy': strategy,
+        'legs': [(str(symbol), qty) for symbol, qty in legs],
+        'started_at': self.algo.Time.isoformat(),
+        'status': 'INITIATED',
+        'filled_legs': [],
+        'pending_legs': legs,
+        'recovery_needed': True
+        }
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Create order group record
             
             # Add to incomplete groups
             self.incomplete_groups[group_id] = group_record
@@ -75,7 +92,19 @@ class OrderStateRecovery:
             return
         
         try:
-            group = self.incomplete_groups[group_id]
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+group = self.incomplete_groups[group_id]
             
             # Move from pending to filled
             leg_str = (str(filled_leg[0]), filled_leg[1])
@@ -146,8 +175,18 @@ class OrderStateRecovery:
         manual_intervention_needed = []
         
         try:
-            # Load persisted state
-            self._load_from_object_store()
+        self._load_from_object_store()
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Load persisted state
             
             if not self.incomplete_groups:
                 self.algo.Debug("[Recovery] No incomplete orders found")
@@ -195,9 +234,19 @@ class OrderStateRecovery:
         """
         
         try:
-            # Check age - old orders might be expired
-            started_at = datetime.fromisoformat(group['started_at'].replace('Z', '+00:00'))
-            age_hours = (self.algo.Time - started_at).total_seconds() / 3600
+        started_at = datetime.fromisoformat(group['started_at'].replace('Z', '+00:00'))
+        age_hours = (self.algo.Time - started_at).total_seconds() / TradingConstants.SECONDS_PER_HOUR
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Check age - old orders might be expired
             
             # If older than 24 hours, consider expired
             if age_hours > 24:
@@ -270,7 +319,15 @@ class OrderStateRecovery:
             
             # Place offsetting order
             try:
-                symbol = self.algo.Symbol(symbol_str)
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+symbol = self.algo.Symbol(symbol_str)
                 offset_qty = -qty  # Reverse the position
                 
                 if symbol in self.algo.Securities:
@@ -295,7 +352,15 @@ class OrderStateRecovery:
                 
                 # Immediately close the short position
                 try:
-                    symbol = self.algo.Symbol(filled_leg[0])
+                    
+                except Exception as e:
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+symbol = self.algo.Symbol(filled_leg[0])
                     offset_qty = -filled_leg[1]
                     
                     if symbol in self.algo.Securities:
@@ -319,7 +384,19 @@ class OrderStateRecovery:
             symbol_str, qty = filled_leg['leg']
             
             try:
-                symbol = self.algo.Symbol(symbol_str)
+                
+            
+            except Exception as e:
+
+            
+                # Log and handle unexpected exception
+
+            
+                print(f'Unexpected exception: {e}')
+
+            
+                raise
+symbol = self.algo.Symbol(symbol_str)
                 offset_qty = -qty
                 
                 if symbol in self.algo.Securities:
@@ -335,7 +412,19 @@ class OrderStateRecovery:
         """Persist state to QuantConnect ObjectStore"""
         
         try:
-            state = {
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+state = {
                 'incomplete_groups': self.incomplete_groups,
                 'last_updated': self.algo.Time.isoformat()
             }
@@ -351,7 +440,19 @@ class OrderStateRecovery:
         """Load persisted state from ObjectStore"""
         
         try:
-            if self.algo.ObjectStore.ContainsKey(self.INCOMPLETE_KEY):
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+if self.algo.ObjectStore.ContainsKey(self.INCOMPLETE_KEY):
                 json_data = self.algo.ObjectStore.Read(self.INCOMPLETE_KEY)
                 if json_data:
                     state = json.loads(json_data)

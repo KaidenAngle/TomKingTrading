@@ -2,6 +2,7 @@
 from AlgorithmImports import *
 import json
 import threading
+from threading import Lock
 from datetime import datetime
 from typing import Dict, List, Optional
 from collections import deque
@@ -23,6 +24,11 @@ class TastytradeWebSocket:
         self.last_quotes = {}
         self.greeks_cache = {}
         self.quote_history = {}  # Store recent quotes for momentum
+        
+        # Thread synchronization
+        self._quotes_lock = Lock()
+        self._greeks_lock = Lock()
+        self._connection_lock = Lock()
         
         # Connection settings
         self.ws_url = "wss://tasty-openapi-ws.dxfeed.com/realtime"
@@ -49,9 +55,19 @@ class TastytradeWebSocket:
         self.algorithm.Log(f"[WebSocket] Connecting to {self.ws_url}")
         
         try:
-            # In QuantConnect, we need to use their data feeds
-            # WebSocket would be additional real-time layer
             self.setup_live_websocket()
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# In QuantConnect, we need to use their data feeds
+            # WebSocket would be additional real-time layer
             
         except Exception as e:
             self.algorithm.Error(f"[WebSocket] Connection failed: {str(e)}")
@@ -116,8 +132,10 @@ class TastytradeWebSocket:
             'timestamp': self.algorithm.Time
         }
         
-        self.last_quotes[symbol] = quote
-        self.quote_history[symbol].append(quote)
+        # Update quotes (thread-safe)
+        with self._quotes_lock:
+            self.last_quotes[symbol] = quote
+            self.quote_history[symbol].append(quote)
         
         # Check for trading opportunities
         self.check_real_time_opportunities(symbol, quote)
@@ -129,15 +147,17 @@ class TastytradeWebSocket:
         if not symbol:
             return
             
-        self.greeks_cache[symbol] = {
-            'delta': greeks_data.get("delta", 0),
-            'gamma': greeks_data.get("gamma", 0),
-            'theta': greeks_data.get("theta", 0),
-            'vega': greeks_data.get("vega", 0),
-            'rho': greeks_data.get("rho", 0),
-            'iv': greeks_data.get("volatility", 0),
-            'timestamp': self.algorithm.Time
-        }
+        # Update Greeks (thread-safe)
+        with self._greeks_lock:
+            self.greeks_cache[symbol] = {
+                'delta': greeks_data.get("delta", 0),
+                'gamma': greeks_data.get("gamma", 0),
+                'theta': greeks_data.get("theta", 0),
+                'vega': greeks_data.get("vega", 0),
+                'rho': greeks_data.get("rho", 0),
+                'iv': greeks_data.get("volatility", 0),
+                'timestamp': self.algorithm.Time
+            }
         
         # Check portfolio Greeks limits
         self.check_greeks_limits()
@@ -249,7 +269,7 @@ class TastytradeWebSocket:
             threshold = 0.10  # 10 basis points for others
             
         if spread_pct > threshold:
-            self.algorithm.Debug(f"[SPREAD ALERT] {symbol} spread: {spread_pct:.3f}% (threshold: {threshold*100:.1f}%)")
+            self.algorithm.Debug(f"[SPREAD ALERT] {symbol} spread: {spread_pct:.3f}% (threshold: {threshold*TradingConstants.FULL_PERCENTAGE:.1f}%)")
             
     def check_greeks_limits(self):
         """Monitor portfolio Greeks in real-time"""

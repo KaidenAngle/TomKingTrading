@@ -190,14 +190,14 @@ class DrawdownManager:
         return "RECOVERY: Normal trading resumed"
         
     def _close_losing_positions(self) -> int:
-        """Close positions with losses > 100%"""
+        """Close positions with losses > TradingConstants.FULL_PERCENTAGE%"""
         positions_closed = 0
         
         if hasattr(self.algo, 'position_manager'):
             for position_id, position in self.algo.position_manager.positions.items():
                 if position.status == "ACTIVE":
                     pnl_pct = position.get_pnl_percentage()
-                    if pnl_pct < -100:  # Loss > 100%
+                    if pnl_pct < -TradingConstants.FULL_PERCENTAGE:  # Loss > TradingConstants.FULL_PERCENTAGE%
                         self.algo.Log(f"[EMERGENCY] Closing position {position_id} with {pnl_pct:.1f}% loss")
                         self.algo.position_manager.close_position(position_id, "EMERGENCY_DRAWDOWN")
                         positions_closed += 1

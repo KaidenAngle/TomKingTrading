@@ -1,7 +1,7 @@
 # QuantConnect Performance Optimization Patterns
 
 ## Overview
-This document captures proven performance optimization patterns for QuantConnect algorithms. These patterns achieve **80% reduction in API calls** and **75% reduction in safety check overhead** while maintaining full production safety.
+This document captures proven performance optimization patterns for QuantConnect algorithms, achieving **80% reduction in API calls** and **75% reduction in safety check overhead** while maintaining full production safety.
 
 ## Core Principle: Smart Conditional Performance
 

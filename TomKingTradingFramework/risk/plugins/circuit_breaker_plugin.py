@@ -5,6 +5,7 @@
 from AlgorithmImports import *
 from typing import Dict, List, Optional, Any
 from risk.unified_risk_manager import BaseRiskPlugin, RiskEvent, RiskEventType, RiskLevel
+from config.constants import TradingConstants
 from datetime import datetime, timedelta
 
 class CircuitBreakerPlugin(BaseRiskPlugin):
@@ -25,17 +26,24 @@ class CircuitBreakerPlugin(BaseRiskPlugin):
     def _plugin_initialize(self) -> bool:
         """Initialize circuit breaker with August 5 disaster parameters"""
         try:
-            # Loss limits (percentages of account - NEVER CHANGE)
-            self.daily_loss_limit = 0.05    # 5% max daily loss
-            self.weekly_loss_limit = 0.10   # 10% max weekly loss
-            self.monthly_loss_limit = 0.15  # 15% max monthly loss
+        self.daily_loss_limit = TradingConstants.DAILY_LOSS_LIMIT
+        self.weekly_loss_limit = TradingConstants.WEEKLY_LOSS_LIMIT
+        self.monthly_loss_limit = TradingConstants.MONTHLY_LOSS_LIMIT
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Loss limits (percentages of account - NEVER CHANGE)
             
             # Intraday drawdown limit (flash crash protection)
-            self.intraday_drawdown_limit = 0.03  # 3% intraday drawdown
+            self.intraday_drawdown_limit = TradingConstants.INTRADAY_DRAWDOWN_LIMIT
             
             # Consecutive loss tracking
             self.consecutive_losses = 0
-            self.max_consecutive_losses = 3  # Statistical anomaly at 65% win rate
+            self.max_consecutive_losses = TradingConstants.MAX_CONSECUTIVE_LOSSES
             
             # Trading control flags
             self.trading_enabled = True
@@ -55,8 +63,8 @@ class CircuitBreakerPlugin(BaseRiskPlugin):
             self.daily_pnl = 0.0
             
             # Recovery requirements
-            self.recovery_period_hours = 24  # Must wait 24 hours
-            self.recovery_threshold = 0.02   # Must recover 2% before re-enabling
+            self.recovery_period_hours = TradingConstants.RECOVERY_PERIOD_HOURS
+            self.recovery_threshold = TradingConstants.RECOVERY_THRESHOLD
             
             # Performance tracking
             self.circuit_checks = 0
@@ -262,7 +270,7 @@ class CircuitBreakerPlugin(BaseRiskPlugin):
         # High loss rate (multiple losses in one day)
         if self.trades_today > 0:
             loss_rate = self.losses_today / self.trades_today
-            if loss_rate > 0.5 and self.losses_today >= 3:
+            if loss_rate > TradingConstants.MAX_DAILY_LOSS_RATE and self.losses_today >= TradingConstants.MIN_TRADES_FOR_LOSS_RATE:
                 return f"High loss rate: {loss_rate:.1%} ({self.losses_today}/{self.trades_today} losses)"
         
         return None
@@ -368,7 +376,7 @@ class CircuitBreakerPlugin(BaseRiskPlugin):
             self.weekly_start_value = self._algorithm.Portfolio.TotalPortfolioValue
         
         # Reset monthly on first trading day
-        if self._algorithm.Time.day <= 3:
+        if self._algorithm.Time.day <= TradingConstants.MIN_TRADES_FOR_LOSS_RATE:
             self.monthly_start_value = self._algorithm.Portfolio.TotalPortfolioValue
         
         self._algorithm.Debug("[Circuit Breaker Plugin] Daily tracking reset")
@@ -406,7 +414,7 @@ class CircuitBreakerPlugin(BaseRiskPlugin):
         if not self.trigger_time:
             return 0.0
         
-        return (self._algorithm.Time - self.trigger_time).total_seconds() / 3600.0
+        return (self._algorithm.Time - self.trigger_time).total_seconds() / TradingConstants.SECONDS_PER_HOUR.0
     
     def shutdown(self):
         """Clean shutdown of circuit breaker plugin"""

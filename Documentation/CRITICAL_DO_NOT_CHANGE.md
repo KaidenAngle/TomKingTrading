@@ -212,7 +212,7 @@ def Initialize(self):
     self.Log("[Critical] Integration verification PASSED - system ready")
 ```
 
-**Why:** "Forgotten integrations" are the #1 cause of production failures. Components can be added but not properly integrated, or optimizations can accidentally disable critical functionality.
+**Why:** "Forgotten integrations" are the #1 cause of production failures. Components are added but not properly integrated, or optimizations accidentally disable critical functionality.
 
 ### NEVER Assume Integration Worked:
 ```python
@@ -255,6 +255,42 @@ def start_development():
 ```
 
 **Why:** The "audit before assume" methodology prevents unnecessary work, reduces system risk, and provides accurate assessment of framework quality. Systematic auditing revealed the Tom King framework was already 95% compliant, requiring only 2 missing methods rather than extensive interface work.
+
+### NEVER Delete Critical Configuration Files:
+```bash
+# CRITICAL FILES THAT MUST NEVER BE DELETED:
+# Claude Code Configuration
+.mcp.json              # QuantConnect API access (contains API token)
+CLAUDE.md              # Claude's trading knowledge and methodology  
+.claude-settings       # Project environment and permissions
+.claude/settings.json  # Claude Code behavior settings
+
+# QuantConnect Integration  
+quantconnect_mcp_config.json  # Standalone MCP server config
+config/                       # All configuration files and backups
+```
+
+**Why:** These files enable the £35k → £80k transformation through systematic trading. Deletion breaks QuantConnect integration, Claude Code functionality, and API access.
+
+**Recovery Protocol:** If accidentally deleted, run `config\RESTORE_CONFIG.bat` immediately.
+
+### NEVER Create Duplicate Main Files:
+```python
+# WRONG - Multiple main file implementations
+TomKingTradingFramework/
+├── main.py                    # Original implementation
+├── main_production.py         # Duplicate "production" version
+└── main_alternative.py        # Another variation
+
+# CORRECT - Single main file as documented
+TomKingTradingFramework/
+├── main.py                    # ONLY implementation (CLAUDE.md: "Main File: main.py")
+└── main_production.py.backup  # Backup only if needed for reference
+```
+
+**Why:** The Tom King framework documentation explicitly specifies **"Main File: main.py"**. Creating duplicate main files (main_production.py, main_live.py, etc.) violates documentation standards, creates architectural confusion, and leads to divergent implementations. Use git history analysis to understand why duplicates were created, systematically compare implementations, and consolidate to the superior architecture.
+
+**Historical Evidence:** September 2025 - main_production.py was discovered violating single main file rule, containing deprecated August2024CorrelationLimiter while main.py had modern UnifiedRiskManager plugin architecture. Systematic consolidation eliminated 85 lines of redundant code and architectural inconsistency.
 
 ### ALWAYS Use Implementation Audit Protocol:
 ```bash

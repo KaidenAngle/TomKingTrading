@@ -123,7 +123,9 @@ class SimpleOrderFillCheck:
             if all_filled:
                 return True
             
-            time.sleep(1)
+            # Don't block - let QuantConnect's scheduling handle the timing
+            # Return False to indicate not all filled yet
+            return False
         
         return False
     

@@ -6,6 +6,13 @@ Ensures all strategies follow proper parameters and phase requirements
 
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
+from core.unified_vix_manager import UnifiedVIXManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class StrategyValidator:
     """
@@ -170,7 +177,7 @@ class StrategyValidator:
         
         if current_bp_used + required_bp > max_bp:
             usage_pct = (current_bp_used / account_value) * 100
-            return False, f"BP limit exceeded (using {usage_pct:.1f}%, would be {((current_bp_used + required_bp) / account_value) * 100:.1f}%)"
+            return False, f"BP limit exceeded (using {usage_pct:.1f}%, would be {((current_bp_used + required_bp) / account_value) * TradingConstants.FULL_PERCENTAGE:.1f}%)"
         
         return True, "BP check passed"
     

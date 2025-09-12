@@ -13,6 +13,13 @@ from typing import Dict, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 from enum import Enum
 import json
+from core.unified_vix_manager import UnifiedVIXManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class RiskProfile(Enum):
     """Risk profile levels for different account phases"""
@@ -45,9 +52,9 @@ class RiskParameters:
         self.position_sizing = {
             # Kelly Criterion parameters
             'kelly': {
-                'max_fraction': 0.25,           # Maximum 25% of Kelly
+                'max_fraction': TradingConstants.KELLY_FACTOR,           # Maximum 25% of Kelly
                 'min_fraction': 0.05,           # Minimum 5% of Kelly
-                'safety_factor': 0.25,          # Use 25% of calculated Kelly
+                'safety_factor': TradingConstants.KELLY_FACTOR,          # Use 25% of calculated Kelly
                 'default_win_rate': 0.75,       # Default win rate assumption
                 'default_avg_return': 0.50,     # Default average return
                 'default_max_loss': -2.00,      # Default max loss (200% of credit)
@@ -67,7 +74,7 @@ class RiskParameters:
                 'low': {'vix_max': 20, 'bp_limit': 0.52},         # VIX 15-20: 52% BP
                 'normal': {'vix_max': 25, 'bp_limit': 0.65},      # VIX 20-25: 65% BP
                 'high': {'vix_max': 35, 'bp_limit': 0.75},        # VIX 25-35: 75% BP
-                'extreme': {'vix_max': 100, 'bp_limit': 0.80},    # VIX > 35: 80% BP
+                'extreme': {'vix_max': TradingConstants.FULL_PERCENTAGE, 'bp_limit': 0.80},    # VIX > 35: 80% BP
             },
             
             # Strategy-specific BP requirements (percentage of account)
@@ -129,7 +136,7 @@ class RiskParameters:
             
             # August 2024 disaster prevention
             'august_2024_protection': {
-                'max_equity_concentration': 0.60,       # Max 60% equity exposure (Tom had 100%)
+                'max_equity_concentration': 0.60,       # Max 60% equity exposure (Tom had TradingConstants.FULL_PERCENTAGE%)
                 'correlation_spike_threshold': 0.85,    # Alert at 85% correlation
                 'emergency_diversification_target': 5,   # Min 5 correlation groups
                 'tom_king_pattern_threshold': 0.75,     # Alert if > 75% single group
@@ -141,7 +148,7 @@ class RiskParameters:
         self.defensive = {
             # Time-based management rules
             'time_management': {
-                'dte_management_threshold': TradingConstants.DEFENSIVE_EXIT_DTE,          # Tom King's 21 DTE rule (non-negotiable)
+                'dte_management_threshold': TradingConstants.DEFENSIVE_EXIT_DTE,          # Tom King's TradingConstants.DEFENSIVE_EXIT_DTE DTE rule (non-negotiable)
                 'emergency_dte_threshold': 7,            # Emergency management at 7 DTE
                 'expiration_day_close_time': {'hour': 15, 'minute': 0},  # 3 PM close
                 'friday_0dte_exit_time': {'hour': 15, 'minute': 0},      # Friday 3 PM 0DTE exit
@@ -296,7 +303,7 @@ class RiskParameters:
             # Phase definitions and requirements
             'phase_definitions': {
                 1: {
-                    'account_range': (30000, 40000),
+                    'account_range': (TradingConstants.STARTING_CAPITAL, 40000),
                     'name': 'FOUNDATION',
                     'description': 'Learning systems, building track record',
                     'max_positions': 3,
@@ -415,7 +422,7 @@ class RiskParameters:
             
             # Prevention measures
             'prevention_measures': {
-                'max_equity_concentration': 0.60,        # Max 60% equity (vs Tom's 100%)
+                'max_equity_concentration': 0.60,        # Max 60% equity (vs Tom's TradingConstants.FULL_PERCENTAGE%)
                 'max_correlated_positions': 3,           # Max 3 correlated positions
                 'vix_spike_threshold': 5,                # Alert on VIX spike of 5 points
                 'correlation_monitoring_frequency': 'hourly',  # Monitor correlations hourly
@@ -614,7 +621,7 @@ class RiskParameters:
         position_count = portfolio_analysis.get('total_positions', 0)
         
         # Calculate protection effectiveness
-        tom_king_concentration = 1.0  # 100% equity concentration
+        tom_king_concentration = 1.0  # TradingConstants.FULL_PERCENTAGE% equity concentration
         concentration_protection = max(0, 1 - equity_concentration / tom_king_concentration)
         
         tom_king_correlation = 0.95  # 95% correlation during crash
@@ -654,7 +661,7 @@ class RiskParameters:
         warnings = []
         
         if equity_concentration > 0.75:
-            warnings.append(f"HIGH RISK: {equity_concentration:.1%} equity concentration (Tom King had 100%)")
+            warnings.append(f"HIGH RISK: {equity_concentration:.1%} equity concentration (Tom King had TradingConstants.FULL_PERCENTAGE%)")
         
         if correlation_level > 0.80:
             warnings.append(f"HIGH RISK: {correlation_level:.1%} correlation (Tom King disaster level)")
@@ -736,17 +743,33 @@ class RiskParameters:
     def save_parameters_to_file(self, filename: str) -> bool:
         """Save all parameters to JSON file"""
         try:
-            with open(filename, 'w') as f:
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+with open(filename, 'w') as f:
                 json.dump(self.get_all_risk_parameters(), f, indent=2, default=str)
             return True
         except Exception as e:
-            print(f"Error saving parameters: {e}")
+            self.Error(f"Error saving parameters: {e}"")
             return False
     
     def load_parameters_from_file(self, filename: str) -> bool:
         """Load parameters from JSON file"""
         try:
-            with open(filename, 'r') as f:
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+with open(filename, 'r') as f:
                 loaded_params = json.load(f)
             
             # Update parameters from loaded data
@@ -756,7 +779,7 @@ class RiskParameters:
             
             return True
         except Exception as e:
-            print(f"Error loading parameters: {e}")
+            self.Error(f"Error loading parameters: {e}"")
             return False
 
 

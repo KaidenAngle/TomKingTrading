@@ -8,6 +8,8 @@ from abc import ABC, abstractmethod
 from enum import Enum
 import traceback
 from datetime import datetime, timedelta
+from core.dependency_container import IManager
+from config.constants import TradingConstants
 
 class RiskEventType(Enum):
     """Types of risk events that can occur"""
@@ -110,17 +112,25 @@ class BaseRiskPlugin(ABC):
     @property
     @abstractmethod
     def plugin_name(self) -> str:
-        pass
+        ...
     
     @property
     @abstractmethod
     def plugin_version(self) -> str:
-        pass
+        ...
     
     def initialize(self, algorithm, event_bus) -> bool:
         """Base initialization"""
         try:
-            self._algorithm = algorithm
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+self._algorithm = algorithm
             self._event_bus = event_bus
             self._initialized = self._plugin_initialize()
             
@@ -137,7 +147,7 @@ class BaseRiskPlugin(ABC):
     @abstractmethod
     def _plugin_initialize(self) -> bool:
         """Plugin-specific initialization"""
-        pass
+        ...
     
     def _safe_execute(self, operation_name: str, operation):
         """Safely execute plugin operation with error handling"""
@@ -145,7 +155,19 @@ class BaseRiskPlugin(ABC):
             return None
         
         try:
-            return operation()
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+return operation()
         except Exception as e:
             self._error_count += 1
             self._algorithm.Error(
@@ -168,7 +190,7 @@ class BaseRiskPlugin(ABC):
             event = RiskEvent(event_type, level, message, data)
             self._event_bus.emit_risk_event(event)
 
-class UnifiedRiskManager:
+class UnifiedRiskManager(IManager):
     """
     Unified Risk Management System implementing plugin architecture.
     Replaces separate August2024CorrelationLimiter, SPYConcentrationManager, 
@@ -212,7 +234,15 @@ class UnifiedRiskManager:
     def register_plugin(self, plugin: IRiskPlugin) -> bool:
         """Register a risk plugin"""
         try:
-            if plugin.plugin_name in self.plugin_registry:
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if plugin.plugin_name in self.plugin_registry:
                 self.algorithm.Error(
                     f"[Unified Risk] Plugin {plugin.plugin_name} already registered"
                 )
@@ -252,10 +282,28 @@ class UnifiedRiskManager:
         start_time = datetime.now()
         
         try:
-            # Check each plugin
-            for plugin in self.plugins:
-                try:
-                    can_open, reason = plugin.can_open_position(symbol, quantity, context)
+        for plugin in self.plugins:
+        try:
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Check each plugin
+                    
+                except Exception as e:
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+can_open, reason = plugin.can_open_position(symbol, quantity, context)
                     if not can_open:
                         self.algorithm.Debug(
                             f"[Unified Risk] Position blocked by {plugin.plugin_name}: {reason}"
@@ -285,7 +333,15 @@ class UnifiedRiskManager:
         """Notify all plugins that a position was opened"""
         for plugin in self.plugins:
             try:
-                plugin.on_position_opened(symbol, quantity, fill_price, context)
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+plugin.on_position_opened(symbol, quantity, fill_price, context)
             except Exception as e:
                 self.algorithm.Error(
                     f"[Unified Risk] Error in {plugin.plugin_name}.on_position_opened: {e}"
@@ -296,7 +352,15 @@ class UnifiedRiskManager:
         """Notify all plugins that a position was closed"""
         for plugin in self.plugins:
             try:
-                plugin.on_position_closed(symbol, quantity, fill_price, pnl, context)
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+plugin.on_position_closed(symbol, quantity, fill_price, pnl, context)
             except Exception as e:
                 self.algorithm.Error(
                     f"[Unified Risk] Error in {plugin.plugin_name}.on_position_closed: {e}"
@@ -306,7 +370,15 @@ class UnifiedRiskManager:
         """Forward market data to all plugins"""
         for plugin in self.plugins:
             try:
-                plugin.on_market_data(symbol, data)
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+plugin.on_market_data(symbol, data)
             except Exception as e:
                 self.algorithm.Debug(
                     f"[Unified Risk] Error in {plugin.plugin_name}.on_market_data: {e}"
@@ -318,7 +390,15 @@ class UnifiedRiskManager:
         
         for plugin in self.plugins:
             try:
-                events = plugin.periodic_check()
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+events = plugin.periodic_check()
                 if events:
                     all_events.extend(events)
                     
@@ -367,7 +447,15 @@ class UnifiedRiskManager:
     def _cancel_all_orders(self):
         """Cancel all pending orders"""
         try:
-            open_orders = self.algorithm.Transactions.GetOpenOrders()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+open_orders = self.algorithm.Transactions.GetOpenOrders()
             for order in open_orders:
                 self.algorithm.Transactions.CancelOrder(order.Id)
                 self.algorithm.Log(f"[Unified Risk] Cancelled order: {order.Id}")
@@ -377,7 +465,15 @@ class UnifiedRiskManager:
     def _close_risky_positions(self):
         """Close positions deemed risky during emergency"""
         try:
-            for symbol, holding in self.algorithm.Portfolio.items():
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+for symbol, holding in self.algorithm.Portfolio.items():
                 if holding.Invested:
                     # Close short options (unlimited risk)
                     if (holding.Type == SecurityType.Option and 
@@ -390,7 +486,15 @@ class UnifiedRiskManager:
     def _update_risk_metrics(self):
         """Update consolidated risk metrics from all plugins"""
         try:
-            consolidated_metrics = {
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+consolidated_metrics = {
                 'overall_risk_score': 0.0,
                 'position_count': len([h for h in self.algorithm.Portfolio.Values if h.Invested]),
                 'portfolio_value': self.algorithm.Portfolio.TotalPortfolioValue,
@@ -403,7 +507,15 @@ class UnifiedRiskManager:
             plugin_metrics = {}
             for plugin in self.plugins:
                 try:
-                    metrics = plugin.get_risk_metrics()
+                    
+                except Exception as e:
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+metrics = plugin.get_risk_metrics()
                     if metrics:
                         plugin_metrics[plugin.plugin_name] = metrics
                 except Exception as e:
@@ -432,7 +544,15 @@ class UnifiedRiskManager:
         plugin_status = {}
         for plugin in self.plugins:
             try:
-                plugin_status[plugin.plugin_name] = {
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+plugin_status[plugin.plugin_name] = {
                     'version': plugin.plugin_version,
                     'metrics': plugin.get_risk_metrics()
                 }
@@ -513,7 +633,7 @@ class UnifiedRiskManager:
         if correlation_plugin and hasattr(correlation_plugin, 'ShouldDefend'):
             return correlation_plugin.ShouldDefend(position_info)
         
-        # Fallback: Check 21 DTE rule directly
+        # Fallback: Check TradingConstants.DEFENSIVE_EXIT_DTE DTE rule directly
         days_to_expiry = position_info.get('dte', 999)
         return days_to_expiry <= 21
     
@@ -521,7 +641,15 @@ class UnifiedRiskManager:
         """Shutdown all plugins"""
         for plugin in self.plugins:
             try:
-                plugin.shutdown()
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+plugin.shutdown()
             except Exception as e:
                 self.algorithm.Error(
                     f"[Unified Risk] Error shutting down {plugin.plugin_name}: {e}"
@@ -549,7 +677,15 @@ class RiskEventBus:
         if event.event_type in self.subscribers:
             for callback in self.subscribers[event.event_type]:
                 try:
-                    callback(event)
+                    
+                except Exception as e:
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+callback(event)
                 except Exception as e:
                     self.algorithm.Error(f"[Risk Event Bus] Error in event callback: {e}")
     
@@ -568,3 +704,34 @@ class RiskEventBus:
             events = [e for e in events if e.event_type == event_type]
         
         return events[-limit:]
+    
+    # IManager Interface Implementation
+    
+    def handle_event(self, event) -> bool:
+        """Handle incoming events from the event bus"""
+        try:
+        return True
+        except Exception as e:
+        self.algo.Error(f"[UnifiedRiskManager] Error handling event: {e}")
+        return False
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Risk manager processes position updates, market events, etc.
+            # Could trigger risk checks based on event type
+    
+    def get_dependencies(self) -> List[str]:
+        """Return list of manager names this manager depends on"""
+        return ['vix_manager', 'greeks_monitor']  # Depends on market data
+    
+    def can_initialize_without_dependencies(self) -> bool:
+        """Return True if this manager can initialize before its dependencies are ready"""
+        return False  # Risk manager needs market data to function
+    
+    def get_manager_name(self) -> str:
+        """Return unique name for this manager"""
+        return "unified_risk_manager"

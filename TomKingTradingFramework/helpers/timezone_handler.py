@@ -22,7 +22,7 @@ class TimezoneHandler:
         return self.algo.Time
     
     def is_market_hours(self):
-        """Check if currently in regular market hours (9:30 AM - 4:00 PM ET)"""
+        """Check if currently in regular market hours (9:30 AM - 4:00 PM, ET)"""
         current = self.get_market_time()
         market_open = time(9, 30)
         market_close = time(16, 0)
@@ -81,7 +81,7 @@ class TimezoneHandler:
         
         current_time = current.time()
         
-        # Handle case where end time is before start time (spans midnight)
+        # Handle case where end time is before start time (spans, midnight)
         if end_time < start_time:
             return current_time >= start_time or current_time < end_time
         else:
@@ -96,7 +96,7 @@ class TimezoneHandler:
             minute: Target minute
             
         Returns:
-            int: Minutes until target time (negative if past)
+            int: Minutes until target time (negative if, past)
         """
         current = self.get_market_time()
         target = current.replace(hour=hour, minute=minute, second=0, microsecond=0)
@@ -128,7 +128,7 @@ class TimezoneHandler:
         Format datetime for logging in Eastern Time
         
         Args:
-            dt: datetime object (uses current time if None)
+            dt: datetime object (uses current time if, None)
             
         Returns:
             str: Formatted time string "HH:MM ET"

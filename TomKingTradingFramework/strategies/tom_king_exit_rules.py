@@ -10,9 +10,9 @@ class TomKingExitRules:
     """
     Manages exits for all strategies based on Tom King's rules:
     - 0DTE: 50% profit or 3:00 PM time exit
-    - Strangles: 50% profit or 21 DTE
-    - LT112: 50% profit or 21 DTE
-    - IPMCC: Roll short at 21 DTE
+    - Strangles: 50% profit or TradingConstants.DEFENSIVE_EXIT_DTE DTE
+    - LT112: 50% profit or TradingConstants.DEFENSIVE_EXIT_DTE DTE
+    - IPMCC: Roll short at TradingConstants.DEFENSIVE_EXIT_DTE DTE
     - LEAP: 30% profit or roll at 150 DTE
     """
     
@@ -26,7 +26,7 @@ class TomKingExitRules:
             'Strangle': TradingConstants.FUTURES_STRANGLE_PROFIT_TARGET,       # 50% of credit (not 25%!)
             'Futures_Strangle': TradingConstants.FUTURES_STRANGLE_PROFIT_TARGET,  # Same as regular strangles
             'LT112': TradingConstants.LT112_PROFIT_TARGET,          # 50% profit target
-            'IPMCC': TradingConstants.IPMCC_PROFIT_TARGET,          # Roll short call at 50% or 21 DTE
+            'IPMCC': TradingConstants.IPMCC_PROFIT_TARGET,          # Roll short call at 50% or TradingConstants.DEFENSIVE_EXIT_DTE DTE
             'LEAP': 0.30            # 30% profit target (longer term)
         }
         
@@ -43,10 +43,10 @@ class TomKingExitRules:
         # DTE management rules
         self.dte_rules = {
             '0DTE': 0,              # Same day exit
-            'Strangle': TradingConstants.DEFENSIVE_EXIT_DTE,         # Tom King's 21 DTE rule
+            'Strangle': TradingConstants.DEFENSIVE_EXIT_DTE,         # Tom King's TradingConstants.DEFENSIVE_EXIT_DTE DTE rule
             'Futures_Strangle': TradingConstants.DEFENSIVE_EXIT_DTE,
-            'LT112': TradingConstants.DEFENSIVE_EXIT_DTE,            # Tom King's 21 DTE rule
-            'IPMCC': TradingConstants.DEFENSIVE_EXIT_DTE,            # Roll short call at 21 DTE
+            'LT112': TradingConstants.DEFENSIVE_EXIT_DTE,            # Tom King's TradingConstants.DEFENSIVE_EXIT_DTE DTE rule
+            'IPMCC': TradingConstants.DEFENSIVE_EXIT_DTE,            # Roll short call at TradingConstants.DEFENSIVE_EXIT_DTE DTE
             'LEAP': 150             # Roll at 150 DTE
         }
         
@@ -112,8 +112,8 @@ class TomKingExitRules:
         target = self.profit_targets[strategy]
         
         if profit_pct >= target:
-            self.algo.Log(f"[EXIT] {strategy} hit {target*100:.0f}% profit target: {profit_pct*100:.1f}%")
-            return (True, f"Profit target {target*100:.0f}%", "close")
+            self.algo.Log(f"[EXIT] {strategy} hit {target*TradingConstants.FULL_PERCENTAGE:.0f}% profit target: {profit_pct*TradingConstants.FULL_PERCENTAGE:.1f}%")
+            return (True, f"Profit target {target*TradingConstants.FULL_PERCENTAGE:.0f}%", "close")
         
         return (False, None, None)
     
@@ -242,7 +242,7 @@ class TomKingExitRules:
             stop = self.stop_loss_multiples.get(strategy)
             dte = self.dte_rules.get(strategy)
             
-            summary.append(f"{strategy:15} | Profit: {target*100:.0f}% | "
+            summary.append(f"{strategy:15} | Profit: {target*TradingConstants.FULL_PERCENTAGE:.0f}% | "
                          f"Stop: {f'{stop}x' if stop else 'None':5} | "
                          f"DTE: {dte}")
         

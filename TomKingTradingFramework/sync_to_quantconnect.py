@@ -78,9 +78,9 @@ class QuantConnectSync:
                 print(f"  [OK] Uploaded: {file_name}")
                 return True
             else:
-                print(f"  [ERROR] Failed to upload {file_name}: {result.get('errors', 'Unknown')}")
+                self.Error(f"  [ERROR] Failed to upload {file_name}: {result.get('errors', 'Unknown'")
         else:
-            print(f"  [ERROR] HTTP {response.status_code} for {file_name}")
+            self.Error(f"  [ERROR] HTTP {response.status_code} for {file_name}"")
             
         return False
     
@@ -143,45 +143,58 @@ class QuantConnectSync:
             
             for file_path in batch:
                 try:
-                    # Calculate relative path for QuantConnect
-                    relative_path = file_path.relative_to(local_path)
-                    qc_path = str(relative_path).replace("\\", "/")
-                    
-                    # Read file content
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    
-                    # Skip very large files
-                    if len(content) > 500000:  # 500KB limit per file
-                        print(f"  [SKIP] File too large: {qc_path}")
-                        stats["skipped"] += 1
-                        continue
-                    
-                    # Upload to QuantConnect
-                    if self.update_file(project_id, qc_path, content):
-                        stats["uploaded"] += 1
-                    else:
-                        stats["failed"] += 1
-                        
+                # Calculate relative path for QuantConnect
+                relative_path = file_path.relative_to(local_path)
+                qc_path = str(relative_path).replace("\\", "/")
+
+                # Read file content
+                with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+                # Skip very large files
+                if len(content) > 500000:  # 500KB limit per file
+                print(f"  [SKIP] File too large: {qc_path}")
+                stats["skipped"] += 1
+                continue
+
+                # Upload to QuantConnect
+                if self.update_file(project_id, qc_path, content):
+                stats["uploaded"] += 1
+                else:
+                stats["failed"] += 1
+
                 except Exception as e:
-                    print(f"  [ERROR] Failed to process {file_path}: {str(e)}")
-                    stats["failed"] += 1
-            
-            # Rate limiting pause between batches
-            if i + batch_size < len(filtered_files):
+                self.Error(f"  [ERROR] Failed to process {file_path}: {str(e")
+                stats["failed"] += 1
+
+                # Rate limiting pause between batches
+                if i + batch_size < len(filtered_files):
                 time.sleep(1)
-        
-        print(f"\n[SUMMARY] Upload complete:")
-        print(f"  - Uploaded: {stats['uploaded']}/{stats['total']}")
-        print(f"  - Failed: {stats['failed']}")
-        print(f"  - Skipped: {stats['skipped']}")
-        
-        return stats
-    
-    def create_and_sync(self, project_name: str, local_path: str) -> Optional[int]:
-        """Create project and sync all files"""
-        try:
-            # Create the project
+
+                print(f"\n[SUMMARY] Upload complete:")
+                print(f"  - Uploaded: {stats['uploaded']}/{stats['total']}")
+                print(f"  - Failed: {stats['failed']}")
+                print(f"  - Skipped: {stats['skipped']}")
+
+                return stats
+
+                def create_and_sync(self, project_name: str, local_path: str) -> Optional[int]:
+                """Create project and sync all files"""
+                try:
+                except Exception as e:
+                # Log and handle unexpected exception
+                except Exception as e:
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Create the project
             project = self.create_project(project_name)
             project_id = project['projectId']
             
@@ -193,11 +206,11 @@ class QuantConnectSync:
                 print(f"\n[SUCCESS] Project ready at: https://www.quantconnect.com/project/{project_id}")
                 return project_id
             else:
-                print(f"\n[WARNING] No files uploaded successfully")
+                self.Log(f"\n[WARNING] No files uploaded successfully"")
                 return None
                 
         except Exception as e:
-            print(f"\n[ERROR] Sync failed: {str(e)}")
+            self.Error(f"\n[ERROR] Sync failed: {str(e")
             return None
 
 
@@ -243,7 +256,7 @@ def main():
         print(f"2. Click 'Build' to compile")
         print(f"3. Click 'Backtest' to run")
     else:
-        print(f"\n[FAILED] Deployment failed. Check errors above.")
+        self.Error(f"\n[FAILED] Deployment failed. Check errors above."")
 
 
 if __name__ == "__main__":

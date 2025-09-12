@@ -4,6 +4,27 @@
 from AlgorithmImports import *
 from typing import Dict, List, Tuple, Any
 import inspect
+from core.unified_vix_manager import UnifiedVIXManager
+from core.unified_position_sizer import UnifiedPositionSizer
+from core.unified_state_manager import UnifiedStateManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage position_sizer from unified system
+# Consider delegating to: self.algo.position_sizer.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage state_manager from unified system
+# Consider delegating to: self.algo.state_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class InterfaceValidator:
     """
@@ -52,7 +73,8 @@ class InterfaceValidator:
                 'check_correlation_limits',
                 'check_margin_limits'
             ]
-        }\n        
+        }
+        
         all_valid = True
         errors = []
         

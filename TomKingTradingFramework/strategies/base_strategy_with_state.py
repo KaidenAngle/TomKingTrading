@@ -117,30 +117,36 @@ class BaseStrategyWithState(ABC):
         """Main execution method called by algorithm"""
         
         try:
-            # Get current state from individual state machine
             state = self.state_machine.current_state
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Get current state from individual state machine
             
-            # VERBOSE LOGGING: Track every execution call
-            self.algo.Debug(f"[{self.strategy_name}] EXECUTE: Current state = {state.name if state else 'None'}, Time = {self.algo.Time}")
+            # Track state execution (only in backtest mode)
+            if not self.algo.LiveMode:
+                self.algo.Debug(f"[{self.strategy_name}] State: {state.name if state else 'None'}")
             
             if state == StrategyState.INITIALIZING:
-                self.algo.Debug(f"[{self.strategy_name}] TRACE: Checking initialization...")
                 self._check_initialization()
             
             elif state == StrategyState.READY:
-                self.algo.Debug(f"[{self.strategy_name}] TRACE: Checking entry window...")
                 self._check_entry_window()
             
             elif state == StrategyState.ANALYZING:
-                self.algo.Debug(f"[{self.strategy_name}] TRACE: Analyzing market conditions...")
                 self._analyze_market()
             
             elif state == StrategyState.PENDING_ENTRY:
-                self.algo.Debug(f"[{self.strategy_name}] TRACE: Preparing entry...")
                 self._prepare_entry()
             
             elif state == StrategyState.ENTERING:
-                self.algo.Debug(f"[{self.strategy_name}] TRACE: Executing entry...")
                 self._execute_entry()
             
             elif state == StrategyState.POSITION_OPEN:
@@ -250,6 +256,7 @@ class BaseStrategyWithState(ABC):
         
         if order_placed:
             # Will transition to POSITION_OPEN when filled
+            pass
         else:
             self.state_machine.trigger(TransitionTrigger.ORDER_REJECTED)
     
@@ -271,7 +278,7 @@ class BaseStrategyWithState(ABC):
             self.state_machine.trigger(TransitionTrigger.STOP_LOSS_HIT)
             return
         
-        # Check defensive exit (21 DTE)
+        # Check defensive exit (TradingConstants.DEFENSIVE_EXIT_DTE DTE)
         if self._check_defensive_exit():
             self.state_machine.trigger(TransitionTrigger.DEFENSIVE_EXIT_DTE)
             return
@@ -298,6 +305,7 @@ class BaseStrategyWithState(ABC):
         
         if exit_complete:
             # Will transition to CLOSED when filled
+            pass
     
     def _cleanup_after_close(self):
         """Clean up after position closed"""
@@ -342,7 +350,8 @@ class BaseStrategyWithState(ABC):
     
     def _on_managing_position(self, context):
         """Called when managing position"""
-        pass  # Silent, happens frequently
+        # IMPLEMENTATION NOTE: Basic implementation - customize as needed
+        pass# Silent, happens frequently
     
     def _on_exiting_position(self, context):
         """Called when exiting position"""
@@ -420,7 +429,7 @@ class BaseStrategyWithState(ABC):
         return False
     
     def _check_defensive_exit(self) -> bool:
-        """Check Tom King's 21 DTE defensive exit"""
+        """Check Tom King's TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit"""
         # Override in options strategies
         return False
     

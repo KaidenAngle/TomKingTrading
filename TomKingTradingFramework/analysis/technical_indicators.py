@@ -43,7 +43,7 @@ class TechnicalAnalysisSystem:
             },
             'breakout_detection': {
                 'volume_multiplier': 1.5,     # 1.5x average volume
-                'price_threshold': 0.01       # 1% breakout threshold
+                'price_threshold': TradingConstants.MIN_PRICE_CHANGE_THRESHOLD       # 1% breakout threshold
             },
             'volatility_analysis': {
                 'iv_rank_calculation': True,
@@ -51,7 +51,7 @@ class TechnicalAnalysisSystem:
             }
         }
         
-        # Strike selection parameters (PDF ATR calculations)
+        # Strike selection parameters (PDF ATR, calculations)
         self.strike_selection_rules = {
             '0dte': {'atr_multiplier': 0.7, 'min_distance': 10},
             'strangle': {'atr_multiplier': 1.0, 'asymmetric': True},
@@ -182,11 +182,11 @@ class TechnicalAnalysisSystem:
         if current_price > ema8 > ema21:
             analysis['direction'] = 'BULLISH'
             analysis['strength'] = min(100, 60 + ((current_price - ema8) / current_price) * 200)
-            analysis['signals'].append('Price > EMA8 > EMA21 (strong uptrend)')
+            analysis['signals'].append('Price > EMA8 > EMA21 (strong, uptrend)')
         elif current_price < ema8 < ema21:
             analysis['direction'] = 'BEARISH'
             analysis['strength'] = max(0, 40 - ((ema8 - current_price) / current_price) * 200)
-            analysis['signals'].append('Price < EMA8 < EMA21 (strong downtrend)')
+            analysis['signals'].append('Price < EMA8 < EMA21 (strong, downtrend)')
         elif current_price > ema8 and ema8 < ema21:
             analysis['direction'] = 'MIXED'
             analysis['strength'] = 45
@@ -227,7 +227,7 @@ class TechnicalAnalysisSystem:
         if not recent_highs or not recent_lows:
             return {'support': [], 'resistance': []}
         
-        # Find significant levels (simplified pivot point detection)
+        # Find significant levels (simplified pivot point, detection)
         support_levels = []
         resistance_levels = []
         
@@ -235,7 +235,7 @@ class TechnicalAnalysisSystem:
         window = 5  # Look 5 periods each side
         
         for i in range(window, len(recent_highs) - window):
-            # Potential resistance (pivot high)
+            # Potential resistance (pivot, high)
             is_pivot_high = True
             current_high = recent_highs[i]
             
@@ -248,7 +248,7 @@ class TechnicalAnalysisSystem:
                 resistance_levels.append(current_high)
         
         for i in range(window, len(recent_lows) - window):
-            # Potential support (pivot low)
+            # Potential support (pivot, low)
             is_pivot_low = True
             current_low = recent_lows[i]
             
@@ -391,7 +391,7 @@ class TechnicalAnalysisSystem:
         # Simplified - would use actual support/resistance calculation
         sr_score = 60  # Default decent score
         
-        # Check if price is near VWAP (good reference level)
+        # Check if price is near VWAP (good reference, level)
         vwap_distance = abs(current_price - values['vwap']) / current_price
         if vwap_distance < 0.01:  # Within 1% of VWAP
             sr_score += 20
@@ -437,7 +437,7 @@ class TechnicalAnalysisSystem:
                 'trend': trend['direction'],
                 'rsi': round(rsi, 1),
                 'atr': round(values['atr'], 2),
-                'bb_position': round(bb_position * 100, 1),  # As percentage
+                'bb_position': round(bb_position * TradingConstants.FULL_PERCENTAGE, 1),  # As percentage
                 'macd_signal': 'BULLISH' if macd_histogram > 0 else 'BEARISH'
             }
         }

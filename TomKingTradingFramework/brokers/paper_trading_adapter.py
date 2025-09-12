@@ -2,10 +2,12 @@
 from AlgorithmImports import *
 import requests
 import json
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import threading
 import queue
+from threading import Lock
 # endregion
 
 class PaperTradingAdapter:
@@ -22,16 +24,20 @@ class PaperTradingAdapter:
     def __init__(self, algorithm, enable_mirroring=True):
         self.algorithm = algorithm
         self.enable_mirroring = enable_mirroring
+        self._shutdown_flag = False
         
-        # Sandbox configuration
+        # Sandbox configuration - SECURE: Using environment variables
         self.sandbox_config = {
             'api_base': 'https://api.cert.tastyworks.com',
             'oauth_url': 'https://api.cert.tastyworks.com/oauth/token',
-            'username': 'kaiden.angle@gmail.com',
-            'password': '56F@BhZ6z6sES9f',
-            'client_id': 'd99becce-b939-450c-9133-c8ecb2e096b1',
-            'client_secret': '98911c87a7287ac6665fc96a9a467d54fd02f7ed'
+            'username': os.getenv('TASTYTRADE_SANDBOX_USERNAME', ''),
+            'password': os.getenv('TASTYTRADE_SANDBOX_PASSWORD', ''),
+            'client_id': os.getenv('TASTYTRADE_SANDBOX_CLIENT_ID', ''),
+            'client_secret': os.getenv('TASTYTRADE_SANDBOX_CLIENT_SECRET', '')
         }
+        
+        # Validate sandbox credentials are set
+        self._validate_sandbox_credentials()
         
         # Session management
         self.session_token = None
@@ -46,9 +52,36 @@ class PaperTradingAdapter:
         self.sandbox_positions = {}
         self.qc_positions = {}
         
+        # Thread synchronization
+        self._order_lock = Lock()
+        self._position_lock = Lock()
+        self._session_lock = Lock()
+        
         # Initialize if enabled
         if self.enable_mirroring:
             self.initialize_sandbox()
+    
+    def _validate_sandbox_credentials(self):
+        """Validate that sandbox credentials are properly set"""
+        missing = []
+        
+        if not self.sandbox_config['username']:
+            missing.append('TASTYTRADE_SANDBOX_USERNAME')
+        if not self.sandbox_config['password']:
+            missing.append('TASTYTRADE_SANDBOX_PASSWORD')
+        if not self.sandbox_config['client_id']:
+            missing.append('TASTYTRADE_SANDBOX_CLIENT_ID')
+        if not self.sandbox_config['client_secret']:
+            missing.append('TASTYTRADE_SANDBOX_CLIENT_SECRET')
+        
+        if missing:
+            error_msg = f"Missing required sandbox environment variables: {', '.join(missing)}"
+            self.algorithm.Error(f"[SECURITY] {error_msg}")
+            self.algorithm.Log("[WARNING] Sandbox mirroring disabled due to missing credentials")
+            self.enable_mirroring = False
+            return False
+        
+        return True
     
     def initialize_sandbox(self):
         """Initialize connection to Tastytrade sandbox"""
@@ -79,39 +112,56 @@ class PaperTradingAdapter:
         """Authenticate with Tastytrade sandbox"""
         
         try:
-            data = {
-                'login': self.sandbox_config['username'],
-                'password': self.sandbox_config['password'],
-                'remember-me': True
-            }
-            
-            response = requests.post(
-                f"{self.sandbox_config['api_base']}/sessions",
-                json=data,
-                headers={
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'TomKingFramework/17.0'
-                },
-                timeout=30
-            )
-            
-            if response.status_code == 201:
-                session_data = response.json().get('data', {})
-                self.session_token = session_data.get('session-token')
-                return True
-            else:
-                self.algorithm.Error(f"Sandbox auth failed: {response.status_code}")
-                return False
-                
+        data = {
+        'login': self.sandbox_config['username'],
+        'password': self.sandbox_config['password'],
+        'remember-me': True
+        }
+
+        response = requests.post(
+        f"{self.sandbox_config['api_base']}/sessions",
+        json=data,
+        headers={
+        'Content-Type': 'application/json',
+        'User-Agent': 'TomKingFramework/17.0'
+        },
+        timeout=30
+        )
+
+        if response.status_code == 201:
+        session_data = response.json().get('data', {})
+        self.session_token = session_data.get('session-token')
+        return True
+        else:
+        self.algorithm.Error(f"Sandbox auth failed: {response.status_code}")
+        return False
+
         except Exception as e:
-            self.algorithm.Error(f"Sandbox auth error: {str(e)}")
-            return False
-    
-    def get_sandbox_account(self) -> bool:
+        self.algorithm.Error(f"Sandbox auth error: {str(e)}")
+        return False
+
+        def get_sandbox_account(self) -> bool:
         """Get sandbox account number"""
-        
+
         try:
-            headers = {
+        except Exception as e:
+        # Log and handle unexpected exception
+        except Exception as e:
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+headers = {
                 'Authorization': self.session_token,
                 'User-Agent': 'TomKingFramework/17.0'
             }
@@ -146,81 +196,129 @@ class PaperTradingAdapter:
         self.algorithm.Log("Creating new sandbox account...")
         
         try:
-            headers = {
-                'Authorization': self.session_token,
-                'User-Agent': 'TomKingFramework/17.0'
-            }
-            
-            data = {
-                'account': {
-                    'margin-or-cash': 'Margin',
-                    'is-test-drive': True
-                }
-            }
-            
-            response = requests.post(
-                f"{self.sandbox_config['api_base']}/accounts",
-                json=data,
-                headers=headers,
-                timeout=30
-            )
-            
-            if response.status_code in [200, 201]:
-                result = response.json()
-                self.sandbox_account = result.get('data', {}).get('account-number')
-                self.algorithm.Log(f"Created sandbox account: {self.sandbox_account}")
-                return True
-            
-            return False
-            
+        headers = {
+        'Authorization': self.session_token,
+        'User-Agent': 'TomKingFramework/17.0'
+        }
+
+        data = {
+        'account': {
+        'margin-or-cash': 'Margin',
+        'is-test-drive': True
+        }
+        }
+
+        response = requests.post(
+        f"{self.sandbox_config['api_base']}/accounts",
+        json=data,
+        headers=headers,
+        timeout=30
+        )
+
+        if response.status_code in [200, 201]:
+        result = response.json()
+        self.sandbox_account = result.get('data', {}).get('account-number')
+        self.algorithm.Log(f"Created sandbox account: {self.sandbox_account}")
+        return True
+
+        return False
+
         except Exception as e:
-            self.algorithm.Error(f"Create account error: {str(e)}")
-            return False
-    
-    def start_order_processor(self):
+        self.algorithm.Error(f"Create account error: {str(e)}")
+        return False
+
+        def start_order_processor(self):
         """Start background thread to process orders"""
-        
+
         def process_orders():
-            while True:
-                try:
-                    order = self.order_queue.get(timeout=1)
-                    if order:
-                        self.execute_sandbox_order(order)
-                except Exception as e:
-                    self.algo.Debug(f"Order queue processing error: {e}")
+        while not self._shutdown_flag:
+        try:
+        except Exception as e:
+        # Log and handle unexpected exception
+        except Exception as e:
+
         
-        thread = threading.Thread(target=process_orders, daemon=True)
-        thread.start()
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+order = self.order_queue.get(timeout=1)
+                    if order is None:  # Shutdown signal
+                        break
+                    self.execute_sandbox_order(order)
+                except queue.Empty:
+                    # Timeout is normal, continue loop
+                    continue
+                except Exception as e:
+                    self.algorithm.Log(f"Order queue processing error: {e}")
+                    # Log error but continue processing
+        
+        self._processor_thread = threading.Thread(target=process_orders, daemon=True)
+        self._processor_thread.start()
     
-    def on_order_event(self, order_event):
+    def shutdown(self):
+        """Properly shutdown the order processor"""
+        self._shutdown_flag = True
+        # Send shutdown signal to queue
+        try:
+        self.order_queue.put(None, timeout=1)
+        except queue.Full:
+        pass  # Queue is full, shutdown flag will stop the loop
+
+        # Wait for thread to finish
+        if hasattr(self, '_processor_thread') and self._processor_thread.is_alive():
+        self._processor_thread.join(timeout=5)
+
+        def on_order_event(self, order_event):
         """
         Mirror QuantConnect order events to Tastytrade sandbox
         Called by main algorithm when orders are placed
         """
-        
+
         if not self.enable_mirroring or not self.is_authenticated:
-            return
-        
+        return
+
         # Log the event
         self.algorithm.Log(f"[HYBRID] Mirroring order: {order_event.Symbol} "
-                          f"{order_event.Direction} {order_event.Quantity}")
-        
+        f"{order_event.Direction} {order_event.Quantity}")
+
         # Queue order for sandbox execution
         if order_event.Status == OrderStatus.Filled:
-            self.order_queue.put({
-                'qc_order_id': order_event.OrderId,
-                'symbol': str(order_event.Symbol),
-                'quantity': order_event.Quantity,
-                'direction': order_event.Direction,
-                'fill_price': order_event.FillPrice,
-                'order_type': order_event.OrderType
-            })
-    
-    def execute_sandbox_order(self, order_data):
+        self.order_queue.put({
+        'qc_order_id': order_event.OrderId,
+        'symbol': str(order_event.Symbol),
+        'quantity': order_event.Quantity,
+        'direction': order_event.Direction,
+        'fill_price': order_event.FillPrice,
+        'order_type': order_event.OrderType
+        })
+
+        def execute_sandbox_order(self, order_data):
         """Execute order in Tastytrade sandbox"""
-        
+
         try:
-            # Map symbol
+        except Exception as e:
+        # Log and handle unexpected exception
+        except Exception as e:
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Map symbol
             symbol = self.map_symbol_to_sandbox(order_data['symbol'])
             
             # Determine order side
@@ -254,8 +352,9 @@ class PaperTradingAdapter:
                 result = response.json()
                 sandbox_order_id = result.get('data', {}).get('id')
                 
-                # Track mapping
-                self.qc_to_sandbox_orders[order_data['qc_order_id']] = sandbox_order_id
+                # Track mapping (thread-safe)
+                with self._order_lock:
+                    self.qc_to_sandbox_orders[order_data['qc_order_id']] = sandbox_order_id
                 
                 self.algorithm.Log(f"[SANDBOX] Order placed: {symbol} {action} "
                                  f"{order_data['quantity']} @ Market")
@@ -288,42 +387,61 @@ class PaperTradingAdapter:
             return {}
         
         try:
-            headers = {
-                'Authorization': self.session_token,
-                'User-Agent': 'TomKingFramework/17.0'
-            }
-            
-            response = requests.get(
-                f"{self.sandbox_config['api_base']}/accounts/{self.sandbox_account}/positions",
-                headers=headers,
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                positions = data.get('data', {}).get('items', [])
-                
-                self.sandbox_positions = {}
-                for pos in positions:
-                    symbol = pos.get('symbol')
-                    quantity = pos.get('quantity')
-                    self.sandbox_positions[symbol] = quantity
-                
-                return self.sandbox_positions
-            
+        headers = {
+        'Authorization': self.session_token,
+        'User-Agent': 'TomKingFramework/17.0'
+        }
+
+        response = requests.get(
+        f"{self.sandbox_config['api_base']}/accounts/{self.sandbox_account}/positions",
+        headers=headers,
+        timeout=10
+        )
+
+        if response.status_code == 200:
+        data = response.json()
+        positions = data.get('data', {}).get('items', [])
+
+        # Update positions (thread-safe)
+        with self._position_lock:
+        self.sandbox_positions = {}
+        for pos in positions:
+        symbol = pos.get('symbol')
+        quantity = pos.get('quantity')
+        self.sandbox_positions[symbol] = quantity
+
+        return self.sandbox_positions
+
         except Exception as e:
-            self.algorithm.Error(f"Get positions error: {str(e)}")
-        
+        self.algorithm.Error(f"Get positions error: {str(e)}")
+
         return {}
-    
-    def get_sandbox_balance(self) -> Dict:
+
+        def get_sandbox_balance(self) -> Dict:
         """Get account balance from sandbox"""
-        
+
         if not self.is_authenticated:
-            return {}
-        
+        return {}
+
         try:
-            headers = {
+        except Exception as e:
+        # Log and handle unexpected exception
+        except Exception as e:
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+headers = {
                 'Authorization': self.session_token,
                 'User-Agent': 'TomKingFramework/17.0'
             }

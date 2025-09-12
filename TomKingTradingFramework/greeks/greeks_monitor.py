@@ -5,11 +5,12 @@ from scipy.stats import norm
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 from core.base_component import BaseComponent
+from core.dependency_container import IManager
 from core.unified_intelligent_cache import UnifiedIntelligentCache, CacheType
 from helpers.data_freshness_validator import DataFreshnessValidator
 # endregion
 
-class GreeksMonitor(BaseComponent):
+class GreeksMonitor(BaseComponent, IManager):
     """
     Real-time Greeks calculation and monitoring
     Essential for options risk management
@@ -147,7 +148,7 @@ class GreeksMonitor(BaseComponent):
         else:
             gamma = norm.pdf(d1) / (spot * iv * sqrt_T)
         
-        vega = spot * norm.pdf(d1) * sqrt_T / 100  # Per 1% IV change
+        vega = spot * norm.pdf(d1) * sqrt_T / TradingConstants.FULL_PERCENTAGE  # Per 1% IV change
         
         return {
             'delta': delta,
@@ -293,7 +294,15 @@ class GreeksMonitor(BaseComponent):
     def _log_cache_performance(self):
         """Log unified Greeks cache performance statistics"""
         try:
-            unified_stats = self.greeks_cache.get_statistics()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+unified_stats = self.greeks_cache.get_statistics()
             
             if not self.algorithm.LiveMode:  # Only log in backtest to avoid spam
                 self.debug(  # Use inherited method
@@ -313,7 +322,15 @@ class GreeksMonitor(BaseComponent):
     def get_cache_statistics(self) -> Dict:
         """Get comprehensive unified cache statistics for monitoring"""
         try:
-            unified_stats = self.greeks_cache.get_statistics()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+unified_stats = self.greeks_cache.get_statistics()
             return {
                 'unified_cache': unified_stats,
                 'greeks_specific_entries': {
@@ -329,8 +346,15 @@ class GreeksMonitor(BaseComponent):
     def invalidate_cache(self, reason: str = "manual"):
         """Manually invalidate Greeks cache"""
         try:
-            # Invalidate all GREEKS cache type entries (includes both portfolio and B-S calculations)
-            greeks_count = self.greeks_cache.invalidate_by_cache_type(CacheType.GREEKS)
+        greeks_count = self.greeks_cache.invalidate_by_cache_type(CacheType.GREEKS)
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Invalidate all GREEKS cache type entries (includes both portfolio and B-S calculations)
             
             self.debug(  # Use inherited method
                 f"[Greeks Cache] Invalidated {greeks_count} Greeks calculations (portfolio + Black-Scholes). Reason: {reason}"
@@ -483,7 +507,15 @@ class GreeksMonitor(BaseComponent):
             
         # Calculate from option prices (simplified)
         try:
-            if option.BidPrice > 0 and option.AskPrice > 0:
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if option.BidPrice > 0 and option.AskPrice > 0:
                 mid_price = (option.BidPrice + option.AskPrice) / 2
                 
                 # Fallback IV estimate when QuantConnect IV unavailable
@@ -638,8 +670,15 @@ class GreeksMonitor(BaseComponent):
                 }
         """
         try:
-            # Get base portfolio Greeks using existing cached method
-            base_greeks = self.calculate_portfolio_greeks()
+        base_greeks = self.calculate_portfolio_greeks()
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Get base portfolio Greeks using existing cached method
             
             # Add comprehensive risk analysis
             risk_analysis = {
@@ -755,9 +794,16 @@ class GreeksMonitor(BaseComponent):
                 }
         """
         try:
-            # Validate required fields
-            required_fields = ['symbol', 'quantity', 'underlying_price', 'strike', 'expiry', 'option_type']
-            missing_fields = [field for field in required_fields if field not in position_data]
+        required_fields = ['symbol', 'quantity', 'underlying_price', 'strike', 'expiry', 'option_type']
+        missing_fields = [field for field in required_fields if field not in position_data]
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Validate required fields
             
             if missing_fields:
                 error_msg = f"Missing required fields: {missing_fields}"
@@ -876,7 +922,15 @@ class GreeksMonitor(BaseComponent):
     def _calculate_overall_risk_score(self, risk_analysis: Dict) -> int:
         """Calculate overall risk score from 0-100"""
         try:
-            score = 0
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+score = 0
             for risk_data in risk_analysis.values():
                 if risk_data['status'] == 'CRITICAL':
                     score += 30
@@ -886,7 +940,8 @@ class GreeksMonitor(BaseComponent):
                     score += 5
             
             return min(100, score)
-        except:
+        except (KeyError, AttributeError, ZeroDivisionError) as e:
+            # Handle missing risk data, attributes, or division by zero in risk calculations
             return 50  # Default moderate risk
 
     def get_statistics(self) -> Dict:
@@ -917,3 +972,22 @@ class GreeksMonitor(BaseComponent):
             stats.update(trends)
             
         return stats
+    
+    # IManager Interface Implementation
+    
+    def handle_event(self, event) -> bool:
+        """Handle incoming events from the event bus"""
+        # GreeksMonitor can respond to position updates, VIX changes, etc.
+        return True  # Always succeeds - Greeks monitor is read-only
+    
+    def get_dependencies(self) -> List[str]:
+        """Return list of manager names this manager depends on"""
+        return []  # No dependencies - Greeks monitor is self-contained
+    
+    def can_initialize_without_dependencies(self) -> bool:
+        """Return True if this manager can initialize before its dependencies are ready"""
+        return True  # Greeks monitor can start immediately
+    
+    def get_manager_name(self) -> str:
+        """Return unique name for this manager"""
+        return "greeks_monitor"

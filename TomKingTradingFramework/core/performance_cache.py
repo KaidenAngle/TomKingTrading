@@ -144,7 +144,15 @@ class HighPerformanceCache(Generic[T]):
             # Cache miss - use factory if provided
             if factory:
                 try:
-                    value = factory()
+                    
+                except Exception as e:
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+value = factory()
                     self.put(key, value)
                     return value
                 except Exception as e:
@@ -173,8 +181,18 @@ class HighPerformanceCache(Generic[T]):
             current_time = self.algo.Time
             
             try:
-                # Estimate memory usage
-                size_bytes = self._estimate_size(value)
+            size_bytes = self._estimate_size(value)
+            except Exception as e:
+
+            
+                # Log and handle unexpected exception
+
+            
+                print(f'Unexpected exception: {e}')
+
+            
+                raise
+# Estimate memory usage
                 
                 # Check memory limits
                 if size_bytes > self.max_memory_bytes:
@@ -261,7 +279,15 @@ class HighPerformanceCache(Generic[T]):
             for key, entry in self._cache.items():
                 for hook_name, hook in self._invalidation_hooks.items():
                     try:
-                        if hook(key, entry.data):
+                        
+                    except Exception as e:
+
+                        # Log and handle unexpected exception
+
+                        print(f'Unexpected exception: {e}')
+
+                        raise
+if hook(key, entry.data):
                             keys_to_remove.append(key)
                             break
                     except Exception as e:
@@ -351,7 +377,15 @@ class HighPerformanceCache(Generic[T]):
     def _estimate_size(self, value: Any) -> int:
         """Estimate memory usage of a value"""
         try:
-            if isinstance(value, (int, float, bool)):
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if isinstance(value, (int, float, bool)):
                 return 24  # Approximate Python object overhead
             elif isinstance(value, str):
                 return 50 + len(value)  # String overhead + characters
@@ -365,7 +399,9 @@ class HighPerformanceCache(Generic[T]):
             else:
                 # For complex objects, use a conservative estimate
                 return 1024
-        except:
+        except (TypeError, AttributeError, RecursionError) as e:
+            # Handle type errors, missing attributes, or deep recursion in complex objects
+            self.algo.Debug(f"[Performance Cache] Size estimation error: {e}")
             return 1024  # Fallback estimate
     
     def log_stats(self):
@@ -400,7 +436,15 @@ class PositionAwareCache(HighPerformanceCache[T]):
         """Get current position snapshot for change detection"""
         snapshot = {}
         try:
-            for symbol, holding in self.algo.Portfolio.items():
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+for symbol, holding in self.algo.Portfolio.items():
                 if holding.Invested and abs(holding.Quantity) > 0:
                     snapshot[str(symbol)] = holding.Quantity
         except Exception as e:
@@ -447,11 +491,18 @@ class MarketDataCache(HighPerformanceCache[T]):
     def _check_price_changes(self, key: str, value: Any) -> bool:
         """Invalidate if price has moved significantly"""
         try:
-            # Extract symbol from key if present
-            for symbol_str in ['SPY', 'QQQ', 'VIX', 'IWM', 'TLT']:
-                if symbol_str in key:
-                    if symbol_str in self.algo.Securities:
-                        current_price = self.algo.Securities[symbol_str].Price
+        for symbol_str in ['SPY', 'QQQ', 'VIX', 'IWM', 'TLT']:
+        if symbol_str in key:
+        if symbol_str in self.algo.Securities:
+        current_price = self.algo.Securities[symbol_str].Price
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Extract symbol from key if present
                         
                         if symbol_str in self._last_prices:
                             last_price = self._last_prices[symbol_str]

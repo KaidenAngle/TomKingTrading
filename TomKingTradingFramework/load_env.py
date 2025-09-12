@@ -36,7 +36,7 @@ def load_dotenv_manually():
                 # Set environment variable
                 os.environ[key] = value
     
-    print("[INFO] Environment variables loaded from .env")
+    self.Log(f"[LOAD_ENV] Environment variables loaded from .env")
     return True
 
 if __name__ == "__main__":

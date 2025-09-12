@@ -29,7 +29,7 @@ class Friday0DTEWithState(BaseStrategyWithState):
         
         # CRITICAL: Tom King uses FUTURES for 0DTE, not SPY options
         # ES for accounts >= $40k, MES for accounts < $40k
-        account_value = algorithm.Portfolio.TotalPortfolioValue
+        account_value = algorithm.position_sizer.get_portfolio_value()
         if account_value < 40000:
             self.primary_symbol = 'MES'  # Micro E-mini S&P 500
             self.contract_multiplier = 5  # MES = $5 per point
@@ -180,9 +180,19 @@ class Friday0DTEWithState(BaseStrategyWithState):
         """Internal pre-entry move analysis (cached)"""
         
         try:
-            # Get SPY or ES price
-            spy = self.algo.spy
-            current_time = self.algo.Time.time()
+        spy = self.algo.spy
+        current_time = self.algo.Time.time()
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Get SPY or ES price
             
             # CRITICAL FIX #3: Enhanced market open price capture with robust timing windows
             # and comprehensive fallback mechanisms per audit documentation
@@ -255,7 +265,7 @@ class Friday0DTEWithState(BaseStrategyWithState):
             if hasattr(self, 'market_open_capture_time'):
                 price_age = current_time - self.market_open_capture_time
                 if price_age.total_seconds() > 7200:  # More than 2 hours old
-                    self.algo.Log(f"[0DTE] WARNING: Market open price is {price_age.total_seconds()/3600:.1f} hours old")
+                    self.algo.Log(f"[0DTE] WARNING: Market open price is {price_age.total_seconds()/TradingConstants.SECONDS_PER_HOUR:.1f} hours old")
                     # Consider re-capturing if very stale
                     if price_age.total_seconds() > 14400:  # More than 4 hours old
                         self.algo.Log(f"[0DTE] STALE PRICE: Re-capturing market price due to age")
@@ -327,7 +337,15 @@ class Friday0DTEWithState(BaseStrategyWithState):
     def _log_cache_performance(self):
         """Log 0DTE strategy cache performance"""
         try:
-            entry_stats = self.entry_conditions_cache.get_statistics()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+entry_stats = self.entry_conditions_cache.get_statistics()
             market_stats = self.market_data_cache.get_statistics()
             vix_stats = self.vix_cache.get_statistics()
             
@@ -345,7 +363,15 @@ class Friday0DTEWithState(BaseStrategyWithState):
     def get_cache_statistics(self) -> dict:
         """Get 0DTE strategy cache statistics"""
         try:
-            return {
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+return {
                 'entry_conditions_cache': self.entry_conditions_cache.get_statistics(),
                 'market_data_cache': self.market_data_cache.get_statistics(),
                 'vix_cache': self.vix_cache.get_statistics(),
@@ -362,7 +388,15 @@ class Friday0DTEWithState(BaseStrategyWithState):
     def invalidate_entry_cache(self, reason: str = "manual"):
         """Manually invalidate entry condition caches"""
         try:
-            entry_count = self.entry_conditions_cache.invalidate_all()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+entry_count = self.entry_conditions_cache.invalidate_all()
             market_count = self.market_data_cache.invalidate_all()
             vix_count = self.vix_cache.invalidate_all()
             
@@ -378,17 +412,35 @@ class Friday0DTEWithState(BaseStrategyWithState):
         # Invalidate entry condition caches when placing orders
         # (positions are about to change)
         try:
-            self.entry_conditions_cache.invalidate_pattern('entry_conditions')
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+self.entry_conditions_cache.invalidate_pattern('entry_conditions')
             self.entry_conditions_cache.invalidate_pattern('risk_check')
-        except:
+        except (AttributeError, KeyError, RuntimeError) as e:
             pass  # Don't fail order placement due to cache issues
         
         try:
-            # Check SPY concentration limits first (with potential caching from spy_concentration_manager)
+        estimated_delta = self._estimate_position_delta()
+        contracts = self._calculate_position_size()
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Check SPY concentration limits first (with potential caching from spy_concentration_manager)
             # IMPORTANT: Prevents over-exposure when multiple strategies trade SPY
             # DO NOT REMOVE: Critical risk management across strategies
-            estimated_delta = self._estimate_position_delta()
-            contracts = self._calculate_position_size()
             
             approved, reason = self.algo.spy_concentration_manager.request_spy_allocation(
                 strategy_name="Friday_0DTE",
@@ -629,10 +681,20 @@ class Friday0DTEWithState(BaseStrategyWithState):
         total_credit = 0.0
         
         try:
-            # Get credits from actual positions
-            for contract_type, contract in self.current_position.items():
-                if contract_type == 'contracts' or contract_type == 'entry_time':
-                    continue
+        for contract_type, contract in self.current_position.items():
+        if contract_type == 'contracts' or contract_type == 'entry_time':
+        continue
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Get credits from actual positions
                     
                 if contract in self.algo.Securities:
                     position = self.algo.Portfolio[contract]
@@ -660,7 +722,19 @@ class Friday0DTEWithState(BaseStrategyWithState):
         self.algo.Debug(f"[0DTE] VIX RETRIEVAL: Requesting VIX from unified manager...")
         
         try:
-            vix = self.algo.vix_manager.get_current_vix()
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+vix = self.algo.vix_manager.get_current_vix()
             self.algo.Debug(f"[0DTE] VIX RETRIEVED: Raw value = {vix}")
             
             if not vix or vix <= 0:
@@ -694,7 +768,7 @@ class Friday0DTEWithState(BaseStrategyWithState):
         
         # Check daily loss limit
         daily_pnl = self._get_daily_pnl()
-        max_daily_loss = self.algo.Portfolio.TotalPortfolioValue * 0.02  # 2% max daily loss
+        max_daily_loss = self.algo.position_sizer.get_portfolio_value() * 0.02  # 2% max daily loss
         
         if daily_pnl < -max_daily_loss:
             self.algo.Debug(f"[0DTE] Daily loss limit reached: ${daily_pnl:.2f}")
@@ -702,7 +776,7 @@ class Friday0DTEWithState(BaseStrategyWithState):
         
         # Check margin usage
         margin_used = self.algo.Portfolio.TotalMarginUsed
-        max_margin = self.algo.Portfolio.TotalPortfolioValue * 0.35
+        max_margin = self.algo.position_sizer.get_portfolio_value() * 0.35
         
         if margin_used > max_margin:
             self.algo.Debug(f"[0DTE] Margin limit reached: ${margin_used:.2f}")
@@ -715,14 +789,26 @@ class Friday0DTEWithState(BaseStrategyWithState):
         
         if not hasattr(self, 'daily_start_value'):
             # Initialize at market open
-            self.daily_start_value = self.algo.Portfolio.TotalPortfolioValue
+            self.daily_start_value = self.algo.position_sizer.get_portfolio_value()
             return 0.0
         
         # Calculate P&L from positions related to this strategy
         strategy_pnl = 0.0
         
         try:
-            if self.current_position and isinstance(self.current_position, dict):
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+if self.current_position and isinstance(self.current_position, dict):
                 for contract_type, contract in self.current_position.items():
                     if contract_type in ['contracts', 'entry_time']:
                         continue
@@ -737,7 +823,7 @@ class Friday0DTEWithState(BaseStrategyWithState):
             self.algo.Error(f"[0DTE] Error calculating daily P&L: {e}")
             
             # Fallback to portfolio level (less accurate but functional)
-            current_value = self.algo.Portfolio.TotalPortfolioValue
+            current_value = self.algo.position_sizer.get_portfolio_value()
             return current_value - self.daily_start_value
     
     def on_order_event(self, order_event):
@@ -801,3 +887,126 @@ class Friday0DTEWithState(BaseStrategyWithState):
         # All orders filled - clear pending list
         self.pending_exit_orders = []
         return True
+    
+    def _place_exit_orders(self) -> bool:
+        """
+        Place 0DTE exit orders following Tom King methodology
+        Handles iron condor, put spread, and call spread exits atomically
+        """
+        try:
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if not self.current_position:
+                self.algo.Error("[0DTE] No position to exit")
+                return False
+            
+            self.algo.Debug(f"[0DTE] Placing exit orders for {self.position_type}")
+            
+            # Initialize pending exit orders tracking
+            if not hasattr(self, 'pending_exit_orders'):
+                self.pending_exit_orders = []
+            
+            # Create atomic order group for multi-leg exit
+            from helpers.atomic_order_executor import AtomicOrderGroup
+            exit_group = AtomicOrderGroup(self.algo, f"0DTE_Exit_{self.algo.Time.strftime('%H%M%S')}")
+            
+            exit_orders_placed = []
+            
+            # Handle different position types
+            if self.position_type == "iron_condor" and isinstance(self.current_position, dict):
+                # Exit all four legs of iron condor
+                legs_to_exit = ['short_put', 'long_put', 'short_call', 'long_call']
+                
+                for leg_name in legs_to_exit:
+                    if leg_name in self.current_position:
+                        symbol = self.current_position[leg_name]
+                        if symbol and symbol in self.algo.Securities:
+                            # Get current position quantity
+                            current_quantity = self.algo.Securities[symbol].Holdings.Quantity
+                            
+                            if current_quantity != 0:
+                                # Exit by placing opposite order
+                                exit_quantity = -current_quantity
+                                exit_group.add_leg(symbol, exit_quantity)
+                                
+                                self.algo.Debug(f"[0DTE] Exit {leg_name}: {symbol} quantity {exit_quantity}")
+            
+            elif self.position_type in ["put_spread", "call_spread"] and isinstance(self.current_position, dict):
+                # Exit spread legs
+                if self.position_type == "put_spread":
+                    legs_to_exit = ['short_put', 'long_put']
+                else:  # call_spread
+                    legs_to_exit = ['short_call', 'long_call']
+                
+                for leg_name in legs_to_exit:
+                    if leg_name in self.current_position:
+                        symbol = self.current_position[leg_name]
+                        if symbol and symbol in self.algo.Securities:
+                            current_quantity = self.algo.Securities[symbol].Holdings.Quantity
+                            
+                            if current_quantity != 0:
+                                exit_quantity = -current_quantity
+                                exit_group.add_leg(symbol, exit_quantity)
+                                
+                                self.algo.Debug(f"[0DTE] Exit {leg_name}: {symbol} quantity {exit_quantity}")
+            
+            else:
+                # Handle simple position (legacy format)
+                if hasattr(self.current_position, '__iter__') and not isinstance(self.current_position, str):
+                    # Iterate through position symbols
+                    for symbol in self.current_position:
+                        if symbol and symbol in self.algo.Securities:
+                            current_quantity = self.algo.Securities[symbol].Holdings.Quantity
+                            if current_quantity != 0:
+                                exit_quantity = -current_quantity
+                                exit_group.add_leg(symbol, exit_quantity)
+                
+                elif isinstance(self.current_position, str):
+                    # Single symbol position
+                    symbol = self.current_position
+                    if symbol and symbol in self.algo.Securities:
+                        current_quantity = self.algo.Securities[symbol].Holdings.Quantity
+                        if current_quantity != 0:
+                            exit_quantity = -current_quantity
+                            exit_group.add_leg(symbol, exit_quantity)
+            
+            # Execute atomic exit
+            if exit_group.target_legs:
+                success = exit_group.execute()
+                
+                if success:
+                    # Store order IDs for tracking
+                    for order in exit_group.orders:
+                        if order and hasattr(order, 'OrderId'):
+                            self.pending_exit_orders.append(order.OrderId)
+                            exit_orders_placed.append(order.OrderId)
+                    
+                    # Notify SPY concentration manager about pending exit
+                    if hasattr(self.algo, 'spy_concentration_manager'):
+                        self.algo.spy_concentration_manager.notify_pending_exit(
+                            strategy_name="Friday_0DTE",
+                            position_info=self.current_position
+                        )
+                    
+                    self.algo.Log(f"[0DTE] Exit orders placed successfully: {len(exit_orders_placed)} orders")
+                    return True
+                
+                else:
+                    self.algo.Error("[0DTE] Failed to place exit orders atomically")
+                    return False
+            
+            else:
+                self.algo.Log("[0DTE] No positions found to exit")
+                return True  # No positions is considered successful exit
+                
+        except Exception as e:
+            self.algo.Error(f"[0DTE] Exit order placement failed: {e}")
+            import traceback
+            self.algo.Error(f"[0DTE] Exit error traceback: {traceback.format_exc()}")
+            return False

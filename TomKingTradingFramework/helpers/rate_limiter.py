@@ -4,10 +4,12 @@ API Rate Limiter - Production Safety
 Prevents API limit violations and manages request throttling
 """
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Callable, Any
 from datetime import datetime, timedelta
 from collections import deque
 import time
+import threading
+from queue import PriorityQueue
 
 class RateLimiter:
     """
@@ -20,6 +22,11 @@ class RateLimiter:
         
         # Track request timestamps
         self.request_times = deque()
+        
+        # Non-blocking delayed execution
+        self.delayed_requests = PriorityQueue()
+        self.scheduler_thread = None
+        self._shutdown_flag = False
         
         # Broker-specific limits
         self.broker_limits = {
@@ -110,11 +117,53 @@ class RateLimiter:
                 self.trigger_circuit_breaker()
                 return False
             elif wait_time > 0:
-                self.algo.Log(f"[RATE LIMITER] Waiting {wait_time:.1f}s before {request_type} request")
-                time.sleep(wait_time)
+                self.algo.Log(f"[RATE LIMITER] Delaying {request_type} request by {wait_time:.1f}s")
+                # Don't block - return False to indicate rate limit hit
+                return False
                 
         self.record_request(request_type)
         return True
+    
+    def schedule_delayed_request(self, callback: Callable, delay_seconds: float, *args, **kwargs):
+        """Schedule a request to be executed after a delay without blocking"""
+        execute_time = time.time() + delay_seconds
+        self.delayed_requests.put((execute_time, callback, args, kwargs))
+        
+        # Start scheduler thread if not running
+        if self.scheduler_thread is None or not self.scheduler_thread.is_alive():
+            self._start_scheduler()
+    
+    def _start_scheduler(self):
+        """Start the non-blocking scheduler thread"""
+        def scheduler_loop():
+            while not self._shutdown_flag:
+                try:
+                    if not self.delayed_requests.empty():
+                        execute_time, callback, args, kwargs = self.delayed_requests.get(timeout=1)
+                        
+                        # Wait until execution time
+                        wait_time = execute_time - time.time()
+                        if wait_time > 0:
+                            time.sleep(min(wait_time, 1))  # Max 1 second sleep
+                        
+                        # Execute the callback
+                        try:
+                            callback(*args, **kwargs)
+                        except Exception as e:
+                            self.algo.Log(f"[RATE LIMITER] Scheduled request error: {e}")
+                    else:
+                        time.sleep(0.1)  # Short sleep when no requests
+                except Exception as e:
+                    self.algo.Log(f"[RATE LIMITER] Scheduler error: {e}")
+        
+        self.scheduler_thread = threading.Thread(target=scheduler_loop, daemon=True)
+        self.scheduler_thread.start()
+    
+    def shutdown(self):
+        """Shutdown the rate limiter"""
+        self._shutdown_flag = True
+        if self.scheduler_thread and self.scheduler_thread.is_alive():
+            self.scheduler_thread.join(timeout=2)
         
     def trigger_circuit_breaker(self, duration_minutes: int = 5):
         """Trigger circuit breaker to stop all requests temporarily"""

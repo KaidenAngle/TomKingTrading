@@ -23,7 +23,7 @@ class FixedLT112Management:
         self.naked_put_profit_target = 0.90  # 90% profit target for naked puts
         self.debit_spread_profit_target = TradingConstants.LT112_PROFIT_TARGET  # 50% profit target for debit spread
         self.max_loss_trigger = 2.00  # 200% loss trigger
-        self.defensive_dte = TradingConstants.DEFENSIVE_EXIT_DTE  # Tom King's 21 DTE rule
+        self.defensive_dte = TradingConstants.DEFENSIVE_EXIT_DTE  # Tom King's TradingConstants.DEFENSIVE_EXIT_DTE DTE rule
         
     def analyze_lt112_positions(self, current_positions: List[Dict]) -> List[Dict]:
         """
@@ -139,11 +139,11 @@ class FixedLT112Management:
         return actions
         
     def _analyze_defensive_management(self, position) -> List[Dict]:
-        """Tom King 21 DTE defensive management rule - ABSOLUTE EXIT"""
+        """Tom King TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive management rule - ABSOLUTE EXIT"""
         actions = []
         
-        # Tom King's 21 DTE rule: Exit ALL positions at 21 DTE - NO EXCEPTIONS
-        # From CRITICAL_DO_NOT_CHANGE.md: "Exit all positions at 21 DTE to avoid gamma risk"
+        # Tom King's TradingConstants.DEFENSIVE_EXIT_DTE DTE rule: Exit ALL positions at TradingConstants.DEFENSIVE_EXIT_DTE DTE - NO EXCEPTIONS
+        # From CRITICAL_DO_NOT_CHANGE.md: "Exit all positions at TradingConstants.DEFENSIVE_EXIT_DTE DTE to avoid gamma risk"
         # NO profit conditions, NO monitoring - immediate closure required
         
         total_pnl = position.calculate_total_pnl()
@@ -160,9 +160,9 @@ class FixedLT112Management:
         actions.append({
             'position_id': position.position_id,
             'action': 'CLOSE_ENTIRE_POSITION',
-            'reason': f'21 DTE defensive exit - mandatory closure (PnL: {profit_pct:.1%})',
+            'reason': f'TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit - mandatory closure (PnL: {profit_pct:.1%})',
             'priority': 'URGENT',
-            'tom_king_rule': 'ABSOLUTE: Exit all positions at 21 DTE to avoid gamma risk'
+            'tom_king_rule': 'ABSOLUTE: Exit all positions at TradingConstants.DEFENSIVE_EXIT_DTE DTE to avoid gamma risk'
         })
                 
         return actions
@@ -170,7 +170,15 @@ class FixedLT112Management:
     def execute_management_action(self, action: Dict) -> Tuple[bool, str]:
         """Execute a specific management action"""
         try:
-            action_type = action['action']
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+action_type = action['action']
             position_id = action['position_id']
             
             if action_type == 'CLOSE_NAKED_PUTS_ONLY':
@@ -192,7 +200,15 @@ class FixedLT112Management:
     def _execute_close_naked_puts_only(self, position_id: str) -> Tuple[bool, str]:
         """Close only the naked puts, keep the debit spread"""
         try:
-            success = self.psm.close_lt112_naked_puts_only(position_id)
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+success = self.psm.close_lt112_naked_puts_only(position_id)
             if success:
                 self.algo.Log(f"[WARNING] LT112: Closed naked puts only, keeping debit spread - {position_id}")
                 return True, "Naked puts closed successfully"
@@ -206,7 +222,15 @@ class FixedLT112Management:
     def _execute_close_debit_spread_only(self, position_id: str) -> Tuple[bool, str]:
         """Close only the debit spread, keep the naked puts"""
         try:
-            success = self.psm.close_lt112_debit_spread_only(position_id)
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+success = self.psm.close_lt112_debit_spread_only(position_id)
             if success:
                 self.algo.Log(f"[WARNING] LT112: Closed debit spread only, keeping naked puts - {position_id}")
                 return True, "Debit spread closed successfully"
@@ -220,7 +244,15 @@ class FixedLT112Management:
     def _execute_close_entire_position(self, position_id: str) -> Tuple[bool, str]:
         """Close the entire LT112 position"""
         try:
-            position = self.psm.positions.get(position_id)
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+position = self.psm.positions.get(position_id)
             if not position:
                 return False, "Position not found"
                 
@@ -254,7 +286,15 @@ class FixedLT112Management:
             # Simulate price updates
             if hasattr(self.algo.Securities, component.contract_symbol):
                 try:
-                    component.current_price = float(self.algo.Securities[component.contract_symbol].Price)
+                    
+                except Exception as e:
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+component.current_price = float(self.algo.Securities[component.contract_symbol].Price)
                 except Exception as e:
                     # Fallback to estimated pricing based on strike and underlying
                     self.algo.Debug(f"[LT112] Could not get price for {component.contract_symbol}: {e}")

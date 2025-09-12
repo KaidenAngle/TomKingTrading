@@ -4,6 +4,13 @@
 from AlgorithmImports import *
 from datetime import datetime, timedelta
 import json
+from core.unified_state_manager import UnifiedStateManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage state_manager from unified system
+# Consider delegating to: self.algo.state_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class LivePositionRecovery:
     """
@@ -18,7 +25,15 @@ class LivePositionRecovery:
     def save_positions(self):
         """Save current positions to ObjectStore"""
         try:
-            positions = []
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+positions = []
             for symbol, holding in self.algo.Portfolio.items():
                 if holding.Invested:
                     positions.append({
@@ -45,13 +60,21 @@ class LivePositionRecovery:
     def recover_positions(self):
         """Recover positions from ObjectStore on restart"""
         try:
-            if self.algo.ObjectStore.ContainsKey(self.storage_key):
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if self.algo.ObjectStore.ContainsKey(self.storage_key):
                 json_state = self.algo.ObjectStore.Read(self.storage_key)
                 state = json.loads(json_state)
                 
                 # Check if state is recent (within 24 hours)
                 saved_time = datetime.strptime(state['timestamp'], '%Y-%m-%d %H:%M:%S')
-                time_diff = (self.algo.Time - saved_time).total_seconds() / 3600
+                time_diff = (self.algo.Time - saved_time).total_seconds() / TradingConstants.SECONDS_PER_HOUR
                 
                 if time_diff < 24:
                     self.algo.Log(f"Recovering {len(state['positions'])} positions from {state['timestamp']}")
@@ -149,8 +172,15 @@ class LiveFuturesRoller:
     def roll_position(self, current_symbol, holding):
         """Roll a futures position to next month"""
         try:
-            # Get next month contract
-            next_contract = self.get_next_month_contract(current_symbol)
+        next_contract = self.get_next_month_contract(current_symbol)
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Get next month contract
             
             if next_contract:
                 # Close current position
@@ -197,7 +227,15 @@ class LiveBrokerFailover:
     def place_order_with_failover(self, symbol, quantity, order_type='MARKET'):
         """Place order with automatic failover"""
         try:
-            if self.use_tastytrade and hasattr(self.algo, 'tastytrade_api'):
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if self.use_tastytrade and hasattr(self.algo, 'tastytrade_api'):
                 # Try TastyTrade first
                 result = self.place_tastytrade_order(symbol, quantity, order_type)
                 if result:
@@ -219,12 +257,19 @@ class LiveBrokerFailover:
         # Use the TastyTrade integration if available
         if hasattr(self.algo, 'tastytrade') and self.algo.tastytrade:
             try:
-                # Determine limit price if needed
-                limit_price = None
-                if order_type == 'LIMIT':
-                    security = self.algo.Securities[symbol]
-                    # Use mid price for limit orders
-                    limit_price = (security.BidPrice + security.AskPrice) / 2
+            limit_price = None
+            if order_type == 'LIMIT':
+            security = self.algo.Securities[symbol]
+            # Use mid price for limit orders
+            limit_price = (security.BidPrice + security.AskPrice) / 2
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+# Determine limit price if needed
                 
                 # Place the order through TastyTrade
                 result = self.algo.tastytrade.place_order(

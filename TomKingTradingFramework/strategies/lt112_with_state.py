@@ -11,7 +11,7 @@ class LT112WithState(BaseStrategyWithState):
     """
     Tom King's LT112 strategy with state machine pattern
     Enters 112-120 DTE put spreads on Wednesdays
-    50% profit target, 200% stop loss, 21 DTE defensive exit
+    50% profit target, 200% stop loss, TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit
     """
     
     def __init__(self, algorithm):
@@ -27,7 +27,7 @@ class LT112WithState(BaseStrategyWithState):
         # DTE targets (using constants)
         self.target_dte = 112  # Primary target (LT112 = 112 DTE)
         self.dte_range = TradingConstants.LT112_TARGET_DTE_RANGE  # Accept range around target
-        self.defensive_exit_dte = TradingConstants.DEFENSIVE_EXIT_DTE  # Tom King's 21 DTE rule
+        self.defensive_exit_dte = TradingConstants.DEFENSIVE_EXIT_DTE  # Tom King's TradingConstants.DEFENSIVE_EXIT_DTE DTE rule
         
         # Strike selection
         self.put_1_otm = 0.05           # 5% OTM for first put
@@ -89,7 +89,19 @@ class LT112WithState(BaseStrategyWithState):
         """Place LT112 put spread orders"""
         
         try:
-            spy = self.algo.spy
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+spy = self.algo.spy
             current_price = self.algo.Securities[spy].Price
             
             # Find options with target DTE
@@ -116,7 +128,7 @@ class LT112WithState(BaseStrategyWithState):
             # Check SPY concentration limits before placing order
             # IMPORTANT: SPY concentration check prevents over-exposure across strategies
             # DO NOT REMOVE: Multiple strategies trade SPY, must coordinate exposure
-            estimated_delta = -0.30 * contracts_to_trade * 100  # Delta estimate for 10% OTM put spread
+            estimated_delta = -0.30 * contracts_to_trade * TradingConstants.FULL_PERCENTAGE  # Delta estimate for 10% OTM put spread
             approved, reason = self.algo.spy_concentration_manager.request_spy_allocation(
                 strategy_name="LT112",
                 position_type="put_spread", 
@@ -183,9 +195,9 @@ class LT112WithState(BaseStrategyWithState):
                 self._close_position(position)
                 continue
             
-            # Check defensive exit (21 DTE)
+            # Check defensive exit (TradingConstants.DEFENSIVE_EXIT_DTE DTE)
             if self._check_dte_exit(position):
-                self.algo.Debug(f"[LT112] 21 DTE defensive exit")
+                self.algo.Debug(f"[LT112] TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit")
                 self._close_position(position)
                 continue
             
@@ -210,8 +222,18 @@ class LT112WithState(BaseStrategyWithState):
             return True
         
         try:
-            # Close current position
-            self._close_position(position_to_roll)
+        self._close_position(position_to_roll)
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Close current position
             
             # Open new position at further strikes
             spy = self.algo.spy
@@ -356,9 +378,19 @@ class LT112WithState(BaseStrategyWithState):
         """Calculate net credit for spread using real market data"""
         
         try:
-            # Use actual bid/ask prices from QuantConnect
-            short_price = 0.0
-            long_price = 0.0
+        short_price = 0.0
+        long_price = 0.0
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Use actual bid/ask prices from QuantConnect
             
             if short_option in self.algo.Securities:
                 short_security = self.algo.Securities[short_option]
@@ -401,7 +433,7 @@ class LT112WithState(BaseStrategyWithState):
         return False
     
     def _check_dte_exit(self, position) -> bool:
-        """Check if position needs 21 DTE exit"""
+        """Check if position needs TradingConstants.DEFENSIVE_EXIT_DTE DTE exit"""
         
         short_put = position['short_put']
         days_to_expiry = (short_put.ID.Date - self.algo.Time).days
@@ -433,8 +465,18 @@ class LT112WithState(BaseStrategyWithState):
         """Close an LT112 position"""
         
         try:
-            # Buy back short put
-            self.algo.MarketOrder(position['short_put'], position['contracts'])
+        self.algo.MarketOrder(position['short_put'], position['contracts'])
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Buy back short put
             
             # Sell long put
             self.algo.MarketOrder(position['long_put'], -position['contracts'])
@@ -467,3 +509,101 @@ class LT112WithState(BaseStrategyWithState):
     def _can_trade_again_today(self) -> bool:
         """LT112 only enters once per Wednesday"""
         return False
+    
+    def _place_exit_orders(self) -> bool:
+        """
+        Place LT112 put spread exit orders following Tom King methodology
+        Exits at 50% profit or TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit
+        """
+        try:
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if not self.current_position:
+                self.algo.Error("[LT112] No position to exit")
+                return False
+                
+            if not isinstance(self.current_position, dict):
+                self.algo.Error("[LT112] Invalid position format for exit")
+                return False
+            
+            self.algo.Debug("[LT112] Placing exit orders for put spread")
+            
+            # Get position details
+            short_put = self.current_position.get('short_put')
+            long_put = self.current_position.get('long_put')
+            contracts = self.current_position.get('contracts', 1)
+            
+            if not short_put or not long_put:
+                self.algo.Error("[LT112] Missing position symbols for exit")
+                return False
+            
+            # Validate symbols exist in securities
+            if short_put not in self.algo.Securities or long_put not in self.algo.Securities:
+                self.algo.Error("[LT112] Position symbols not found in securities")
+                return False
+            
+            # Create atomic order group for put spread exit
+            from helpers.atomic_order_executor import AtomicOrderGroup
+            exit_group = AtomicOrderGroup(self.algo, f"LT112_Exit_{self.algo.Time.strftime('%H%M%S')}")
+            
+            # Get current holdings
+            short_put_quantity = self.algo.Securities[short_put].Holdings.Quantity
+            long_put_quantity = self.algo.Securities[long_put].Holdings.Quantity
+            
+            if short_put_quantity == 0 and long_put_quantity == 0:
+                self.algo.Log("[LT112] No positions found to exit")
+                return True  # Already closed
+            
+            # Add exit legs (opposite quantities to close)
+            if short_put_quantity != 0:
+                exit_group.add_leg(short_put, -short_put_quantity)
+                self.algo.Debug(f"[LT112] Exit short put: {short_put} quantity {-short_put_quantity}")
+            
+            if long_put_quantity != 0:
+                exit_group.add_leg(long_put, -long_put_quantity)
+                self.algo.Debug(f"[LT112] Exit long put: {long_put} quantity {-long_put_quantity}")
+            
+            # Execute atomic exit
+            success = exit_group.execute()
+            
+            if success:
+                # Track exit orders for monitoring
+                exit_orders_placed = []
+                for order in exit_group.orders:
+                    if order and hasattr(order, 'OrderId'):
+                        exit_orders_placed.append(order.OrderId)
+                
+                # Notify SPY concentration manager about pending exit
+                if hasattr(self.algo, 'spy_concentration_manager'):
+                    self.algo.spy_concentration_manager.notify_pending_exit(
+                        strategy_name="LT112",
+                        position_info=self.current_position
+                    )
+                
+                # Mark position as closing
+                self.current_position['status'] = 'closing'
+                
+                # Update position in tracking list
+                for i, pos in enumerate(self.lt112_positions):
+                    if pos.get('entry_time') == self.current_position.get('entry_time'):
+                        self.lt112_positions[i]['status'] = 'closing'
+                        break
+                
+                self.algo.Log(f"[LT112] Exit orders placed successfully: {len(exit_orders_placed)} orders")
+                return True
+                
+            else:
+                self.algo.Error("[LT112] Failed to place exit orders atomically")
+                return False
+                
+        except Exception as e:
+            self.algo.Error(f"[LT112] Exit order placement failed: {e}")
+            import traceback
+            self.algo.Error(f"[LT112] Exit error traceback: {traceback.format_exc()}")
+            return False

@@ -3,6 +3,13 @@
 from AlgorithmImports import *
 from datetime import timedelta
 import numpy as np
+from core.unified_vix_manager import UnifiedVIXManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class VIXTermStructure:
     """Analyze VIX futures term structure for contango/backwardation signals"""
@@ -126,9 +133,9 @@ class VIXTermStructure:
             return False
         
         # Increase vol positions when:
-        # 1. Strong backwardation (market fear)
+        # 1. Strong backwardation (market, fear)
         # 2. Flat or inverted term structure
-        # 3. VIX spot > front month (extreme fear)
+        # 3. VIX spot > front month (extreme, fear)
         
         data = self.term_structure_data
         
@@ -137,7 +144,7 @@ class VIXTermStructure:
             self.algo.Debug("VIX Term Structure: Backwardation detected - increase vol positions")
             return True
         
-        # Check if spot > front month (extreme fear)
+        # Check if spot > front month (extreme, fear)
         if data['spot'] > data['front_month']['price'] * 1.02:
             self.algo.Debug("VIX Term Structure: Spot > Front month - extreme fear")
             return True

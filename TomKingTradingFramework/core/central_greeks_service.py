@@ -8,7 +8,14 @@ from core.base_component import BaseComponent
 from core.unified_intelligent_cache import UnifiedIntelligentCache, CacheType
 from core.event_bus import EventBus, EventType, Event
 from helpers.data_freshness_validator import DataFreshnessValidator
+from core.unified_vix_manager import UnifiedVIXManager
 # endregion
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class CentralGreeksService(BaseComponent):
     """
@@ -316,7 +323,19 @@ class CentralGreeksService(BaseComponent):
         """Calculate Greeks for individual position with caching"""
         
         try:
-            option = holding.Symbol
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+option = holding.Symbol
             underlying = option.Underlying
             
             # Check cache first
@@ -337,7 +356,19 @@ class CentralGreeksService(BaseComponent):
         """Internal position Greeks calculation"""
         
         try:
-            option = holding.Symbol
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+option = holding.Symbol
             underlying = option.Underlying
             
             # Get market data

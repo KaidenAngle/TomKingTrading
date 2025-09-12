@@ -63,6 +63,26 @@ class UnifiedPositionSizer:
             1000000: 20  # Over $500k: 20 contracts
         }
     
+    def get_portfolio_value(self) -> float:
+        """
+        Centralized portfolio value access - Single source of truth
+        All portfolio value requests should go through this method
+        """
+        return self.algo.Portfolio.TotalPortfolioValue
+    
+    def get_buying_power(self) -> float:
+        """Get available buying power"""
+        return self.algo.Portfolio.MarginRemaining
+    
+    def get_portfolio_usage_pct(self) -> float:
+        """Get percentage of portfolio currently used"""
+        total_value = self.get_portfolio_value()
+        if total_value <= 0:
+            return 0.0
+        
+        cash = self.algo.Portfolio.Cash
+        return (total_value - cash) / total_value
+    
     def calculate_position_size(self, 
                                strategy_name: str,
                                win_rate: float = 0.60,
@@ -84,8 +104,8 @@ class UnifiedPositionSizer:
         """
         
         try:
-            # Get account value
-            account_value = self.algo.Portfolio.TotalPortfolioValue
+            # Get account value through centralized method
+            account_value = self.get_portfolio_value()
             
             # Calculate base Kelly size
             kelly_size = self._calculate_kelly_size(

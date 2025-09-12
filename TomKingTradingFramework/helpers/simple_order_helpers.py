@@ -22,9 +22,16 @@ class SimpleOrderHelpers:
             aggressive: If True, cross spread more for fill
         """
         try:
-            # Get bid/ask
-            bid = contract.BidPrice if hasattr(contract, 'BidPrice') else 0
-            ask = contract.AskPrice if hasattr(contract, 'AskPrice') else 0
+        bid = contract.BidPrice if hasattr(contract, 'BidPrice') else 0
+        ask = contract.AskPrice if hasattr(contract, 'AskPrice') else 0
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Get bid/ask
             
             # Sanity check
             if bid <= 0 or ask <= 0:
@@ -82,13 +89,22 @@ class SimpleOrderHelpers:
         for order in orders:
             if order is not None:
                 try:
-                    if order.Status == OrderStatus.Submitted:
+                    
+                except Exception as e:
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+if order.Status == OrderStatus.Submitted:
                         order.Cancel()
                     elif order.Status == OrderStatus.Filled:
                         # Reverse the filled position
                         self.algo.MarketOrder(order.Symbol, -order.Quantity)
-                except:
-                    pass  # Best effort cleanup
+                except (RuntimeError, AttributeError, InvalidOperationException) as e:
+                    # Best effort cleanup - handle order state issues or missing attributes
+                    pass
     
     def calculate_option_margin(self, short_strike, long_strike, quantity, multiplier=100):
         """

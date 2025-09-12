@@ -22,6 +22,21 @@ import numpy as np
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from enum import Enum
+from config.constants import AccountPhase
+from core.unified_vix_manager import UnifiedVIXManager
+from risk.kelly_criterion import KellyCriterionCalculator
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage kelly_criterion from unified system
+# Consider delegating to: kelly_calculator.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class VIXRegime(Enum):
     """VIX volatility regimes based on Tom King methodology - 6 regimes"""
@@ -31,13 +46,6 @@ class VIXRegime(Enum):
     ELEVATED = "ELEVATED"            # VIX 20-25: 40-60% BP, Increased risk
     HIGH = "HIGH"                    # VIX 25-35: 25-40% BP, High volatility regime
     EXTREME = "EXTREME"              # VIX 35+: 10-25% BP, Crisis mode - minimal exposure
-
-class AccountPhase(Enum):
-    """Account size phases with different position limits"""
-    PHASE_1 = 1  # $38-51k: 3 positions max
-    PHASE_2 = 2  # $51-76k: 8 positions max
-    PHASE_3 = 3  # $76-95k: 12 positions max
-    PHASE_4 = 4  # $95k+: 20 positions max
 
 class PositionSizer:
     """
@@ -447,7 +455,7 @@ class PositionSizer:
         # Conservative adjustment (use 25% of Kelly for safety)
         # Note: Applying single conservative factor, not double reduction
         conservative_kelly = kelly * 0.25
-        return max(0.05, min(0.25, conservative_kelly))
+        return max(0.05, min(TradingConstants.KELLY_FACTOR, conservative_kelly))
     
     def _get_deployment_strategy(self, vix_regime: VIXRegime) -> str:
         """Get deployment strategy for VIX regime"""

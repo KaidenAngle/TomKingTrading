@@ -293,11 +293,21 @@ class ComponentInitializer:
         config = self.component_configs[component_name]
         
         try:
-            # Check dependencies are available
-            for dep_name in config.dependencies:
-                if dep_name not in self.components:
-                    self.algo.Error(f"[ComponentInitializer] {component_name}: dependency {dep_name} not available")
-                    return False
+        for dep_name in config.dependencies:
+        if dep_name not in self.components:
+        self.algo.Error(f"[ComponentInitializer] {component_name}: dependency {dep_name} not available")
+        return False
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Check dependencies are available
             
             # Initialize component
             component = config.class_type(*config.initialization_args, **config.initialization_kwargs)

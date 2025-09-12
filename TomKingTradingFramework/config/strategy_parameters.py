@@ -1,9 +1,23 @@
 # region imports
 from AlgorithmImports import *
 from config.constants import TradingConstants
+from core.unified_vix_manager import UnifiedVIXManager
+from core.unified_position_sizer import UnifiedPositionSizer
 # endregion
 # Tom King Trading Framework v17 - Configuration Parameters
 # Extracted from Tom King Complete Trading System Documentation
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage position_sizer from unified system
+# Consider delegating to: self.algo.position_sizer.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class TomKingParameters:
     """

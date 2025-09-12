@@ -160,11 +160,18 @@ class PhaseBasedGreeksLimits:
             - reason: str - Explanation
         """
         try:
-            # Estimate Greeks impact of proposed trade
-            security = self.algo.Securities[symbol]
-            if not hasattr(security, 'Greeks') or not security.Greeks:
-                # Can't validate without Greeks, allow with warning
-                return True, "Warning: Greeks not available for validation"
+        security = self.algo.Securities[symbol]
+        if not hasattr(security, 'Greeks') or not security.Greeks:
+        # Can't validate without Greeks, allow with warning
+        return True, "Warning: Greeks not available for validation"
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Estimate Greeks impact of proposed trade
             
             # Calculate proposed Greeks change
             multiplier = 100
@@ -245,6 +252,6 @@ if self.Time.hour == 10 and self.Time.minute == 0:
 # Check compliance:
 compliant, message, details = self.phase_greeks_manager.check_greeks_compliance()
 if not compliant:
-    self.Log(f"[WARNING] GREEKS VIOLATION: {message}")
+    self.Log(f""[PHASE_BASED_GREEKS_LIMITS]  GREEKS VIOLATION: {message}")
     # Trigger defensive actions
 """

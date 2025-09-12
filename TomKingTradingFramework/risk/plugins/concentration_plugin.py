@@ -25,11 +25,18 @@ class ConcentrationPlugin(BaseRiskPlugin):
     def _plugin_initialize(self) -> bool:
         """Initialize concentration tracking"""
         try:
-            # Track positions by underlying asset groups
-            self.spy_positions = {}    # Strategy -> position details
-            self.es_positions = {}     # ES futures positions  
-            self.option_positions = {}  # SPY/SPX options
-            self.other_positions = {}   # Other concentrated positions
+        self.spy_positions = {}    # Strategy -> position details
+        self.es_positions = {}     # ES futures positions
+        self.option_positions = {}  # SPY/SPX options
+        self.other_positions = {}   # Other concentrated positions
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Track positions by underlying asset groups
             
             # Maximum exposure limits (Tom King methodology - NEVER CHANGE)
             self.max_spy_delta = 100           # Maximum net delta exposure
@@ -422,11 +429,18 @@ class ConcentrationPlugin(BaseRiskPlugin):
     def _sync_positions_with_portfolio(self):
         """Sync position tracking with actual portfolio"""
         try:
-            # Get actual positions
-            actual_symbols = set()
-            for holding in self._algorithm.Portfolio.Values:
-                if holding.Invested:
-                    actual_symbols.add(holding.Symbol)
+        actual_symbols = set()
+        for holding in self._algorithm.Portfolio.Values:
+        if holding.Invested:
+        actual_symbols.add(holding.Symbol)
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Get actual positions
             
             # Remove tracking for positions that no longer exist
             all_position_dicts = [self.spy_positions, self.es_positions, 
@@ -461,7 +475,19 @@ class ConcentrationPlugin(BaseRiskPlugin):
         }
         
         try:
-            cutoff_time = self._algorithm.Time - timedelta(hours=4)
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+cutoff_time = self._algorithm.Time - timedelta(hours=4)
             
             all_position_dicts = [
                 ('spy', self.spy_positions),
@@ -486,7 +512,7 @@ class ConcentrationPlugin(BaseRiskPlugin):
                             'type': dict_name,
                             'delta': delta,
                             'notional': notional,
-                            'age_hours': position_age.total_seconds() / 3600
+                            'age_hours': position_age.total_seconds() / TradingConstants.SECONDS_PER_HOUR
                         })
                         
                         # Update tracking

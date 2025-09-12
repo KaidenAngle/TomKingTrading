@@ -7,6 +7,20 @@ from typing import Dict, List, Tuple, Any, Optional
 from datetime import datetime, timedelta
 import traceback
 import json
+from core.unified_vix_manager import UnifiedVIXManager
+from core.unified_position_sizer import UnifiedPositionSizer
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage position_sizer from unified system
+# Consider delegating to: self.algo.position_sizer.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class PositionOpeningValidator:
     """
@@ -71,7 +85,15 @@ class PositionOpeningValidator:
         
         for category, validation_method in validation_methods:
             try:
-                self.algo.Error(f"\n[VALIDATOR] Starting {category.upper()} validation...")
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+self.algo.Error(f"\n[VALIDATOR] Starting {category.upper()} validation...")
                 validation_method()
                 self.algo.Error(f"[VALIDATOR] {category.upper()} validation completed")
             except Exception as e:
@@ -87,7 +109,15 @@ class PositionOpeningValidator:
         
         # FAILURE POINT 1: ComponentInitializer dependency resolution
         try:
-            if hasattr(self.algo, 'component_initializer'):
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if hasattr(self.algo, 'component_initializer'):
                 init_status = self.algo.component_initializer.get_initialization_status()
                 if not init_status.get('successful', False):
                     self.log_error('component_initialization', 1, 
@@ -223,7 +253,15 @@ class PositionOpeningValidator:
         
         # Test get_current_vix
         try:
-            vix_value = vix_manager.get_current_vix()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+vix_value = vix_manager.get_current_vix()
             if vix_value <= 0:
                 self.log_error('method_integration', 5, f"Invalid VIX value: {vix_value}")
             else:
@@ -233,7 +271,15 @@ class PositionOpeningValidator:
         
         # Test get_vix_regime  
         try:
-            regime = vix_manager.get_vix_regime()
+              
+        except Exception as e:
+  
+            # Log and handle unexpected exception
+  
+            print(f'Unexpected exception: {e}')
+  
+            raise
+regime = vix_manager.get_vix_regime()
             valid_regimes = ["LOW", "NORMAL", "ELEVATED", "HIGH", "EXTREME", "CRISIS", "HISTORIC"]
             if regime not in valid_regimes:
                 self.log_error('method_integration', 5, f"Invalid VIX regime: {regime}")
@@ -244,7 +290,15 @@ class PositionOpeningValidator:
         
         # Test position size adjustment
         try:
-            adjustment = vix_manager.get_position_size_adjustment()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+adjustment = vix_manager.get_position_size_adjustment()
             if not (0.1 <= adjustment <= 2.0):
                 self.log_error('method_integration', 5, f"Invalid position adjustment: {adjustment}")
             else:
@@ -262,7 +316,15 @@ class PositionOpeningValidator:
         
         # Test calculate_position_size
         try:
-            size = position_sizer.calculate_position_size("0DTE", 0.70, 1.0, 1.0)
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+size = position_sizer.calculate_position_size("0DTE", 0.70, 1.0, 1.0)
             if size <= 0:
                 self.log_error('method_integration', 6, f"Invalid position size: {size}")
             else:
@@ -272,7 +334,15 @@ class PositionOpeningValidator:
         
         # Test get_max_position_size
         try:
-            max_size = position_sizer.get_max_position_size("0DTE")
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+max_size = position_sizer.get_max_position_size("0DTE")
             if max_size <= 0:
                 self.log_error('method_integration', 6, f"Invalid max position size: {max_size}")
             else:
@@ -283,7 +353,15 @@ class PositionOpeningValidator:
         # Test get_available_buying_power (if method exists)
         if hasattr(position_sizer, 'get_available_buying_power'):
             try:
-                bp = position_sizer.get_available_buying_power()
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+bp = position_sizer.get_available_buying_power()
                 if bp < 0:
                     self.log_error('method_integration', 6, f"Negative buying power: {bp}")
                 else:
@@ -301,7 +379,15 @@ class PositionOpeningValidator:
         
         # Test get_system_state
         try:
-            system_state = state_manager.get_system_state()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+system_state = state_manager.get_system_state()
             if not isinstance(system_state, dict):
                 self.log_error('method_integration', 7, f"Invalid system state type: {type(system_state)}")
             else:
@@ -311,16 +397,31 @@ class PositionOpeningValidator:
         
         # Test register_strategy
         try:
-            # Try to register a test strategy
-            result = state_manager.register_strategy("test_strategy", None)
-            self.log_success('method_integration', 7, "register_strategy method callable")
+        result = state_manager.register_strategy("test_strategy", None)
+        self.log_success('method_integration', 7, "register_strategy method callable")
         except Exception as e:
-            self.log_error('method_integration', 7, f"register_strategy failed: {str(e)}")
+        self.log_error('method_integration', 7, f"register_strategy failed: {str(e)}")
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Try to register a test strategy
         
         # Test update_all_state_machines (critical missing method)
         if hasattr(state_manager, 'update_all_state_machines'):
             try:
-                state_manager.update_all_state_machines()
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+state_manager.update_all_state_machines()
                 self.log_success('method_integration', 7, "update_all_state_machines method available")
             except Exception as e:
                 self.log_error('method_integration', 7, f"update_all_state_machines failed: {str(e)}")
@@ -338,17 +439,32 @@ class PositionOpeningValidator:
         # Test execute_strategies (called from OnData)
         if hasattr(coordinator, 'execute_strategies'):
             try:
-                # Test with empty data to avoid side effects
-                coordinator.execute_strategies(None)
-                self.log_success('method_integration', 8, "execute_strategies method callable")
+            coordinator.execute_strategies(None)
+            self.log_success('method_integration', 8, "execute_strategies method callable")
             except Exception as e:
-                self.log_error('method_integration', 8, f"execute_strategies failed: {str(e)}")
+            self.log_error('method_integration', 8, f"execute_strategies failed: {str(e)}")
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+# Test with empty data to avoid side effects
         else:
             self.log_error('method_integration', 8, "CRITICAL: execute_strategies method missing")
         
         # Test register_strategy
         try:
-            coordinator.register_strategy("test_strategy", None)
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+coordinator.register_strategy("test_strategy", None)
             self.log_success('method_integration', 8, "register_strategy method callable")
         except Exception as e:
             self.log_error('method_integration', 8, f"register_strategy failed: {str(e)}")
@@ -363,7 +479,15 @@ class PositionOpeningValidator:
         
         # Test get_available_buying_power
         try:
-            bp = margin_manager.get_available_buying_power()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+bp = margin_manager.get_available_buying_power()
             if bp < 0:
                 self.log_error('method_integration', 9, f"Negative available buying power: {bp}")
             else:
@@ -373,7 +497,15 @@ class PositionOpeningValidator:
         
         # Test calculate_required_margin
         try:
-            test_positions = [{'symbol': 'SPY', 'quantity': 1, 'option_type': 'SPREAD', 
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+test_positions = [{'symbol': 'SPY', 'quantity': 1, 'option_type': 'SPREAD', 
                              'strike': 450, 'underlying_price': 450}]
             margin = margin_manager.calculate_required_margin(test_positions)
             if margin < 0:
@@ -393,7 +525,15 @@ class PositionOpeningValidator:
         
         # Test check_circuit_breaker
         try:
-            can_trade = circuit_breaker.check_circuit_breaker()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+can_trade = circuit_breaker.check_circuit_breaker()
             if not isinstance(can_trade, bool):
                 self.log_error('method_integration', 10, f"Invalid circuit breaker return type: {type(can_trade)}")
             else:
@@ -403,7 +543,15 @@ class PositionOpeningValidator:
         
         # Test get_circuit_breaker_status
         try:
-            status = circuit_breaker.get_circuit_breaker_status()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+status = circuit_breaker.get_circuit_breaker_status()
             if not isinstance(status, dict):
                 self.log_error('method_integration', 10, f"Invalid status type: {type(status)}")
             else:
@@ -422,7 +570,15 @@ class PositionOpeningValidator:
         # Test calculate_portfolio_greeks
         if hasattr(greeks_monitor, 'calculate_portfolio_greeks'):
             try:
-                portfolio_greeks = greeks_monitor.calculate_portfolio_greeks()
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+portfolio_greeks = greeks_monitor.calculate_portfolio_greeks()
                 self.log_success('method_integration', 11, "calculate_portfolio_greeks method callable")
             except Exception as e:
                 self.log_error('method_integration', 11, f"calculate_portfolio_greeks failed: {str(e)}")
@@ -445,17 +601,24 @@ class PositionOpeningValidator:
                 
                 if hasattr(target_obj, method):
                     try:
-                        # Test method availability
-                        method_obj = getattr(target_obj, method)
-                        if callable(method_obj):
-                            self.log_success('method_integration', 12, 
-                                           f"{caller} -> {target}.{method} integration valid")
-                        else:
-                            self.log_error('method_integration', 12, 
-                                         f"{caller} -> {target}.{method} not callable")
+                    method_obj = getattr(target_obj, method)
+                    if callable(method_obj):
+                    self.log_success('method_integration', 12,
+                    f"{caller} -> {target}.{method} integration valid")
+                    else:
+                    self.log_error('method_integration', 12,
+                    f"{caller} -> {target}.{method} not callable")
                     except Exception as e:
-                        self.log_error('method_integration', 12, 
-                                     f"{caller} -> {target}.{method} integration failed: {str(e)}")
+                    self.log_error('method_integration', 12,
+                    f"{caller} -> {target}.{method} integration failed: {str(e)}")
+                    except Exception as e:
+
+                        # Log and handle unexpected exception
+
+                        print(f'Unexpected exception: {e}')
+
+                        raise
+# Test method availability
                 else:
                     self.log_error('method_integration', 12, 
                                  f"{caller} -> {target}.{method} method missing")
@@ -474,13 +637,20 @@ class PositionOpeningValidator:
         
         # FAILURE POINT 13: SPY allocation request validation
         try:
-            # Test allocation request
-            approved, reason = spy_manager.request_spy_allocation(
-                strategy_name="test_strategy",
-                position_type="options", 
-                requested_delta=-10.0,
-                requested_contracts=1
-            )
+        approved, reason = spy_manager.request_spy_allocation(
+        strategy_name="test_strategy",
+        position_type="options",
+        requested_delta=-10.0,
+        requested_contracts=1
+        )
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Test allocation request
             
             if not isinstance(approved, bool):
                 self.log_error('spy_concentration', 13, f"Invalid approval type: {type(approved)}")
@@ -496,7 +666,15 @@ class PositionOpeningValidator:
         
         # Test large allocation that should be rejected
         try:
-            large_delta = -1000  # Very large delta
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+large_delta = -1000  # Very large delta
             approved, reason = spy_manager.request_spy_allocation(
                 strategy_name="large_test",
                 position_type="options",
@@ -515,7 +693,15 @@ class PositionOpeningValidator:
         # FAILURE POINT 15: SPY allocation cleanup validation
         if hasattr(spy_manager, 'spy_positions'):
             try:
-                position_count_before = len(spy_manager.spy_positions)
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+position_count_before = len(spy_manager.spy_positions)
                 spy_manager.release_spy_allocation("test_strategy")
                 position_count_after = len(spy_manager.spy_positions)
                 
@@ -535,7 +721,15 @@ class PositionOpeningValidator:
         
         for strategy_name in strategy_names:
             try:
-                approved, reason = spy_manager.request_spy_allocation(
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+approved, reason = spy_manager.request_spy_allocation(
                     strategy_name=strategy_name,
                     position_type="options",
                     requested_delta=-5.0,
@@ -558,13 +752,20 @@ class PositionOpeningValidator:
         
         # FAILURE POINT 17: Position conflict detection
         try:
-            # Test conflicting position detection
-            approved1, reason1 = spy_manager.request_spy_allocation(
-                strategy_name="conflict_test1",
-                position_type="options", 
-                requested_delta=50.0,  # Long delta
-                requested_contracts=10
-            )
+        approved1, reason1 = spy_manager.request_spy_allocation(
+        strategy_name="conflict_test1",
+        position_type="options",
+        requested_delta=50.0,  # Long delta
+        requested_contracts=10
+        )
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Test conflicting position detection
             
             approved2, reason2 = spy_manager.request_spy_allocation(
                 strategy_name="conflict_test2", 
@@ -610,7 +811,15 @@ class PositionOpeningValidator:
     def _test_option_chain_availability(self):
         """Test option chain availability (Failure Point 18)"""
         try:
-            spy_symbol = self.algo.spy if hasattr(self.algo, 'spy') else Symbol.Create('SPY', SecurityType.Equity, Market.USA)
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+spy_symbol = self.algo.spy if hasattr(self.algo, 'spy') else Symbol.Create('SPY', SecurityType.Equity, Market.USA)
             
             # Test option chain retrieval
             chain = self.algo.OptionChainProvider.GetOptionContractList(spy_symbol, self.algo.Time)
@@ -635,7 +844,15 @@ class PositionOpeningValidator:
     def _test_0dte_chain_validation(self):
         """Test 0DTE option chain validation (Failure Point 19)"""
         try:
-            spy_symbol = self.algo.spy if hasattr(self.algo, 'spy') else Symbol.Create('SPY', SecurityType.Equity, Market.USA)
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+spy_symbol = self.algo.spy if hasattr(self.algo, 'spy') else Symbol.Create('SPY', SecurityType.Equity, Market.USA)
             chain = self.algo.OptionChainProvider.GetOptionContractList(spy_symbol, self.algo.Time)
             
             # Filter for 0DTE options
@@ -696,7 +913,15 @@ class PositionOpeningValidator:
     def _test_vix_data_quality(self):
         """Test VIX data quality validation (Failure Point 21)"""
         try:
-            vix_symbol = Symbol.Create('VIX', SecurityType.Index, Market.USA)
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+vix_symbol = Symbol.Create('VIX', SecurityType.Index, Market.USA)
             
             if vix_symbol in self.algo.Securities:
                 vix_security = self.algo.Securities[vix_symbol]
@@ -745,7 +970,15 @@ class PositionOpeningValidator:
         
         # Test SPY price availability
         try:
-            spy_symbol = self.algo.spy if hasattr(self.algo, 'spy') else Symbol.Create('SPY', SecurityType.Equity, Market.USA)
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+spy_symbol = self.algo.spy if hasattr(self.algo, 'spy') else Symbol.Create('SPY', SecurityType.Equity, Market.USA)
             if spy_symbol in self.algo.Securities:
                 spy_price = self.algo.Securities[spy_symbol].Price
                 if spy_price <= 0:
@@ -763,14 +996,21 @@ class PositionOpeningValidator:
         """Test data freshness validation (Failure Point 23)"""
         if hasattr(self.algo, 'data_validator'):
             try:
-                # Test data validator if available
-                is_data_fresh = self.algo.data_validator.validate_data_freshness()
-                if is_data_fresh:
-                    self.log_success('option_chain_data', 23, "Data freshness validation passed")
-                else:
-                    self.log_error('option_chain_data', 23, "Data freshness validation failed")
+            is_data_fresh = self.algo.data_validator.validate_data_freshness()
+            if is_data_fresh:
+            self.log_success('option_chain_data', 23, "Data freshness validation passed")
+            else:
+            self.log_error('option_chain_data', 23, "Data freshness validation failed")
             except Exception as e:
-                self.log_error('option_chain_data', 23, f"Data freshness test failed: {str(e)}")
+            self.log_error('option_chain_data', 23, f"Data freshness test failed: {str(e)}")
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+# Test data validator if available
         else:
             self.log_error('option_chain_data', 23, "Data validator not available")
     
@@ -781,7 +1021,15 @@ class PositionOpeningValidator:
         for cache_name in cache_systems:
             if hasattr(self.algo, cache_name):
                 try:
-                    cache = getattr(self.algo, cache_name)
+                    
+                except Exception as e:
+
+                    # Log and handle unexpected exception
+
+                    print(f'Unexpected exception: {e}')
+
+                    raise
+cache = getattr(self.algo, cache_name)
                     if hasattr(cache, 'get_statistics'):
                         stats = cache.get_statistics()
                         hit_rate = stats.get('hit_rate', 0)
@@ -801,7 +1049,15 @@ class PositionOpeningValidator:
         """Test economic calendar integration (Failure Point 25)"""
         if hasattr(self.algo, 'event_calendar'):
             try:
-                calendar = self.algo.event_calendar
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+calendar = self.algo.event_calendar
                 
                 # Test earnings week detection
                 if hasattr(calendar, 'is_earnings_week'):
@@ -880,7 +1136,15 @@ class PositionOpeningValidator:
         
         # Test buffer calculation
         try:
-            if hasattr(margin_manager, 'calculate_required_margin_buffer'):
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if hasattr(margin_manager, 'calculate_required_margin_buffer'):
                 buffer = margin_manager.calculate_required_margin_buffer()
                 
                 if not (0.1 <= buffer <= 1.0):
@@ -896,7 +1160,15 @@ class PositionOpeningValidator:
         
         # Test margin health check
         try:
-            health = margin_manager.check_margin_health()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+health = margin_manager.check_margin_health()
             
             required_health_keys = ['status', 'usage_pct', 'action_required']
             missing_health_keys = [key for key in required_health_keys if key not in health]
@@ -927,7 +1199,15 @@ class PositionOpeningValidator:
         # Test available buying power calculation
         if hasattr(self.algo, 'position_sizer'):
             try:
-                if hasattr(self.algo.position_sizer, 'get_available_buying_power'):
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+if hasattr(self.algo.position_sizer, 'get_available_buying_power'):
                     available_bp = self.algo.position_sizer.get_available_buying_power()
                     
                     if available_bp < 0:
@@ -963,7 +1243,15 @@ class PositionOpeningValidator:
         # Test VIX manager phase calculation if available
         if hasattr(self.algo, 'vix_manager'):
             try:
-                actual_phase = self.algo.vix_manager.get_account_phase()
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+actual_phase = self.algo.vix_manager.get_account_phase()
                 if actual_phase != expected_phase:
                     self.log_error('risk_management', 32, 
                                  f"Account phase mismatch: expected {expected_phase}, got {actual_phase}")
@@ -988,7 +1276,15 @@ class PositionOpeningValidator:
         # Test correlation manager integration
         if hasattr(self.algo, 'correlation_limiter'):
             try:
-                correlation_limiter = self.algo.correlation_limiter
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+correlation_limiter = self.algo.correlation_limiter
                 
                 if hasattr(correlation_limiter, 'check_correlation_limits'):
                     correlation_ok = correlation_limiter.check_correlation_limits()
@@ -1005,7 +1301,15 @@ class PositionOpeningValidator:
         # Test strategy coordination
         if hasattr(self.algo, 'strategy_coordinator'):
             try:
-                coordinator = self.algo.strategy_coordinator
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+coordinator = self.algo.strategy_coordinator
                 
                 # Test if coordinator tracks multiple strategies
                 if hasattr(coordinator, 'registered_strategies'):
@@ -1044,7 +1348,15 @@ class PositionOpeningValidator:
                 
                 if hasattr(strategy, 'state_machine'):
                     try:
-                        state_machine = strategy.state_machine
+                        
+                    except Exception as e:
+
+                        # Log and handle unexpected exception
+
+                        print(f'Unexpected exception: {e}')
+
+                        raise
+state_machine = strategy.state_machine
                         
                         # Test current state
                         if hasattr(state_machine, 'current_state'):
@@ -1078,7 +1390,15 @@ class PositionOpeningValidator:
         # Test atomic order executor
         if hasattr(self.algo, 'atomic_executor'):
             try:
-                executor = self.algo.atomic_executor
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+executor = self.algo.atomic_executor
                 
                 # Test if executor has required methods
                 required_methods = ['execute_spread_order', 'execute_iron_condor', 'cancel_all_orders']
@@ -1100,7 +1420,15 @@ class PositionOpeningValidator:
         # Test option order executor
         if hasattr(self.algo, 'option_executor'):
             try:
-                option_executor = self.algo.option_executor
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+option_executor = self.algo.option_executor
                 
                 if hasattr(option_executor, 'place_spread_order'):
                     self.log_success('state_execution', 41, "Option executor spread orders available")
@@ -1115,7 +1443,15 @@ class PositionOpeningValidator:
         # Test order state recovery
         if hasattr(self.algo, 'order_recovery'):
             try:
-                recovery_system = self.algo.order_recovery
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+recovery_system = self.algo.order_recovery
                 
                 if hasattr(recovery_system, 'recover_incomplete_orders'):
                     self.log_success('state_execution', 42, "Order recovery system available")
@@ -1130,7 +1466,15 @@ class PositionOpeningValidator:
         # Test position state manager
         if hasattr(self.algo, 'position_state_manager'):
             try:
-                pos_manager = self.algo.position_state_manager
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+pos_manager = self.algo.position_state_manager
                 
                 required_methods = ['update_positions', 'get_position_summary']
                 missing_methods = [method for method in required_methods 
@@ -1154,7 +1498,15 @@ class PositionOpeningValidator:
         # Test performance tracker error handling
         if hasattr(self.algo, 'performance_tracker'):
             try:
-                perf_tracker = self.algo.performance_tracker
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+perf_tracker = self.algo.performance_tracker
                 
                 if hasattr(perf_tracker, 'add_trade_pnl'):
                     # Test with valid data
@@ -1171,7 +1523,15 @@ class PositionOpeningValidator:
         # Test data validator error handling
         if hasattr(self.algo, 'data_validator'):
             try:
-                validator = self.algo.data_validator
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+validator = self.algo.data_validator
                 
                 if hasattr(validator, 'validate_data_freshness'):
                     is_valid = validator.validate_data_freshness()
@@ -1186,10 +1546,17 @@ class PositionOpeningValidator:
         
         # Test logging system integration
         try:
-            # Test different log levels
-            self.algo.Debug("Test debug message")
-            self.algo.Log("Test log message")
-            self.algo.Error("Test error message")
+        self.algo.Debug("Test debug message")
+        self.algo.Log("Test log message")
+        self.algo.Error("Test error message")
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Test different log levels
             
             self.log_success('state_execution', 46, "Logging system operational")
             
@@ -1199,8 +1566,15 @@ class PositionOpeningValidator:
         # Test integration verification system
         if hasattr(self.algo, 'run_complete_integration_verification'):
             try:
-                # Don't actually run it to avoid side effects, just check availability
-                self.log_success('state_execution', 47, "Integration verification system available")
+            self.log_success('state_execution', 47, "Integration verification system available")
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+# Don't actually run it to avoid side effects, just check availability
                 
             except Exception as e:
                 self.log_error('state_execution', 47, f"Integration verification test failed: {str(e)}")

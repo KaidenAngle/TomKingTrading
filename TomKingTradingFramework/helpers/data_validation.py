@@ -5,6 +5,13 @@ from AlgorithmImports import *
 from datetime import time
 from typing import Optional, Tuple
 from enum import Enum
+from core.unified_vix_manager import UnifiedVIXManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class DataSeverity(Enum):
     EXPECTED = "expected"      # Normal during certain periods
@@ -42,7 +49,15 @@ class DataValidator:
         
         # Secondary: Direct VIX subscription
         try:
-            vix_symbol = self.algo.vix
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+vix_symbol = self.algo.vix
             if vix_symbol in self.algo.Securities:
                 price = self.algo.Securities[vix_symbol].Price
                 if price > 5:  # VIX below 5 is extremely rare
@@ -70,7 +85,19 @@ class DataValidator:
         """
         
         try:
-            if option_symbol not in self.algo.Securities:
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+if option_symbol not in self.algo.Securities:
                 return None, DataSeverity.CRITICAL  # Option not subscribed
             
             security = self.algo.Securities[option_symbol]
@@ -94,7 +121,19 @@ class DataValidator:
         """
         
         try:
-            if symbol not in self.algo.Securities:
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+if symbol not in self.algo.Securities:
                 return None, DataSeverity.FATAL  # Major index missing is fatal
             
             price = self.algo.Securities[symbol].Price

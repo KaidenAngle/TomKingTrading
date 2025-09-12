@@ -7,7 +7,7 @@
 - 🛠️ [Implementation Audit Protocol](Development/implementation-audit-protocol.md) - **MANDATORY** systematic development approach
 - 📄 [Quick Reference](Development/quick-reference.md) - Instant consultation guide
 
-## Architecture Documentation (23 docs)
+## Architecture Documentation
 
 ### Core Systems
 - [State Machine Architecture](Architecture/STATE_MACHINE_ARCHITECTURE.md) - Why each strategy needs states
@@ -18,23 +18,22 @@
 - [Atomic Order Execution](Architecture/ATOMIC_ORDER_EXECUTION.md) - All-or-nothing multi-leg orders
 
 ### Advanced Architecture Patterns
-- [Event-Driven Circular Dependency Resolution](Architecture/EVENT_DRIVEN_CIRCULAR_DEPENDENCY_RESOLUTION.md) - **NEW** EventBus + LazyProxy patterns for eliminating circular dependencies
-- [Manager Initialization Patterns](Architecture/MANAGER_INITIALIZATION_PATTERNS.md) - **NEW** 5-stage deterministic initialization with comprehensive validation
-- [QuantConnect API Patterns](Architecture/QUANTCONNECT_API_PATTERNS.md) - Proper QC API usage without fallbacks
+- [Event-Driven Circular Dependency Resolution](Architecture/EVENT_DRIVEN_CIRCULAR_DEPENDENCY_RESOLUTION.md) - EventBus + LazyProxy patterns for eliminating circular dependencies
+- [Manager Initialization Patterns](Architecture/MANAGER_INITIALIZATION_PATTERNS.md) - 5-stage deterministic initialization with comprehensive validation
+- [Plugin Architecture Patterns](Architecture/PLUGIN_ARCHITECTURE_PATTERNS.md) - Protocol-based plugin systems with event-driven communication for extensible component architectures
+- [Safe Component Migration Patterns](Architecture/SAFE_COMPONENT_MIGRATION_PATTERNS.md) - Systematic methodology for safely replacing critical system components with git history preservation and rollback capability
 - [Performance Optimization Patterns](Architecture/PERFORMANCE_OPTIMIZATION_PATTERNS.md) - 80% API reduction, intelligent caching
-- [Integration Verification Patterns](Architecture/INTEGRATION_VERIFICATION_PATTERNS.md) - Systematic integration verification methodology
+- [Unified Caching Architecture](Architecture/UNIFIED_CACHING_ARCHITECTURE.md) - Type-aware intelligent caching system consolidating multiple cache implementations
 
 ### Development & Quality Assurance
-- [Automated Interface Integrity Testing](Architecture/AUTOMATED_INTERFACE_INTEGRITY_TESTING.md) - Prevent interface mismatches through systematic verification
-- [Systematic Interface Auditing](Architecture/SYSTEMATIC_INTERFACE_AUDITING.md) - **ENHANCED** "Audit before assume" methodology + Ultra-Rigorous 3-Level Audit system
+- [Unified System Verification Methodology](Architecture/UNIFIED_SYSTEM_VERIFICATION_METHODOLOGY.md) - Comprehensive verification methodology combining syntax validation, interface auditing, integrity testing, integration verification, and zero-tolerance validation
+- [Comprehensive Redundancy Elimination Methodology](Architecture/COMPREHENSIVE_REDUNDANCY_ELIMINATION_METHODOLOGY.md) - Complete methodology for eliminating redundancy at strategy, configuration, and implementation levels
 - [Framework Organization Patterns](Architecture/FRAMEWORK_ORGANIZATION_PATTERNS.md) - Directory structure and git history preservation patterns
 - [Timing Windows and Scheduling](Architecture/TIMING_WINDOWS_AND_SCHEDULING.md) - Why specific times matter
 - [Fail-Fast Error Philosophy](Architecture/FAIL_FAST_ERROR_PHILOSOPHY.md) - Why we don't use try/catch everywhere
 - [ObjectStore State Persistence](Architecture/OBJECTSTORE_STATE_PERSISTENCE.md) - Crash recovery and state management
 - [Circuit Breaker Thresholds](Architecture/CIRCUIT_BREAKER_THRESHOLDS.md) - Why these specific numbers
 - [Dynamic Position Scaling Patterns](Architecture/DYNAMIC_POSITION_SCALING_PATTERNS.md) - Intelligent scaling that preserves risk tolerance
-- [Systematic Redundancy Elimination Patterns](Architecture/SYSTEMATIC_REDUNDANCY_ELIMINATION_PATTERNS.md) - Methodology for safely removing redundant code
-- [Implementation Level Redundancy Elimination Patterns](Architecture/IMPLEMENTATION_LEVEL_REDUNDANCY_ELIMINATION_PATTERNS.md) - Consolidating duplicate calculations within active components
 - [Systematic Failure Pattern Resolution](Architecture/SYSTEMATIC_FAILURE_PATTERN_RESOLUTION.md) - Production methodology for diagnosing and resolving position opening failures through pattern classification
 
 ## Methodology Documentation
@@ -133,6 +132,7 @@
 ### Development Methodology
 - [Implementation Audit Protocol](Development/implementation-audit-protocol.md) - Systematic development approach
 - [Production Change Management](Development/PRODUCTION_CHANGE_MANAGEMENT.md) - Comprehensive change documentation methodology
+- [Systematic Framework Optimization Methodology](Development/SYSTEMATIC_FRAMEWORK_OPTIMIZATION_METHODOLOGY.md) - 10-phase optimization framework for large-scale trading systems
 - [GitHub Integration Setup](Development/GITHUB_INTEGRATION_SETUP.md) - Version control integration
 - [Quick Reference](Development/quick-reference.md) - Development quick reference guide
 
@@ -158,19 +158,19 @@
 ## Folder Structure
 ```
 Documentation/
-├── 📋 COMPLETE_REFERENCE_GUIDE.md  # START HERE - Quick answers
 ├── ⚠️ CRITICAL_DO_NOT_CHANGE.md    # Must read - never modify these
-├── 📊 IMPLEMENTATION_SUMMARY.md    # Framework overview & status
-├── Architecture/ (20 docs)         # System design patterns (NEW: Implementation Level Redundancy Elimination)
-├── Methodology/ (6 docs)           # Trading rules & risk
-├── Strategies/ (1 doc)             # All 10 strategies detailed
-├── Development/ (4 docs)           # Development process & change management
-├── Testing/ (1 doc)                # Test requirements
-├── Backtesting/ (1 doc)            # Historical scenarios
+├── 🚀 SESSION_STARTUP_PROTOCOL.md  # START HERE - Essential docs to read first
+├── 🔧 TROUBLESHOOTING_GUIDE.md     # Common issues and best practices
+├── Architecture/                   # System design patterns and methodologies
+├── Methodology/                    # Trading rules & risk
+├── Strategies/                     # All 10 strategies detailed
+├── Development/                    # Development process & change management
+├── Testing/                        # Test requirements
+├── Backtesting/                    # Historical scenarios
+├── Archive/                        # Historical documentation and analysis reports
 ├── QuantConnect/                   # QC platform docs
 ├── TastyTrade/                     # API documentation
-├── TomKingMethodology/             # Tom King's methodology
-└── Archive/                        # Old documentation
+└── TomKingMethodology/             # Tom King's methodology
 ```
 
 ## Quick Navigation
@@ -178,7 +178,7 @@ Documentation/
 ### "I need to understand..."
 
 #### **Critical file protection:**
-→ Read [CRITICAL_FILES_PROTECTION.md](CRITICAL_FILES_PROTECTION.md) - Essential files that must never be deleted
+→ Read [CRITICAL: Do Not Change](CRITICAL_DO_NOT_CHANGE.md) Section 12 - Essential files that must never be deleted
 
 #### **Why something looks complex:**
 → Read [CRITICAL_DO_NOT_CHANGE.md](CRITICAL_DO_NOT_CHANGE.md) first
@@ -199,20 +199,24 @@ Documentation/
 → [Testing Requirements](Testing/TESTING_REQUIREMENTS.md)
 
 #### **How to clean up redundant code safely:**
-→ [Systematic Redundancy Elimination Patterns](Architecture/SYSTEMATIC_REDUNDANCY_ELIMINATION_PATTERNS.md) - Safe removal of redundant strategies and code
-→ [Implementation Level Redundancy Elimination Patterns](Architecture/IMPLEMENTATION_LEVEL_REDUNDANCY_ELIMINATION_PATTERNS.md) - Consolidating duplicate calculations within active components
+→ [Comprehensive Redundancy Elimination Methodology](Architecture/COMPREHENSIVE_REDUNDANCY_ELIMINATION_METHODOLOGY.md) - Methodology for eliminating redundancy at strategy, configuration, and implementation levels
 
 #### **How to deploy to QuantConnect cloud:**
-→ [QuantConnect API Patterns](Architecture/QUANTCONNECT_API_PATTERNS.md) - Includes comprehensive MCP server deployment methodology
+→ See QuantConnect API patterns in [CRITICAL: Do Not Change](CRITICAL_DO_NOT_CHANGE.md) Section 1 - Direct API usage without fallbacks
 
 #### **How to manage production changes:**
-→ [Production Change Management](Development/PRODUCTION_CHANGE_MANAGEMENT.md) - Comprehensive change documentation and audit trails
+→ [Production Change Management](Development/PRODUCTION_CHANGE_MANAGEMENT.md) - Change documentation and audit trails
 
 #### **How to develop safely and systematically:**
-→ [Systematic Interface Auditing](Architecture/SYSTEMATIC_INTERFACE_AUDITING.md) - Audit before assume methodology  
-→ [Automated Interface Integrity Testing](Architecture/AUTOMATED_INTERFACE_INTEGRITY_TESTING.md) - Prevent interface mismatches  
+→ [Unified System Verification Methodology](Architecture/UNIFIED_SYSTEM_VERIFICATION_METHODOLOGY.md) - Verification combining interface auditing, integrity testing, and zero-tolerance validation  
 → [Framework Organization Patterns](Architecture/FRAMEWORK_ORGANIZATION_PATTERNS.md) - Directory structure with history preservation  
-→ [Implementation Audit Protocol](Development/implementation-audit-protocol.md) - Prevent redundant implementations
+→ [Implementation Audit Protocol](Development/implementation-audit-protocol.md) - Prevents redundant implementations
+
+#### **How to create plugin-based architectures:**
+→ [Plugin Architecture Patterns](Architecture/PLUGIN_ARCHITECTURE_PATTERNS.md) - Protocol-based plugin systems with event-driven communication
+
+#### **How to safely migrate critical system components:**
+→ [Safe Component Migration Patterns](Architecture/SAFE_COMPONENT_MIGRATION_PATTERNS.md) - Backup-first methodology with history preservation and rollback capability
 
 ## Support
 

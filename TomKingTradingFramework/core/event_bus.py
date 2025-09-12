@@ -5,7 +5,15 @@ from typing import Dict, List, Callable, Any, Optional
 from datetime import datetime
 import threading
 from collections import deque
+from core.dependency_container import IManager
+from core.unified_vix_manager import UnifiedVIXManager
 # endregion
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class EventType(Enum):
     """Core trading system events for event-driven architecture"""
@@ -111,7 +119,7 @@ class Event:
     def __repr__(self):
         return f"Event({self.event_type.value}, source={self.source}, correlation={self.correlation_id}, hops={self.hop_count})"
 
-class EventBus:
+class EventBus(IManager):
     """
     High-performance event bus for Tom King Trading Framework
     
@@ -213,7 +221,19 @@ class EventBus:
         """
         
         try:
-            start_time = datetime.now()
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+start_time = datetime.now()
             
             # FIXED: Validate event data to prevent corruption and handler failures
             if data is not None:
@@ -250,10 +270,20 @@ class EventBus:
                 handler_start = datetime.now()
                 
                 try:
-                    # Call the handler
-                    handler_info['handler'](event)
-                    handler_info['call_count'] += 1
-                    processed_count += 1
+                handler_info['handler'](event)
+                handler_info['call_count'] += 1
+                processed_count += 1
+                except Exception as e:
+
+                
+                    # Log and handle unexpected exception
+
+                
+                    print(f'Unexpected exception: {e}')
+
+                
+                    raise
+# Call the handler
                     
                     # Track handler performance
                     handler_time = (datetime.now() - handler_start).total_seconds() * 1000
@@ -487,7 +517,19 @@ class EventBus:
         """Internal method to publish an Event object"""
         
         try:
-            start_time = datetime.now()
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+start_time = datetime.now()
             
             # Add to history
             self.event_history.append(event)
@@ -507,10 +549,20 @@ class EventBus:
                 handler_start = datetime.now()
                 
                 try:
-                    # Call the handler with event object
-                    handler_info['handler'](event)
-                    handler_info['call_count'] += 1
-                    processed_count += 1
+                handler_info['handler'](event)
+                handler_info['call_count'] += 1
+                processed_count += 1
+                except Exception as e:
+
+                
+                    # Log and handle unexpected exception
+
+                
+                    print(f'Unexpected exception: {e}')
+
+                
+                    raise
+# Call the handler with event object
                     
                     # Track handler performance
                     handler_time = (datetime.now() - handler_start).total_seconds() * 1000
@@ -598,8 +650,18 @@ class EventBus:
         request_info = self.pending_requests[correlation_id]
         
         try:
-            # Call the registered callback
-            request_info['callback'](event)
+        request_info['callback'](event)
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Call the registered callback
             
         except Exception as e:
             self.algorithm.Error(f"[EventBus] Response callback error for {correlation_id}: {e}")
@@ -674,7 +736,19 @@ class EventBus:
         visited.add(data_id)
         
         try:
-            for key, value in data.items():
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+for key, value in data.items():
                 if isinstance(value, dict):
                     if self._has_circular_references(value, visited.copy(), max_depth - 1):
                         return True
@@ -690,3 +764,21 @@ class EventBus:
             return False
         
         return False
+    
+    # IManager Interface Implementation
+    
+    def handle_event(self, event: Event) -> bool:
+        """Handle incoming events - EventBus doesn't consume its own events"""
+        return True  # Always succeeds as EventBus is the event router
+    
+    def get_dependencies(self) -> List[str]:
+        """EventBus has no dependencies - it's foundational infrastructure"""
+        return []
+    
+    def can_initialize_without_dependencies(self) -> bool:
+        """EventBus can always initialize first"""
+        return True
+    
+    def get_manager_name(self) -> str:
+        """Return unique name for this manager"""
+        return "event_bus"

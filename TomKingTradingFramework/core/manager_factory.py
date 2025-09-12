@@ -342,6 +342,9 @@ class ManagerFactory:
         ordered = []
         
         # Process by tier to ensure proper layering
+        # Convert ordered to set for O(1) lookups instead of O(n)
+        ordered_set = set(ordered)
+        
         for tier in sorted(set(config.tier for config in self.manager_configs.values())):
             tier_managers = [name for name, config in self.manager_configs.items() if config.tier == tier]
             
@@ -349,14 +352,13 @@ class ManagerFactory:
             tier_ordered = []
             remaining = set(tier_managers)
             
+            # Pre-compute dependencies for each manager to avoid repeated access
+            manager_deps = {name: set(self.manager_configs[name].dependencies) for name in remaining}
+            
             while remaining:
-                # Find managers with no unresolved dependencies in this tier
-                ready = []
-                for name in remaining:
-                    config = self.manager_configs[name]
-                    deps_resolved = all(dep in ordered for dep in config.dependencies)
-                    if deps_resolved:
-                        ready.append(name)
+                # Find managers with no unresolved dependencies in this tier (O(n) instead of O(n²))
+                ready = [name for name in remaining 
+                        if manager_deps[name].issubset(ordered_set)]
                 
                 if not ready:
                     # Circular dependency within tier
@@ -364,10 +366,12 @@ class ManagerFactory:
                     # Add remaining in alphabetical order to break deadlock
                     ready = sorted(list(remaining))
                 
-                # Add ready managers to tier order
-                for name in sorted(ready):
+                # Add ready managers to tier order (batch update ordered_set)
+                ready_sorted = sorted(ready)
+                for name in ready_sorted:
                     tier_ordered.append(name)
                     remaining.discard(name)
+                    ordered_set.add(name)  # Keep ordered_set synchronized
             
             ordered.extend(tier_ordered)
             self.algo.Debug(f"[ManagerFactory] Tier {tier} order: {' -> '.join(tier_ordered)}")
@@ -540,7 +544,19 @@ class ManagerFactory:
         """Initialize event bus as foundation component"""
         
         try:
-            self.event_bus = EventBus(self.algo)
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+self.event_bus = EventBus(self.algo)
             setattr(self.algo, 'event_bus', self.event_bus)
             self.managers['event_bus'] = self.event_bus
             
@@ -569,11 +585,18 @@ class ManagerFactory:
             def create_manager_factory(manager_config):
                 def factory():
                     try:
-                        # Resolve kwargs with actual manager instances
-                        resolved_kwargs = manager_config.initialization_kwargs.copy()
-                        for key, value in resolved_kwargs.items():
-                            if isinstance(value, str) and value in self.dependency_container.managers:
-                                resolved_kwargs[key] = self.dependency_container.managers[value]
+                    resolved_kwargs = manager_config.initialization_kwargs.copy()
+                    for key, value in resolved_kwargs.items():
+                    if isinstance(value, str) and value in self.dependency_container.managers:
+                    resolved_kwargs[key] = self.dependency_container.managers[value]
+                    except Exception as e:
+
+                        # Log and handle unexpected exception
+
+                        print(f'Unexpected exception: {e}')
+
+                        raise
+# Resolve kwargs with actual manager instances
                         
                         # Create manager instance
                         manager = manager_config.class_type(
@@ -613,11 +636,21 @@ class ManagerFactory:
         config = self.manager_configs[manager_name]
         
         try:
-            # Verify dependencies are available
-            for dep_name in config.dependencies:
-                if dep_name not in self.managers:
-                    self.algo.Error(f"[ManagerFactory] {manager_name}: dependency '{dep_name}' not available")
-                    return False
+        for dep_name in config.dependencies:
+        if dep_name not in self.managers:
+        self.algo.Error(f"[ManagerFactory] {manager_name}: dependency '{dep_name}' not available")
+        return False
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# Verify dependencies are available
                     
                 # Verify dependency is healthy
                 dep_status = self.status_map.get(dep_name)

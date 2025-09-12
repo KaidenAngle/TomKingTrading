@@ -4,7 +4,14 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from collections import deque
 from core.base_component import BaseComponent
+from core.unified_vix_manager import UnifiedVIXManager
 # endregion
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class FridayStrategyOptimizer(BaseComponent):
     """
@@ -371,7 +378,7 @@ class FridayStrategyOptimizer(BaseComponent):
         Time: {self.algorithm.Time}
         Score: {analysis['score']:.1f}/10
         Confidence: {analysis['confidence']}
-        Win Rate Boost: +{analysis['win_rate_adjustment'] * 100:.0f}%
+        Win Rate Boost: +{analysis['win_rate_adjustment'] * TradingConstants.FULL_PERCENTAGE:.0f}%
         
         SIGNAL BREAKDOWN:
         ----------------

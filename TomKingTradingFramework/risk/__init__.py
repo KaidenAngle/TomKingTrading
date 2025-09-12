@@ -1,6 +1,7 @@
 # region imports
 from AlgorithmImports import *
 # endregion
+from core.unified_position_sizer import UnifiedPositionSizer
 """
 QuantConnect LEAN Risk Management Package
 Complete implementation of Tom King's risk management methodology

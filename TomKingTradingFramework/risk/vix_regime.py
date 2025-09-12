@@ -1,5 +1,6 @@
 # region imports
 from AlgorithmImports import *
+from config.constants import TradingConstants
 # endregion
 # Tom King Trading Framework v17 - VIX Regime Analysis System
 # Based on Tom King Complete Trading System Documentation (PDF Pages 12, 33, 34-35)
@@ -9,7 +10,7 @@ from AlgorithmImports import *
 #                     Tracks historical VIX patterns and regime transitions
 #                     Has detailed strategy adjustments for each regime
 #                     Includes special rules for crisis opportunities
-#                     Maintains 252-day history for pattern analysis
+#                     Maintains TradingConstants.TRADING_DAYS_PER_YEAR-day history for pattern analysis
 # - UnifiedVIXManager: Simple cached VIX access for performance
 #
 # THIS CLASS IS FOR: Strategic decision-making based on VIX regime analysis
@@ -146,7 +147,7 @@ class VIXRegimeManager:
         
         self.current_vix = float(vix_level)
         
-        # Maintain VIX history (last 252 days)
+        # Maintain VIX history (last TradingConstants.TRADING_DAYS_PER_YEAR days)
         self.vix_history.append({
             'timestamp': timestamp,
             'vix': self.current_vix
@@ -419,7 +420,7 @@ class VIXRegimeManager:
             ],
             'risk_management': [
                 'Maximum 20% deployment per crisis',
-                'Close at 50% profit or 21 DTE',
+                'Close at 50% profit or TradingConstants.DEFENSIVE_EXIT_DTE DTE',
                 'Monitor correlation risk during crisis',
                 'Expect 80%+ win rate during normalization'
             ],

@@ -163,12 +163,10 @@ class TomKingTradingIntegrated(QCAlgorithm):
         self.data_validator = DataFreshnessValidator(self)
         
         # 2. Dynamic Margin Manager - VIX-BASED MARGIN CONTROL
-        self.Error("[EARLY_DEBUG] About to initialize DynamicMarginManager...")
         try:
             self.margin_manager = DynamicMarginManager(self)
-            self.Error("[EARLY_DEBUG] ✓ DynamicMarginManager initialized successfully")
         except Exception as e:
-            self.Error(f"[EARLY_DEBUG] ✗ DynamicMarginManager failed: {e}")
+            self.Error(f"DynamicMarginManager initialization failed: {e}")
             raise
         
         # 3. Strategy Coordinator - PRIORITY EXECUTION QUEUE
@@ -185,12 +183,10 @@ class TomKingTradingIntegrated(QCAlgorithm):
         self.event_calendar = QuantConnectEventCalendar(self)
         
         # 6. Unified State Manager - SYSTEM-WIDE STATE CONTROL
-        self.Error("[EARLY_DEBUG] About to initialize UnifiedStateManager...")
         try:
             self.state_manager = UnifiedStateManager(self)
-            self.Error("[EARLY_DEBUG] ✓ UnifiedStateManager initialized successfully")
         except Exception as e:
-            self.Error(f"[EARLY_DEBUG] ✗ UnifiedStateManager failed: {e}")
+            self.Error(f"UnifiedStateManager initialization failed: {e}")
             raise
         
         # 6.5 Order State Recovery - CRASH RECOVERY FOR MULTI-LEG ORDERS
@@ -205,12 +201,10 @@ class TomKingTradingIntegrated(QCAlgorithm):
         self.vix_manager = UnifiedVIXManager(self)
         
         # Unified Position Sizer - Single source of truth
-        self.Error("[EARLY_DEBUG] About to initialize UnifiedPositionSizer...")
         try:
             self.position_sizer = UnifiedPositionSizer(self)
-            self.Error("[EARLY_DEBUG] ✓ UnifiedPositionSizer initialized successfully")
         except Exception as e:
-            self.Error(f"[EARLY_DEBUG] ✗ UnifiedPositionSizer failed: {e}")
+            self.Error(f"UnifiedPositionSizer initialization failed: {e}")
             raise
         
         # Correlation Limiter
@@ -220,31 +214,22 @@ class TomKingTradingIntegrated(QCAlgorithm):
         self.position_manager = PositionStateManagerQC(self)
         
         # Greeks Monitor
-        self.Error("[EARLY_DEBUG] About to initialize GreeksMonitor...")
         try:
             self.greeks_monitor = GreeksMonitor(self)
-            self.Error("[EARLY_DEBUG] ✓ GreeksMonitor initialized successfully")
         except Exception as e:
-            self.Error(f"[EARLY_DEBUG] ✗ GreeksMonitor failed: {e}")
+            self.Error(f"GreeksMonitor initialization failed: {e}")
             raise
         
-        # CRITICAL DEBUGGING: Verify all managers are actually initialized after creation
-        self.Error("[INIT_DEBUG] Checking manager initialization status...")
-        
+        # Verify all managers are initialized
         managers_to_check = [
             'margin_manager', 'state_manager', 'position_sizer', 'greeks_monitor', 
             'vix_manager', 'strategy_coordinator', 'data_validator'
         ]
         
         for manager_name in managers_to_check:
-            if hasattr(self, manager_name):
-                manager = getattr(self, manager_name)
-                if manager is not None:
-                    self.Error(f"[INIT_DEBUG] ✓ {manager_name}: {type(manager).__name__}")
-                else:
-                    self.Error(f"[INIT_DEBUG] ✗ {manager_name}: None")
-            else:
-                self.Error(f"[INIT_DEBUG] ✗ {manager_name}: Not found as attribute")
+            if not hasattr(self, manager_name) or getattr(self, manager_name) is None:
+                self.Error(f"Critical manager not initialized: {manager_name}")
+                raise ValueError(f"Manager initialization failed: {manager_name}")
         
         # ======================
         # HELPER SYSTEMS
@@ -553,94 +538,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             ]
         }
         
-        # DIRECT METHOD TESTING: Try to directly call methods to isolate verification issue
-        self.Error("[DIRECT_TEST] Starting direct method testing to isolate verification issue...")
-        
-        try:
-            # Test margin manager methods directly
-            if hasattr(self, 'margin_manager') and self.margin_manager:
-                self.Error(f"[DIRECT_TEST] margin_manager type: {type(self.margin_manager).__name__}")
-                
-                # Test get_available_buying_power
-                if hasattr(self.margin_manager, 'get_available_buying_power'):
-                    try:
-                        bp_result = self.margin_manager.get_available_buying_power()
-                        self.Error(f"[DIRECT_TEST] get_available_buying_power() SUCCESS: {bp_result}")
-                    except Exception as e:
-                        self.Error(f"[DIRECT_TEST] get_available_buying_power() ERROR: {e}")
-                else:
-                    self.Error("[DIRECT_TEST] get_available_buying_power() NOT FOUND")
-                
-                # Test calculate_required_margin
-                if hasattr(self.margin_manager, 'calculate_required_margin'):
-                    try:
-                        margin_result = self.margin_manager.calculate_required_margin([])
-                        self.Error(f"[DIRECT_TEST] calculate_required_margin([]) SUCCESS: {margin_result}")
-                    except Exception as e:
-                        self.Error(f"[DIRECT_TEST] calculate_required_margin([]) ERROR: {e}")
-                else:
-                    self.Error("[DIRECT_TEST] calculate_required_margin() NOT FOUND")
-            else:
-                self.Error("[DIRECT_TEST] margin_manager NOT AVAILABLE")
-            
-            # Test state manager methods  
-            if hasattr(self, 'state_manager') and self.state_manager:
-                self.Error(f"[DIRECT_TEST] state_manager type: {type(self.state_manager).__name__}")
-                
-                if hasattr(self.state_manager, 'get_system_state'):
-                    try:
-                        state_result = self.state_manager.get_system_state()
-                        self.Error(f"[DIRECT_TEST] get_system_state() SUCCESS: keys={list(state_result.keys()) if isinstance(state_result, dict) else type(state_result)}")
-                    except Exception as e:
-                        self.Error(f"[DIRECT_TEST] get_system_state() ERROR: {e}")
-                else:
-                    self.Error("[DIRECT_TEST] get_system_state() NOT FOUND")
-            else:
-                self.Error("[DIRECT_TEST] state_manager NOT AVAILABLE")
-            
-            # Test position sizer methods
-            if hasattr(self, 'position_sizer') and self.position_sizer:
-                self.Error(f"[DIRECT_TEST] position_sizer type: {type(self.position_sizer).__name__}")
-                
-                if hasattr(self.position_sizer, 'get_max_position_size'):
-                    try:
-                        max_size_result = self.position_sizer.get_max_position_size('0DTE')
-                        self.Error(f"[DIRECT_TEST] get_max_position_size('0DTE') SUCCESS: {max_size_result}")
-                    except Exception as e:
-                        self.Error(f"[DIRECT_TEST] get_max_position_size('0DTE') ERROR: {e}")
-                else:
-                    self.Error("[DIRECT_TEST] get_max_position_size() NOT FOUND")
-            else:
-                self.Error("[DIRECT_TEST] position_sizer NOT AVAILABLE")
-            
-            # Test greeks monitor methods
-            if hasattr(self, 'greeks_monitor') and self.greeks_monitor:
-                self.Error(f"[DIRECT_TEST] greeks_monitor type: {type(self.greeks_monitor).__name__}")
-                
-                if hasattr(self.greeks_monitor, 'get_portfolio_greeks'):
-                    try:
-                        portfolio_greeks_result = self.greeks_monitor.get_portfolio_greeks()
-                        self.Error(f"[DIRECT_TEST] get_portfolio_greeks() SUCCESS: keys={list(portfolio_greeks_result.keys()) if isinstance(portfolio_greeks_result, dict) else type(portfolio_greeks_result)}")
-                    except Exception as e:
-                        self.Error(f"[DIRECT_TEST] get_portfolio_greeks() ERROR: {e}")
-                else:
-                    self.Error("[DIRECT_TEST] get_portfolio_greeks() NOT FOUND")
-                    
-                if hasattr(self.greeks_monitor, 'calculate_position_greeks'):
-                    try:
-                        pos_greeks_result = self.greeks_monitor.calculate_position_greeks({})
-                        self.Error(f"[DIRECT_TEST] calculate_position_greeks({{}}) SUCCESS: keys={list(pos_greeks_result.keys()) if isinstance(pos_greeks_result, dict) else type(pos_greeks_result)}")
-                    except Exception as e:
-                        self.Error(f"[DIRECT_TEST] calculate_position_greeks({{}}) ERROR: {e}")
-                else:
-                    self.Error("[DIRECT_TEST] calculate_position_greeks() NOT FOUND")
-            else:
-                self.Error("[DIRECT_TEST] greeks_monitor NOT AVAILABLE")
-        
-        except Exception as e:
-            self.Error(f"[DIRECT_TEST] Exception during direct testing: {e}")
-        
-        # Now proceed with normal verification
+        # Proceed with integration verification
         # DEBUGGING: Start critical methods verification
         self.Debug(f"[Integration] Starting critical methods verification for {len(critical_method_map)} managers")
         
@@ -766,9 +664,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
     def OnData(self, data):
         """Main data handler with full safety integration"""
         
-        # Conditional OnData logging for performance
-        if not self.is_backtest or self.Time.hour == 9 and self.Time.minute < 5:
-            self.Debug(f"[MINIMAL TEST] OnData called at {self.Time} - data keys: {list(data.Keys)}")
+        # Production OnData handler - no debug logging for performance
         
         # ======================
         # PERFORMANCE CACHING
@@ -1104,6 +1000,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             # Update consecutive losses if needed
             if orderEvent.Direction == OrderDirection.Sell and quantity < 0:
                 # Opening position - no action needed for loss tracking
+                pass
             elif orderEvent.Direction == OrderDirection.Buy and quantity > 0:
                 # Closing position - check P&L
                 pnl = self.position_manager.calculate_position_pnl(symbol)

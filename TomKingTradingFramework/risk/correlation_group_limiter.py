@@ -301,7 +301,7 @@ class August2024CorrelationLimiter:
         current_time = self.algorithm.Time
         self.bypass_attempts = [
             attempt for attempt in self.bypass_attempts
-            if (current_time - attempt['timestamp']).total_seconds() < 3600
+            if (current_time - attempt['timestamp']).total_seconds() < TradingConstants.SECONDS_PER_HOUR
         ]
     
     def get_security_status(self) -> Dict:

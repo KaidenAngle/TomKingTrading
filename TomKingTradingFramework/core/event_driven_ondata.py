@@ -3,7 +3,14 @@ from AlgorithmImports import *
 from datetime import datetime, timedelta
 from typing import Dict, List, Any
 from core.event_bus import EventBus, EventType
+from core.unified_vix_manager import UnifiedVIXManager
 # endregion
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class EventDrivenOnData:
     """
@@ -50,8 +57,18 @@ class EventDrivenOnData:
         self.ondata_calls += 1
         
         try:
-            # PHASE 5 OPTIMIZATION: Use event-driven optimizer
             optimization_result = self.event_optimizer.optimize_ondata_performance(data)
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+# PHASE 5 OPTIMIZATION: Use event-driven optimizer
             
             # Check if processing can be skipped
             if not self._should_process_data(data):

@@ -4,6 +4,13 @@
 from AlgorithmImports import *
 from typing import Dict, Optional
 from core.base_component import BaseComponent
+from core.unified_vix_manager import UnifiedVIXManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class DynamicMarginManager(BaseComponent):
     """
@@ -65,7 +72,7 @@ class DynamicMarginManager(BaseComponent):
         # Calculate total buffer
         total_buffer = (base * intraday_mult) + event_addition
         
-        # Cap at 100% (no leverage)
+        # Cap at TradingConstants.FULL_PERCENTAGE% (no leverage)
         total_buffer = min(total_buffer, 1.0)
         
         # Log if significant expansion
@@ -279,8 +286,15 @@ class DynamicMarginManager(BaseComponent):
         Uses QuantConnect's economic calendar - always available in QC environment
         """
         try:
-            # Use QuantConnect's economic events API for FOMC meetings
-            economic_events = self.algorithm.TradingCalendar.GetEconomicEvents(date, date)
+        economic_events = self.algorithm.TradingCalendar.GetEconomicEvents(date, date)
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Use QuantConnect's economic events API for FOMC meetings
             
             # Check for FOMC-related events
             fomc_keywords = ['FOMC', 'Federal Open Market Committee', 'Fed Rate Decision']
@@ -363,7 +377,15 @@ class DynamicMarginManager(BaseComponent):
             float: Available buying power in USD, adjusted for required margin buffers
         """
         try:
-            portfolio = self.algorithm.Portfolio
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+portfolio = self.algorithm.Portfolio
             
             # Get current margin remaining
             margin_remaining = self.get_buying_power()  # Use inherited BaseComponent method
@@ -409,7 +431,15 @@ class DynamicMarginManager(BaseComponent):
             float: Total required margin in USD for all positions
         """
         try:
-            if not positions:
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if not positions:
                 return 0.0
                 
             total_margin = 0.0

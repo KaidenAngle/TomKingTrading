@@ -6,6 +6,14 @@ from AlgorithmImports import *
 from typing import Dict, List, Set, Optional, Any
 from risk.unified_risk_manager import BaseRiskPlugin, RiskEvent, RiskEventType, RiskLevel
 from datetime import datetime, timedelta
+from core.unified_vix_manager import UnifiedVIXManager
+from config.constants import TradingConstants
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class CorrelationPlugin(BaseRiskPlugin):
     """
@@ -25,18 +33,25 @@ class CorrelationPlugin(BaseRiskPlugin):
     def _plugin_initialize(self) -> bool:
         """Initialize correlation risk management"""
         try:
-            # Tom King's correlation groups (exactly as original - CRITICAL_DO_NOT_CHANGE)
-            self.correlation_groups = {
-                'A1': ['ES', 'MES', 'NQ', 'MNQ', 'RTY', 'M2K', 'YM', 'MYM'],  # Equity Indices
-                'A2': ['SPY', 'QQQ', 'IWM', 'DIA'],  # Equity ETFs + IPMCC positions
-                'B1': ['GC', 'MGC', 'GLD', 'TLT', 'ZB', 'ZN'],  # Safe Haven
-                'B2': ['SI', 'SIL', 'SLV', 'HG', 'PL', 'PA'],  # Industrial Metals
-                'C1': ['CL', 'MCL', 'QM', 'RB', 'HO', 'XLE', 'XOP'],  # Crude Complex
-                'C2': ['NG'],  # Natural Gas
-                'D1': ['ZC', 'ZS', 'ZW'],  # Grains
-                'D2': ['LE', 'HE', 'GF'],  # Proteins
-                'E': ['6E', '6B', '6A', '6C', 'M6E', 'M6A', 'DXY']  # Currencies
-            }
+        self.correlation_groups = {
+        'A1': ['ES', 'MES', 'NQ', 'MNQ', 'RTY', 'M2K', 'YM', 'MYM'],  # Equity Indices
+        'A2': ['SPY', 'QQQ', 'IWM', 'DIA'],  # Equity ETFs + IPMCC positions
+        'B1': ['GC', 'MGC', 'GLD', 'TLT', 'ZB', 'ZN'],  # Safe Haven
+        'B2': ['SI', 'SIL', 'SLV', 'HG', 'PL', 'PA'],  # Industrial Metals
+        'C1': ['CL', 'MCL', 'QM', 'RB', 'HO', 'XLE', 'XOP'],  # Crude Complex
+        'C2': ['NG'],  # Natural Gas
+        'D1': ['ZC', 'ZS', 'ZW'],  # Grains
+        'D2': ['LE', 'HE', 'GF'],  # Proteins
+        'E': ['6E', '6B', '6A', '6C', 'M6E', 'M6A', 'DXY']  # Currencies
+        }
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Tom King's correlation groups (exactly as original - CRITICAL_DO_NOT_CHANGE)
             
             # August 5, 2024 crisis correlation weights (NEVER CHANGE)
             self.crisis_correlation_weights = {
@@ -82,7 +97,15 @@ class CorrelationPlugin(BaseRiskPlugin):
     def _get_phase_limits(self) -> Dict[str, int]:
         """Get correlation limits based on Tom King phase system"""
         try:
-            account_value = float(self._algorithm.Portfolio.TotalPortfolioValue)
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+account_value = float(self._algorithm.Portfolio.TotalPortfolioValue)
             
             # Import Tom King parameters for consistency
             from config.strategy_parameters import TomKingParameters
@@ -416,11 +439,18 @@ class CorrelationPlugin(BaseRiskPlugin):
     def _sync_positions_with_portfolio(self):
         """Sync position tracking with actual portfolio positions"""
         try:
-            # Get actual positions from portfolio
-            actual_symbols = set()
-            for holding in self._algorithm.Portfolio.Values:
-                if holding.Invested:
-                    actual_symbols.add(holding.Symbol)
+        actual_symbols = set()
+        for holding in self._algorithm.Portfolio.Values:
+        if holding.Invested:
+        actual_symbols.add(holding.Symbol)
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+# Get actual positions from portfolio
             
             # Remove tracking for positions that no longer exist
             for group, positions in list(self.active_positions_by_group.items()):
@@ -464,15 +494,15 @@ class CorrelationPlugin(BaseRiskPlugin):
     
     def ShouldDefend(self, position_info: Dict) -> bool:
         """
-        BACKWARD COMPATIBILITY: Check if position needs defensive action at 21 DTE
+        BACKWARD COMPATIBILITY: Check if position needs defensive action at TradingConstants.DEFENSIVE_EXIT_DTE DTE
         Tom King's absolute rule - NO CONDITIONS, NO EXCEPTIONS
         """
         def _check_defense():
             days_to_expiry = position_info.get('dte', 999)
             
-            # Tom King's 21 DTE rule - ABSOLUTE RULE
+            # Tom King's TradingConstants.DEFENSIVE_EXIT_DTE DTE rule - ABSOLUTE RULE
             if days_to_expiry <= 21:
-                self._algorithm.Log(f"[Correlation Plugin] 21 DTE absolute defense triggered for {position_info.get('symbol', 'UNKNOWN')} (DTE: {days_to_expiry})")
+                self._algorithm.Log(f"[Correlation Plugin] TradingConstants.DEFENSIVE_EXIT_DTE DTE absolute defense triggered for {position_info.get('symbol', 'UNKNOWN')} (DTE: {days_to_expiry})")
                 return True
                 
             return False

@@ -5,6 +5,13 @@ from AlgorithmImports import *
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import json
+from core.unified_vix_manager import UnifiedVIXManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class TradeExecutionLogger:
     """
@@ -203,7 +210,7 @@ class TradeExecutionLogger:
             'exit_price': exit_price,
             'exit_reason': exit_reason,
             'realized_pnl': realized_pnl,
-            'hold_time_hours': hold_time.total_seconds() / 3600,
+            'hold_time_hours': hold_time.total_seconds() / TradingConstants.SECONDS_PER_HOUR,
             'hold_time_days': hold_time.days,
             'win': realized_pnl > 0,
             'return_percent': (realized_pnl / (entry_price * abs(quantity))) * 100 if entry_price > 0 else 0

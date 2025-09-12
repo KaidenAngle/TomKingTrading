@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "quantconnect": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e", "QUANTCONNECT_USER_ID",
+        "-e", "QUANTCONNECT_API_TOKEN",
+        "-e", "AGENT_NAME",
+        "--platform", "linux/amd64",
+        "quantconnect/mcp-server"
+      ],
+      "env": {
+        "QUANTCONNECT_USER_ID": "416338",
+        "QUANTCONNECT_API_TOKEN": "bc0c7c4c93e96be8757d125b087dc5a619b5d160d743be9ea322f9734ca6e904",
+        "AGENT_NAME": "Tom King Trading MCP Server"
+      }
+    }
+  }
+}

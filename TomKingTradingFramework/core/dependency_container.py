@@ -82,7 +82,15 @@ class LazyProxy:
         
         # FIXED: Add error handling for attribute access
         try:
-            return getattr(target, name)
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+return getattr(target, name)
         except AttributeError as e:
             raise AttributeError(f"Manager '{self.target_name}' has no attribute '{name}': {e}")
     
@@ -94,7 +102,15 @@ class LazyProxy:
         
         # FIXED: Add error handling for callable execution
         try:
-            return target(*args, **kwargs)
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+return target(*args, **kwargs)
         except TypeError as e:
             raise TypeError(f"Manager '{self.target_name}' is not callable or has invalid arguments: {e}")
         except Exception as e:
@@ -321,7 +337,19 @@ class DependencyContainer:
             return None
         
         try:
-            self.currently_initializing.add(name)
+            
+        
+        except Exception as e:
+
+        
+            # Log and handle unexpected exception
+
+        
+            print(f'Unexpected exception: {e}')
+
+        
+            raise
+self.currently_initializing.add(name)
             
             # Check if dependencies are satisfied
             dependencies = self.manager_dependencies.get(name, [])
@@ -496,7 +524,15 @@ class DependencyContainer:
         
         for name, manager in self.managers.items():
             try:
-                if hasattr(manager, 'get_health_status'):
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+if hasattr(manager, 'get_health_status'):
                     health = manager.get_health_status()
                 else:
                     health = {'healthy': True, 'ready': True}

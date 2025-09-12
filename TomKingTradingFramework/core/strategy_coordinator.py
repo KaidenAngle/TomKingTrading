@@ -5,6 +5,13 @@ from AlgorithmImports import *
 from typing import Dict, List, Optional, Set
 from datetime import datetime, timedelta
 from enum import Enum
+from core.unified_vix_manager import UnifiedVIXManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage vix_manager from unified system
+# Consider delegating to: self.algo.vix_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class StrategyPriority(Enum):
     """Strategy execution priority levels"""
@@ -134,7 +141,15 @@ class StrategyCoordinator:
         
         # Execute callback
         try:
-            result = callback_func()
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+result = callback_func()
             
             # Record execution
             self.execution_history.append({
@@ -397,10 +412,20 @@ class StrategyCoordinator:
             return
             
         try:
-            # Update execution count
-            self.registered_strategies[strategy_name]['executions'] += 1
-            self.registered_strategies[strategy_name]['last_execution'] = self.algo.Time
-            self.registered_strategies[strategy_name]['status'] = 'COMPLETED'
+        self.registered_strategies[strategy_name]['executions'] += 1
+        self.registered_strategies[strategy_name]['last_execution'] = self.algo.Time
+        self.registered_strategies[strategy_name]['status'] = 'COMPLETED'
+        except Exception as e:
+
+            
+            # Log and handle unexpected exception
+
+            
+            print(f'Unexpected exception: {e}')
+
+            
+            raise
+# Update execution count
             
             # Log execution
             self.execution_history.append({
@@ -445,7 +470,15 @@ class StrategyCoordinator:
         
         for strategy_name in execution_order:
             try:
-                self.algo.Debug(f"[COORDINATOR] === EXECUTING {strategy_name} ===")
+                
+            except Exception as e:
+
+                # Log and handle unexpected exception
+
+                print(f'Unexpected exception: {e}')
+
+                raise
+self.algo.Debug(f"[COORDINATOR] === EXECUTING {strategy_name} ===")
                 
                 # Check if strategy should be throttled
                 if self.should_throttle_strategy(strategy_name):

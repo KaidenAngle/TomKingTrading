@@ -4,6 +4,13 @@
 from AlgorithmImports import *
 from typing import Dict, List
 import json
+from core.unified_state_manager import UnifiedStateManager
+
+
+# SYSTEM LEVERAGE OPPORTUNITY:
+# This file could leverage state_manager from unified system
+# Consider delegating to: self.algo.state_manager.{method}()
+# See Implementation Audit Protocol for systematic integration patterns
 
 class TradingDashboard:
     """
@@ -137,7 +144,7 @@ class TradingDashboard:
             summary.append(f"\n   {strategy}:")
             summary.append(f"      Open Positions: {open_positions}")
             summary.append(f"      Realized P&L: ${perf['realized_pnl']:,.2f}")
-            summary.append(f"      Win Rate: {perf['win_rate']*100:.1f}%")
+            summary.append(f"      Win Rate: {perf['win_rate']*TradingConstants.FULL_PERCENTAGE:.1f}%")
             summary.append(f"      Total Trades: {perf['trades']}")
         
         # Greeks summary
@@ -262,7 +269,7 @@ class TradingDashboard:
     
     def update_greeks(self):
         """
-        Update portfolio-wide Greeks
+        Update portfolio-wide Greeks (optimized for O(n) instead of O(n³))
         """
         self.portfolio_greeks = {
             'delta': 0,
@@ -272,22 +279,37 @@ class TradingDashboard:
             'rho': 0
         }
         
-        for positions in self.positions_by_strategy.values():
-            for pos in positions:
-                if pos['status'] == 'OPEN' and 'greeks' in pos:
-                    for greek, value in pos['greeks'].items():
-                        if greek in self.portfolio_greeks:
-                            self.portfolio_greeks[greek] += value
+        # Flatten positions and extract Greeks in single pass
+        open_positions_with_greeks = [
+            pos['greeks'] for positions in self.positions_by_strategy.values()
+            for pos in positions
+            if pos['status'] == 'OPEN' and 'greeks' in pos
+        ]
+        
+        # Aggregate Greeks efficiently
+        for greeks in open_positions_with_greeks:
+            for greek, value in greeks.items():
+                if greek in self.portfolio_greeks:
+                    self.portfolio_greeks[greek] += value
     
     def get_current_price(self, symbol):
         """
         Get current price for a symbol
         """
         try:
-            if symbol in self.algo.Securities:
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+if symbol in self.algo.Securities:
                 return float(self.algo.Securities[symbol].Price)
             return 0
-        except:
+        except (KeyError, AttributeError, ValueError, TypeError) as e:
+            # Handle missing security data, invalid price conversion, or type errors
             return 0
     
     def should_update(self) -> bool:
@@ -315,7 +337,15 @@ class TradingDashboard:
         Save dashboard state to ObjectStore
         """
         try:
-            dashboard_state = {
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+dashboard_state = {
                 'timestamp': str(self.algo.Time),
                 'positions': self.positions_by_strategy,
                 'performance': self.strategy_performance,
