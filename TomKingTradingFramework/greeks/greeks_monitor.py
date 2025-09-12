@@ -300,7 +300,7 @@ class GreeksMonitor(BaseComponent):
             bs_stats = self.bs_cache.get_statistics()
             
             if not self.algorithm.LiveMode:  # Only log in backtest to avoid spam
-                self.algorithm.Debug(
+                self.debug(  # Use inherited method
                     f"[Greeks Cache] Hit Rate: {greeks_stats['hit_rate']:.1%} | "
                     f"Portfolio Cache: {greeks_stats['cache_size']}/{greeks_stats['max_size']} | "
                     f"BS Cache: {bs_stats['cache_size']}/{bs_stats['max_size']} | "
@@ -309,10 +309,10 @@ class GreeksMonitor(BaseComponent):
             
             # Log performance warnings if cache performance is poor
             if greeks_stats['hit_rate'] < 0.5:  # Less than 50% hit rate
-                self.algorithm.Log(f"[Performance Warning] Greeks cache hit rate low: {greeks_stats['hit_rate']:.1%}")
+                self.log(f"[Performance Warning] Greeks cache hit rate low: {greeks_stats['hit_rate']:.1%}")  # Use inherited method
                 
         except Exception as e:
-            self.algorithm.Debug(f"[Greeks Cache] Error logging stats: {e}")
+            self.debug(f"[Greeks Cache] Error logging stats: {e}")  # Use inherited method
     
     def get_cache_statistics(self) -> Dict:
         """Get comprehensive cache statistics for monitoring"""
@@ -326,7 +326,7 @@ class GreeksMonitor(BaseComponent):
                 )
             }
         except Exception as e:
-            self.algorithm.Error(f"[Greeks Cache] Error getting statistics: {e}")
+            self.error(f"[Greeks Cache] Error getting statistics: {e}")  # Use inherited method
             return {}
     
     def invalidate_cache(self, reason: str = "manual"):
@@ -335,11 +335,11 @@ class GreeksMonitor(BaseComponent):
             greeks_count = self.greeks_cache.invalidate_all()
             bs_count = self.bs_cache.invalidate_all()
             
-            self.algorithm.Debug(
+            self.debug(  # Use inherited method
                 f"[Greeks Cache] Invalidated {greeks_count} portfolio + {bs_count} BS calculations. Reason: {reason}"
             )
         except Exception as e:
-            self.algorithm.Error(f"[Greeks Cache] Error invalidating cache: {e}")
+            self.error(f"[Greeks Cache] Error invalidating cache: {e}")  # Use inherited method
         
     def monitor_greeks_limits(self) -> Tuple[Dict, List[str]]:
         """Check if Greeks exceed safety thresholds"""
@@ -347,10 +347,10 @@ class GreeksMonitor(BaseComponent):
         # Validate data freshness first
         market_conditions = self.data_validator.check_market_conditions()
         if market_conditions['data_quality_score'] < 60:
-            self.algorithm.Log(f"WARNING: Poor data quality ({market_conditions['data_quality_score']}%)")
+            self.log(f"WARNING: Poor data quality ({market_conditions['data_quality_score']}%)")  # Use inherited method
             if market_conditions['issues']:
                 for issue in market_conditions['issues']:
-                    self.algorithm.Log(f"  - {issue}")
+                    self.log(f"  - {issue}")  # Use inherited method
         
         greeks = self.calculate_portfolio_greeks()
         alerts = []
@@ -393,12 +393,12 @@ class GreeksMonitor(BaseComponent):
                         
         # Log alerts if any
         if alerts:
-            self.algorithm.Log("=" * 60)
-            self.algorithm.Log(f"GREEKS RISK ALERT - Phase {phase}")
-            self.algorithm.Log("-" * 60)
+            self.log("=" * 60)  # Use inherited method
+            self.log(f"GREEKS RISK ALERT - Phase {phase}")  # Use inherited method
+            self.log("-" * 60)  # Use inherited method
             for alert in alerts:
                 level = "CRITICAL" if any('CRITICAL' in str(v) for v in alert_levels.values()) else "WARNING"
-                self.algorithm.Log(f"  [{level}] {alert}")
+                self.log(f"  [{level}] {alert}")  # Use inherited method
                 
             # Log position breakdown
             self.log_position_greeks(greeks)
@@ -406,11 +406,11 @@ class GreeksMonitor(BaseComponent):
             # Suggest hedges
             hedge_suggestions = self.suggest_hedge(greeks)
             if hedge_suggestions:
-                self.algorithm.Log("\nHEDGE SUGGESTIONS:")
+                self.log("\nHEDGE SUGGESTIONS:")  # Use inherited method
                 for suggestion in hedge_suggestions:
-                    self.algorithm.Log(f"  • {suggestion}")
+                    self.log(f"  • {suggestion}")  # Use inherited method
                     
-            self.algorithm.Log("=" * 60)
+            self.log("=" * 60)  # Use inherited method
             
             # Trigger manual mode if critical
             if len([a for a in alert_levels.values() if a == 'CRITICAL']) >= 2:
@@ -518,8 +518,8 @@ class GreeksMonitor(BaseComponent):
         if not greeks['positions']:
             return
             
-        self.algorithm.Log("\nPosition Greeks Breakdown:")
-        self.algorithm.Log("-" * 60)
+        self.log("\nPosition Greeks Breakdown:")  # Use inherited method
+        self.log("-" * 60)  # Use inherited method
         
         # Sort by absolute delta
         sorted_positions = sorted(greeks['positions'], 
@@ -528,12 +528,12 @@ class GreeksMonitor(BaseComponent):
         
         for pos in sorted_positions[:5]:  # Top 5 positions
             if pos['type'] == 'EQUITY':
-                self.algorithm.Log(
+                self.log(  # Use inherited method
                     f"  {pos['symbol']:10} | Qty: {pos['quantity']:6.0f} | "
                     f"Delta: {pos['delta']:7.1f}"
                 )
             else:
-                self.algorithm.Log(
+                self.log(  # Use inherited method
                     f"  {pos['symbol'][:20]:20} | {pos['type']:4} | "
                     f"Qty: {pos['quantity']:4.0f} | Strike: {pos['strike']:6.0f} | "
                     f"DTE: {pos['dte']:3.0f} | Delta: {pos['delta']:6.1f} | "
@@ -542,9 +542,9 @@ class GreeksMonitor(BaseComponent):
                 
         # Log by underlying
         if greeks['by_underlying']:
-            self.algorithm.Log("\nGreeks by Underlying:")
+            self.log("\nGreeks by Underlying:")  # Use inherited method
             for underlying, underlying_greeks in greeks['by_underlying'].items():
-                self.algorithm.Log(
+                self.log(  # Use inherited method
                     f"  {underlying:6} | Delta: {underlying_greeks['delta']:7.1f} | "
                     f"Gamma: {underlying_greeks['gamma']:6.2f} | "
                     f"Theta: ${underlying_greeks['theta']:7.0f}"
@@ -552,9 +552,9 @@ class GreeksMonitor(BaseComponent):
                 
         # Log by expiry
         if greeks['by_expiry']:
-            self.algorithm.Log("\nGreeks by Expiry:")
+            self.log("\nGreeks by Expiry:")  # Use inherited method
             for expiry, expiry_greeks in sorted(greeks['by_expiry'].items()):
-                self.algorithm.Log(
+                self.log(  # Use inherited method
                     f"  {expiry} | Positions: {expiry_greeks['positions']:2.0f} | "
                     f"Delta: {expiry_greeks['delta']:7.1f} | "
                     f"Theta: ${expiry_greeks['theta']:7.0f}"
@@ -721,7 +721,7 @@ class GreeksMonitor(BaseComponent):
             return enhanced_greeks
             
         except Exception as e:
-            self.algorithm.Error(f"[GreeksMonitor] Error getting portfolio greeks: {e}")
+            self.error(f"[GreeksMonitor] Error getting portfolio greeks: {e}")  # Use inherited method
             # Return safe fallback
             return {
                 'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0, 'rho': 0,
@@ -762,7 +762,7 @@ class GreeksMonitor(BaseComponent):
             
             if missing_fields:
                 error_msg = f"Missing required fields: {missing_fields}"
-                self.algorithm.Error(f"[GreeksMonitor] {error_msg}")
+                self.error(f"[GreeksMonitor] {error_msg}")  # Use inherited method
                 return {'error': error_msg}
             
             # Extract position data
@@ -867,7 +867,7 @@ class GreeksMonitor(BaseComponent):
             return result
             
         except Exception as e:
-            self.algorithm.Error(f"[GreeksMonitor] Error calculating position greeks: {e}")
+            self.error(f"[GreeksMonitor] Error calculating position greeks: {e}")  # Use inherited method
             return {
                 'error': str(e),
                 'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0, 'rho': 0,

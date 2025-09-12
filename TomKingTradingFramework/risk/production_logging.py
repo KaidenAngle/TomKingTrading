@@ -6,6 +6,7 @@ import json
 import os
 from datetime import datetime, timedelta
 from typing import Dict, Any
+from greeks.greeks_monitor import GreeksMonitor
 
 class ProductionLogger:
     """
@@ -353,6 +354,9 @@ class GreeksAggregator:
     def __init__(self, algorithm):
         self.algo = algorithm
         
+        # FIXED: Use centralized GreeksMonitor instead of duplicate implementation  
+        self.greeks_monitor = GreeksMonitor(algorithm)
+        
         # DEPRECATED: Greeks limits moved to phase_based_greeks_limits.py
         # Using phase-specific limits instead of linear scaling
         # See: greeks/phase_based_greeks_limits.py for proper implementation
@@ -360,36 +364,8 @@ class GreeksAggregator:
         self.algo.Log("[WARNING] Greeks Aggregator Initialized")
     
     def calculate_portfolio_greeks(self) -> Dict[str, float]:
-        """Calculate total portfolio Greeks"""
-        total_delta = 0
-        total_gamma = 0
-        total_theta = 0
-        total_vega = 0
-        
-        for symbol, holding in self.algo.Portfolio.items():
-            if holding.Invested and holding.Type == SecurityType.Option:
-                try:
-                    security = self.algo.Securities[symbol]
-                    
-                    # Get Greeks if available
-                    if hasattr(security, 'Greeks') and security.Greeks:
-                        quantity = holding.Quantity
-                        multiplier = 100  # Options multiplier
-                        
-                        total_delta += security.Greeks.Delta * quantity * multiplier
-                        total_gamma += security.Greeks.Gamma * quantity * multiplier
-                        total_theta += security.Greeks.Theta * quantity * multiplier
-                        total_vega += security.Greeks.Vega * quantity * multiplier
-                        
-                except Exception as e:
-                    self.algo.Log(f"Error calculating Greeks for {symbol}: {str(e)}")
-        
-        return {
-            'delta': total_delta,
-            'gamma': total_gamma,
-            'theta': total_theta,
-            'vega': total_vega
-        }
+        """FIXED: Delegate to centralized GreeksMonitor instead of duplicating calculation"""
+        return self.greeks_monitor.calculate_portfolio_greeks()
     
     def check_greeks_limits(self) -> tuple:
         """

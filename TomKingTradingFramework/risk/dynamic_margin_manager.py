@@ -70,8 +70,8 @@ class DynamicMarginManager(BaseComponent):
         
         # Log if significant expansion
         if total_buffer > base * 1.2:
-            self.algorithm.Log(f"Margin buffer expanded: {base:.1%} -> {total_buffer:.1%}")
-            self.algorithm.Log(f"  VIX: {vix_level:.1f}, Intraday: {intraday_mult:.2f}x, Events: +{event_addition:.1%}")
+            self.log(f"Margin buffer expanded: {base:.1%} -> {total_buffer:.1%}")  # Use inherited method
+            self.log(f"  VIX: {vix_level:.1f}, Intraday: {intraday_mult:.2f}x, Events: +{event_addition:.1%}")  # Use inherited method
             
         return total_buffer
         
@@ -164,8 +164,8 @@ class DynamicMarginManager(BaseComponent):
         
         # Get current margin usage
         margin_used = portfolio.TotalMarginUsed
-        margin_remaining = portfolio.MarginRemaining
-        total_value = portfolio.TotalPortfolioValue
+        margin_remaining = self.get_buying_power()  # Use inherited BaseComponent method
+        total_value = self.get_portfolio_value()  # Use inherited BaseComponent method
         
         if total_value <= 0:
             return {
@@ -197,7 +197,7 @@ class DynamicMarginManager(BaseComponent):
             
             # Emergency action if multiple breaches
             if self.margin_breaches >= 3:
-                self.algorithm.Error(f"EMERGENCY: Multiple margin breaches ({self.margin_breaches})")
+                self.error(f"EMERGENCY: Multiple margin breaches ({self.margin_breaches})")  # Use inherited method
                 if hasattr(self.algorithm, 'manual_mode'):
                     self.algorithm.manual_mode.activate_manual_mode("Margin crisis - multiple breaches")
                     
@@ -268,7 +268,7 @@ class DynamicMarginManager(BaseComponent):
             recent = self.margin_history[-5:]
             warnings = sum(1 for h in recent if h['status'] in ['WARNING', 'CRITICAL'])
             if warnings >= 3:
-                self.algorithm.Log("Margin pressure building - consider reduction")
+                self.log("Margin pressure building - consider reduction")  # Use inherited method
                 return True
                 
         return False
@@ -293,7 +293,7 @@ class DynamicMarginManager(BaseComponent):
         except Exception as e:
             # Fallback: FOMC typically meets 8 times per year
             # Usually: January, March, May, June, July, September, November, December
-            self.algorithm.Debug(f"FOMC detection fallback used: {e}")
+            self.debug(f"FOMC detection fallback used: {e}")  # Use inherited method
             fomc_months = [1, 3, 5, 6, 7, 9, 11, 12]
             return date.month in fomc_months and date.day <= 7  # First week approximation
         
@@ -325,21 +325,6 @@ class DynamicMarginManager(BaseComponent):
         days_to_opex = abs((date - third_friday.date() if hasattr(third_friday, 'date') else date - third_friday).days)
         return days_to_opex <= 3
         
-    def get_vix_level(self) -> float:
-        """Get current VIX level with fallback"""
-        
-        if "VIX" in self.algorithm.Securities:
-            vix = self.algorithm.Securities["VIX"].Price
-            if vix > 0:
-                return vix
-                
-        # Fallback to estimated VIX from SPY volatility
-        if "SPY" in self.algorithm.Securities:
-            # Rough estimate from recent volatility
-            spy_volatility = self.algorithm.Securities["SPY"].VolatilityModel.Volatility
-            return spy_volatility * 100 if spy_volatility > 0 else 18.0
-            
-        return 18.0  # Default assumption
         
     def get_margin_status(self) -> Dict:
         """Get current margin status (alias for check_margin_health for compatibility)"""
@@ -381,8 +366,8 @@ class DynamicMarginManager(BaseComponent):
             portfolio = self.algorithm.Portfolio
             
             # Get current margin remaining
-            margin_remaining = portfolio.MarginRemaining
-            total_value = portfolio.TotalPortfolioValue
+            margin_remaining = self.get_buying_power()  # Use inherited BaseComponent method
+            total_value = self.get_portfolio_value()  # Use inherited BaseComponent method
             
             if total_value <= 0 or margin_remaining < 0:
                 return 0.0
@@ -400,13 +385,13 @@ class DynamicMarginManager(BaseComponent):
             
             # Log significant buffer adjustments
             if required_buffer > 0.3:  # More than 30% buffer
-                self.algorithm.Debug(f"[DynamicMargin] Large buffer applied: {required_buffer:.1%}, "
-                                   f"Safe BP: ${safe_buying_power:,.0f} (Raw: ${margin_remaining:,.0f})")
+                self.debug(f"[DynamicMargin] Large buffer applied: {required_buffer:.1%}, "
+                                   f"Safe BP: ${safe_buying_power:,.0f} (Raw: ${margin_remaining:,.0f})")  # Use inherited method
             
             return safe_buying_power
             
         except Exception as e:
-            self.algorithm.Error(f"[DynamicMargin] Error calculating available buying power: {e}")
+            self.error(f"[DynamicMargin] Error calculating available buying power: {e}")  # Use inherited method
             return 0.0
     
     def calculate_required_margin(self, positions: list) -> float:
@@ -433,7 +418,7 @@ class DynamicMarginManager(BaseComponent):
                 # Validate position structure
                 required_fields = ['symbol', 'quantity', 'option_type', 'strike', 'underlying_price']
                 if not all(field in position for field in required_fields):
-                    self.algorithm.Error(f"[DynamicMargin] Invalid position structure: {position}")
+                    self.error(f"[DynamicMargin] Invalid position structure: {position}")  # Use inherited method
                     continue
                 
                 # Calculate margin for this position
@@ -455,7 +440,7 @@ class DynamicMarginManager(BaseComponent):
             return total_margin
             
         except Exception as e:
-            self.algorithm.Error(f"[DynamicMargin] Error calculating required margin: {e}")
+            self.error(f"[DynamicMargin] Error calculating required margin: {e}")  # Use inherited method
             # Return conservative estimate if calculation fails
             return sum(pos.get('underlying_price', 100) * 100 * abs(pos.get('quantity', 1)) * 0.2 
                       for pos in positions if isinstance(pos, dict))

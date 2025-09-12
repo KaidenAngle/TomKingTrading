@@ -3,6 +3,7 @@
 
 from AlgorithmImports import *
 from typing import Optional, Dict, Any
+from config.constants import TradingConstants
 
 class BaseComponent:
     """
@@ -32,22 +33,30 @@ class BaseComponent:
         self.algorithm.Error(f"[{self.__class__.__name__}] {message}")
     
     def get_account_phase(self) -> int:
-        """Get current account phase based on portfolio value"""
+        """
+        Get current account phase based on portfolio value
+        Uses centralized constants (USD converted from Tom King's GBP thresholds)
+        
+        Phase 1: £30-40k (Foundation) = $38,100-$50,800
+        Phase 2: £40-60k (Scaling) = $50,800-$76,200
+        Phase 3: £60-75k (Optimization) = $76,200-$95,250
+        Phase 4: £75k+ (Professional) = $95,250+
+        """
         if hasattr(self.algorithm, 'current_phase'):
             return self.algorithm.current_phase
             
         portfolio_value = self.algorithm.Portfolio.TotalPortfolioValue
         
-        if portfolio_value >= 95000:
-            return 4
-        elif portfolio_value >= 75000:
-            return 3
-        elif portfolio_value >= 55000:
-            return 2
-        elif portfolio_value >= 40000:
-            return 1
+        if portfolio_value >= TradingConstants.PHASE4_MIN:
+            return 4  # Professional Deployment (£75k+)
+        elif portfolio_value >= TradingConstants.PHASE3_MIN:
+            return 3  # Optimization (£60-75k)
+        elif portfolio_value >= TradingConstants.PHASE2_MIN:
+            return 2  # Scaling (£40-60k)
+        elif portfolio_value >= TradingConstants.PHASE1_MIN:
+            return 1  # Foundation (£30-40k)
         else:
-            return 0
+            return 0  # Below minimum trading capital
     
     def is_market_open(self) -> bool:
         """Check if market is currently open"""

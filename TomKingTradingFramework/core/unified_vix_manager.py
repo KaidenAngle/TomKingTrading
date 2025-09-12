@@ -15,8 +15,9 @@
 from AlgorithmImports import *
 from typing import Optional, Dict, Tuple
 from config.constants import TradingConstants
+from core.base_component import BaseComponent
 
-class UnifiedVIXManager:
+class UnifiedVIXManager(BaseComponent):
     """
     Centralized VIX management system FOR FAST CACHED ACCESS.
     Eliminates duplicate VIX checking across 26+ files.
@@ -27,7 +28,7 @@ class UnifiedVIXManager:
     """
     
     def __init__(self, algorithm):
-        self.algo = algorithm
+        super().__init__(algorithm)  # Initialize BaseComponent
         
         # Standard VIX thresholds from Tom King methodology
         self.thresholds = {
@@ -150,7 +151,7 @@ class UnifiedVIXManager:
                 
         elif vix_regime == "ELEVATED":
             # VIX 20-25: Transition period requiring careful assessment
-            portfolio_value = self.algo.Portfolio.TotalPortfolioValue
+            portfolio_value = self.get_portfolio_value()  # Use inherited BaseComponent method
             
             # Check for rapid VIX increases (stress building)
             if hasattr(self, '_previous_vix') and self._previous_vix:
@@ -334,19 +335,6 @@ class UnifiedVIXManager:
             self.algo.Debug(f"[VIX] Regime: {regime}, Phase: {account_phase}, Max BP: {max_bp:.0%}")
         return max_bp
     
-    def get_account_phase(self) -> int:
-        """Determine account phase based on portfolio value"""
-        
-        portfolio_value = self.algo.Portfolio.TotalPortfolioValue
-        
-        if portfolio_value < 50000:
-            return 1
-        elif portfolio_value < 100000:
-            return 2
-        elif portfolio_value < 250000:
-            return 3
-        else:
-            return 4
     
     def log_vix_status(self):
         """Log current VIX status with conditional frequency for performance"""

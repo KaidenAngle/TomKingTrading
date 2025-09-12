@@ -2,10 +2,12 @@
 # Implements Tom King's correlation limits
 from AlgorithmImports import *
 from typing import Dict, List, Set
+from risk.kelly_criterion import KellyCriterion
 
 class CorrelationManager:
     def __init__(self, algorithm):
         self.algo = algorithm
+        self.kelly_calculator = KellyCriterion(algorithm)  # Use centralized Kelly implementation
         
         # Define correlation groups per Tom King methodology
         self.correlation_groups = {
@@ -157,23 +159,8 @@ class CorrelationManager:
         return False
     
     def CalculateKellyCriterion(self, win_rate: float, avg_win: float, avg_loss: float) -> float:
-        """Calculate Kelly Criterion for position sizing"""
-        if avg_loss == 0:
-            return 0.02  # Default 2% if no loss data
-        
-        # Kelly formula: f = (p*b - q) / b
-        # where p = win rate, q = loss rate, b = win/loss ratio
-        p = win_rate
-        q = 1 - win_rate
-        b = avg_win / avg_loss
-        
-        kelly_fraction = (p * b - q) / b
-        
-        # Tom King conservative approach: use 25% of Kelly
-        conservative_kelly = kelly_fraction * 0.25
-        
-        # Cap at 5% per trade (Tom King max risk)
-        return min(conservative_kelly, 0.05)
+        """Calculate Kelly Criterion for position sizing - delegates to centralized implementation"""
+        return self.kelly_calculator.calculate_kelly_size(win_rate, avg_win, avg_loss)
     
     def GetRiskMetrics(self) -> Dict:
         """Get current risk metrics"""

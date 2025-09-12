@@ -162,7 +162,7 @@ class FridayStrategyOptimizer(BaseComponent):
     def analyze_vix_term_structure(self) -> Dict:
         """Analyze VIX term structure for Progressive Friday"""
         
-        vix = self.algorithm.Securities["VIX"].Price if "VIX" in self.algorithm.Securities else 20
+        vix = self.get_vix_level()  # Use inherited BaseComponent method
         
         # Get VIX9D (short-term) and VIX (30-day)
         vix9d = self.get_vix9d()
@@ -364,7 +364,7 @@ class FridayStrategyOptimizer(BaseComponent):
         
         signals = analysis['signals']
         
-        self.algorithm.Log(f"""
+        self.log(f"""  # Use inherited BaseComponent method
         ========================================
         PROGRESSIVE FRIDAY DETECTED!
         ========================================
@@ -510,7 +510,7 @@ class FridayStrategyOptimizer(BaseComponent):
         
         # Would need actual VIX9D data
         # For now, estimate from VIX
-        vix = self.algorithm.Securities["VIX"].Price if "VIX" in self.algorithm.Securities else 20
+        vix = self.get_vix_level()  # Use inherited BaseComponent method
         
         # Rough estimate: VIX9D slightly higher in volatile markets
         if vix > 25:
@@ -525,7 +525,7 @@ class FridayStrategyOptimizer(BaseComponent):
         
         # Would need options volume data
         # For now, use market conditions to estimate
-        vix = self.algorithm.Securities["VIX"].Price if "VIX" in self.algorithm.Securities else 20
+        vix = self.get_vix_level()  # Use inherited BaseComponent method
         
         # Higher VIX typically means higher P/C ratio
         if vix > 30:

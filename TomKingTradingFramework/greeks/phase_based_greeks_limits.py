@@ -7,6 +7,7 @@ Implements proper phase-specific Greeks limits per Tom King methodology
 from AlgorithmImports import *
 from typing import Dict, Tuple, Optional
 from enum import Enum
+from greeks.greeks_monitor import GreeksMonitor
 
 class AccountPhase(Enum):
     """Account phases based on account value"""
@@ -23,6 +24,9 @@ class PhaseBasedGreeksLimits:
     
     def __init__(self, algorithm):
         self.algo = algorithm
+        
+        # FIXED: Use centralized GreeksMonitor instead of duplicate portfolio Greeks calculation
+        self.greeks_monitor = GreeksMonitor(algorithm)
         
         # Tom King Phase-Based Greeks Limits (per documentation)
         self.phase_limits = {
@@ -88,35 +92,8 @@ class PhaseBasedGreeksLimits:
         return self.phase_limits.get(phase, self.phase_limits[AccountPhase.PHASE_1])
     
     def calculate_portfolio_greeks(self) -> Dict[str, float]:
-        """Calculate total portfolio Greeks"""
-        total_greeks = {
-            'delta': 0.0,
-            'gamma': 0.0,
-            'theta': 0.0,
-            'vega': 0.0,
-            'rho': 0.0
-        }
-        
-        for symbol, holding in self.algo.Portfolio.items():
-            if holding.Invested and holding.Type == SecurityType.Option:
-                try:
-                    security = self.algo.Securities[symbol]
-                    
-                    # Get Greeks if available
-                    if hasattr(security, 'Greeks') and security.Greeks:
-                        quantity = holding.Quantity
-                        multiplier = 100  # Options multiplier
-                        
-                        total_greeks['delta'] += security.Greeks.Delta * quantity * multiplier
-                        total_greeks['gamma'] += security.Greeks.Gamma * quantity * multiplier
-                        total_greeks['theta'] += security.Greeks.Theta * quantity * multiplier
-                        total_greeks['vega'] += security.Greeks.Vega * quantity * multiplier
-                        total_greeks['rho'] += security.Greeks.Rho * quantity * multiplier if hasattr(security.Greeks, 'Rho') else 0
-                        
-                except Exception as e:
-                    self.algo.Debug(f"Error calculating Greeks for {symbol}: {str(e)}")
-        
-        return total_greeks
+        """FIXED: Delegate to centralized GreeksMonitor instead of duplicating calculation"""
+        return self.greeks_monitor.calculate_portfolio_greeks()
     
     def check_greeks_compliance(self, proposed_trade: Optional[Dict] = None) -> Tuple[bool, str, Dict]:
         """

@@ -3,6 +3,7 @@ from AlgorithmImports import *
 from datetime import timedelta
 from core.performance_cache import HighPerformanceCache, MarketDataCache
 import numpy as np
+from greeks.greeks_monitor import GreeksMonitor
 # endregion
 
 class OptionChainManager:
@@ -25,14 +26,8 @@ class OptionChainManager:
             price_change_threshold=0.005  # 0.5% price change invalidation
         )
         
-        # Greeks calculation cache for option contracts
-        self.greeks_cache = HighPerformanceCache(
-            algorithm,
-            max_size=1500,  # Cache more individual contract Greeks
-            ttl_minutes=2 if algorithm.LiveMode else 4,  # Shorter TTL for live
-            max_memory_mb=20,
-            enable_stats=True
-        )
+        # FIXED: Use centralized GreeksMonitor instead of duplicate implementation
+        self.greeks_monitor = GreeksMonitor(algorithm)
         
         # Legacy cache for backward compatibility
         self.cached_chains = {}
@@ -182,42 +177,10 @@ class OptionChainManager:
             return None
     
     def calculate_greeks(self, contract, underlying_price, current_time):
-        """Calculate Black-Scholes Greeks with caching"""
+        """FIXED: Delegate to centralized GreeksMonitor instead of duplicating Black-Scholes"""
         try:
-            # Time to expiration in years
-            time_to_expiry = (contract.Expiry - current_time).total_seconds() / (365.25 * 24 * 3600)
-            
-            # Prevent division by zero for expired options
-            if time_to_expiry <= 0:
-                return {
-                    'delta': 0,
-                    'gamma': 0,
-                    'vega': 0,
-                    'theta': 0,
-                    'rho': 0
-                }
-            
-            # Create cache key for this Greeks calculation
-            cache_key = f'greeks_{contract.Strike}_{time_to_expiry:.6f}_{underlying_price:.2f}_{contract.Right}'
-            
-            # Try to get cached Greeks
-            cached_greeks = self.greeks_cache.get(
-                cache_key,
-                lambda: self._calculate_greeks_internal(contract, underlying_price, time_to_expiry)
-            )
-            
-            return cached_greeks if cached_greeks else self._get_default_greeks()
-            
-        except Exception as e:
-            self.algo.Error(f"Error calculating Greeks: {e}")
-            return self._get_default_greeks()
-    
-    def _calculate_greeks_internal(self, contract, underlying_price, time_to_expiry):
-        """Internal Greeks calculation method (cached by calculate_greeks)"""
-        try:
-            
-            # Use standard risk-free rate (5% approximation)
-            risk_free_rate = 0.05
+            # Time to expiration in days
+            dte = (contract.Expiry - current_time).total_seconds() / (24 * 3600)
             
             # Get implied volatility (use contract IV if available, else estimate)
             if hasattr(contract, 'ImpliedVolatility') and contract.ImpliedVolatility > 0:
@@ -230,42 +193,28 @@ class OptionChainManager:
                 else:  # Far from money
                     iv = 0.25 + 0.2 * abs(1 - moneyness)
             
-            # Black-Scholes calculations
-            d1 = (np.log(underlying_price / float(contract.Strike)) + 
-                  (risk_free_rate + 0.5 * iv * iv) * time_to_expiry) / (iv * np.sqrt(time_to_expiry))
-            d2 = d1 - iv * np.sqrt(time_to_expiry)
+            # Determine option type string
+            option_type = 'CALL' if contract.Right == OptionRight.Call else 'PUT'
             
-            # Standard normal CDF and PDF
-            from scipy.stats import norm
+            # FIXED: Delegate to centralized GreeksMonitor
+            greeks = self.greeks_monitor.calculate_option_greeks(
+                spot=underlying_price,
+                strike=float(contract.Strike),
+                dte=dte,
+                iv=iv,
+                option_type=option_type
+            )
             
-            # Calculate Greeks based on option type
-            if contract.Right == OptionRight.Call:
-                delta = norm.cdf(d1)
-                theta = (-underlying_price * norm.pdf(d1) * iv / (2 * np.sqrt(time_to_expiry)) -
-                        risk_free_rate * float(contract.Strike) * np.exp(-risk_free_rate * time_to_expiry) * norm.cdf(d2)) / 365.25
-            else:  # Put
-                delta = norm.cdf(d1) - 1
-                theta = (-underlying_price * norm.pdf(d1) * iv / (2 * np.sqrt(time_to_expiry)) +
-                        risk_free_rate * float(contract.Strike) * np.exp(-risk_free_rate * time_to_expiry) * norm.cdf(-d2)) / 365.25
+            # Add implied volatility for backward compatibility
+            greeks['iv'] = iv
             
-            # Common Greeks
-            gamma = norm.pdf(d1) / (underlying_price * iv * np.sqrt(time_to_expiry))
-            vega = underlying_price * norm.pdf(d1) * np.sqrt(time_to_expiry) / 100
-            rho = float(contract.Strike) * time_to_expiry * np.exp(-risk_free_rate * time_to_expiry) * (
-                norm.cdf(d2) if contract.Right == OptionRight.Call else -norm.cdf(-d2)) / 100
-            
-            return {
-                'delta': abs(delta),  # Return absolute delta for easier comparison
-                'gamma': gamma,
-                'vega': vega,
-                'theta': theta,
-                'rho': rho,
-                'iv': iv
-            }
+            return greeks
             
         except Exception as e:
-            self.algo.Debug(f"Internal Greeks calculation error: {e}")
-            return None
+            self.algo.Error(f"Error calculating Greeks: {e}")
+            return self._get_default_greeks()
+    
+    # REMOVED: Redundant Black-Scholes calculation - now delegates to centralized GreeksMonitor
     
     def _get_default_greeks(self):
         """Return default Greeks values for error cases"""
