@@ -22,7 +22,7 @@ The Unified Audit Methodology consolidates **three proven audit approaches** int
 2. **"Systematic Over Ad-hoc"** - Follow structured protocols for consistent results
 3. **"Evidence-Based Conclusions"** - All findings backed by concrete evidence
 4. **"Appropriate Depth"** - Match audit depth to risk and complexity
-5. **"Document Everything"** - Preserve audit trails for future reference
+5. **"Document Everything"** - Preserve audit trails for reference and compliance
 
 ### Three Audit Levels
 
@@ -529,7 +529,7 @@ jobs:
 
 ### 4. **Knowledge Preservation**
 - **Systematic documentation** preserves audit insights
-- **Reusable patterns** benefit future audits
+- **Reusable patterns** benefit systematic audit processes
 - **Evidence-based conclusions** support architectural decisions
 
 ---
@@ -541,7 +541,7 @@ The Unified Audit Methodology provides a **comprehensive framework** for ensurin
 - **Consistent audit approaches** regardless of audit depth
 - **Appropriate effort allocation** matching audit scope to requirements
 - **Systematic verification** ensuring comprehensive coverage
-- **Reusable templates** accelerating future audit work
+- **Reusable templates** accelerating systematic audit work
 - **Integration-ready** with modern development workflows
 
 This methodology is **essential for any complex system** requiring systematic quality assurance and compliance verification.

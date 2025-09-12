@@ -47,8 +47,11 @@ from helpers.future_options_manager import FutureOptionsManager
 # REMOVED: Position Management now integrated into UnifiedStateManager coordinator
 # from position_state_manager import PositionStateManagerQC
 
-# Greeks and Analytics
-from greeks.greeks_monitor import GreeksMonitor
+# PHASE 5: Event-Driven Architecture
+from core.event_bus import EventBus, EventType
+from core.central_greeks_service import CentralGreeksService
+from core.event_driven_optimizer import EventDrivenOptimizer
+from core.event_driven_ondata import EventDrivenOnData
 
 class TomKingTradingIntegrated(QCAlgorithm):
     """
@@ -118,6 +121,44 @@ class TomKingTradingIntegrated(QCAlgorithm):
         # Emergency validation of critical managers
         if not self.manager_factory.emergency_manager_check():
             raise Exception("Emergency manager check failed - critical managers not available")
+        
+        # ======================
+        # PHASE 5 INTEGRATION: EXTRACT MANAGERS FROM FACTORY
+        # ======================
+        
+        # Extract all managers from ManagerFactory and assign to self attributes
+        # This enables the existing code to work with the new architecture
+        self.Log("[STARTUP] Extracting managers from factory for integration...")
+        
+        # Core Managers (Tier 1)
+        self.data_validator = self.manager_factory.get_manager('data_validator')
+        self.margin_manager = self.manager_factory.get_manager('margin_manager') 
+        self.vix_manager = self.manager_factory.get_manager('vix_manager')
+        self.performance_tracker = self.manager_factory.get_manager('performance_tracker')
+        self.event_calendar = self.manager_factory.get_manager('event_calendar')
+        self.state_manager = self.manager_factory.get_manager('state_manager')
+        
+        # Event-Driven Architecture (Tier 2)
+        self.event_bus = self.manager_factory.get_manager('event_bus')
+        self.event_driven_optimizer = self.manager_factory.get_manager('event_driven_optimizer')
+        self.greeks_monitor = self.manager_factory.get_manager('greeks_monitor')  # Now CentralGreeksService
+        
+        # Advanced Managers (Tier 2)
+        self.position_sizer = self.manager_factory.get_manager('position_sizer')
+        self.correlation_limiter = self.manager_factory.get_manager('correlation_limiter')
+        self.spy_concentration_manager = self.manager_factory.get_manager('spy_concentration_manager')
+        
+        # Strategy and Execution Managers (Tier 3)
+        self.strategy_coordinator = self.manager_factory.get_manager('strategy_coordinator')
+        self.atomic_executor = self.manager_factory.get_manager('atomic_executor')
+        self.option_chain_manager = self.manager_factory.get_manager('option_chain_manager')
+        self.option_executor = self.manager_factory.get_manager('option_executor')
+        self.future_options_manager = self.manager_factory.get_manager('future_options_manager')
+        
+        # Event-Driven OnData Processor (Tier 4)
+        self.event_driven_ondata = self.manager_factory.get_manager('event_driven_ondata')
+        
+        self.Log("[STARTUP] ✅ Manager extraction complete - all managers available as attributes")
         
         # ======================
         # SECURITIES INITIALIZATION
@@ -358,24 +399,35 @@ class TomKingTradingIntegrated(QCAlgorithm):
     
     def verify_manager_initialization(self) -> bool:
         """Verify all required managers are properly initialized"""
-        # ENHANCED: Added components that are critical for runtime execution
+        # PHASE 5 UPDATE: Event-driven architecture managers included
         required_managers = [
+            # Core Managers (Tier 1)
             ('data_validator', 'DataFreshnessValidator'),
             ('margin_manager', 'DynamicMarginManager'),
             ('vix_manager', 'UnifiedVIXManager'),
             ('performance_tracker', 'SafePerformanceTracker'),
             ('event_calendar', 'QuantConnectEventCalendar'),
             ('state_manager', 'UnifiedStateManager'),
-            # ('position_state_manager', 'PositionStateManagerQC'), # INTEGRATED into UnifiedStateManager coordinator
+            
+            # Event-Driven Architecture (Tier 2)
+            ('event_bus', 'EventBus'),
+            ('event_driven_optimizer', 'EventDrivenOptimizer'),
+            ('greeks_monitor', 'CentralGreeksService'),  # Now uses event-driven Greeks service
+            
+            # Advanced Managers (Tier 2)
             ('position_sizer', 'UnifiedPositionSizer'),
-            ('greeks_monitor', 'GreeksMonitor'),
             ('correlation_limiter', 'August2024CorrelationLimiter'),
             ('spy_concentration_manager', 'SPYConcentrationManager'),  # CRITICAL: Prevents SPY over-exposure
+            
+            # Strategy and Execution Managers (Tier 3)
             ('strategy_coordinator', 'StrategyCoordinator'),  # CRITICAL: Added missing component
             ('atomic_executor', 'EnhancedAtomicOrderExecutor'),
             ('option_chain_manager', 'OptionChainManager'),
             ('option_executor', 'OptionOrderExecutor'),
-            ('future_options_manager', 'FutureOptionsManager')
+            ('future_options_manager', 'FutureOptionsManager'),
+            
+            # Event-Driven OnData Processor (Tier 4)
+            ('event_driven_ondata', 'EventDrivenOnData')
         ]
         
         verification_results = {}
@@ -632,62 +684,97 @@ class TomKingTradingIntegrated(QCAlgorithm):
             return False
     
     def OnData(self, data):
-        """Main data handler with full safety integration"""
+        """
+        PHASE 5: Event-Driven OnData Processing
         
-        # Conditional OnData logging for performance
-        if not self.is_backtest or self.Time.hour == 9 and self.Time.minute < 5:
-            self.Debug(f"[MINIMAL] OnData called at {self.Time} - data keys: {list(data.Keys)}")
+        Replaces traditional periodic processing with event-driven architecture
+        for 20%+ performance improvement through intelligent filtering and batching
+        """
         
-        # ======================
-        # PERFORMANCE CACHING
-        # ======================
+        # PHASE 5 OPTIMIZATION: Use event-driven OnData processor
+        try:
+            # Process through event-driven architecture with performance optimization
+            optimization_result = self.event_driven_ondata.process_ondata(data)
+            
+            # Check if processing was skipped due to lack of significant changes
+            if 'optimizations' in optimization_result and 'skipped_entire_ondata' in optimization_result['optimizations']:
+                # OnData processing was intelligently skipped - no significant market changes
+                return
+            
+            # Log performance improvements periodically
+            if 'performance_improvement_pct' in optimization_result:
+                improvement = optimization_result['performance_improvement_pct']
+                if improvement >= 20.0:  # Log when achieving 20%+ improvement target
+                    self.Debug(f"[PHASE 5] OnData optimization: {improvement:.1f}% performance gain achieved")
+            
+            # Handle any errors from event-driven processing
+            if 'error' in optimization_result:
+                self.Error(f"[PHASE 5] Event-driven OnData error: {optimization_result['error']}")
+                # Fall back to traditional processing if event-driven fails
+                self._fallback_ondata_processing(data)
+                return
+            
+            # Traditional risk management and maintenance (not event-driven yet)
+            self._perform_traditional_risk_checks()
+            
+        except Exception as e:
+            self.Error(f"[PHASE 5] Critical error in event-driven OnData: {e}")
+            # Emergency fallback to traditional processing
+            self._fallback_ondata_processing(data)
+    
+    def _fallback_ondata_processing(self, data):
+        """Emergency fallback to traditional OnData processing"""
         
-        # Periodic cache maintenance
-        if (self.Time - self.last_cache_maintenance) > self.cache_maintenance_interval:
-            self.maintain_caches()
-            self.last_cache_maintenance = self.Time
+        self.Debug("[FALLBACK] Using traditional OnData processing")
         
-        # ======================
-        # DATA VALIDATION
-        # ======================
-        
+        # Data validation
         if not self.data_validator.is_data_fresh(data):
             return
         
-        # ======================
-        # VIX AND MARKET REGIME
-        # ======================
-        
+        # VIX and market regime
         current_vix = self.vix_manager.get_current_vix()
         market_regime = self.vix_manager.get_market_regime()
         
-        # ======================
-        # STRATEGY EXECUTION
-        # ======================
-        
-        # Update system state and check global triggers
+        # Strategy execution
         self.state_manager.update_system_state()
-        
-        # Execute strategies through coordinator
         self.strategy_coordinator.execute_strategies(data, {
             'vix': current_vix,
             'regime': market_regime,
             'time': self.Time
         })
         
-        # ======================
-        # RISK MANAGEMENT
-        # ======================
+        # Risk management
+        self.check_circuit_breakers()
+    
+    def _perform_traditional_risk_checks(self):
+        """Traditional risk management checks (not yet event-driven)"""
         
-        # Check circuit breakers
+        # Periodic cache maintenance
+        if hasattr(self, 'last_cache_maintenance'):
+            if (self.Time - self.last_cache_maintenance) > self.cache_maintenance_interval:
+                self.maintain_caches()
+                self.last_cache_maintenance = self.Time
+        
+        # Circuit breakers
         self.check_circuit_breakers()
         
-        # Update Greeks and portfolio risk
-        if self.Time.minute % 15 == 0:  # Every 15 minutes
-            self.greeks_monitor.update_portfolio_greeks()
+        # Greeks monitoring (now event-driven but kept for compatibility)
+        if self.Time.minute % 15 == 0:
+            portfolio_greeks = self.greeks_monitor.get_portfolio_greeks()
+            warnings, risk_analysis = self.greeks_monitor.monitor_greeks_thresholds()
             
-        # Check correlation limits
-        if self.Time.minute % 30 == 0:  # Every 30 minutes
+            if warnings:
+                for warning in warnings:
+                    self.Log(f"[GREEKS WARNING] {warning}")
+            
+            self.event_bus.publish_greeks_event(
+                EventType.GREEKS_CALCULATED,
+                portfolio_greeks,
+                risk_analysis=risk_analysis
+            )
+        
+        # Correlation limits
+        if self.Time.minute % 30 == 0:
             self.correlation_limiter.check_and_enforce_limits()
     
     def maintain_caches(self):

@@ -449,6 +449,14 @@ class CentralGreeksService(BaseComponent):
             'iv': iv
         }
     
+    def calculate_position_greeks(self, symbol, holding) -> Dict:
+        """
+        Public method for calculating individual position Greeks
+        Required for compatibility with existing framework components
+        """
+        
+        return self._calculate_position_greeks(symbol, holding)
+    
     def _get_implied_volatility(self, option, spot: float, strike: float, dte: float) -> float:
         """Get implied volatility with fallback estimation"""
         

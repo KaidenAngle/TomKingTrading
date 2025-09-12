@@ -68,7 +68,6 @@ class ManagerFactory:
         from core.unified_state_manager import UnifiedStateManager
         from helpers.order_state_recovery import OrderStateRecovery
         from core.unified_position_sizer import UnifiedPositionSizer
-        from greeks.greeks_monitor import GreeksMonitor
         from risk.correlation_group_limiter import August2024CorrelationLimiter
         from core.spy_concentration_manager import SPYConcentrationManager
         from core.strategy_coordinator import StrategyCoordinator
@@ -124,15 +123,6 @@ class ManagerFactory:
                 tier=1
             ),
             
-            'greeks_monitor': ManagerConfig(
-                name='greeks_monitor',
-                class_type=GreeksMonitor,
-                dependencies=['data_validator'],  # PHASE 4 FIX: GreeksMonitor needs DataFreshnessValidator
-                required_methods=['calculate_portfolio_greeks', 'calculate_position_greeks'],
-                initialization_args=(self.algo,),
-                critical=False,
-                tier=2  # Move to Tier 2 since it depends on data_validator
-            ),
             
             # PHASE 5 OPTIMIZATION: Event-Driven Architecture Foundation
             'event_bus': ManagerConfig(
@@ -193,10 +183,10 @@ class ManagerFactory:
                 tier=2
             ),
             
-            # PHASE 5 OPTIMIZATION: Centralized Greeks Service
-            'central_greeks_service': ManagerConfig(
-                name='central_greeks_service',
-                class_type=CentralGreeksService,
+            # PHASE 5 OPTIMIZATION: Centralized Greeks Service (replaces GreeksMonitor)
+            'greeks_monitor': ManagerConfig(
+                name='greeks_monitor',  # Keep same name for compatibility
+                class_type=CentralGreeksService,  # Use new event-driven service
                 dependencies=['event_bus', 'data_validator'],  # Needs event bus and data validation
                 required_methods=['get_portfolio_greeks', 'monitor_greeks_thresholds'],
                 initialization_args=(self.algo, None),  # Will pass event_bus in kwargs
