@@ -28,6 +28,7 @@
 - [Circuit Breaker Thresholds](Architecture/CIRCUIT_BREAKER_THRESHOLDS.md) - Why these specific numbers
 - [Dynamic Position Scaling Patterns](Architecture/DYNAMIC_POSITION_SCALING_PATTERNS.md) - Intelligent scaling that preserves risk tolerance
 - [Systematic Redundancy Elimination Patterns](Architecture/SYSTEMATIC_REDUNDANCY_ELIMINATION_PATTERNS.md) - Methodology for safely removing redundant code
+- [Systematic Failure Pattern Resolution](Architecture/SYSTEMATIC_FAILURE_PATTERN_RESOLUTION.md) - Production methodology for diagnosing and resolving position opening failures through pattern classification
 
 ## Methodology Documentation
 
