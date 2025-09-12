@@ -6,8 +6,9 @@ from core.state_machine import StrategyStateMachine, StrategyState, TransitionTr
 from config.constants import TradingConstants
 from typing import Dict, Optional, Any
 from datetime import time, timedelta
+from abc import ABC, abstractmethod
 
-class BaseStrategyWithState:
+class BaseStrategyWithState(ABC):
     """
     Base class for strategies with individual state machines
     Integrates with UnifiedStateManager for system-wide coordination
@@ -366,11 +367,10 @@ class BaseStrategyWithState:
     
     # Helper methods (implement in subclasses)
     
+    @abstractmethod
     def _check_entry_conditions(self) -> bool:
-        """Check if entry conditions are met - Base implementation"""
-        self.algo.Error(f"[{self.strategy_name}] CRITICAL: _check_entry_conditions not implemented in subclass - will NEVER enter trades!")
-        self.algo.Error(f"[{self.strategy_name}] CRITICAL: Strategy subclass must override _check_entry_conditions() method")
-        return False
+        """Check if entry conditions are met - Must be implemented by subclass"""
+        raise NotImplementedError(f"[{self.strategy_name}] _check_entry_conditions() must be implemented by strategy subclass")
     
     def _get_analysis_data(self) -> Dict:
         """Get analysis data for logging"""
@@ -384,11 +384,10 @@ class BaseStrategyWithState:
         """Validate entry is safe"""
         return True
     
+    @abstractmethod
     def _place_entry_orders(self) -> bool:
-        """Place entry orders - Base implementation"""
-        self.algo.Error(f"[{self.strategy_name}] CRITICAL: _place_entry_orders not implemented in subclass - cannot execute trades!")
-        self.algo.Error(f"[{self.strategy_name}] CRITICAL: Strategy subclass must override _place_entry_orders() method")
-        return False
+        """Place entry orders - Must be implemented by subclass"""
+        raise NotImplementedError(f"[{self.strategy_name}] _place_entry_orders() must be implemented by strategy subclass")
     
     def _check_profit_target(self) -> bool:
         """Check if profit target hit"""
@@ -437,10 +436,10 @@ class BaseStrategyWithState:
         """Validate exit is safe"""
         return True
     
+    @abstractmethod  
     def _place_exit_orders(self) -> bool:
-        """Place exit orders - Base implementation"""
-        self.algo.Error(f"[{self.strategy_name}] _place_exit_orders not implemented in subclass")
-        return False
+        """Place exit orders - Must be implemented by subclass"""
+        raise NotImplementedError(f"[{self.strategy_name}] _place_exit_orders() must be implemented by strategy subclass")
     
     def _can_trade_again_today(self) -> bool:
         """Check if can trade again today"""

@@ -1,0 +1,523 @@
+# region imports
+from AlgorithmImports import *
+from typing import Dict, List, Any, Optional, Callable, Type
+from abc import ABC, abstractmethod
+import threading
+from datetime import datetime
+from core.event_bus import EventBus, EventType, Event
+# endregion
+
+class IManager(ABC):
+    """
+    PHASE 6: Standard manager interface for event bus integration and dependency injection
+    
+    All managers must implement this interface for proper circular dependency resolution
+    """
+    
+    @abstractmethod
+    def handle_event(self, event: Event) -> bool:
+        """Handle incoming events from the event bus"""
+        pass
+        
+    @abstractmethod
+    def get_dependencies(self) -> List[str]:
+        """Return list of manager names this manager depends on"""
+        pass
+        
+    @abstractmethod  
+    def can_initialize_without_dependencies(self) -> bool:
+        """Return True if this manager can initialize before its dependencies are ready"""
+        pass
+    
+    @abstractmethod
+    def get_manager_name(self) -> str:
+        """Return unique name for this manager"""
+        pass
+    
+    def is_ready(self) -> bool:
+        """Return True if manager is fully initialized and ready for use"""
+        return hasattr(self, '_manager_ready') and self._manager_ready
+    
+    def mark_ready(self):
+        """Mark this manager as fully initialized"""
+        self._manager_ready = True
+    
+    def get_health_status(self) -> Dict[str, Any]:
+        """Return manager health status for monitoring"""
+        return {
+            'healthy': True,
+            'ready': self.is_ready(),
+            'dependencies_met': True,
+            'last_health_check': datetime.now()
+        }
+
+class LazyProxy:
+    """
+    Lazy loading proxy for manager dependencies
+    
+    Resolves circular dependencies by deferring manager resolution until first access
+    """
+    
+    def __init__(self, target_name: str, container: 'DependencyContainer'):
+        self.target_name = target_name
+        self.container = container
+        self._resolved_target = None
+        self._access_count = 0
+        self._first_access_time = None
+    
+    def _resolve_target(self):
+        """Resolve the actual manager instance"""
+        if self._resolved_target is None:
+            self._resolved_target = self.container.get_manager(self.target_name)
+            if self._first_access_time is None:
+                self._first_access_time = datetime.now()
+        return self._resolved_target
+    
+    def __getattr__(self, name):
+        """Delegate attribute access to the resolved manager"""
+        self._access_count += 1
+        target = self._resolve_target()
+        if target is None:
+            raise RuntimeError(f"Failed to resolve lazy dependency: {self.target_name}")
+        
+        # FIXED: Add error handling for attribute access
+        try:
+            return getattr(target, name)
+        except AttributeError as e:
+            raise AttributeError(f"Manager '{self.target_name}' has no attribute '{name}': {e}")
+    
+    def __call__(self, *args, **kwargs):
+        """Make proxy callable if the target is callable"""
+        target = self._resolve_target()
+        if target is None:
+            raise RuntimeError(f"Failed to resolve lazy dependency: {self.target_name}")
+        
+        # FIXED: Add error handling for callable execution
+        try:
+            return target(*args, **kwargs)
+        except TypeError as e:
+            raise TypeError(f"Manager '{self.target_name}' is not callable or has invalid arguments: {e}")
+        except Exception as e:
+            raise RuntimeError(f"Error executing manager '{self.target_name}': {e}")
+    
+    def get_proxy_stats(self) -> Dict[str, Any]:
+        """Get statistics about proxy usage"""
+        return {
+            'target_name': self.target_name,
+            'resolved': self._resolved_target is not None,
+            'access_count': self._access_count,
+            'first_access_time': self._first_access_time
+        }
+
+class DependencyContainer:
+    """
+    PHASE 6: Dependency injection container with circular dependency resolution
+    
+    Features:
+    - Lazy loading proxies for circular dependency prevention
+    - 5-stage initialization to prevent deadlocks
+    - Event-driven dependency resolution
+    - Manager health monitoring
+    - Automatic dependency graph validation
+    """
+    
+    # 5-Stage initialization to prevent circular dependencies
+    # FIXED: Aligned with actual ManagerFactory definitions
+    INITIALIZATION_STAGES = {
+        1: ['event_bus', 'data_validator', 'margin_manager', 'event_calendar'],  # Independent components (tier 1)
+        2: ['vix_manager', 'cache_manager', 'order_recovery', 'correlation_limiter'],  # Foundation services (tier 2)
+        3: ['position_sizer', 'state_manager', 'greeks_monitor', 'option_chain_manager'],  # Core managers (tier 3)
+        4: ['strategy_coordinator', 'spy_concentration_manager', 'event_driven_optimizer'],  # Integration managers (tier 4) 
+        5: ['option_executor', 'atomic_executor', 'futures_manager']  # Execution managers (tier 5)
+    }
+    
+    def __init__(self, algorithm, event_bus: EventBus):
+        self.algorithm = algorithm
+        self.event_bus = event_bus
+        
+        # Manager storage
+        self.managers = {}  # name -> instance
+        self.manager_factories = {}  # name -> factory_function
+        self.lazy_proxies = {}  # name -> LazyProxy
+        self.manager_dependencies = {}  # name -> List[dependency_names]
+        
+        # Initialization tracking
+        self.initialization_order = []
+        self.failed_initializations = {}
+        self.initialization_stages_complete = set()
+        self.currently_initializing = set()
+        
+        # Thread safety
+        self._lock = threading.Lock()
+        
+        # Statistics
+        self.stats = {
+            'managers_registered': 0,
+            'managers_initialized': 0,
+            'lazy_proxies_created': 0,
+            'circular_dependencies_resolved': 0,
+            'initialization_failures': 0,
+            'dependency_resolution_time_ms': 0
+        }
+        
+        self.algorithm.Debug("[DependencyContainer] Initialized Phase 6 dependency injection container")
+    
+    def register_manager_factory(self, name: str, factory: Callable[[], IManager], 
+                                dependencies: List[str] = None) -> bool:
+        """
+        Register a manager factory function with its dependencies
+        
+        Args:
+            name: Unique name for the manager
+            factory: Function that creates and returns the manager instance
+            dependencies: List of manager names this manager depends on
+            
+        Returns:
+            bool: True if registered successfully
+        """
+        
+        with self._lock:
+            if name in self.manager_factories:
+                self.algorithm.Log(f"[DependencyContainer] WARNING: Overriding existing factory for {name}")
+            
+            self.manager_factories[name] = factory
+            self.manager_dependencies[name] = dependencies or []
+            self.stats['managers_registered'] += 1
+            
+            self.algorithm.Debug(f"[DependencyContainer] Registered factory for {name} with dependencies: {dependencies}")
+            return True
+    
+    def get_manager(self, name: str, create_if_missing: bool = True) -> Optional[IManager]:
+        """
+        Get manager instance, creating it if necessary
+        
+        Args:
+            name: Manager name to retrieve
+            create_if_missing: Whether to create the manager if it doesn't exist
+            
+        Returns:
+            Manager instance or None if not found/failed to create
+        """
+        
+        # FIXED: Add input validation to prevent runtime errors
+        if name is None or not isinstance(name, str) or name.strip() == "":
+            self.algorithm.Error(f"[DependencyContainer] Invalid manager name: {repr(name)}")
+            return None
+            
+        name = name.strip()  # Clean up whitespace
+        
+        with self._lock:
+            # Return existing instance
+            if name in self.managers:
+                return self.managers[name]
+            
+            # Create if requested and factory exists
+            if create_if_missing and name in self.manager_factories:
+                return self._create_manager(name)
+            
+            return None
+    
+    def get_lazy_proxy(self, name: str) -> LazyProxy:
+        """
+        Get or create a lazy proxy for the specified manager
+        
+        Args:
+            name: Manager name to create proxy for
+            
+        Returns:
+            LazyProxy instance for the manager
+        """
+        
+        with self._lock:
+            if name not in self.lazy_proxies:
+                self.lazy_proxies[name] = LazyProxy(name, self)
+                self.stats['lazy_proxies_created'] += 1
+                self.algorithm.Debug(f"[DependencyContainer] Created lazy proxy for {name}")
+            
+            return self.lazy_proxies[name]
+    
+    def initialize_all_managers(self) -> bool:
+        """
+        Initialize all managers in dependency-safe stages
+        
+        Returns:
+            bool: True if all managers initialized successfully
+        """
+        
+        start_time = datetime.now()
+        success = True
+        
+        self.algorithm.Log("[DependencyContainer] Starting 5-stage manager initialization")
+        
+        for stage_number in range(1, 6):
+            stage_success = self._initialize_stage(stage_number)
+            if not stage_success:
+                success = False
+                self.algorithm.Error(f"[DependencyContainer] Stage {stage_number} initialization failed")
+                break
+            else:
+                self.initialization_stages_complete.add(stage_number)
+                self.algorithm.Log(f"[DependencyContainer] Stage {stage_number} initialization complete")
+        
+        # Record initialization time
+        total_time = (datetime.now() - start_time).total_seconds() * 1000
+        self.stats['dependency_resolution_time_ms'] = total_time
+        
+        if success:
+            self.algorithm.Log(f"[DependencyContainer] All managers initialized successfully in {total_time:.1f}ms")
+            
+            # Publish initialization complete event
+            self.event_bus.publish(EventType.SYSTEM_HALT, {  # Reusing existing event type
+                'reason': 'manager_initialization_complete',
+                'total_managers': len(self.managers),
+                'initialization_time_ms': total_time
+            }, source="dependency_container")
+        else:
+            self.algorithm.Error(f"[DependencyContainer] Manager initialization failed after {total_time:.1f}ms")
+        
+        return success
+    
+    def _initialize_stage(self, stage_number: int) -> bool:
+        """Initialize all managers in a specific stage"""
+        
+        stage_managers = self.INITIALIZATION_STAGES.get(stage_number, [])
+        if not stage_managers:
+            return True  # No managers in this stage
+        
+        self.algorithm.Debug(f"[DependencyContainer] Initializing stage {stage_number}: {stage_managers}")
+        
+        success = True
+        for manager_name in stage_managers:
+            if manager_name in self.manager_factories:
+                manager = self._create_manager(manager_name)
+                if manager is None:
+                    success = False
+                    self.algorithm.Error(f"[DependencyContainer] Failed to initialize {manager_name} in stage {stage_number}")
+        
+        return success
+    
+    def _create_manager(self, name: str) -> Optional[IManager]:
+        """
+        Create a manager instance with dependency resolution
+        
+        Args:
+            name: Manager name to create
+            
+        Returns:
+            Manager instance or None if creation failed
+        """
+        
+        if name in self.currently_initializing:
+            # Circular dependency detected during initialization
+            self.algorithm.Error(f"[DependencyContainer] Circular dependency detected while initializing {name}")
+            self.stats['circular_dependencies_resolved'] += 1
+            # FIXED: Proper cleanup to prevent deadlock
+            self.currently_initializing.discard(name)
+            self.failed_initializations[name] = "circular_dependency_detected"
+            return None
+        
+        if name not in self.manager_factories:
+            self.algorithm.Error(f"[DependencyContainer] No factory registered for {name}")
+            return None
+        
+        try:
+            self.currently_initializing.add(name)
+            
+            # Check if dependencies are satisfied
+            dependencies = self.manager_dependencies.get(name, [])
+            unsatisfied = []
+            
+            for dep_name in dependencies:
+                if dep_name not in self.managers:
+                    # Try to create the dependency
+                    dep_manager = self._create_manager(dep_name)
+                    if dep_manager is None:
+                        unsatisfied.append(dep_name)
+            
+            if unsatisfied and not self._can_initialize_without_dependencies(name):
+                self.algorithm.Log(f"[DependencyContainer] Deferring {name} initialization - unsatisfied dependencies: {unsatisfied}")
+                return None
+            
+            # Create the manager
+            factory = self.manager_factories[name]
+            manager = factory()
+            
+            if manager is None:
+                raise Exception(f"Factory returned None for {name}")
+            
+            # Validate manager implements IManager interface
+            if not isinstance(manager, IManager):
+                self.algorithm.Log(f"[DependencyContainer] WARNING: {name} does not implement IManager interface")
+            
+            # Store the manager
+            self.managers[name] = manager
+            self.initialization_order.append(name)
+            self.stats['managers_initialized'] += 1
+            
+            # Mark as ready if applicable
+            if hasattr(manager, 'mark_ready'):
+                manager.mark_ready()
+            
+            self.algorithm.Debug(f"[DependencyContainer] Successfully created {name}")
+            
+            return manager
+            
+        except Exception as e:
+            self.algorithm.Error(f"[DependencyContainer] Failed to create {name}: {e}")
+            self.failed_initializations[name] = str(e)
+            self.stats['initialization_failures'] += 1
+            return None
+            
+        finally:
+            self.currently_initializing.discard(name)
+    
+    def _can_initialize_without_dependencies(self, name: str) -> bool:
+        """Check if a manager can initialize without all dependencies being ready"""
+        
+        if name not in self.managers and name in self.manager_factories:
+            # We need to check with the manager itself, but we can't create it yet
+            # For now, assume managers in earlier stages can initialize without dependencies
+            for stage_number, stage_managers in self.INITIALIZATION_STAGES.items():
+                if name in stage_managers:
+                    return stage_number <= 2  # Stages 1-2 are considered independent
+        
+        return False
+    
+    def validate_dependency_graph(self) -> Dict[str, Any]:
+        """
+        Validate the dependency graph for circular dependencies and missing dependencies
+        
+        Returns:
+            Dictionary with validation results
+        """
+        
+        validation_result = {
+            'valid': True,
+            'circular_dependencies': [],
+            'missing_dependencies': [],
+            'orphaned_managers': [],
+            'dependency_depth': {}
+        }
+        
+        # Check for missing dependencies
+        for name, dependencies in self.manager_dependencies.items():
+            for dep in dependencies:
+                if dep not in self.manager_factories:
+                    validation_result['missing_dependencies'].append((name, dep))
+                    validation_result['valid'] = False
+        
+        # Check for circular dependencies using DFS
+        def has_circular_dependency(start: str, path: List[str]) -> bool:
+            if start in path:
+                cycle_start = path.index(start)
+                cycle = path[cycle_start:] + [start]
+                validation_result['circular_dependencies'].append(cycle)
+                return True
+            
+            dependencies = self.manager_dependencies.get(start, [])
+            for dep in dependencies:
+                if has_circular_dependency(dep, path + [start]):
+                    return True
+            
+            return False
+        
+        # Check each manager for circular dependencies
+        for name in self.manager_factories:
+            if has_circular_dependency(name, []):
+                validation_result['valid'] = False
+        
+        # Calculate dependency depths
+        def calculate_depth(name: str, visited: set) -> int:
+            if name in visited:
+                return 0  # Circular dependency
+            
+            visited.add(name)
+            dependencies = self.manager_dependencies.get(name, [])
+            
+            if not dependencies:
+                return 0
+            
+            max_depth = 0
+            for dep in dependencies:
+                depth = calculate_depth(dep, visited.copy())
+                max_depth = max(max_depth, depth + 1)
+            
+            return max_depth
+        
+        for name in self.manager_factories:
+            validation_result['dependency_depth'][name] = calculate_depth(name, set())
+        
+        return validation_result
+    
+    def get_container_statistics(self) -> Dict[str, Any]:
+        """Get comprehensive container statistics"""
+        
+        stats = self.stats.copy()
+        stats.update({
+            'total_managers': len(self.managers),
+            'total_factories': len(self.manager_factories),
+            'total_proxies': len(self.lazy_proxies),
+            'stages_complete': len(self.initialization_stages_complete),
+            'currently_initializing': len(self.currently_initializing),
+            'failed_managers': len(self.failed_initializations),
+            'initialization_order': self.initialization_order.copy(),
+            'dependency_graph_valid': self.validate_dependency_graph()['valid']
+        })
+        
+        # Proxy usage statistics
+        proxy_stats = {}
+        for name, proxy in self.lazy_proxies.items():
+            proxy_stats[name] = proxy.get_proxy_stats()
+        stats['proxy_usage'] = proxy_stats
+        
+        return stats
+    
+    def cleanup_failed_managers(self) -> int:
+        """Remove failed manager entries and allow retry"""
+        
+        cleanup_count = len(self.failed_initializations)
+        self.failed_initializations.clear()
+        
+        if cleanup_count > 0:
+            self.algorithm.Log(f"[DependencyContainer] Cleaned up {cleanup_count} failed manager entries")
+        
+        return cleanup_count
+    
+    def get_manager_health_report(self) -> Dict[str, Any]:
+        """Generate comprehensive health report for all managers"""
+        
+        report = {
+            'overall_health': 'healthy',
+            'total_managers': len(self.managers),
+            'healthy_managers': 0,
+            'unhealthy_managers': 0,
+            'manager_details': {}
+        }
+        
+        for name, manager in self.managers.items():
+            try:
+                if hasattr(manager, 'get_health_status'):
+                    health = manager.get_health_status()
+                else:
+                    health = {'healthy': True, 'ready': True}
+                
+                report['manager_details'][name] = health
+                
+                if health.get('healthy', True):
+                    report['healthy_managers'] += 1
+                else:
+                    report['unhealthy_managers'] += 1
+                    report['overall_health'] = 'degraded'
+                    
+            except Exception as e:
+                report['manager_details'][name] = {
+                    'healthy': False,
+                    'error': str(e)
+                }
+                report['unhealthy_managers'] += 1
+                report['overall_health'] = 'degraded'
+        
+        if report['unhealthy_managers'] > report['healthy_managers'] / 2:
+            report['overall_health'] = 'critical'
+        
+        return report

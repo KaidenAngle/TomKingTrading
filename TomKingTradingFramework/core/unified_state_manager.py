@@ -46,7 +46,8 @@ class UnifiedStateManager:
         
         # Emergency controls
         self.emergency_mode = False
-        self.halt_reasons = []
+        self.halt_reasons = []  # FIXED: Will be size-limited to prevent unbounded memory growth
+        self.MAX_HALT_REASONS = 100  # Maximum number of halt reasons to keep
         
         # Performance tracking
         self.state_statistics = {}
@@ -311,10 +312,18 @@ class UnifiedStateManager:
         """Halt all trading activity"""
         
         self.emergency_mode = True
-        self.halt_reasons.append({
+        
+        # FIXED: Prevent unbounded memory growth by enforcing size limit
+        halt_entry = {
             'time': self.algo.Time,
             'reason': reason
-        })
+        }
+        self.halt_reasons.append(halt_entry)
+        
+        # Keep only the most recent halt reasons to prevent memory growth
+        if len(self.halt_reasons) > self.MAX_HALT_REASONS:
+            self.halt_reasons = self.halt_reasons[-self.MAX_HALT_REASONS:]
+            self.algo.Debug(f"[StateManager] Trimmed halt_reasons to {self.MAX_HALT_REASONS} entries")
         
         self._transition_system(SystemState.HALTED)
         

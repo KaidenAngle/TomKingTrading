@@ -98,22 +98,23 @@ class TomKingTradingIntegrated(QCAlgorithm):
         # Replace manual manager initialization with structured ManagerFactory
         from core.manager_factory import ManagerFactory
         
-        self.Log("[STARTUP] Initializing managers using ManagerFactory (Phase 4 optimization)")
+        self.Log("[STARTUP] PHASE 6: Initializing managers using dependency-safe ManagerFactory")
         
-        # Initialize ManagerFactory with dependency injection and performance tracking
+        # Initialize ManagerFactory with circular dependency resolution
         self.manager_factory = ManagerFactory(self)
         
-        # Initialize all 16 managers with automatic dependency resolution
-        initialization_success, factory_result = self.manager_factory.initialize_all_managers()
+        # PHASE 6: Initialize all managers with dependency container and circular dependency resolution
+        initialization_success, factory_result = self.manager_factory.initialize_all_managers_with_dependency_container()
         
         if not initialization_success:
             self.Error(f"[STARTUP] Manager initialization FAILED: {factory_result['failed_managers']}")
             self.Error(f"[STARTUP] Manager status: {factory_result['manager_status']}")
             raise Exception("Critical manager initialization failure - cannot proceed")
         
-        # Log successful initialization with performance metrics
-        self.Log(f"[STARTUP] ✅ All {factory_result['successful_managers']}/{factory_result['total_managers']} managers initialized")
-        self.Debug(f"[STARTUP] Total initialization time: {factory_result['total_duration_ms']:.1f}ms")
+        # Log successful initialization with PHASE 6 metrics
+        self.Log(f"[STARTUP] PHASE 6: ✅ All {factory_result['managers_initialized']}/{len(self.manager_factory.manager_configs)} managers initialized")
+        self.Log(f"[STARTUP] PHASE 6: Circular dependencies resolved: {factory_result.get('circular_dependencies_resolved', 0)}")
+        self.Debug(f"[STARTUP] PHASE 6: Total initialization time: {factory_result['total_duration_ms']:.1f}ms")
         
         # Store factory result for debugging
         self.manager_initialization_result = factory_result

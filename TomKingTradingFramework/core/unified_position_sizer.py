@@ -233,6 +233,29 @@ class UnifiedPositionSizer:
     def validate_position_size(self, strategy: str, requested_size: int) -> int:
         """Validate and adjust requested position size"""
         
+        # FIXED: Add comprehensive input validation to prevent bypasses
+        if strategy is None or not isinstance(strategy, str) or strategy.strip() == "":
+            self.algo.Error(f"[UnifiedSizer] Invalid strategy name: {repr(strategy)}")
+            return MIN_CONTRACTS
+            
+        strategy = strategy.strip()
+        
+        # Validate requested size input
+        if not isinstance(requested_size, (int, float)) or requested_size < 0:
+            self.algo.Error(f"[UnifiedSizer] Invalid requested size for {strategy}: {requested_size}")
+            return MIN_CONTRACTS
+            
+        if requested_size > 1000:  # Sanity check for extremely large requests
+            self.algo.Error(f"[UnifiedSizer] Suspiciously large size request for {strategy}: {requested_size}")
+            return MIN_CONTRACTS
+        
+        requested_size = int(requested_size)  # Ensure integer
+        
+        # Validate strategy is supported
+        if strategy not in self.max_contracts:
+            self.algo.Error(f"[UnifiedSizer] Unsupported strategy: {strategy}")
+            return MIN_CONTRACTS
+        
         limits = self.get_strategy_limits()
         max_allowed = limits.get(strategy, 10)
         

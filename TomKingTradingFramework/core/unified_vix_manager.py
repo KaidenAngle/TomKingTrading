@@ -13,11 +13,15 @@
 # BOTH ARE NEEDED: UnifiedVIXManager for performance, VIXRegimeManager for intelligence
 
 from AlgorithmImports import *
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, List, Any
+from datetime import datetime
 from config.constants import TradingConstants
 from core.base_component import BaseComponent
+# PHASE 6: Circular dependency resolution
+from core.dependency_container import IManager
+from core.event_bus import Event, EventType
 
-class UnifiedVIXManager(BaseComponent):
+class UnifiedVIXManager(BaseComponent, IManager):
     """
     Centralized VIX management system FOR FAST CACHED ACCESS.
     Eliminates duplicate VIX checking across 26+ files.
@@ -78,10 +82,12 @@ class UnifiedVIXManager(BaseComponent):
         
         # Get fresh VIX value
         try:
-            if hasattr(self.algo, 'vix'):
+            if hasattr(self.algo, 'vix') and self.algo.vix is not None:
                 vix_symbol = self.algo.vix
             else:
-                vix_symbol = self.algo.vix
+                # FIXED: Proper fallback for missing VIX symbol
+                self.algo.Error("[VIX] CRITICAL: VIX symbol not available - algorithm initialization error")
+                return 20.0  # Emergency fallback with warning
             
             if self.algo.Securities.ContainsKey(vix_symbol):
                 self._cached_vix = self.algo.Securities[vix_symbol].Price
@@ -371,3 +377,97 @@ class UnifiedVIXManager(BaseComponent):
         """
         # VIX manager pulls fresh data on-demand, no periodic update needed
         return  # No-op for backward compatibility
+    
+    # PHASE 6: IManager Interface Implementation for Event-Driven Architecture
+    
+    def handle_event(self, event: Event) -> bool:
+        """Handle incoming events from the event bus"""
+        
+        try:
+            # Handle VIX level requests
+            if event.event_type == EventType.VIX_LEVEL_REQUEST:
+                vix_value = self.get_current_vix()
+                regime = self.get_vix_regime()
+                details = self.get_vix_details()
+                
+                # Publish response with comprehensive VIX data
+                if hasattr(self.algo, 'event_bus'):
+                    response_data = {
+                        'correlation_id': event.correlation_id,
+                        'vix_value': vix_value,
+                        'regime': regime,
+                        'details': details,
+                        'can_trade_0dte': self.check_0dte_eligible(),
+                        'position_size_adjustment': self.get_position_size_adjustment(),
+                        'max_bp_usage': self.get_max_buying_power_usage()
+                    }
+                    
+                    self.algo.event_bus.publish(
+                        Event(EventType.VIX_LEVEL_RESPONSE, response_data, "vix_manager")
+                    )
+                
+                return True
+            
+            # Handle regime change notifications
+            elif event.event_type == EventType.MARKET_DATA:
+                # Check for regime changes and publish notifications
+                current_regime = self.get_vix_regime()
+                if hasattr(self, '_last_regime') and self._last_regime != current_regime:
+                    if hasattr(self.algo, 'event_bus'):
+                        self.algo.event_bus.publish(Event(
+                            EventType.MARKET_REGIME_CHANGED,  # Use existing event type
+                            {
+                                'component': 'vix_manager',
+                                'old_regime': self._last_regime,
+                                'new_regime': current_regime,
+                                'vix_value': self.get_current_vix(),
+                                'timestamp': self.algo.Time
+                            },
+                            "vix_manager"
+                        ))
+                self._last_regime = current_regime
+                return True
+                
+            return False
+            
+        except Exception as e:
+            self.algo.Error(f"[VIXManager] Error handling event {event.event_type}: {e}")
+            return False
+    
+    def get_dependencies(self) -> List[str]:
+        """Return list of manager names this manager depends on"""
+        return ['data_validator']  # VIX manager needs data validation
+    
+    def can_initialize_without_dependencies(self) -> bool:
+        """Return True if this manager can initialize before its dependencies are ready"""
+        return True  # VIX manager can work with default values if data validator isn't ready
+    
+    def get_manager_name(self) -> str:
+        """Return unique name for this manager"""
+        return "vix_manager"
+    
+    def get_health_status(self) -> Dict[str, Any]:
+        """Return manager health status for monitoring"""
+        try:
+            current_vix = self.get_current_vix()
+            current_regime = self.get_vix_regime()
+            
+            return {
+                'healthy': True,
+                'ready': self.is_ready(),
+                'dependencies_met': True,
+                'last_health_check': datetime.now(),
+                'vix_value': current_vix,
+                'regime': current_regime,
+                'cache_valid': self._cache_time is not None and 
+                              (self.algo.Time - self._cache_time < self._cache_duration),
+                'thresholds_configured': len(self.thresholds) > 0,
+                'bp_limits_configured': len(self.bp_limits) > 0
+            }
+        except Exception as e:
+            return {
+                'healthy': False,
+                'ready': False,
+                'error': str(e),
+                'last_health_check': datetime.now()
+            }

@@ -20,8 +20,8 @@ class OptionChainManager:
         # Uses MARKET_DATA cache type for automatic price change invalidation
         self.chain_cache = algorithm.unified_cache
         
-        # FIXED: Use centralized GreeksMonitor instead of duplicate implementation
-        self.greeks_monitor = GreeksMonitor(algorithm)
+        # FIXED: Use dependency container to prevent circular dependencies
+        self.greeks_monitor = None  # Will be lazy loaded via dependency container
         
         # Legacy cache for backward compatibility
         self.cached_chains = {}
@@ -191,14 +191,18 @@ class OptionChainManager:
             # Determine option type string
             option_type = 'CALL' if contract.Right == OptionRight.Call else 'PUT'
             
-            # FIXED: Delegate to centralized GreeksMonitor
-            greeks = self.greeks_monitor.calculate_option_greeks(
-                spot=underlying_price,
-                strike=float(contract.Strike),
-                dte=dte,
-                iv=iv,
-                option_type=option_type
-            )
+            # FIXED: Use lazy loaded GreeksMonitor to prevent circular dependencies
+            greeks_monitor = self._get_greeks_monitor()
+            if greeks_monitor:
+                greeks = greeks_monitor.calculate_option_greeks(
+                    spot=underlying_price,
+                    strike=float(contract.Strike),
+                    dte=dte,
+                    iv=iv,
+                    option_type=option_type
+                )
+            else:
+                greeks = self._get_default_greeks()
             
             # Add implied volatility for backward compatibility
             greeks['iv'] = iv
@@ -330,22 +334,31 @@ class OptionChainManager:
         
         return validation_results
     
+    def _get_greeks_monitor(self):
+        """FIXED: Lazy load greeks monitor through dependency container to prevent circular dependencies"""
+        if self.greeks_monitor is None:
+            if hasattr(self.algo, 'dependency_container'):
+                self.greeks_monitor = self.algo.dependency_container.get_manager('greeks_monitor')
+            if self.greeks_monitor is None:
+                # Fallback for direct instantiation if container not available
+                from greeks.greeks_monitor import GreeksMonitor
+                self.greeks_monitor = GreeksMonitor(self.algo)
+        return self.greeks_monitor
+    
     def integrate_with_existing_cache_system(self):
         """
-        CORRECTED APPROACH: Integration with existing OptionChainCache system
+        FIXED: Integration with existing OptionChainCache system via dependency container
         
-        Instead of duplicating functionality, integrate with the existing
-        high-performance option chain caching system in optimization/option_chain_cache.py
+        Instead of duplicating functionality or creating circular dependencies,
+        integrate through the dependency container system.
         """
         try:
-            from optimization.option_chain_cache import OptionChainCache
-            
-            # Initialize integration with existing cache system
-            self.external_chain_cache = OptionChainCache(
-                self.algo,
-                cache_ttl_minutes=5,  # Match existing system TTL
-                max_cache_size=200    # Match existing system size
-            )
+            # FIXED: Use dependency container instead of direct instantiation
+            if hasattr(self.algo, 'dependency_container'):
+                self.external_chain_cache = self.algo.dependency_container.get_lazy_proxy('option_cache_manager')
+            else:
+                # Fallback for systems without dependency container
+                self.external_chain_cache = None
             
             self.algo.Debug("[Option Chain Manager] Successfully integrated with existing OptionChainCache system")
             

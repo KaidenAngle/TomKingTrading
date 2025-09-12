@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from enum import Enum, auto
 import traceback
 
+# PHASE 6: Circular Dependency Resolution
+from core.dependency_container import DependencyContainer, IManager
+from core.event_bus import EventBus
+
 class ManagerStatus(Enum):
     """Manager initialization status"""
     NOT_STARTED = auto()
@@ -33,14 +37,15 @@ class ManagerConfig:
 
 class ManagerFactory:
     """
-    PHASE 4 OPTIMIZATION: Unified Manager Factory with Dependency Injection
+    PHASE 6 OPTIMIZATION: Circular Dependency Resolution with Event-Driven Architecture
     
-    Consolidates manual manager initialization from main.py into structured system:
-    - 16 managers organized by dependency tiers
-    - Automatic dependency resolution
-    - Interface validation for all managers
-    - Fail-fast critical path protection
-    - Performance optimization through parallel initialization
+    Enhanced manager factory with circular dependency prevention:
+    - 5-stage initialization system (eliminates deadlocks)
+    - Event bus integration for manager communication
+    - Lazy loading proxies for circular dependency resolution
+    - Enhanced IManager interface standardization
+    - Dependency injection container integration
+    - 16 managers organized by dependency-safe stages
     """
     
     def __init__(self, algorithm):
@@ -50,11 +55,19 @@ class ManagerFactory:
         self.initialization_order = []
         self.status_map = {}
         
+        # PHASE 6: Dependency injection container
+        self.event_bus = None  # Will be initialized first
+        self.dependency_container = None  # Will be created after event bus
+        
         # Results tracking
         self.initialization_successful = False
         self.failed_managers = []
         self.initialization_log = []
         self.performance_metrics = {}
+        
+        # PHASE 6: Circular dependency prevention
+        self.circular_dependencies_resolved = 0
+        self.stage_initialization_times = {}
         
     def define_all_managers(self):
         """Define all 16 managers from main.py with proper dependencies"""
@@ -75,13 +88,16 @@ class ManagerFactory:
         from helpers.option_chain_manager import OptionChainManager
         from helpers.option_order_executor import OptionOrderExecutor
         from helpers.future_options_manager import FutureOptionsManager
+        # PHASE 6: Additional imports for proper cache manager
+        from core.market_data_cache import MarketDataCacheManager
         
         # PHASE 5 OPTIMIZATION: Event-Driven Architecture Components
         from core.event_bus import EventBus
         from core.central_greeks_service import CentralGreeksService
         from core.event_driven_optimizer import EventDrivenOptimizer
         
-        # TIER 1: FOUNDATION MANAGERS (No dependencies - can initialize in parallel)
+        # PHASE 6: 5-STAGE INITIALIZATION SYSTEM (Circular Dependency Safe)
+        # Stage 1: Independent components (no dependencies)
         foundation_managers = {
             'data_validator': ManagerConfig(
                 name='data_validator',
@@ -93,25 +109,7 @@ class ManagerFactory:
                 tier=1
             ),
             
-            'margin_manager': ManagerConfig(
-                name='margin_manager',
-                class_type=DynamicMarginManager,
-                dependencies=[],
-                required_methods=['get_available_margin', 'check_margin_requirements'],
-                initialization_args=(self.algo,),
-                critical=True,
-                tier=1
-            ),
             
-            'performance_tracker': ManagerConfig(
-                name='performance_tracker',
-                class_type=SafePerformanceTracker,
-                dependencies=[],
-                required_methods=['add_trade_pnl', 'get_statistics'],
-                initialization_args=(self.algo,),
-                critical=False,
-                tier=1
-            ),
             
             'event_calendar': ManagerConfig(
                 name='event_calendar',
@@ -123,50 +121,65 @@ class ManagerFactory:
                 tier=1
             ),
             
-            
-            # PHASE 5 OPTIMIZATION: Event-Driven Architecture Foundation
+            # PHASE 6: Event Bus - Foundation for circular dependency resolution
             'event_bus': ManagerConfig(
                 name='event_bus',
                 class_type=EventBus,
-                dependencies=[],  # Foundation component - no dependencies
-                required_methods=['subscribe', 'publish', 'get_statistics'],
+                dependencies=[],  # Stage 1: No dependencies
+                required_methods=['subscribe', 'publish', 'get_statistics', 'publish_with_loop_detection'],
                 initialization_args=(self.algo,),
                 critical=True,
-                tier=1  # Foundation tier - needed by other event-driven components
+                tier=1  # Stage 1: Foundation component
+            ),
+            
+            # PHASE 6: Performance tracker for metrics
+            'performance_tracker': ManagerConfig(
+                name='performance_tracker',
+                class_type=SafePerformanceTracker,
+                dependencies=[],  # Stage 1: Independent
+                required_methods=['add_trade_pnl', 'get_statistics'],
+                initialization_args=(self.algo,),
+                critical=False,
+                tier=1  # Stage 1
             )
         }
         
-        # TIER 2: CORE MANAGERS (Depend on foundation)
+        # Stage 2: Foundation services (depend on Stage 1)
         core_managers = {
             'vix_manager': ManagerConfig(
                 name='vix_manager',
                 class_type=UnifiedVIXManager,
-                dependencies=['data_validator'],  # Needs data validation
+                dependencies=['data_validator'],  # Stage 2: Needs data validation
                 required_methods=['get_current_vix', 'get_market_regime', 'get_vix_regime'],
                 initialization_args=(self.algo,),
                 critical=True,
                 tier=2
             ),
             
-            'state_manager': ManagerConfig(
-                name='state_manager',
-                class_type=UnifiedStateManager,
-                dependencies=['vix_manager'],  # Needs VIX for state decisions
-                required_methods=[
-                    'register_strategy',
-                    'update_system_state', 
-                    'get_system_summary',
-                    'save_all_states'
-                ],
+            'margin_manager': ManagerConfig(
+                name='margin_manager',
+                class_type=DynamicMarginManager,
+                dependencies=[],  # Stage 2: Foundation service
+                required_methods=['get_available_margin', 'check_margin_requirements'],
                 initialization_args=(self.algo,),
                 critical=True,
+                tier=2
+            ),
+            
+            'cache_manager': ManagerConfig(
+                name='cache_manager',
+                class_type=MarketDataCacheManager,  # FIXED: Using proper cache manager
+                dependencies=[],  # Stage 2: Foundation service  
+                required_methods=['get_cached_price', 'get_market_conditions', 'cache_market_data'],
+                initialization_args=(self.algo,),
+                critical=False,
                 tier=2
             ),
             
             'order_recovery': ManagerConfig(
                 name='order_recovery',
                 class_type=OrderStateRecovery,
-                dependencies=['state_manager'],  # Needs state coordination
+                dependencies=[],  # Stage 2: Foundation service, state coordination via events
                 required_methods=['recover_pending_orders', 'save_order_state'],
                 initialization_args=(self.algo,),
                 critical=True,
@@ -176,54 +189,48 @@ class ManagerFactory:
             'correlation_limiter': ManagerConfig(
                 name='correlation_limiter', 
                 class_type=August2024CorrelationLimiter,
-                dependencies=['performance_tracker'],  # Needs performance data
+                dependencies=['performance_tracker'],  # Stage 2: Needs performance data from stage 1
                 required_methods=['check_correlation_limits', 'get_correlation_exposure'],
                 initialization_args=(self.algo,),
                 critical=False,
                 tier=2
-            ),
-            
-            # PHASE 5 OPTIMIZATION: Centralized Greeks Service (replaces GreeksMonitor)
-            'greeks_monitor': ManagerConfig(
-                name='greeks_monitor',  # Keep same name for compatibility
-                class_type=CentralGreeksService,  # Use new event-driven service
-                dependencies=['event_bus', 'data_validator'],  # Needs event bus and data validation
-                required_methods=['get_portfolio_greeks', 'monitor_greeks_thresholds'],
-                initialization_args=(self.algo, None),  # Will pass event_bus in kwargs
-                initialization_kwargs={'event_bus': 'event_bus'},  # Reference to event_bus manager
-                critical=True,  # Critical for Greeks monitoring
-                tier=2
             )
         }
         
-        # TIER 3: ADVANCED MANAGERS (Depend on core systems)
+        # Stage 3: Core managers (depend on Stage 2 foundation services)
         advanced_managers = {
             'position_sizer': ManagerConfig(
                 name='position_sizer',
                 class_type=UnifiedPositionSizer,
-                dependencies=['vix_manager', 'margin_manager'],  # Needs VIX regime and margin
-                required_methods=['calculate_position_size', 'get_strategy_limits'],  # get_strategy_limits exists, get_available_buying_power does not
+                dependencies=['vix_manager', 'margin_manager'],  # Stage 3: Needs VIX and margin
+                required_methods=['calculate_position_size', 'get_strategy_limits'],
                 initialization_args=(self.algo,),
                 critical=True,
                 tier=3
             ),
             
-            'spy_concentration_manager': ManagerConfig(
-                name='spy_concentration_manager',
-                class_type=SPYConcentrationManager,
-                dependencies=['position_sizer'],  # Needs position sizing
-                required_methods=['request_spy_allocation', 'update_position_delta'],  # Use actual method names from SPYConcentrationManager
+            'state_manager': ManagerConfig(
+                name='state_manager',
+                class_type=UnifiedStateManager,
+                dependencies=['vix_manager'],  # Stage 3: Needs VIX for state decisions (moved from stage 2)
+                required_methods=[
+                    'register_strategy',
+                    'update_system_state', 
+                    'get_system_summary',
+                    'save_all_states'
+                ],
                 initialization_args=(self.algo,),
                 critical=True,
                 tier=3
             ),
             
-            'atomic_executor': ManagerConfig(
-                name='atomic_executor',
-                class_type=EnhancedAtomicOrderExecutor,
-                dependencies=['order_recovery', 'margin_manager'],  # Needs recovery and margin
-                required_methods=['execute_atomic_order', 'validate_order_feasibility'],
-                initialization_args=(self.algo,),
+            'greeks_monitor': ManagerConfig(
+                name='greeks_monitor',
+                class_type=CentralGreeksService,
+                dependencies=['event_bus', 'data_validator'],  # Stage 3: Needs event bus and data validation
+                required_methods=['get_portfolio_greeks', 'monitor_greeks_thresholds'],
+                initialization_args=(self.algo, None),
+                initialization_kwargs={'event_bus': 'event_bus'},
                 critical=True,
                 tier=3
             ),
@@ -231,35 +238,15 @@ class ManagerFactory:
             'option_chain_manager': ManagerConfig(
                 name='option_chain_manager',
                 class_type=OptionChainManager,
-                dependencies=['data_validator'],  # Needs data validation
+                dependencies=['data_validator'],  # Stage 3: Needs data validation
                 required_methods=['get_option_chain', 'filter_liquid_options'],
-                initialization_args=(self.algo,),
-                critical=False,
-                tier=3
-            ),
-            
-            'option_executor': ManagerConfig(
-                name='option_executor',
-                class_type=OptionOrderExecutor,
-                dependencies=['atomic_executor', 'option_chain_manager'],  # Needs atomic execution and chains
-                required_methods=['place_option_limit_order', 'place_iron_condor_orders'],  # Use actual method names from OptionOrderExecutor
-                initialization_args=(self.algo,),
-                critical=True,
-                tier=3
-            ),
-            
-            'future_options_manager': ManagerConfig(
-                name='future_options_manager',
-                class_type=FutureOptionsManager,
-                dependencies=['option_chain_manager'],  # Needs option chain access
-                required_methods=['add_future_option_safely', 'get_option_chain_safely'],  # Use actual method names from FutureOptionsManager
                 initialization_args=(self.algo,),
                 critical=False,
                 tier=3
             )
         }
         
-        # TIER 4: COORDINATION MANAGERS (Depend on all core systems)
+        # Stage 4: Integration managers (depend on Stage 3 core managers)
         coordination_managers = {
             'strategy_coordinator': ManagerConfig(
                 name='strategy_coordinator',
@@ -267,9 +254,8 @@ class ManagerFactory:
                 dependencies=[
                     'state_manager',
                     'position_sizer', 
-                    'vix_manager',
                     'spy_concentration_manager'
-                ],
+                ],  # Stage 4: Integration level dependencies
                 required_methods=[
                     'register_strategy',
                     'execute_strategies',
@@ -280,38 +266,84 @@ class ManagerFactory:
                 tier=4
             ),
             
-            # PHASE 5 OPTIMIZATION: Event-Driven Performance Optimizer
+            'spy_concentration_manager': ManagerConfig(
+                name='spy_concentration_manager',
+                class_type=SPYConcentrationManager,
+                dependencies=['position_sizer'],  # Stage 4: Moved from stage 3 for proper ordering
+                required_methods=['request_spy_allocation', 'update_position_delta'],
+                initialization_args=(self.algo,),
+                critical=True,
+                tier=4
+            ),
+            
+            # PHASE 6: Event-Driven Performance Optimizer
             'event_driven_optimizer': ManagerConfig(
                 name='event_driven_optimizer',
                 class_type=EventDrivenOptimizer,
-                dependencies=['event_bus', 'central_greeks_service'],  # Needs event bus and centralized Greeks
+                dependencies=['event_bus', 'greeks_monitor'],  # Stage 4: Needs event bus and Greeks service
                 required_methods=['optimize_ondata_performance', 'get_optimization_statistics'],
-                initialization_args=(self.algo, None, None),  # Will pass event_bus and greeks_service in kwargs
+                initialization_args=(self.algo, None, None),
                 initialization_kwargs={
                     'event_bus': 'event_bus',
-                    'greeks_service': 'central_greeks_service'
+                    'greeks_service': 'greeks_monitor'
                 },
-                critical=True,  # Critical for performance optimization
+                critical=True,
                 tier=4
             )
         }
         
-        # Combine all manager configurations
-        self.manager_configs = {
-            **foundation_managers,
-            **core_managers,
-            **advanced_managers,
-            **coordination_managers
+        # Stage 5: Execution managers (final tier - depend on all previous stages)
+        execution_managers = {
+            # FIXED: atomic_executor must be in earlier stage since option_executor depends on it
+            'atomic_executor': ManagerConfig(
+                name='atomic_executor',
+                class_type=EnhancedAtomicOrderExecutor,
+                dependencies=['order_recovery', 'margin_manager'],  # Stage 5: Final execution layer
+                required_methods=['execute_atomic_order', 'validate_order_feasibility'],
+                initialization_args=(self.algo,),
+                critical=True,
+                tier=5
+            ),
+            
+            # FIXED: option_executor in later stage since it depends on atomic_executor
+            'option_executor': ManagerConfig(
+                name='option_executor',
+                class_type=OptionOrderExecutor,
+                dependencies=['atomic_executor', 'option_chain_manager'],  # Stage 5: Needs atomic execution (now properly ordered)
+                required_methods=['place_option_limit_order', 'place_iron_condor_orders'],
+                initialization_args=(self.algo,),
+                critical=True,
+                tier=5
+            ),
+            
+            'futures_manager': ManagerConfig(
+                name='futures_manager',
+                class_type=FutureOptionsManager,
+                dependencies=['option_chain_manager'],  # Stage 5: Future options execution
+                required_methods=['add_future_option_safely', 'get_option_chain_safely'],
+                initialization_args=(self.algo,),
+                critical=False,
+                tier=5
+            )
         }
         
-        self.algo.Debug(f"[ManagerFactory] Defined {len(self.manager_configs)} managers across 4 tiers")
+        # Combine all manager configurations (5-stage system)
+        self.manager_configs = {
+            **foundation_managers,      # Stage 1
+            **core_managers,           # Stage 2  
+            **advanced_managers,       # Stage 3
+            **coordination_managers,   # Stage 4
+            **execution_managers       # Stage 5
+        }
         
-        # Log tier distribution
-        tier_counts = {}
+        self.algo.Debug(f"[ManagerFactory] Defined {len(self.manager_configs)} managers across 5 stages")
+        
+        # Log stage distribution  
+        stage_counts = {}
         for config in self.manager_configs.values():
-            tier_counts[config.tier] = tier_counts.get(config.tier, 0) + 1
+            stage_counts[config.tier] = stage_counts.get(config.tier, 0) + 1
         
-        self.algo.Debug(f"[ManagerFactory] Tier distribution: {dict(sorted(tier_counts.items()))}")
+        self.algo.Debug(f"[ManagerFactory] Stage distribution: {dict(sorted(stage_counts.items()))}")
     
     def resolve_initialization_order(self) -> List[str]:
         """Resolve manager initialization order using tier-based + dependency resolution"""
@@ -440,6 +472,149 @@ class ManagerFactory:
             self.algo.Error(f"[ManagerFactory] 💥 Manager initialization FAILED - {len(self.failed_managers)} failures")
         
         return self.initialization_successful, result
+    
+    def initialize_all_managers_with_dependency_container(self) -> Tuple[bool, Dict]:
+        """
+        PHASE 6: Initialize all managers using dependency container with circular dependency resolution
+        
+        Uses 5-stage initialization system to prevent deadlocks and circular dependencies
+        """
+        
+        import time
+        start_time = time.time()
+        
+        self.algo.Log("[ManagerFactory] PHASE 6: Starting dependency-safe 5-stage initialization")
+        
+        # Define managers
+        self.define_all_managers()
+        
+        # Initialize event bus first (foundation for dependency resolution)
+        if not self._initialize_event_bus():
+            self.algo.Error("[ManagerFactory] PHASE 6: Event bus initialization FAILED - cannot continue")
+            return False, {'error': 'Event bus initialization failed'}
+        
+        # Create dependency container
+        self.dependency_container = DependencyContainer(self.algo, self.event_bus)
+        
+        # Register all manager factories with dependency container
+        self._register_manager_factories()
+        
+        # Validate dependency graph
+        validation_result = self.dependency_container.validate_dependency_graph()
+        if not validation_result['valid']:
+            self.algo.Error(f"[ManagerFactory] PHASE 6: Invalid dependency graph: {validation_result}")
+            return False, {'error': 'Invalid dependency graph', 'details': validation_result}
+        
+        # Initialize managers using dependency container's 5-stage system
+        initialization_success = self.dependency_container.initialize_all_managers()
+        
+        if initialization_success:
+            # Transfer managers from dependency container to algorithm
+            self._attach_managers_to_algorithm()
+            
+            # Verify critical managers
+            critical_check = self.emergency_manager_check()
+            if not critical_check:
+                self.algo.Error("[ManagerFactory] PHASE 6: Critical manager validation FAILED")
+                initialization_success = False
+        
+        total_duration = time.time() - start_time
+        
+        # Get comprehensive results
+        container_stats = self.dependency_container.get_container_statistics()
+        health_report = self.dependency_container.get_manager_health_report()
+        
+        result = {
+            'success': initialization_success,
+            'initialization_method': 'dependency_container_5_stage',
+            'total_duration_ms': total_duration * 1000,
+            'container_statistics': container_stats,
+            'health_report': health_report,
+            'circular_dependencies_resolved': container_stats.get('circular_dependencies_resolved', 0),
+            'stage_performance': getattr(self.dependency_container, 'stage_initialization_times', {}),
+            'managers_initialized': len(self.dependency_container.managers),
+            'failed_managers': list(self.dependency_container.failed_initializations.keys())
+        }
+        
+        if initialization_success:
+            self.algo.Log(f"[ManagerFactory] PHASE 6: ✅ All managers initialized successfully in {total_duration*1000:.1f}ms")
+            self.algo.Log(f"[ManagerFactory] PHASE 6: Circular dependencies resolved: {result['circular_dependencies_resolved']}")
+        else:
+            self.algo.Error(f"[ManagerFactory] PHASE 6: ❌ Manager initialization FAILED in {total_duration*1000:.1f}ms")
+        
+        self.initialization_successful = initialization_success
+        return initialization_success, result
+    
+    def _initialize_event_bus(self) -> bool:
+        """Initialize event bus as foundation component"""
+        
+        try:
+            self.event_bus = EventBus(self.algo)
+            setattr(self.algo, 'event_bus', self.event_bus)
+            self.managers['event_bus'] = self.event_bus
+            
+            # Verify event bus methods
+            required_methods = ['subscribe', 'publish', 'get_statistics', 'publish_with_loop_detection']
+            for method_name in required_methods:
+                if not hasattr(self.event_bus, method_name) or not callable(getattr(self.event_bus, method_name)):
+                    self.algo.Error(f"[ManagerFactory] Event bus missing method: {method_name}")
+                    return False
+            
+            self.algo.Debug("[ManagerFactory] PHASE 6: Event bus initialized successfully")
+            return True
+            
+        except Exception as e:
+            self.algo.Error(f"[ManagerFactory] PHASE 6: Event bus initialization failed: {e}")
+            return False
+    
+    def _register_manager_factories(self):
+        """Register all manager factories with the dependency container"""
+        
+        for name, config in self.manager_configs.items():
+            if name == 'event_bus':
+                continue  # Already initialized
+            
+            # Create factory function that captures the config
+            def create_manager_factory(manager_config):
+                def factory():
+                    try:
+                        # Resolve kwargs with actual manager instances
+                        resolved_kwargs = manager_config.initialization_kwargs.copy()
+                        for key, value in resolved_kwargs.items():
+                            if isinstance(value, str) and value in self.dependency_container.managers:
+                                resolved_kwargs[key] = self.dependency_container.managers[value]
+                        
+                        # Create manager instance
+                        manager = manager_config.class_type(
+                            *manager_config.initialization_args, 
+                            **resolved_kwargs
+                        )
+                        
+                        return manager
+                        
+                    except Exception as e:
+                        self.algo.Error(f"[ManagerFactory] Factory for {manager_config.name} failed: {e}")
+                        raise
+                
+                return factory
+            
+            # Register factory with dependency container
+            factory = create_manager_factory(config)
+            self.dependency_container.register_manager_factory(
+                name, factory, config.dependencies
+            )
+        
+        self.algo.Debug(f"[ManagerFactory] PHASE 6: Registered {len(self.manager_configs) - 1} manager factories")
+    
+    def _attach_managers_to_algorithm(self):
+        """Attach successfully initialized managers to the algorithm"""
+        
+        for name, manager in self.dependency_container.managers.items():
+            if not hasattr(self.algo, name):  # Don't override event_bus
+                setattr(self.algo, name, manager)
+                self.managers[name] = manager
+        
+        self.algo.Debug(f"[ManagerFactory] PHASE 6: Attached {len(self.dependency_container.managers)} managers to algorithm")
     
     def _initialize_single_manager(self, manager_name: str) -> bool:
         """Initialize a single manager with comprehensive error handling"""

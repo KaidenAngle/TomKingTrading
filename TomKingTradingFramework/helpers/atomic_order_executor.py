@@ -46,8 +46,22 @@ class AtomicOrderGroup:
     def add_leg(self, symbol, quantity: int):
         """Add a leg to the atomic group"""
         
+        # FIXED: Add comprehensive validation to prevent bypasses
         if self.status != OrderGroupStatus.PENDING:
             raise Exception(f"Cannot add legs to {self.status.name} group")
+        
+        # Validate symbol input
+        if symbol is None:
+            raise ValueError("Symbol cannot be None")
+        
+        # Validate quantity input
+        if not isinstance(quantity, (int, float)) or quantity == 0:
+            raise ValueError(f"Invalid quantity for {symbol}: {quantity}")
+            
+        if abs(quantity) > 1000:  # Sanity check for extremely large quantities
+            raise ValueError(f"Suspiciously large quantity for {symbol}: {quantity}")
+        
+        quantity = int(quantity)  # Ensure integer
         
         self.target_legs.append((symbol, quantity))
         self.algo.Debug(f"[Atomic-{self.group_id}] Added leg: {symbol} x{quantity}")
@@ -55,8 +69,18 @@ class AtomicOrderGroup:
     def execute(self) -> bool:
         """Execute all legs atomically"""
         
+        # FIXED: Add validation to prevent bypass execution
         if not self.target_legs:
             self.algo.Error(f"[Atomic-{self.group_id}] No legs to execute")
+            return False
+        
+        if self.status != OrderGroupStatus.PENDING:
+            self.algo.Error(f"[Atomic-{self.group_id}] Cannot execute in {self.status.name} status")
+            return False
+        
+        # Validate we have algorithm access
+        if not hasattr(self.algo, 'MarketOrder') or not hasattr(self.algo, 'LimitOrder'):
+            self.algo.Error(f"[Atomic-{self.group_id}] Algorithm order methods not available")
             return False
         
         self.status = OrderGroupStatus.PLACING

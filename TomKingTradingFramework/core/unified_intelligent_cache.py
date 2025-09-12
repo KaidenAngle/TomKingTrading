@@ -323,8 +323,8 @@ class UnifiedIntelligentCache(Generic[T]):
                     self.stats.cache_size = len(self._cache)
                     self._update_type_stats(cache_type, delta=1)
                 
-                # Enforce size and memory limits
-                self._enforce_limits()
+                # FIXED: Enforce size and memory limits to prevent memory leaks
+                self._enforce_cache_limits()
                 
                 return True
                 
@@ -412,31 +412,47 @@ class UnifiedIntelligentCache(Generic[T]):
     
     def periodic_maintenance(self):
         """Run comprehensive maintenance tasks"""
-        current_time = self.algo.Time
+        with self._lock:  # FIXED: Add lock protection for maintenance operations
+            current_time = self.algo.Time
+            
+            # Run cleanup if interval has passed
+            if (current_time - self._last_cleanup) > self._cleanup_interval:
+                # Clean up expired entries
+                expired_count = self._cleanup_expired()
+                
+                # Check position changes
+                if self._has_position_changed():
+                    self.force_position_check()
+                
+                # Check price changes
+                self.force_price_check()
+                
+                # Check custom invalidation hooks
+                self._check_all_custom_invalidation()
+                
+                # Force garbage collection if memory usage is high
+                if self.stats.memory_usage_bytes > (self.max_memory_bytes * 0.8):
+                    gc.collect()
+                
+                self._last_cleanup = current_time
+                
+                if expired_count > 0:
+                    self.algo.Debug(f"[UnifiedCache] Maintenance: cleaned {expired_count} expired entries")
+    
+    def _enforce_cache_limits(self):
+        """FIXED: Enforce cache size and memory limits to prevent memory leaks"""
+        # Enforce memory limit
+        while (self.stats.memory_usage_bytes > self.max_memory_bytes and len(self._cache) > 0):
+            # Remove oldest entry (LRU eviction)
+            oldest_key = next(iter(self._cache))
+            self._remove_entry(oldest_key)
+            self.algo.Debug(f"[UnifiedCache] Memory limit exceeded, removed oldest entry: {oldest_key}")
         
-        # Run cleanup if interval has passed
-        if (current_time - self._last_cleanup) > self._cleanup_interval:
-            # Clean up expired entries
-            expired_count = self._cleanup_expired()
-            
-            # Check position changes
-            if self._has_position_changed():
-                self.force_position_check()
-            
-            # Check price changes
-            self.force_price_check()
-            
-            # Check custom invalidation hooks
-            self._check_all_custom_invalidation()
-            
-            # Force garbage collection if memory usage is high
-            if self.stats.memory_usage_bytes > (self.max_memory_bytes * 0.8):
-                gc.collect()
-            
-            self._last_cleanup = current_time
-            
-            if expired_count > 0:
-                self.algo.Debug(f"[UnifiedCache] Maintenance: cleaned {expired_count} expired entries")
+        # Enforce max cache size limit
+        while len(self._cache) > self.max_size:
+            oldest_key = next(iter(self._cache))
+            self._remove_entry(oldest_key)
+            self.algo.Debug(f"[UnifiedCache] Size limit exceeded, removed oldest entry: {oldest_key}")
     
     def get_statistics(self) -> Dict:
         """Get comprehensive cache performance statistics"""
