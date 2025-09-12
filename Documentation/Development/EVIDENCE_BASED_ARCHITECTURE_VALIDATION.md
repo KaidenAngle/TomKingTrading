@@ -2,11 +2,6 @@
 
 **Purpose:** Methodology for validating architectural decisions using historical disaster evidence and production performance data
 
-**Location:** `Documentation/Development/EVIDENCE_BASED_ARCHITECTURE_VALIDATION.md`  
-**Version:** 1.0  
-**Last Updated:** 2025-01-15  
-**Validated Against:** August 5, 2024 correlation disaster, 2+ years production evidence
-
 ## OVERVIEW
 
 This methodology emerged during Phase 3 optimization when we discovered that **CRITICAL_DO_NOT_CHANGE.md rules are backed by real disaster evidence**, not arbitrary preferences. Every "non-negotiable" parameter has a specific historical justification.

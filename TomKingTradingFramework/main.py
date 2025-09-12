@@ -18,7 +18,7 @@ from core.unified_state_manager import UnifiedStateManager
 from core.strategy_coordinator import StrategyCoordinator
 from core.unified_vix_manager import UnifiedVIXManager
 from core.unified_position_sizer import UnifiedPositionSizer
-from core.spy_concentration_manager import SPYConcentrationManager
+# SPYConcentrationManager now replaced by UnifiedRiskManager with ConcentrationPlugin
 
 # Performance Optimization Systems - CONSOLIDATED
 from core.unified_intelligent_cache import UnifiedIntelligentCache, CacheType
@@ -33,7 +33,7 @@ from strategies.leap_put_ladders_with_state import LEAPPutLaddersWithState
 # Risk Management
 # VIX management now handled by UnifiedVIXManager
 from risk.dynamic_margin_manager import DynamicMarginManager
-from risk.correlation_group_limiter import August2024CorrelationLimiter
+# August2024CorrelationLimiter now replaced by UnifiedRiskManager with CorrelationPlugin
 
 # Helpers and Safety Systems
 from helpers.data_freshness_validator import DataFreshnessValidator
@@ -118,6 +118,9 @@ class TomKingTradingIntegrated(QCAlgorithm):
         
         # Store factory result for debugging
         self.manager_initialization_result = factory_result
+        
+        # PHASE 7: Initialize UnifiedRiskManager with plugins
+        self.initialize_unified_risk_management()
         
         # Emergency validation of critical managers
         if not self.manager_factory.emergency_manager_check():
@@ -397,6 +400,69 @@ class TomKingTradingIntegrated(QCAlgorithm):
                 
         except Exception as e:
             self.Error(f"[PERFORMANCE] Cache initialization failed: {e}")
+    
+    def initialize_unified_risk_management(self):
+        """
+        PHASE 7: Initialize UnifiedRiskManager with plugin architecture
+        Replaces separate August2024CorrelationLimiter, SPYConcentrationManager, CircuitBreaker
+        """
+        try:
+            # Get the UnifiedRiskManager from the factory
+            if not hasattr(self, 'unified_risk_manager'):
+                self.Error("[RISK] UnifiedRiskManager not found in factory initialization")
+                return False
+            
+            # Import and register risk plugins
+            from risk.plugins.correlation_plugin import CorrelationPlugin
+            from risk.plugins.circuit_breaker_plugin import CircuitBreakerPlugin
+            from risk.plugins.concentration_plugin import ConcentrationPlugin
+            
+            # Register plugins in order of importance
+            plugins_registered = 0
+            
+            # 1. Circuit Breaker Plugin (CRITICAL - emergency stops)
+            circuit_breaker_plugin = CircuitBreakerPlugin()
+            if self.unified_risk_manager.register_plugin(circuit_breaker_plugin):
+                plugins_registered += 1
+                self.Log("[RISK] ✅ CircuitBreakerPlugin registered (preserves August 5 protections)")
+            else:
+                self.Error("[RISK] ❌ Failed to register CircuitBreakerPlugin")
+            
+            # 2. Correlation Plugin (HIGH - prevents correlation disasters)
+            correlation_plugin = CorrelationPlugin()
+            if self.unified_risk_manager.register_plugin(correlation_plugin):
+                plugins_registered += 1
+                self.Log("[RISK] ✅ CorrelationPlugin registered (August 5 correlation limits)")
+            else:
+                self.Error("[RISK] ❌ Failed to register CorrelationPlugin")
+            
+            # 3. Concentration Plugin (HIGH - prevents over-exposure)
+            concentration_plugin = ConcentrationPlugin()
+            if self.unified_risk_manager.register_plugin(concentration_plugin):
+                plugins_registered += 1
+                self.Log("[RISK] ✅ ConcentrationPlugin registered (SPY/ES concentration limits)")
+            else:
+                self.Error("[RISK] ❌ Failed to register ConcentrationPlugin")
+            
+            # Verify all plugins registered successfully
+            if plugins_registered == 3:
+                self.Log(f"[RISK] ✅ UnifiedRiskManager initialized with {plugins_registered}/3 plugins")
+                
+                # Create backward compatibility aliases for existing code
+                self.correlation_limiter = self.unified_risk_manager  # For strategy access
+                self.spy_concentration_manager = self.unified_risk_manager  # For strategy access
+                self.circuit_breaker = self.unified_risk_manager  # For strategy access
+                
+                return True
+            else:
+                self.Error(f"[RISK] ❌ Only {plugins_registered}/3 plugins registered successfully")
+                return False
+                
+        except Exception as e:
+            self.Error(f"[RISK] UnifiedRiskManager initialization failed: {e}")
+            import traceback
+            self.Error(f"[RISK] Error details: {traceback.format_exc()}")
+            return False
     
     def verify_manager_initialization(self) -> bool:
         """Verify all required managers are properly initialized"""

@@ -2,11 +2,6 @@
 
 **Purpose:** Implementation patterns and design decisions for the UnifiedIntelligentCache system
 
-**Location:** `Documentation/Architecture/UNIFIED_CACHING_ARCHITECTURE.md`  
-**Version:** 1.0  
-**Last Updated:** 2025-01-15  
-**Implementation:** `core/unified_intelligent_cache.py` (875 lines)
-
 ## OVERVIEW
 
 The UnifiedIntelligentCache consolidates 3 separate cache systems into a single, type-aware caching solution that **automatically selects optimal caching strategies** based on data type and usage patterns.

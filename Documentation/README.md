@@ -7,7 +7,7 @@
 - 🛠️ [Implementation Audit Protocol](Development/implementation-audit-protocol.md) - **MANDATORY** systematic development approach
 - 📄 [Quick Reference](Development/quick-reference.md) - Instant consultation guide
 
-## Architecture Documentation
+## Architecture Documentation (23 docs)
 
 ### Core Systems
 - [State Machine Architecture](Architecture/STATE_MACHINE_ARCHITECTURE.md) - Why each strategy needs states
@@ -16,11 +16,17 @@
 - [VIX Management Design](Architecture/VIX_MANAGEMENT_DESIGN.md) - Central data, strategy-specific filters
 - [SPY Concentration Management](Architecture/SPY_CONCENTRATION_MANAGEMENT.md) - Preventing over-exposure
 - [Atomic Order Execution](Architecture/ATOMIC_ORDER_EXECUTION.md) - All-or-nothing multi-leg orders
+
+### Advanced Architecture Patterns
+- [Event-Driven Circular Dependency Resolution](Architecture/EVENT_DRIVEN_CIRCULAR_DEPENDENCY_RESOLUTION.md) - **NEW** EventBus + LazyProxy patterns for eliminating circular dependencies
+- [Manager Initialization Patterns](Architecture/MANAGER_INITIALIZATION_PATTERNS.md) - **NEW** 5-stage deterministic initialization with comprehensive validation
 - [QuantConnect API Patterns](Architecture/QUANTCONNECT_API_PATTERNS.md) - Proper QC API usage without fallbacks
 - [Performance Optimization Patterns](Architecture/PERFORMANCE_OPTIMIZATION_PATTERNS.md) - 80% API reduction, intelligent caching
 - [Integration Verification Patterns](Architecture/INTEGRATION_VERIFICATION_PATTERNS.md) - Systematic integration verification methodology
+
+### Development & Quality Assurance
 - [Automated Interface Integrity Testing](Architecture/AUTOMATED_INTERFACE_INTEGRITY_TESTING.md) - Prevent interface mismatches through systematic verification
-- [Systematic Interface Auditing](Architecture/SYSTEMATIC_INTERFACE_AUDITING.md) - "Audit before assume" methodology for accurate system assessment
+- [Systematic Interface Auditing](Architecture/SYSTEMATIC_INTERFACE_AUDITING.md) - **ENHANCED** "Audit before assume" methodology + Ultra-Rigorous 3-Level Audit system
 - [Framework Organization Patterns](Architecture/FRAMEWORK_ORGANIZATION_PATTERNS.md) - Directory structure and git history preservation patterns
 - [Timing Windows and Scheduling](Architecture/TIMING_WINDOWS_AND_SCHEDULING.md) - Why specific times matter
 - [Fail-Fast Error Philosophy](Architecture/FAIL_FAST_ERROR_PHILOSOPHY.md) - Why we don't use try/catch everywhere

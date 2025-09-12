@@ -384,7 +384,7 @@ def test_full_system_after_optimization():
 Check EVERY finding from COMPREHENSIVE_SYSTEM_ANALYSIS.md:
 - [ ] 3 caches consolidated to 1
 - [ ] 4 state systems unified
-- [ ] 15 managers use dependency injection
+- [ ] managers use dependency injection
 - [ ] Scheduled methods converted to events
 - [ ] Greeks centralized
 - [ ] Circular dependencies broken

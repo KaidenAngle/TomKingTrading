@@ -1,6 +1,6 @@
 # 🚨 CRITICAL FILES - DO NOT DELETE 🚨
 
-## ⚠️ READ THIS FIRST BEFORE MODIFYING ANYTHING ⚠️
+## ⚠️ WARNING: These files are ESSENTIAL for the Tom King Trading Framework ⚠️
 
 This directory contains **PRODUCTION TRADING SYSTEM** files that are essential for:
 - QuantConnect API access ($$ YOUR MONEY $$)

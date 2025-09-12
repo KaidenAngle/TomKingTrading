@@ -81,8 +81,8 @@ class ManagerFactory:
         from core.unified_state_manager import UnifiedStateManager
         from helpers.order_state_recovery import OrderStateRecovery
         from core.unified_position_sizer import UnifiedPositionSizer
-        from risk.correlation_group_limiter import August2024CorrelationLimiter
-        from core.spy_concentration_manager import SPYConcentrationManager
+        # PHASE 7 OPTIMIZATION: UnifiedRiskManager replaces separate risk components
+        from risk.unified_risk_manager import UnifiedRiskManager
         from core.strategy_coordinator import StrategyCoordinator
         from helpers.atomic_order_executor import EnhancedAtomicOrderExecutor
         from helpers.option_chain_manager import OptionChainManager
@@ -186,13 +186,13 @@ class ManagerFactory:
                 tier=2
             ),
             
-            'correlation_limiter': ManagerConfig(
-                name='correlation_limiter', 
-                class_type=August2024CorrelationLimiter,
+            'unified_risk_manager': ManagerConfig(
+                name='unified_risk_manager',
+                class_type=UnifiedRiskManager,
                 dependencies=['performance_tracker'],  # Stage 2: Needs performance data from stage 1
-                required_methods=['check_correlation_limits', 'get_correlation_exposure'],
+                required_methods=['can_open_position', 'on_position_opened', 'on_position_closed', 'get_risk_status'],
                 initialization_args=(self.algo,),
-                critical=False,
+                critical=True,  # Risk management is always critical
                 tier=2
             )
         }
@@ -254,7 +254,7 @@ class ManagerFactory:
                 dependencies=[
                     'state_manager',
                     'position_sizer', 
-                    'spy_concentration_manager'
+                    'unified_risk_manager'
                 ],  # Stage 4: Integration level dependencies
                 required_methods=[
                     'register_strategy',
@@ -266,15 +266,6 @@ class ManagerFactory:
                 tier=4
             ),
             
-            'spy_concentration_manager': ManagerConfig(
-                name='spy_concentration_manager',
-                class_type=SPYConcentrationManager,
-                dependencies=['position_sizer'],  # Stage 4: Moved from stage 3 for proper ordering
-                required_methods=['request_spy_allocation', 'update_position_delta'],
-                initialization_args=(self.algo,),
-                critical=True,
-                tier=4
-            ),
             
             # PHASE 6: Event-Driven Performance Optimizer
             'event_driven_optimizer': ManagerConfig(
