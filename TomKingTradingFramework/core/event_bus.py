@@ -263,11 +263,8 @@ class EventBus(IManager):
                 
                 try:
                     handler_info['handler'](event)
-                handler_info['call_count'] += 1
-                processed_count += 1
-                except Exception as e:
-
-                    # Call the handler
+                    handler_info['call_count'] += 1
+                    processed_count += 1
                     
                     # Track handler performance
                     handler_time = (datetime.now() - handler_start).total_seconds() * 1000
@@ -526,11 +523,8 @@ class EventBus(IManager):
                 
                 try:
                     handler_info['handler'](event)
-                handler_info['call_count'] += 1
-                processed_count += 1
-                except Exception as e:
-
-                    # Call the handler with event object
+                    handler_info['call_count'] += 1
+                    processed_count += 1
                     
                     # Track handler performance
                     handler_time = (datetime.now() - handler_start).total_seconds() * 1000
@@ -618,11 +612,8 @@ class EventBus(IManager):
         request_info = self.pending_requests[correlation_id]
         
         try:
-            request_info['callback'](event)
-        except Exception as e:
-
             # Call the registered callback
-            
+            request_info['callback'](event)
         except Exception as e:
             self.algorithm.Error(f"[EventBus] Response callback error for {correlation_id}: {e}")
         

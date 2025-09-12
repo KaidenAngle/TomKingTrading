@@ -117,8 +117,7 @@ class PositionOpeningValidator:
                     self.log_success('component_initialization', 1, 
                                    f"All {init_status.get('success_count', 0)} components initialized successfully")
             else:
-                self.log_error('component_initialization', 1, 
-                             "ComponentInitializer not found - integration system missing")
+                self.log_error('component_initialization', 1, "ComponentInitializer not found - integration system missing")
         except Exception as e:
             self.log_error('component_initialization', 1, f"ComponentInitializer validation failed: {str(e)}")
         
@@ -352,13 +351,11 @@ class PositionOpeningValidator:
         
         # Test register_strategy
         try:
+            # Try to register a test strategy
             result = state_manager.register_strategy("test_strategy", None)
-        self.log_success('method_integration', 7, "register_strategy method callable")
+            self.log_success('method_integration', 7, "register_strategy method callable")
         except Exception as e:
             self.log_error('method_integration', 7, f"register_strategy failed: {str(e)}")
-        except Exception as e:
-
-            # Try to register a test strategy
         
         # Test update_all_state_machines (critical missing method)
         if hasattr(state_manager, 'update_all_state_machines'):
@@ -384,13 +381,11 @@ class PositionOpeningValidator:
         # Test execute_strategies (called from OnData)
         if hasattr(coordinator, 'execute_strategies'):
             try:
+                # Test with empty data to avoid side effects
                 coordinator.execute_strategies(None)
-            self.log_success('method_integration', 8, "execute_strategies method callable")
+                self.log_success('method_integration', 8, "execute_strategies method callable")
             except Exception as e:
                 self.log_error('method_integration', 8, f"execute_strategies failed: {str(e)}")
-            except Exception as e:
-
-                # Test with empty data to avoid side effects
         else:
             self.log_error('method_integration', 8, "CRITICAL: execute_strategies method missing")
         
@@ -512,18 +507,15 @@ class PositionOpeningValidator:
                 if hasattr(target_obj, method):
                     try:
                         method_obj = getattr(target_obj, method)
-                    if callable(method_obj):
-                        self.log_success('method_integration', 12,
-                    f"{caller} -> {target}.{method} integration valid")
-                    else:
-                    self.log_error('method_integration', 12,
-                    f"{caller} -> {target}.{method} not callable")
+                        if callable(method_obj):
+                            self.log_success('method_integration', 12,
+                                            f"{caller} -> {target}.{method} integration valid")
+                        else:
+                            self.log_error('method_integration', 12,
+                                          f"{caller} -> {target}.{method} not callable")
                     except Exception as e:
                         self.log_error('method_integration', 12,
-                    f"{caller} -> {target}.{method} integration failed: {str(e)}")
-                    except Exception as e:
-
-                        # Test method availability
+                                      f"{caller} -> {target}.{method} integration failed: {str(e)}")
                 else:
                     self.log_error('method_integration', 12, 
                                  f"{caller} -> {target}.{method} method missing")
@@ -543,15 +535,11 @@ class PositionOpeningValidator:
         # FAILURE POINT 13: SPY allocation request validation
         try:
             approved, reason = spy_manager.request_spy_allocation(
-        strategy_name="test_strategy",
-        position_type="options",
-        requested_delta=-10.0,
-        requested_contracts=1
-        )
-        except Exception as e:
-
-            # Test allocation request
-            
+            strategy_name="test_strategy",
+            position_type="options",
+            requested_delta=-10.0,
+            requested_contracts=1
+            )
             if not isinstance(approved, bool):
                 self.log_error('spy_concentration', 13, f"Invalid approval type: {type(approved)}")
             else:
@@ -638,15 +626,11 @@ class PositionOpeningValidator:
         # FAILURE POINT 17: Position conflict detection
         try:
             approved1, reason1 = spy_manager.request_spy_allocation(
-        strategy_name="conflict_test1",
-        position_type="options",
-        requested_delta=50.0,  # Long delta
-        requested_contracts=10
-        )
-        except Exception as e:
-
-            # Test conflicting position detection
-            
+            strategy_name="conflict_test1",
+            position_type="options",
+            requested_delta=50.0,  # Long delta
+            requested_contracts=10
+            )
             approved2, reason2 = spy_manager.request_spy_allocation(
                 strategy_name="conflict_test2", 
                 position_type="options",
@@ -857,15 +841,12 @@ class PositionOpeningValidator:
         if hasattr(self.algo, 'data_validator'):
             try:
                 is_data_fresh = self.algo.data_validator.validate_data_freshness()
-            if is_data_fresh:
-                self.log_success('option_chain_data', 23, "Data freshness validation passed")
-            else:
-            self.log_error('option_chain_data', 23, "Data freshness validation failed")
+                if is_data_fresh:
+                    self.log_success('option_chain_data', 23, "Data freshness validation passed")
+                else:
+                    self.log_error('option_chain_data', 23, "Data freshness validation failed")
             except Exception as e:
                 self.log_error('option_chain_data', 23, f"Data freshness test failed: {str(e)}")
-            except Exception as e:
-
-                # Test data validator if available
         else:
             self.log_error('option_chain_data', 23, "Data validator not available")
     
@@ -1274,8 +1255,7 @@ class PositionOpeningValidator:
                     self.log_error('state_execution', 43, 
                                  f"Position state manager missing: {missing_methods}")
                 else:
-                    self.log_success('state_execution', 43, 
-                                   "Position state manager methods available")
+                    self.log_success('state_execution', 43, "Position state manager methods available")
                     
             except Exception as e:
                 self.log_error('state_execution', 43, f"Position state manager test failed: {str(e)}")
@@ -1327,12 +1307,8 @@ class PositionOpeningValidator:
         # Test logging system integration
         try:
             self.algo.Debug("Test debug message")
-        self.algo.Log("Test log message")
-        self.algo.Error("Test error message")
-        except Exception as e:
-
-            # Test different log levels
-            
+            self.algo.Log("Test log message")
+            self.algo.Error("Test error message")
             self.log_success('state_execution', 46, "Logging system operational")
             
         except Exception as e:
@@ -1342,10 +1318,6 @@ class PositionOpeningValidator:
         if hasattr(self.algo, 'run_complete_integration_verification'):
             try:
                 self.log_success('state_execution', 47, "Integration verification system available")
-            except Exception as e:
-
-                # Don't actually run it to avoid side effects, just check availability
-                
             except Exception as e:
                 self.log_error('state_execution', 47, f"Integration verification test failed: {str(e)}")
         else:
