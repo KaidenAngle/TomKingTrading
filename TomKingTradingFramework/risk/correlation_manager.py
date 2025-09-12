@@ -145,15 +145,14 @@ class CorrelationManager:
         return "NORMAL"
     
     def ShouldDefend(self, position_info: Dict) -> bool:
-        """Check if position needs defensive action at 21 DTE"""
+        """Check if position needs defensive action at 21 DTE - ABSOLUTE RULE"""
         days_to_expiry = position_info.get('dte', 999)
         
-        # Tom King's 21 DTE rule
+        # Tom King's 21 DTE rule - NO CONDITIONS, NO EXCEPTIONS
+        # From CRITICAL_DO_NOT_CHANGE.md: "Exit all positions at 21 DTE to avoid gamma risk"
         if days_to_expiry <= 21:
-            # Check if position is challenged
-            if position_info.get('is_challenged', False):
-                self.algo.Log(f"21 DTE defense triggered for {position_info['symbol']}")
-                return True
+            self.algo.Log(f"21 DTE absolute defense triggered for {position_info['symbol']} (DTE: {days_to_expiry})")
+            return True
         
         return False
     

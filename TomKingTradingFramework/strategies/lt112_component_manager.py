@@ -139,36 +139,31 @@ class FixedLT112Management:
         return actions
         
     def _analyze_defensive_management(self, position) -> List[Dict]:
-        """Tom King 21 DTE defensive management rule"""
+        """Tom King 21 DTE defensive management rule - ABSOLUTE EXIT"""
         actions = []
+        
+        # Tom King's 21 DTE rule: Exit ALL positions at 21 DTE - NO EXCEPTIONS
+        # From CRITICAL_DO_NOT_CHANGE.md: "Exit all positions at 21 DTE to avoid gamma risk"
+        # NO profit conditions, NO monitoring - immediate closure required
         
         total_pnl = position.calculate_total_pnl()
         
-        # Estimate initial credit received (simplified)
+        # Calculate profit percentage for logging only
+        profit_pct = 0.0
         naked_puts = position.get_components_by_type("NAKED_PUT")
-        estimated_initial_credit = 0
         if naked_puts:
             estimated_initial_credit = abs(naked_puts[0].entry_price * naked_puts[0].quantity * 100)
-            
-        if estimated_initial_credit > 0:
-            profit_pct = total_pnl / estimated_initial_credit
-            
-            if profit_pct < 0.25:  # Less than 25% profit at 21 DTE
-                actions.append({
-                    'position_id': position.position_id,
-                    'action': 'CLOSE_ENTIRE_POSITION',
-                    'reason': f'21 DTE defensive rule - insufficient profit ({profit_pct:.1%})',
-                    'priority': 'HIGH',
-                    'tom_king_rule': '21 DTE rule: close if < 25% profit'
-                })
-            else:
-                actions.append({
-                    'position_id': position.position_id,
-                    'action': 'MONITOR_CLOSELY',
-                    'reason': f'21 DTE - profitable position ({profit_pct:.1%}), monitor closely',
-                    'priority': 'MEDIUM',
-                    'tom_king_rule': '21 DTE rule: monitor profitable positions'
-                })
+            if estimated_initial_credit > 0:
+                profit_pct = total_pnl / estimated_initial_credit
+        
+        # MANDATORY CLOSURE - Tom King's absolute rule
+        actions.append({
+            'position_id': position.position_id,
+            'action': 'CLOSE_ENTIRE_POSITION',
+            'reason': f'21 DTE defensive exit - mandatory closure (PnL: {profit_pct:.1%})',
+            'priority': 'URGENT',
+            'tom_king_rule': 'ABSOLUTE: Exit all positions at 21 DTE to avoid gamma risk'
+        })
                 
         return actions
         
@@ -186,11 +181,6 @@ class FixedLT112Management:
                 
             elif action_type == 'CLOSE_ENTIRE_POSITION':
                 return self._execute_close_entire_position(position_id)
-                
-            elif action_type == 'MONITOR_CLOSELY':
-                # Just log, no action needed
-                self.algo.Log(f"[WARNING] LT112 Monitoring: {action['reason']}")
-                return True, "Monitoring position"
                 
             else:
                 return False, f"Unknown action type: {action_type}"

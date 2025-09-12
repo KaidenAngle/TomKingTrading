@@ -168,9 +168,49 @@ class EarningsAvoidanceSystem:
         
         results = []
         for test_name, condition in tests:
-            results.append(f"{'[WARNING]' if condition else '[WARNING]'} {test_name}")
+            results.append(f"{'[PASS]' if condition else '[FAIL]'} {test_name}")
         
         return results
+
+    def validate_earnings_data_health(self) -> dict:
+        """
+        ESSENTIAL ENHANCEMENT: Simple data validation without over-engineering
+        
+        Basic check that earnings calendar data is available and current
+        """
+        try:
+            validation = {
+                'status': 'HEALTHY',
+                'calendar_entries': len(self.earnings_calendar),
+                'dividend_entries': len(self.dividend_calendar),
+                'issues': []
+            }
+            
+            # Basic availability check
+            if not self.earnings_calendar:
+                validation['issues'].append("No earnings calendar data")
+                validation['status'] = 'DEGRADED'
+                
+            if not self.dividend_calendar:
+                validation['issues'].append("No dividend calendar data")
+                validation['status'] = 'DEGRADED' if validation['status'] != 'FAILED' else 'FAILED'
+            
+            # Simple freshness check (if data seems very outdated)
+            current_year = self.algorithm.Time.year
+            has_current_year = any(str(current_year) in str(dates) for dates in self.earnings_calendar.values())
+            
+            if not has_current_year:
+                validation['issues'].append(f"Earnings data may be outdated (no {current_year} entries)")
+                validation['status'] = 'DEGRADED'
+            
+            return validation
+            
+        except Exception as e:
+            return {
+                'status': 'FAILED',
+                'error': str(e),
+                'issues': [f"Data validation failed: {e}"]
+            }
 
 # Simple, practical implementation - no over-engineering
 # In production, would integrate with actual earnings/dividend APIs

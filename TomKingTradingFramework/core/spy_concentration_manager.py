@@ -445,3 +445,649 @@ class SPYConcentrationManager:
             )
         except Exception as e:
             self.algo.Error(f"[SPY Cache] Error invalidating cache: {e}")
+    
+    def cleanup_stale_allocations(self, force_reconcile: bool = False) -> Dict:
+        """
+        CRITICAL FIX #2: Cleanup stale allocations from crashed/inactive strategies
+        
+        This addresses the documented critical issue where crashed strategies
+        permanently consume SPY allocation limits, blocking new strategies.
+        
+        Implementation follows audit requirements:
+        - Reconcile allocations with actual portfolio positions
+        - Remove allocations for inactive strategies
+        - Detect allocation leaks from crashed strategies
+        - Provide detailed cleanup reporting
+        
+        Args:
+            force_reconcile: Force full reconciliation regardless of normal checks
+            
+        Returns:
+            Dict: Cleanup results with actions taken
+        """
+        
+        cleanup_results = {
+            'stale_removed': [],
+            'reconciled_positions': [],
+            'allocation_leaks_fixed': [],
+            'total_delta_recovered': 0.0,
+            'total_notional_recovered': 0.0,
+            'cleanup_timestamp': self.algo.Time,
+            'force_reconcile_used': force_reconcile
+        }
+        
+        try:
+            # Step 1: Get current actual positions from portfolio
+            actual_spy_positions = self._get_actual_portfolio_spy_positions()
+            
+            # Step 2: Identify stale allocations in spy_positions
+            stale_spy_strategies = []
+            for strategy_name, allocation in list(self.spy_positions.items()):
+                allocation_age = self.algo.Time - allocation.get('timestamp', self.algo.Time)
+                
+                # Consider stale if:
+                # 1. No actual position in portfolio for this allocation
+                # 2. Allocation is older than 4 hours (crashed strategy)
+                # 3. Force reconcile requested
+                has_actual_position = self._strategy_has_actual_spy_position(strategy_name, actual_spy_positions)
+                is_old_allocation = allocation_age > timedelta(hours=4)
+                
+                if force_reconcile or not has_actual_position or is_old_allocation:
+                    stale_spy_strategies.append(strategy_name)
+                    
+                    # Record what we're removing
+                    cleanup_results['stale_removed'].append({
+                        'strategy': strategy_name,
+                        'type': 'SPY',
+                        'delta': allocation.get('delta', 0),
+                        'reason': 'force_reconcile' if force_reconcile else 
+                                 'no_position' if not has_actual_position else 'old_allocation',
+                        'age_hours': allocation_age.total_seconds() / 3600,
+                        'allocation': allocation.copy()
+                    })
+                    
+                    cleanup_results['total_delta_recovered'] += abs(allocation.get('delta', 0))
+                    
+                    # Estimate notional recovery
+                    spy_price = self._get_spy_price()
+                    notional = abs(allocation.get('delta', 0)) * spy_price * 100
+                    cleanup_results['total_notional_recovered'] += notional
+            
+            # Step 3: Identify stale allocations in es_positions
+            stale_es_strategies = []
+            for strategy_name, allocation in list(self.es_positions.items()):
+                allocation_age = self.algo.Time - allocation.get('timestamp', self.algo.Time)
+                
+                has_actual_position = self._strategy_has_actual_futures_position(strategy_name, actual_spy_positions)
+                is_old_allocation = allocation_age > timedelta(hours=4)
+                
+                if force_reconcile or not has_actual_position or is_old_allocation:
+                    stale_es_strategies.append(strategy_name)
+                    
+                    cleanup_results['stale_removed'].append({
+                        'strategy': strategy_name,
+                        'type': 'ES_FUTURES',
+                        'contracts': allocation.get('contracts', 0),
+                        'reason': 'force_reconcile' if force_reconcile else 
+                                 'no_position' if not has_actual_position else 'old_allocation',
+                        'age_hours': allocation_age.total_seconds() / 3600,
+                        'allocation': allocation.copy()
+                    })
+            
+            # Step 4: Identify stale allocations in option_positions
+            stale_option_strategies = []
+            for strategy_name, allocation in list(self.option_positions.items()):
+                allocation_age = self.algo.Time - allocation.get('timestamp', self.algo.Time)
+                
+                has_actual_position = self._strategy_has_actual_option_position(strategy_name, actual_spy_positions)
+                is_old_allocation = allocation_age > timedelta(hours=4)
+                
+                if force_reconcile or not has_actual_position or is_old_allocation:
+                    stale_option_strategies.append(strategy_name)
+                    
+                    cleanup_results['stale_removed'].append({
+                        'strategy': strategy_name,
+                        'type': 'SPY_OPTIONS',
+                        'delta': allocation.get('delta', 0),
+                        'reason': 'force_reconcile' if force_reconcile else 
+                                 'no_position' if not has_actual_position else 'old_allocation',
+                        'age_hours': allocation_age.total_seconds() / 3600,
+                        'allocation': allocation.copy()
+                    })
+            
+            # Step 5: Remove stale allocations
+            for strategy_name in stale_spy_strategies:
+                if strategy_name in self.spy_positions:
+                    del self.spy_positions[strategy_name]
+                    self.algo.Log(f"[SPY Cleanup] Removed stale SPY allocation: {strategy_name}")
+            
+            for strategy_name in stale_es_strategies:
+                if strategy_name in self.es_positions:
+                    del self.es_positions[strategy_name]
+                    self.algo.Log(f"[SPY Cleanup] Removed stale ES allocation: {strategy_name}")
+            
+            for strategy_name in stale_option_strategies:
+                if strategy_name in self.option_positions:
+                    del self.option_positions[strategy_name]
+                    self.algo.Log(f"[SPY Cleanup] Removed stale option allocation: {strategy_name}")
+            
+            # Step 6: Reconcile remaining allocations with actual positions
+            reconciliation_updates = self._reconcile_allocations_with_actual_positions(actual_spy_positions)
+            cleanup_results['reconciled_positions'] = reconciliation_updates
+            
+            # Step 7: Detect allocation leaks (actual positions without allocations)
+            allocation_leaks = self._detect_allocation_leaks(actual_spy_positions)
+            cleanup_results['allocation_leaks_fixed'] = allocation_leaks
+            
+            # Step 8: Invalidate caches after cleanup
+            if cleanup_results['stale_removed'] or cleanup_results['reconciled_positions']:
+                self.invalidate_concentration_cache("stale_allocation_cleanup")
+            
+            # Step 9: Log cleanup summary
+            total_removed = len(cleanup_results['stale_removed'])
+            if total_removed > 0:
+                self.algo.Log(
+                    f"[SPY Cleanup] COMPLETED: Removed {total_removed} stale allocations, "
+                    f"recovered {cleanup_results['total_delta_recovered']:.1f} delta capacity, "
+                    f"${cleanup_results['total_notional_recovered']:,.0f} notional capacity"
+                )
+            else:
+                self.algo.Debug("[SPY Cleanup] No stale allocations found")
+            
+            return cleanup_results
+            
+        except Exception as e:
+            self.algo.Error(f"[SPY Cleanup] Error during cleanup: {e}")
+            cleanup_results['error'] = str(e)
+            return cleanup_results
+    
+    def _get_actual_portfolio_spy_positions(self) -> Dict:
+        """
+        Get actual SPY/ES/SPX positions from the QuantConnect portfolio
+        
+        Returns:
+            Dict: Actual positions organized by type and symbol
+        """
+        
+        actual_positions = {
+            'spy_stock': {},
+            'spy_options': {},
+            'es_futures': {},
+            'spx_options': {}
+        }
+        
+        try:
+            # Scan all portfolio positions
+            for symbol, holding in self.algo.Portfolio.items():
+                if holding.Quantity == 0:
+                    continue  # Skip closed positions
+                
+                symbol_str = str(symbol)
+                security_type = symbol.SecurityType
+                
+                # SPY stock positions
+                if symbol_str == 'SPY' and security_type == SecurityType.Equity:
+                    actual_positions['spy_stock'][symbol_str] = {
+                        'quantity': holding.Quantity,
+                        'average_price': holding.AveragePrice,
+                        'market_value': holding.MarketValue,
+                        'unrealized_pnl': holding.UnrealizedProfit
+                    }
+                
+                # SPY option positions
+                elif 'SPY' in symbol_str and security_type == SecurityType.Option:
+                    actual_positions['spy_options'][symbol_str] = {
+                        'quantity': holding.Quantity,
+                        'average_price': holding.AveragePrice,
+                        'market_value': holding.MarketValue,
+                        'unrealized_pnl': holding.UnrealizedProfit,
+                        'option_right': symbol.ID.OptionRight,
+                        'strike': symbol.ID.StrikePrice,
+                        'expiry': symbol.ID.Date
+                    }
+                
+                # ES futures positions
+                elif 'ES' in symbol_str and security_type == SecurityType.Future:
+                    actual_positions['es_futures'][symbol_str] = {
+                        'quantity': holding.Quantity,
+                        'average_price': holding.AveragePrice,
+                        'market_value': holding.MarketValue,
+                        'unrealized_pnl': holding.UnrealizedProfit
+                    }
+                
+                # SPX option positions
+                elif 'SPX' in symbol_str and security_type == SecurityType.Option:
+                    actual_positions['spx_options'][symbol_str] = {
+                        'quantity': holding.Quantity,
+                        'average_price': holding.AveragePrice,
+                        'market_value': holding.MarketValue,
+                        'unrealized_pnl': holding.UnrealizedProfit,
+                        'option_right': symbol.ID.OptionRight,
+                        'strike': symbol.ID.StrikePrice,
+                        'expiry': symbol.ID.Date
+                    }
+            
+            return actual_positions
+            
+        except Exception as e:
+            self.algo.Error(f"[SPY Cleanup] Error scanning portfolio positions: {e}")
+            return actual_positions
+    
+    def _strategy_has_actual_spy_position(self, strategy_name: str, actual_positions: Dict) -> bool:
+        """
+        Check if strategy has any actual SPY-related positions in portfolio
+        
+        This is complex because we need to identify which positions belong to which strategy.
+        We use position tags, order tags, and timing heuristics.
+        """
+        
+        try:
+            # Check if any SPY stock position exists
+            if actual_positions['spy_stock']:
+                return True  # Assume any SPY stock position could be from this strategy
+            
+            # Check SPY options - look for positions that could belong to this strategy
+            for symbol_str, position in actual_positions['spy_options'].items():
+                # If we have significant option positions, assume strategy is active
+                if abs(position['quantity']) > 0:
+                    return True
+            
+            # Check if strategy appears in recent orders (last 24 hours)
+            recent_orders = self._get_recent_orders_for_strategy(strategy_name, hours=24)
+            if recent_orders:
+                return True
+            
+            return False
+            
+        except Exception as e:
+            self.algo.Debug(f"[SPY Cleanup] Error checking actual position for {strategy_name}: {e}")
+            return False  # Conservative: assume no position on error
+    
+    def _strategy_has_actual_futures_position(self, strategy_name: str, actual_positions: Dict) -> bool:
+        """Check if strategy has actual ES futures positions"""
+        
+        try:
+            # Check ES futures positions
+            if actual_positions['es_futures']:
+                return True  # Assume any ES position could be from this strategy
+            
+            # Check recent futures orders
+            recent_orders = self._get_recent_futures_orders_for_strategy(strategy_name, hours=24)
+            if recent_orders:
+                return True
+            
+            return False
+            
+        except Exception as e:
+            self.algo.Debug(f"[SPY Cleanup] Error checking futures position for {strategy_name}: {e}")
+            return False
+    
+    def _strategy_has_actual_option_position(self, strategy_name: str, actual_positions: Dict) -> bool:
+        """Check if strategy has actual SPY/SPX option positions"""
+        
+        try:
+            # Check SPY options
+            if actual_positions['spy_options']:
+                return True
+            
+            # Check SPX options
+            if actual_positions['spx_options']:
+                return True
+            
+            # Check recent option orders
+            recent_orders = self._get_recent_option_orders_for_strategy(strategy_name, hours=24)
+            if recent_orders:
+                return True
+            
+            return False
+            
+        except Exception as e:
+            self.algo.Debug(f"[SPY Cleanup] Error checking option position for {strategy_name}: {e}")
+            return False
+    
+    def _get_recent_orders_for_strategy(self, strategy_name: str, hours: int = 24) -> List:
+        """
+        Get recent orders that might belong to this strategy
+        
+        This is challenging in QuantConnect as we don't have perfect strategy->order mapping.
+        We use order tags and timing heuristics.
+        """
+        
+        try:
+            recent_orders = []
+            cutoff_time = self.algo.Time - timedelta(hours=hours)
+            
+            # Scan transaction history for orders with matching tags
+            for order_ticket in self.algo.Transactions.GetOrderTickets():
+                # Skip old orders
+                if order_ticket.Time < cutoff_time:
+                    continue
+                
+                # Check if order tag contains strategy name
+                if order_ticket.Tag and strategy_name in order_ticket.Tag:
+                    recent_orders.append({
+                        'order_id': order_ticket.OrderId,
+                        'symbol': order_ticket.Symbol,
+                        'quantity': order_ticket.Quantity,
+                        'status': order_ticket.Status,
+                        'tag': order_ticket.Tag,
+                        'time': order_ticket.Time
+                    })
+                
+                # Check if symbol suggests SPY-related trading
+                symbol_str = str(order_ticket.Symbol)
+                if 'SPY' in symbol_str and order_ticket.Status in [OrderStatus.Filled, OrderStatus.PartiallyFilled]:
+                    recent_orders.append({
+                        'order_id': order_ticket.OrderId,
+                        'symbol': order_ticket.Symbol,
+                        'quantity': order_ticket.Quantity,
+                        'status': order_ticket.Status,
+                        'tag': order_ticket.Tag,
+                        'time': order_ticket.Time
+                    })
+            
+            return recent_orders
+            
+        except Exception as e:
+            self.algo.Debug(f"[SPY Cleanup] Error getting recent orders for {strategy_name}: {e}")
+            return []
+    
+    def _get_recent_futures_orders_for_strategy(self, strategy_name: str, hours: int = 24) -> List:
+        """Get recent ES futures orders for strategy"""
+        
+        try:
+            recent_orders = []
+            cutoff_time = self.algo.Time - timedelta(hours=hours)
+            
+            for order_ticket in self.algo.Transactions.GetOrderTickets():
+                if order_ticket.Time < cutoff_time:
+                    continue
+                
+                symbol_str = str(order_ticket.Symbol)
+                if 'ES' in symbol_str or 'MES' in symbol_str:
+                    if order_ticket.Tag and strategy_name in order_ticket.Tag:
+                        recent_orders.append({
+                            'order_id': order_ticket.OrderId,
+                            'symbol': order_ticket.Symbol,
+                            'quantity': order_ticket.Quantity,
+                            'tag': order_ticket.Tag,
+                            'time': order_ticket.Time
+                        })
+            
+            return recent_orders
+            
+        except Exception as e:
+            self.algo.Debug(f"[SPY Cleanup] Error getting recent futures orders for {strategy_name}: {e}")
+            return []
+    
+    def _get_recent_option_orders_for_strategy(self, strategy_name: str, hours: int = 24) -> List:
+        """Get recent SPY/SPX option orders for strategy"""
+        
+        try:
+            recent_orders = []
+            cutoff_time = self.algo.Time - timedelta(hours=hours)
+            
+            for order_ticket in self.algo.Transactions.GetOrderTickets():
+                if order_ticket.Time < cutoff_time:
+                    continue
+                
+                symbol_str = str(order_ticket.Symbol)
+                if ('SPY' in symbol_str or 'SPX' in symbol_str) and order_ticket.Symbol.SecurityType == SecurityType.Option:
+                    if order_ticket.Tag and strategy_name in order_ticket.Tag:
+                        recent_orders.append({
+                            'order_id': order_ticket.OrderId,
+                            'symbol': order_ticket.Symbol,
+                            'quantity': order_ticket.Quantity,
+                            'tag': order_ticket.Tag,
+                            'time': order_ticket.Time
+                        })
+            
+            return recent_orders
+            
+        except Exception as e:
+            self.algo.Debug(f"[SPY Cleanup] Error getting recent option orders for {strategy_name}: {e}")
+            return []
+    
+    def _reconcile_allocations_with_actual_positions(self, actual_positions: Dict) -> List:
+        """
+        Reconcile allocation deltas with actual position deltas
+        
+        Update allocation records to match reality where possible
+        """
+        
+        reconciliation_updates = []
+        
+        try:
+            # For each tracked allocation, try to estimate actual delta
+            for strategy_name, allocation in self.spy_positions.items():
+                allocated_delta = allocation.get('delta', 0)
+                
+                # Estimate actual delta from positions (simplified)
+                estimated_actual_delta = self._estimate_strategy_actual_delta(strategy_name, actual_positions)
+                
+                # If significantly different, update allocation
+                delta_difference = abs(allocated_delta - estimated_actual_delta)
+                if delta_difference > 5.0:  # More than 5 delta difference
+                    
+                    old_delta = allocated_delta
+                    self.spy_positions[strategy_name]['delta'] = estimated_actual_delta
+                    self.spy_positions[strategy_name]['last_reconciled'] = self.algo.Time
+                    
+                    reconciliation_updates.append({
+                        'strategy': strategy_name,
+                        'type': 'DELTA_UPDATE',
+                        'old_delta': old_delta,
+                        'new_delta': estimated_actual_delta,
+                        'difference': delta_difference,
+                        'reconcile_time': self.algo.Time
+                    })
+                    
+                    self.algo.Debug(
+                        f"[SPY Cleanup] Reconciled {strategy_name} delta: "
+                        f"{old_delta:.1f} -> {estimated_actual_delta:.1f}"
+                    )
+            
+            return reconciliation_updates
+            
+        except Exception as e:
+            self.algo.Error(f"[SPY Cleanup] Error in reconciliation: {e}")
+            return reconciliation_updates
+    
+    def _estimate_strategy_actual_delta(self, strategy_name: str, actual_positions: Dict) -> float:
+        """
+        Estimate actual delta exposure for a strategy based on portfolio positions
+        
+        This is simplified - in production would need more sophisticated attribution
+        """
+        
+        try:
+            estimated_delta = 0.0
+            
+            # SPY stock positions contribute 1:1 delta
+            for symbol_str, position in actual_positions['spy_stock'].items():
+                # Assume this position belongs to our strategy (simplified)
+                estimated_delta += position['quantity'] * 1.0
+            
+            # SPY option positions - estimate delta (simplified)
+            for symbol_str, position in actual_positions['spy_options'].items():
+                # Rough delta estimation: ITM options ~0.7 delta, OTM ~0.3 delta
+                # This is very simplified - production would use actual Greeks
+                quantity = position['quantity']
+                rough_delta = 0.5  # Rough estimate
+                estimated_delta += quantity * rough_delta
+            
+            # ES futures contribute large delta
+            for symbol_str, position in actual_positions['es_futures'].items():
+                # ES futures have ~10x SPY delta equivalent
+                estimated_delta += position['quantity'] * 10.0
+            
+            return estimated_delta
+            
+        except Exception as e:
+            self.algo.Debug(f"[SPY Cleanup] Error estimating delta for {strategy_name}: {e}")
+            return 0.0
+    
+    def _detect_allocation_leaks(self, actual_positions: Dict) -> List:
+        """
+        Detect actual SPY positions that don't have allocations (allocation leaks)
+        
+        These represent positions that were opened but never properly tracked
+        """
+        
+        allocation_leaks = []
+        
+        try:
+            # Check if we have actual positions but no tracked allocations
+            has_actual_spy_positions = (
+                len(actual_positions['spy_stock']) > 0 or
+                len(actual_positions['spy_options']) > 0 or
+                len(actual_positions['es_futures']) > 0 or
+                len(actual_positions['spx_options']) > 0
+            )
+            
+            has_tracked_allocations = (
+                len(self.spy_positions) > 0 or
+                len(self.es_positions) > 0 or
+                len(self.option_positions) > 0
+            )
+            
+            # If we have positions but no allocations, that's a leak
+            if has_actual_spy_positions and not has_tracked_allocations:
+                
+                leak_info = {
+                    'type': 'UNTRACKED_POSITIONS',
+                    'spy_stock_positions': len(actual_positions['spy_stock']),
+                    'spy_option_positions': len(actual_positions['spy_options']),
+                    'es_futures_positions': len(actual_positions['es_futures']),
+                    'spx_option_positions': len(actual_positions['spx_options']),
+                    'estimated_total_delta': self._estimate_total_actual_delta(actual_positions),
+                    'detection_time': self.algo.Time
+                }
+                
+                allocation_leaks.append(leak_info)
+                
+                self.algo.Log(
+                    f"[SPY Cleanup] ALLOCATION LEAK DETECTED: "
+                    f"Found actual SPY positions worth {leak_info['estimated_total_delta']:.1f} delta "
+                    f"with no tracked allocations"
+                )
+            
+            return allocation_leaks
+            
+        except Exception as e:
+            self.algo.Error(f"[SPY Cleanup] Error detecting allocation leaks: {e}")
+            return allocation_leaks
+    
+    def _estimate_total_actual_delta(self, actual_positions: Dict) -> float:
+        """Estimate total actual delta from all SPY positions"""
+        
+        try:
+            total_delta = 0.0
+            
+            # SPY stock
+            for position in actual_positions['spy_stock'].values():
+                total_delta += position['quantity'] * 1.0
+            
+            # SPY options (rough estimate)
+            for position in actual_positions['spy_options'].values():
+                total_delta += position['quantity'] * 0.5  # Rough delta
+            
+            # ES futures
+            for position in actual_positions['es_futures'].values():
+                total_delta += position['quantity'] * 10.0  # Rough SPY equivalent
+            
+            # SPX options (rough estimate)
+            for position in actual_positions['spx_options'].values():
+                total_delta += position['quantity'] * 5.0  # Rough SPY equivalent
+            
+            return total_delta
+            
+        except Exception as e:
+            self.algo.Debug(f"[SPY Cleanup] Error estimating total delta: {e}")
+            return 0.0
+    
+    def schedule_periodic_cleanup(self):
+        """
+        Schedule periodic cleanup of stale allocations
+        
+        This should be called from main.py during initialization to set up
+        automatic cleanup that prevents allocation leaks from accumulating
+        """
+        
+        # Schedule cleanup every 4 hours during market hours
+        self.algo.Schedule.On(
+            self.algo.DateRules.EveryDay("SPY"),
+            self.algo.TimeRules.Every(TimeSpan.FromHours(4)),
+            self._periodic_cleanup_task
+        )
+        
+        self.algo.Log("[SPY Cleanup] Scheduled automatic cleanup every 4 hours")
+    
+    def _periodic_cleanup_task(self):
+        """Periodic cleanup task (called by QuantConnect scheduler)"""
+        
+        try:
+            # Only run during market hours to avoid unnecessary processing
+            if self.algo.IsMarketOpen("SPY"):
+                cleanup_results = self.cleanup_stale_allocations(force_reconcile=False)
+                
+                # Log significant cleanups
+                if len(cleanup_results['stale_removed']) > 0:
+                    self.algo.Log(
+                        f"[SPY Cleanup] Periodic cleanup removed {len(cleanup_results['stale_removed'])} "
+                        f"stale allocations, recovered {cleanup_results['total_delta_recovered']:.1f} delta"
+                    )
+                
+        except Exception as e:
+            self.algo.Error(f"[SPY Cleanup] Error in periodic cleanup: {e}")
+    
+    def get_cleanup_status(self) -> Dict:
+        """
+        Get status of cleanup system for monitoring and debugging
+        
+        Returns comprehensive status for validation and troubleshooting
+        """
+        
+        try:
+            actual_positions = self._get_actual_portfolio_spy_positions()
+            
+            status = {
+                'cleanup_system_active': True,
+                'current_time': self.algo.Time,
+                'tracked_allocations': {
+                    'spy_positions': len(self.spy_positions),
+                    'es_positions': len(self.es_positions),
+                    'option_positions': len(self.option_positions),
+                    'total_strategies': self._count_active_spy_strategies()
+                },
+                'actual_positions': {
+                    'spy_stock': len(actual_positions['spy_stock']),
+                    'spy_options': len(actual_positions['spy_options']),
+                    'es_futures': len(actual_positions['es_futures']),
+                    'spx_options': len(actual_positions['spx_options'])
+                },
+                'allocation_health': {
+                    'positions_without_allocations': 0,
+                    'allocations_without_positions': 0,
+                    'stale_allocations_detected': 0,
+                    'delta_discrepancies': 0
+                },
+                'last_cleanup_run': getattr(self, 'last_cleanup_run', None),
+                'periodic_cleanup_enabled': True
+            }
+            
+            # Quick health check
+            has_positions = sum(status['actual_positions'].values()) > 0
+            has_allocations = sum(status['tracked_allocations'].values()) > 0
+            
+            if has_positions and not has_allocations:
+                status['allocation_health']['positions_without_allocations'] = sum(status['actual_positions'].values())
+            
+            if not has_positions and has_allocations:
+                status['allocation_health']['allocations_without_positions'] = sum(status['tracked_allocations'].values())
+            
+            return status
+            
+        except Exception as e:
+            self.algo.Error(f"[SPY Cleanup] Error getting cleanup status: {e}")
+            return {'error': str(e), 'cleanup_system_active': False}

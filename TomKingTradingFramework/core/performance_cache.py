@@ -468,3 +468,11 @@ class MarketDataCache(HighPerformanceCache[T]):
             self.algo.Debug(f"[MarketDataCache] Price check error: {e}")
         
         return False
+
+
+# CORRECTED APPROACH: Enhanced cache integration without duplication
+# The existing cache system already has comprehensive invalidation hooks,
+# TTL management, and position/price-change invalidation. No additional
+# cache freshness management is needed.
+
+

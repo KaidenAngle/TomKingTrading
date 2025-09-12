@@ -42,6 +42,9 @@ class OptionChainManager:
         self.cache_stats_log_interval = timedelta(minutes=60)  # Log hourly
         self.last_cache_stats_log = algorithm.Time
         
+        # CORRECTED: Integrate with existing OptionChainCache system instead of duplicating
+        self.integrate_with_existing_cache_system()
+        
     def add_option_subscription(self, symbol_str):
         """Add option subscription for a symbol with proper configuration"""
         try:
@@ -382,3 +385,75 @@ class OptionChainManager:
                 validation_results.append(f"[Option Chain] {symbol_str}: No option data available")
         
         return validation_results
+    
+    def integrate_with_existing_cache_system(self):
+        """
+        CORRECTED APPROACH: Integration with existing OptionChainCache system
+        
+        Instead of duplicating functionality, integrate with the existing
+        high-performance option chain caching system in optimization/option_chain_cache.py
+        """
+        try:
+            from optimization.option_chain_cache import OptionChainCache
+            
+            # Initialize integration with existing cache system
+            self.external_chain_cache = OptionChainCache(
+                self.algo,
+                cache_ttl_minutes=5,  # Match existing system TTL
+                max_cache_size=200    # Match existing system size
+            )
+            
+            self.algo.Debug("[Option Chain Manager] Successfully integrated with existing OptionChainCache system")
+            
+        except ImportError as e:
+            self.algo.Error(f"[Option Chain Manager] Could not integrate with existing cache system: {e}")
+            # Fallback to current caching system
+        except Exception as e:
+            self.algo.Error(f"[Option Chain Manager] Cache integration error: {e}")
+    
+    def validate_chain_quality(self, symbol_str: str) -> dict:
+        """
+        STREAMLINED: Essential option chain quality validation without redundancy
+        
+        Validates core quality metrics needed for position opening decisions:
+        - Chain availability and basic completeness
+        - Integration with existing cache performance metrics
+        """
+        try:
+            # Get chain using existing cache system if available
+            if hasattr(self, 'external_chain_cache'):
+                chain = self.external_chain_cache.get_option_chain(
+                    symbol_str,
+                    min_expiry=0, 
+                    max_expiry=60
+                )
+            else:
+                chain = self.get_option_chain(symbol_str)
+            
+            validation_result = {
+                'symbol': symbol_str,
+                'timestamp': self.algo.Time,
+                'has_chain_data': len(chain) > 0 if chain else False,
+                'contract_count': len(chain) if chain else 0,
+                'is_adequate': False
+            }
+            
+            if chain and len(chain) >= 10:  # Minimum viable chain
+                validation_result['is_adequate'] = True
+                
+            # Log essential metrics only
+            status = "ADEQUATE" if validation_result['is_adequate'] else "INSUFFICIENT"
+            self.algo.Debug(f"[Chain Quality] {symbol_str}: {status} ({validation_result['contract_count']} contracts)")
+            
+            return validation_result
+            
+        except Exception as e:
+            self.algo.Error(f"[Chain Quality] Error validating {symbol_str}: {e}")
+            return {
+                'symbol': symbol_str,
+                'timestamp': self.algo.Time,
+                'has_chain_data': False,
+                'contract_count': 0,
+                'is_adequate': False,
+                'error': str(e)
+            }

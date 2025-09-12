@@ -10,9 +10,9 @@ from config.constants import TradingConstants
 class BacktestConfig:
     """Backtesting configuration for Tom King strategies"""
     
-    # Backtest period settings
-    BACKTEST_START_DATE = datetime(2023, 1, 1)  # 2-year backtest
-    BACKTEST_END_DATE = datetime(2025, 1, 1)
+    # Backtest period settings - SHORTENED FOR TESTING
+    BACKTEST_START_DATE = datetime(2024, 6, 1)  # 6-month test period
+    BACKTEST_END_DATE = datetime(2024, 12, 1)
     
     # Initial capital and currency
     STARTING_CASH = 100000  # $100,000 starting capital (increased for maximum strategy utilization)

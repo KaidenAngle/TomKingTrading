@@ -415,3 +415,149 @@ class StrategyCoordinator:
             
         except Exception as e:
             self.algo.Error(f"[Coordinator] Error recording execution for {strategy_name}: {e}")
+    
+    def execute_strategies(self, data, context: Dict):
+        """
+        CRITICAL MISSING METHOD: Execute all registered strategies in priority order
+        
+        This method was being called from main.py but didn't exist, causing all
+        strategy execution to fail silently. This is the PRIMARY cause of no
+        position opening across ALL strategies.
+        
+        Args:
+            data: Market data from OnData
+            context: Context dict with VIX, regime, time, etc.
+        """
+        
+        self.algo.Debug(f"[COORDINATOR] === EXECUTING STRATEGIES ===")
+        self.algo.Debug(f"[COORDINATOR] Context: VIX={context.get('vix', 'N/A')}, Regime={context.get('regime', 'N/A')}, Time={context.get('time', 'N/A')}")
+        
+        # Get execution order by priority
+        execution_order = self.get_execution_order()
+        
+        if not execution_order:
+            self.algo.Debug("[COORDINATOR] No strategies ready for execution")
+            return
+            
+        self.algo.Debug(f"[COORDINATOR] Executing {len(execution_order)} strategies in order: {execution_order}")
+        
+        executed_count = 0
+        
+        for strategy_name in execution_order:
+            try:
+                self.algo.Debug(f"[COORDINATOR] === EXECUTING {strategy_name} ===")
+                
+                # Check if strategy should be throttled
+                if self.should_throttle_strategy(strategy_name):
+                    self.algo.Debug(f"[COORDINATOR] {strategy_name} throttled - too soon since last execution")
+                    continue
+                
+                # Get strategy instance from main algorithm
+                if not hasattr(self.algo, 'strategies') or strategy_name not in self.algo.strategies:
+                    self.algo.Error(f"[COORDINATOR] Strategy {strategy_name} not found in algo.strategies")
+                    continue
+                
+                strategy_instance = self.algo.strategies[strategy_name]
+                
+                # Check if strategy has execute method
+                if not hasattr(strategy_instance, 'execute'):
+                    self.algo.Error(f"[COORDINATOR] Strategy {strategy_name} missing execute() method")
+                    continue
+                
+                # Set strategy as active
+                if strategy_name not in self.active_strategies:
+                    self.active_strategies.add(strategy_name)
+                    
+                self.registered_strategies[strategy_name]['status'] = 'EXECUTING'
+                
+                # Execute strategy with error handling
+                self.algo.Debug(f"[COORDINATOR] Calling {strategy_name}.execute()")
+                strategy_instance.execute()
+                
+                # Record successful execution
+                self.record_execution(strategy_name)
+                executed_count += 1
+                
+                self.algo.Debug(f"[COORDINATOR] {strategy_name} executed successfully")
+                
+            except Exception as e:
+                self.algo.Error(f"[COORDINATOR] EXECUTION ERROR in {strategy_name}: {e}")
+                
+                # Record failed execution
+                self.execution_history.append({
+                    'timestamp': self.algo.Time,
+                    'strategy': strategy_name,
+                    'error': str(e),
+                    'success': False
+                })
+                
+                # Remove from active strategies
+                if strategy_name in self.active_strategies:
+                    self.active_strategies.remove(strategy_name)
+                    
+                # Set strategy status to error
+                if strategy_name in self.registered_strategies:
+                    self.registered_strategies[strategy_name]['status'] = 'ERROR'
+                    
+            finally:
+                # Clean up active status
+                if strategy_name in self.active_strategies:
+                    self.active_strategies.remove(strategy_name)
+                    
+                # Reset status to idle if not in error
+                if (strategy_name in self.registered_strategies and 
+                    self.registered_strategies[strategy_name]['status'] != 'ERROR'):
+                    self.registered_strategies[strategy_name]['status'] = 'IDLE'
+        
+        self.algo.Debug(f"[COORDINATOR] === EXECUTION COMPLETE: {executed_count}/{len(execution_order)} strategies executed ===")
+        
+        # Log status if no strategies executed
+        if executed_count == 0:
+            self.algo.Error("[COORDINATOR] *** CRITICAL: NO STRATEGIES EXECUTED! ***")
+            self.log_detailed_status()
+    
+    def log_detailed_status(self):
+        """Log detailed status for debugging position opening failures"""
+        
+        self.algo.Error("=" * 80)
+        self.algo.Error("DETAILED COORDINATOR STATUS FOR DEBUGGING")
+        self.algo.Error("=" * 80)
+        
+        # Registered strategies
+        self.algo.Error(f"Registered Strategies ({len(self.registered_strategies)}):")
+        for name, info in self.registered_strategies.items():
+            window_status = "IN WINDOW" if self.is_in_execution_window(name) else "OUTSIDE WINDOW"
+            self.algo.Error(f"  {name}: Status={info['status']}, Priority={info['priority'].name}, "
+                          f"Executions={info['executions']}, Last={info['last_execution']}, {window_status}")
+        
+        # Active and blocked strategies
+        self.algo.Error(f"Active Strategies: {list(self.active_strategies)}")
+        self.algo.Error(f"Blocked Strategies: {list(self.blocked_strategies)}")
+        
+        # Resource locks
+        self.algo.Error("Resource Locks:")
+        for resource, lock in self.resource_locks.items():
+            if lock:
+                age = (self.algo.Time - lock['acquired_at']).total_seconds()
+                self.algo.Error(f"  {resource}: LOCKED by {lock['strategy']} ({age:.1f}s)")
+            else:
+                self.algo.Error(f"  {resource}: FREE")
+        
+        # Recent execution history
+        if self.execution_history:
+            recent_executions = self.execution_history[-5:]
+            self.algo.Error("Recent Execution History:")
+            for exec_info in recent_executions:
+                status = "SUCCESS" if exec_info.get('success', False) else f"FAILED: {exec_info.get('error', 'Unknown')}"
+                self.algo.Error(f"  {exec_info['timestamp']}: {exec_info['strategy']} - {status}")
+        else:
+            self.algo.Error("No execution history found!")
+        
+        # Conflict log
+        if self.conflict_log:
+            recent_conflicts = self.conflict_log[-3:]
+            self.algo.Error("Recent Conflicts:")
+            for conflict in recent_conflicts:
+                self.algo.Error(f"  {conflict['timestamp']}: {conflict['strategy']} blocked by {conflict['blocked_by']}")
+        
+        self.algo.Error("=" * 80)

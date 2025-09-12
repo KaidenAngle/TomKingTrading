@@ -116,6 +116,84 @@ class UnifiedVIXManager:
         else:
             return "HISTORIC"
     
+    def get_market_regime(self) -> str:
+        """
+        Get comprehensive market regime assessment combining VIX analysis with market dynamics.
+        
+        This method provides broader market regime classification beyond VIX-only analysis,
+        incorporating market behavior patterns and trading environment assessment.
+        
+        Returns:
+            str: Market regime classification ("NORMAL", "TRANSITIONAL", "STRESSED", "CRISIS")
+        
+        Called from:
+            - main.py:682 in OnData loop for strategy execution context
+            - Position sizing decisions requiring market context
+            - Risk management regime-specific adjustments
+        """
+        
+        vix = self.get_current_vix()
+        vix_regime = self.get_vix_regime()
+        
+        # Get current market time for regime context
+        current_time = self.algo.Time
+        
+        # Base regime assessment on VIX levels with market dynamics overlay
+        if vix_regime in ["LOW", "NORMAL"]:
+            # Check for hidden stress indicators during "normal" VIX periods
+            if vix > 18 and current_time.hour in [9, 15]:  # Market open/close volatility
+                return "TRANSITIONAL"  # Elevated intraday volatility despite normal VIX
+            elif vix <= 16:
+                return "NORMAL"  # True low volatility environment
+            else:
+                return "NORMAL"  # Standard trading environment
+                
+        elif vix_regime == "ELEVATED":
+            # VIX 20-25: Transition period requiring careful assessment
+            portfolio_value = self.algo.Portfolio.TotalPortfolioValue
+            
+            # Check for rapid VIX increases (stress building)
+            if hasattr(self, '_previous_vix') and self._previous_vix:
+                vix_change = vix - self._previous_vix
+                if vix_change > 2.0:  # VIX increased by more than 2 points
+                    return "STRESSED"  # Rapid volatility expansion
+            
+            # Check margin utilization as stress indicator
+            margin_used = self.algo.Portfolio.TotalMarginUsed
+            if portfolio_value > 0:
+                margin_ratio = margin_used / portfolio_value
+                if margin_ratio > 0.6:  # High margin usage during elevated VIX
+                    return "STRESSED"
+            
+            return "TRANSITIONAL"  # Elevated but manageable
+            
+        elif vix_regime == "HIGH":
+            # VIX 25-30: Stressed market conditions
+            
+            # Check for extreme intraday moves indicating crisis potential
+            if current_time.hour >= 14 and vix > 28:  # Late day high VIX
+                return "CRISIS"  # Afternoon volatility spike often precedes crisis
+                
+            # High VIX during options expiration (additional complexity)
+            if current_time.weekday() == 4:  # Friday
+                return "STRESSED"  # Friday high VIX requires caution but not crisis level
+                
+            return "STRESSED"  # General high volatility environment
+            
+        elif vix_regime in ["EXTREME", "CRISIS"]:
+            # VIX 30+: Crisis conditions requiring defensive positioning
+            
+            # Differentiate between extreme volatility and true crisis
+            if vix >= 40:
+                return "CRISIS"  # True crisis conditions (2020, 2008 levels)
+            elif vix >= 35:
+                return "CRISIS"  # Extreme stress approaching crisis
+            else:
+                return "STRESSED"  # Very high volatility but not crisis
+                
+        else:  # HISTORIC levels (VIX > 50)
+            return "CRISIS"  # Any VIX above 50 is crisis territory
+    
     def get_vix_details(self) -> Dict:
         """Get comprehensive VIX status"""
         

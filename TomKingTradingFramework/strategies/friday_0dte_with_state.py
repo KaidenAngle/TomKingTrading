@@ -207,29 +207,83 @@ class Friday0DTEWithState(BaseStrategyWithState):
             spy = self.algo.spy
             current_time = self.algo.Time.time()
             
-            # CRITICAL FIX: Capture market open price in a wider window (9:30-9:35)
-            # and allow analysis to continue after capture
+            # CRITICAL FIX #3: Enhanced market open price capture with robust timing windows
+            # and comprehensive fallback mechanisms per audit documentation
             if not self.market_open_price:
-                # Capture market open price in first 5 minutes of trading
-                if current_time.hour == 9 and current_time.minute >= 30 and current_time.minute <= 35:
-                    self.market_open_price = self.algo.Securities[spy].Price
-                    self.algo.Error(f"[0DTE] MARKET OPEN CAPTURED: ${self.market_open_price:.2f} at {current_time}")
-                    # Don't return False immediately - allow analysis to continue
+                current_spy_price = self.algo.Securities[spy].Price
                 
-                # If we're past 9:35 and still don't have open price, use current price as fallback
-                elif current_time.hour >= 10 or (current_time.hour == 9 and current_time.minute > 35):
-                    self.market_open_price = self.algo.Securities[spy].Price
-                    self.algo.Error(f"[0DTE] MARKET OPEN FALLBACK: Using current price ${self.market_open_price:.2f} at {current_time}")
+                # Primary capture window: 9:30-9:40 AM (extended from 9:35 for robustness)
+                if current_time.hour == 9 and current_time.minute >= 30 and current_time.minute <= 40:
+                    # Price validation: ensure we have a reasonable SPY price
+                    if current_spy_price > 0 and 300 <= current_spy_price <= 700:  # Reasonable SPY range
+                        self.market_open_price = current_spy_price
+                        self.market_open_capture_time = current_time
+                        self.market_open_method = "PRIMARY_WINDOW"
+                        self.algo.Error(f"[0DTE] MARKET OPEN CAPTURED: ${self.market_open_price:.2f} at {current_time} (Primary)")
+                    else:
+                        self.algo.Error(f"[0DTE] MARKET OPEN PRICE INVALID: ${current_spy_price:.2f} at {current_time}, waiting...")
+                        return False
                 
-                # If still before market open window, wait
-                else:
-                    self.algo.Error(f"[0DTE] MARKET OPEN WAITING: Current time {current_time}, waiting for 9:30-9:35 window")
+                # Extended fallback window: 9:40-10:00 AM (additional safety margin)
+                elif current_time.hour == 9 and current_time.minute > 40 and current_time.minute <= 59:
+                    if current_spy_price > 0 and 300 <= current_spy_price <= 700:
+                        self.market_open_price = current_spy_price
+                        self.market_open_capture_time = current_time
+                        self.market_open_method = "EXTENDED_FALLBACK"
+                        self.algo.Error(f"[0DTE] MARKET OPEN FALLBACK: Using price ${self.market_open_price:.2f} at {current_time} (Extended)")
+                    else:
+                        self.algo.Error(f"[0DTE] FALLBACK PRICE INVALID: ${current_spy_price:.2f}, using historical estimate")
+                        # Use historical SPY average as last resort
+                        self.market_open_price = 450.0  # Conservative SPY estimate
+                        self.market_open_capture_time = current_time
+                        self.market_open_method = "HISTORICAL_ESTIMATE"
+                        self.algo.Log(f"[0DTE] EMERGENCY FALLBACK: Using historical estimate ${self.market_open_price:.2f}")
+                
+                # Final fallback: After 10:00 AM, use current price with validation
+                elif current_time.hour >= 10:
+                    if current_spy_price > 0 and 300 <= current_spy_price <= 700:
+                        self.market_open_price = current_spy_price
+                        self.market_open_capture_time = current_time
+                        self.market_open_method = "LATE_FALLBACK"
+                        self.algo.Error(f"[0DTE] LATE FALLBACK: Using current price ${self.market_open_price:.2f} at {current_time}")
+                    else:
+                        # Use historical estimate as absolute last resort
+                        self.market_open_price = 450.0
+                        self.market_open_capture_time = current_time
+                        self.market_open_method = "EMERGENCY_ESTIMATE"
+                        self.algo.Error(f"[0DTE] EMERGENCY FALLBACK: Invalid price data, using estimate ${self.market_open_price:.2f}")
+                
+                # Early morning waiting period: Before 9:30 AM
+                elif current_time.hour < 9 or (current_time.hour == 9 and current_time.minute < 30):
+                    self.algo.Debug(f"[0DTE] PRE-MARKET WAITING: Current time {current_time}, waiting for market open")
                     return False
+                
+                # Handle edge cases during market open hour
+                else:
+                    self.algo.Debug(f"[0DTE] MARKET OPEN EDGE CASE: Time {current_time}, attempting immediate capture")
+                    if current_spy_price > 0 and 300 <= current_spy_price <= 700:
+                        self.market_open_price = current_spy_price
+                        self.market_open_capture_time = current_time
+                        self.market_open_method = "EDGE_CASE_CAPTURE"
+                        self.algo.Error(f"[0DTE] EDGE CASE CAPTURE: ${self.market_open_price:.2f} at {current_time}")
+                    else:
+                        return False
             
-            # Ensure we have market open price before proceeding
-            if not self.market_open_price:
-                self.algo.Error(f"[0DTE] MOVE ANALYSIS BLOCKED: No market open price available")
+            # Enhanced validation: ensure we have market open price before proceeding
+            if not self.market_open_price or self.market_open_price <= 0:
+                self.algo.Error(f"[0DTE] MOVE ANALYSIS BLOCKED: No valid market open price available")
                 return False
+            
+            # Additional price staleness check
+            if hasattr(self, 'market_open_capture_time'):
+                price_age = current_time - self.market_open_capture_time
+                if price_age.total_seconds() > 7200:  # More than 2 hours old
+                    self.algo.Log(f"[0DTE] WARNING: Market open price is {price_age.total_seconds()/3600:.1f} hours old")
+                    # Consider re-capturing if very stale
+                    if price_age.total_seconds() > 14400:  # More than 4 hours old
+                        self.algo.Log(f"[0DTE] STALE PRICE: Re-capturing market price due to age")
+                        self.market_open_price = None  # Force recapture
+                        return self.analyze_move_from_open(spy)  # Recursive call to recapture
             
             # Calculate move from open to now
             current_price = self.algo.Securities[spy].Price
