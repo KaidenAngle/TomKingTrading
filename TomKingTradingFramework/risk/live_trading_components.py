@@ -25,15 +25,10 @@ class LivePositionRecovery:
     def save_positions(self):
         """Save current positions to ObjectStore"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-positions = []
+            positions = []
             for symbol, holding in self.algo.Portfolio.items():
                 if holding.Invested:
                     positions.append({
@@ -60,15 +55,10 @@ positions = []
     def recover_positions(self):
         """Recover positions from ObjectStore on restart"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-if self.algo.ObjectStore.ContainsKey(self.storage_key):
+            if self.algo.ObjectStore.ContainsKey(self.storage_key):
                 json_state = self.algo.ObjectStore.Read(self.storage_key)
                 state = json.loads(json_state)
                 
@@ -172,15 +162,10 @@ class LiveFuturesRoller:
     def roll_position(self, current_symbol, holding):
         """Roll a futures position to next month"""
         try:
-        next_contract = self.get_next_month_contract(current_symbol)
+            next_contract = self.get_next_month_contract(current_symbol)
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Get next month contract
+            # Get next month contract
             
             if next_contract:
                 # Close current position
@@ -227,15 +212,10 @@ class LiveBrokerFailover:
     def place_order_with_failover(self, symbol, quantity, order_type='MARKET'):
         """Place order with automatic failover"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-if self.use_tastytrade and hasattr(self.algo, 'tastytrade_api'):
+            if self.use_tastytrade and hasattr(self.algo, 'tastytrade_api'):
                 # Try TastyTrade first
                 result = self.place_tastytrade_order(symbol, quantity, order_type)
                 if result:
@@ -257,19 +237,14 @@ if self.use_tastytrade and hasattr(self.algo, 'tastytrade_api'):
         # Use the TastyTrade integration if available
         if hasattr(self.algo, 'tastytrade') and self.algo.tastytrade:
             try:
-            limit_price = None
+                limit_price = None
             if order_type == 'LIMIT':
-            security = self.algo.Securities[symbol]
+                security = self.algo.Securities[symbol]
             # Use mid price for limit orders
             limit_price = (security.BidPrice + security.AskPrice) / 2
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-# Determine limit price if needed
+                # Determine limit price if needed
                 
                 # Place the order through TastyTrade
                 result = self.algo.tastytrade.place_order(

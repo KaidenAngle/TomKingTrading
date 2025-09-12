@@ -47,20 +47,12 @@ class SafePerformanceTracker:
         """
         
         try:
-        pnl_decimal = Decimal(str(pnl))
+            pnl_decimal = Decimal(str(pnl))
         fees_decimal = Decimal(str(fees))
         slippage_decimal = Decimal(str(slippage))
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Convert to Decimal for precision
+            # Convert to Decimal for precision
             
             # Check individual values first
             if abs(pnl_decimal) > self.MAX_VALUE:
@@ -251,18 +243,10 @@ class SafePerformanceTracker:
         """
         
         try:
-        current_value = self.algo.Portfolio.TotalPortfolioValue
+            current_value = self.algo.Portfolio.TotalPortfolioValue
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Get current portfolio value
+            # Get current portfolio value
             
             # Calculate current unrealized P&L if we have a baseline
             if hasattr(self, '_last_portfolio_value'):
@@ -291,19 +275,11 @@ class SafePerformanceTracker:
         """
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-if hasattr(order_event, 'FillPrice') and hasattr(order_event, 'FillQuantity'):
+            if hasattr(order_event, 'FillPrice') and hasattr(order_event, 'FillQuantity'):
                 # QuantConnect provides fill details for complete trade tracking
                 fill_value = float(order_event.FillPrice * order_event.FillQuantity)
                 

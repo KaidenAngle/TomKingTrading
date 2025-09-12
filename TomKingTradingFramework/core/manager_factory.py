@@ -544,19 +544,11 @@ class ManagerFactory:
         """Initialize event bus as foundation component"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-self.event_bus = EventBus(self.algo)
+            self.event_bus = EventBus(self.algo)
             setattr(self.algo, 'event_bus', self.event_bus)
             self.managers['event_bus'] = self.event_bus
             
@@ -585,18 +577,13 @@ self.event_bus = EventBus(self.algo)
             def create_manager_factory(manager_config):
                 def factory():
                     try:
-                    resolved_kwargs = manager_config.initialization_kwargs.copy()
+                        resolved_kwargs = manager_config.initialization_kwargs.copy()
                     for key, value in resolved_kwargs.items():
-                    if isinstance(value, str) and value in self.dependency_container.managers:
-                    resolved_kwargs[key] = self.dependency_container.managers[value]
+                        if isinstance(value, str) and value in self.dependency_container.managers:
+                            resolved_kwargs[key] = self.dependency_container.managers[value]
                     except Exception as e:
 
-                        # Log and handle unexpected exception
-
-                        print(f'Unexpected exception: {e}')
-
-                        raise
-# Resolve kwargs with actual manager instances
+                        # Resolve kwargs with actual manager instances
                         
                         # Create manager instance
                         manager = manager_config.class_type(
@@ -636,21 +623,13 @@ self.event_bus = EventBus(self.algo)
         config = self.manager_configs[manager_name]
         
         try:
-        for dep_name in config.dependencies:
-        if dep_name not in self.managers:
-        self.algo.Error(f"[ManagerFactory] {manager_name}: dependency '{dep_name}' not available")
+            for dep_name in config.dependencies:
+                if dep_name not in self.managers:
+                    self.algo.Error(f"[ManagerFactory] {manager_name}: dependency '{dep_name}' not available")
         return False
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Verify dependencies are available
+            # Verify dependencies are available
                     
                 # Verify dependency is healthy
                 dep_status = self.status_map.get(dep_name)

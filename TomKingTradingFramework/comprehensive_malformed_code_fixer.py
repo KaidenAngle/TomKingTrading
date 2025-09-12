@@ -104,9 +104,9 @@ class ComprehensiveMalformedCodeFixer:
                     indented_orphaned.append('')
             
             fixed_content = f"""{try_indent}try:
-{chr(10).join(indented_orphaned)}
+                {chr(10).join(indented_orphaned)}
 {except_indent}except {exception_part}:
-{except_indent}    {exception_handling}"""
+    {except_indent}    {exception_handling}"""
             
             fixes_made += 1
             return fixed_content
@@ -127,9 +127,9 @@ class ComprehensiveMalformedCodeFixer:
             orphaned_line = match.group(6).strip()
             
             fixed_content = f"""{try_indent}try:
-{except_indent}{orphaned_line}
+                {except_indent}{orphaned_line}
 {except_indent}except {exception_part}:
-{except_indent}    {exception_handling}
+    {except_indent}    {exception_handling}
 """
             
             fixes_made += 1
@@ -158,9 +158,9 @@ class ComprehensiveMalformedCodeFixer:
             
             # Use consistent indentation
             fixed_content = f"""{try_indent}try:
-{except_indent}{orphaned_statement}
+                {except_indent}{orphaned_statement}
 {except_indent}except {exception_part}:
-{except_indent}    {exception_handling}
+    {except_indent}    {exception_handling}
 """
             
             fixes_made += 1
@@ -233,7 +233,7 @@ class ComprehensiveMalformedCodeFixer:
                     if orphaned_lines:
                         fixed_lines.append(line)  # try:
                         
-                        # Add orphaned code to try block
+                            # Add orphaned code to try block
                         for orphaned_line in orphaned_lines:
                             if orphaned_line.strip():
                                 # Ensure proper indentation within try block

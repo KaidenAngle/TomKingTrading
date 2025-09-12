@@ -90,19 +90,11 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
         """Build or rebuild put ladder"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-spy = self.algo.spy
+            spy = self.algo.spy
             current_price = self.algo.Securities[spy].Price
             
             # Calculate allocation per rung using centralized portfolio access
@@ -239,15 +231,10 @@ spy = self.algo.spy
         
         for position in positions:
             try:
-            self.algo.MarketOrder(position['put_contract'], -position['contracts'])
+                self.algo.MarketOrder(position['put_contract'], -position['contracts'])
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-# Sell current position
+                # Sell current position
                 
                 # Find new LEAP put
                 target_strike = round(current_price * position['target_strike_pct'], 0)
@@ -281,19 +268,11 @@ spy = self.algo.spy
         """Rebalance ladder to maintain target allocation"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-portfolio_value = self.algo.position_sizer.get_portfolio_value()
+            portfolio_value = self.algo.position_sizer.get_portfolio_value()
             target_value = portfolio_value * self.target_allocation
             current_value = self._get_ladder_value()
             
@@ -450,18 +429,10 @@ portfolio_value = self.algo.position_sizer.get_portfolio_value()
         """Take profit on deep ITM position"""
         
         try:
-        self.algo.MarketOrder(position['put_contract'], -position['contracts'])
+            self.algo.MarketOrder(position['put_contract'], -position['contracts'])
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Sell the profitable put
+            # Sell the profitable put
             
             # Calculate profit
             exit_price = self._get_option_price(position['put_contract'])
@@ -515,21 +486,13 @@ portfolio_value = self.algo.position_sizer.get_portfolio_value()
         """Place LEAP ladder exit orders following Tom King methodology"""
         
         try:
-        positions_to_exit = [
+            positions_to_exit = [
         pos for pos in self.ladder_positions
         if pos['status'] == 'open' and self._should_exit_position(pos)
         ]
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Find positions that need exiting
+            # Find positions that need exiting
             
             if not positions_to_exit:
                 return True
@@ -538,18 +501,13 @@ portfolio_value = self.algo.position_sizer.get_portfolio_value()
             
             for position in positions_to_exit:
                 try:
-                put_contract = position['put_contract']
+                    put_contract = position['put_contract']
                 contracts = position['contracts']
                 entry_price = position['entry_price']
                 rung_index = position['rung_index']
                 except Exception as e:
 
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-# Get position details
+                    # Get position details
                     
                     # Calculate current metrics
                     current_price = self._get_option_price(put_contract)
@@ -635,19 +593,11 @@ portfolio_value = self.algo.position_sizer.get_portfolio_value()
         """Determine if LEAP position should be exited based on Tom King rules"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-put_contract = position['put_contract']
+            put_contract = position['put_contract']
             
             # Check expiration - roll at 90 DTE or close if can't roll
             days_to_expiry = (put_contract.ID.Date - self.algo.Time).days
@@ -693,19 +643,11 @@ put_contract = position['put_contract']
         """Check for emergency exit conditions specific to LEAP ladders"""
         
         try:
-        portfolio_value = self.algo.position_sizer.get_portfolio_value()
+            portfolio_value = self.algo.position_sizer.get_portfolio_value()
         ladder_value = self._get_ladder_value()
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Check if ladder allocation has grown too large (>10% of portfolio)
+            # Check if ladder allocation has grown too large (>10% of portfolio)
             
             if ladder_value > portfolio_value * 0.10:
                 return True
@@ -736,19 +678,11 @@ put_contract = position['put_contract']
         """Get the reason for LEAP position exit"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-put_contract = position['put_contract']
+            put_contract = position['put_contract']
             days_to_expiry = (put_contract.ID.Date - self.algo.Time).days
             
             # Check expiration

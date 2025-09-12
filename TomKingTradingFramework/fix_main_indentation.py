@@ -31,7 +31,7 @@ def fix_main_indentation():
                 not line.strip().startswith('#') and
                 not re.match(r'\s*(def |class |if |elif |else|except|finally)', line)):
                 
-                # Find the indentation level of the previous line
+                    # Find the indentation level of the previous line
                 prev_indent_match = re.match(r'(\s*)', lines[i-1])
                 prev_indent = prev_indent_match.group(1) if prev_indent_match else ''
                 

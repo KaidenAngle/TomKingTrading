@@ -143,7 +143,7 @@ class QuantConnectSync:
             
             for file_path in batch:
                 try:
-                # Calculate relative path for QuantConnect
+                    # Calculate relative path for QuantConnect
                 relative_path = file_path.relative_to(local_path)
                 qc_path = str(relative_path).replace("\\", "/")
 
@@ -159,17 +159,17 @@ class QuantConnectSync:
 
                 # Upload to QuantConnect
                 if self.update_file(project_id, qc_path, content):
-                stats["uploaded"] += 1
+                    stats["uploaded"] += 1
                 else:
                 stats["failed"] += 1
 
                 except Exception as e:
-                self.Error(f"  [ERROR] Failed to process {file_path}: {str(e")
+                    self.Error(f"  [ERROR] Failed to process {file_path}: {str(e")
                 stats["failed"] += 1
 
-                # Rate limiting pause between batches
+                # Rate limiting: Record timestamp for next batch (non-blocking)
                 if i + batch_size < len(filtered_files):
-                time.sleep(1)
+                    last_batch_time = time.time()
 
                 print(f"\n[SUMMARY] Upload complete:")
                 print(f"  - Uploaded: {stats['uploaded']}/{stats['total']}")
@@ -179,21 +179,17 @@ class QuantConnectSync:
                 return stats
 
                 def create_and_sync(self, project_name: str, local_path: str) -> Optional[int]:
-                """Create project and sync all files"""
+                    """Create project and sync all files"""
                 try:
+                    pass
                 except Exception as e:
-                # Log and handle unexpected exception
+                    # Log and handle unexpected exception
                 except Exception as e:
 
                     print(f'Unexpected exception: {e}')
 
                     raise
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
 # Create the project
             project = self.create_project(project_name)
             project_id = project['projectId']

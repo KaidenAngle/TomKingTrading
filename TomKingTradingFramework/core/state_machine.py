@@ -321,30 +321,20 @@ class StrategyStateMachine:
         # Execute exit callback for current state
         if self.current_state in self.on_exit_callbacks:
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-self.on_exit_callbacks[self.current_state](context)
+                self.on_exit_callbacks[self.current_state](context)
             except Exception as e:
                 self.algorithm.Error(f"[StateMachine] Exit callback error: {e}")
         
         # Execute transition action if defined
         if valid_transition.action:
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-valid_transition.action(context)
+                valid_transition.action(context)
             except Exception as e:
                 self.algorithm.Error(f"[StateMachine] Transition action error: {e}")
                 self.error_count += 1
@@ -359,15 +349,10 @@ valid_transition.action(context)
         # Execute enter callback for new state
         if self.current_state in self.on_enter_callbacks:
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-self.on_enter_callbacks[self.current_state](context)
+                self.on_enter_callbacks[self.current_state](context)
             except Exception as e:
                 self.algorithm.Error(f"[StateMachine] Enter callback error: {e}")
         

@@ -324,7 +324,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             verification_result = self.run_complete_integration_verification()
 
             if not verification_result:
-            raise ValueError("Integration verification failed - algorithm cannot trade safely")
+                raise ValueError("Integration verification failed - algorithm cannot trade safely")
 
             # ======================
             # COMPREHENSIVE POSITION OPENING VALIDATION (47 FAILURE POINTS)
@@ -332,49 +332,35 @@ class TomKingTradingIntegrated(QCAlgorithm):
 
             self.Debug("[MAIN]  🔍 Running comprehensive position opening validation...")
             try:
-
-            except Exception as e:
-            except Exception as e:
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-from validation.comprehensive_position_opening_validator import PositionOpeningValidator
-            
-            self.position_validator = PositionOpeningValidator(self)
-            validation_report = self.position_validator.validate_all_failure_points()
-            
-            # Store validation results for runtime access
-            self.validation_report = validation_report
-            
-            if not validation_report.get('production_ready', False):
-                self.Error(f"[MAIN]  ⚠️ VALIDATION ISSUES: {validation_report['failed_validations']} failures detected")
-                self.Error(f"[MAIN]  ⚠️ SUCCESS RATE: {validation_report['overall_success_rate']:.1%}")
+                from validation.comprehensive_position_opening_validator import PositionOpeningValidator
                 
-                # Continue with warnings but log critical issues
-                critical_count = validation_report.get('critical_failures', 0)
-                if critical_count > 0:
-                    self.Error(f"[MAIN]  🚨 {critical_count} CRITICAL failures require immediate attention")
+                self.position_validator = PositionOpeningValidator(self)
+                validation_report = self.position_validator.validate_all_failure_points()
+                
+                # Store validation results for runtime access
+                self.validation_report = validation_report
+                
+                if not validation_report.get('production_ready', False):
+                    self.Error(f"[MAIN]  ⚠️ VALIDATION ISSUES: {validation_report['failed_validations']} failures detected")
+                    self.Error(f"[MAIN]  ⚠️ SUCCESS RATE: {validation_report['overall_success_rate']:.1%}")
                     
-                    # Log top failure categories for quick debugging
-                    category_results = validation_report.get('category_results', {})
-                    for category, results in category_results.items():
-                        if results.get('failures', 0) > 0:
-                            self.Error(f"[MAIN]  - {category.upper()}: {results['failures']} failures")
-            else:
-                self.Log(f"[MAIN]  ✅ Position opening validation PASSED: {validation_report['overall_success_rate']:.1%} success rate")
-                
-        except Exception as e:
-            self.Error(f"[MAIN]  ⚠️ Position opening validation failed to run: {str(e)}")
-            self.Error(f"[MAIN]  Stack trace: {traceback.format_exc()}")
-            # Continue without failing - validation is diagnostic, not blocking
+                    # Continue with warnings but log critical issues
+                    critical_count = validation_report.get('critical_failures', 0)
+                    if critical_count > 0:
+                        self.Error(f"[MAIN]  🚨 {critical_count} CRITICAL failures require immediate attention")
+                        
+                        # Log top failure categories for quick debugging
+                        category_results = validation_report.get('category_results', {})
+                        for category, results in category_results.items():
+                            if results.get('failures', 0) > 0:
+                                self.Error(f"[MAIN]  - {category.upper()}: {results['failures']} failures")
+                else:
+                    self.Log(f"[MAIN]  ✅ Position opening validation PASSED: {validation_report['overall_success_rate']:.1%} success rate")
+                    
+            except Exception as e:
+                self.Error(f"[MAIN]  ⚠️ Position opening validation failed to run: {str(e)}")
+                self.Error(f"[MAIN]  Stack trace: {traceback.format_exc()}")
+                # Continue without failing - validation is diagnostic, not blocking
         
         # Always log successful initialization 
         if not self.is_backtest:
@@ -392,58 +378,45 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
     def initialize_performance_optimizations(self):
         """Initialize all performance optimization systems"""
         try:
-        # UNIFIED INTELLIGENT CACHE SYSTEM - CONSOLIDATION
-        # Replaces HighPerformanceCache + PositionAwareCache + MarketDataCache
-        self.unified_cache = UnifiedIntelligentCache(
-        self,
-        max_size=3500,  # Combined capacity of all three caches
-        ttl_minutes=5,  # Default TTL
-        max_memory_mb=175,  # Combined memory allocation
-        price_change_threshold=0.001,
-        position_check_interval_seconds=30,
-        enable_stats=True
-        )
+            # UNIFIED INTELLIGENT CACHE SYSTEM - CONSOLIDATION
+            # Replaces HighPerformanceCache + PositionAwareCache + MarketDataCache
+            self.unified_cache = UnifiedIntelligentCache(
+                self,
+                max_size=3500,  # Combined capacity of all three caches
+                ttl_minutes=5,  # Default TTL
+                max_memory_mb=175,  # Combined memory allocation
+                price_change_threshold=0.001,
+                position_check_interval_seconds=30,
+                enable_stats=True
+            )
 
-        # Backward compatibility aliases during migration
-        self.main_cache = self.unified_cache
-        self.position_cache = self.unified_cache
-        self.market_cache = self.unified_cache
+            # Backward compatibility aliases during migration
+            self.main_cache = self.unified_cache
+            self.position_cache = self.unified_cache
+            self.market_cache = self.unified_cache
 
-        # Performance tracking flags
-        self.last_cache_maintenance = self.Time
-        self.cache_maintenance_interval = timedelta(minutes=15)
+            # Performance tracking flags
+            self.last_cache_maintenance = self.Time
+            self.cache_maintenance_interval = timedelta(minutes=15)
 
-        if not self.is_backtest:
-        self.Debug("[MAIN]  High-performance caching systems initialized")
+            if not self.is_backtest:
+                self.Debug("[MAIN]  High-performance caching systems initialized")
 
         except Exception as e:
-        self.Error(f"[MAIN]  Cache initialization failed: {e}")
+            self.Error(f"[MAIN]  Cache initialization failed: {e}")
 
-        def initialize_unified_risk_management(self):
+    def initialize_unified_risk_management(self):
         """
         PHASE 7: Initialize UnifiedRiskManager with plugin architecture
         Replaces separate August2024CorrelationLimiter, SPYConcentrationManager, CircuitBreaker
         """
         try:
-
-        except Exception as e:
-        except Exception as e:
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Get the UnifiedRiskManager from the factory
+            # Get the UnifiedRiskManager from the factory
             if not hasattr(self, 'unified_risk_manager'):
                 self.Error("[MAIN]  UnifiedRiskManager not found in factory initialization")
                 return False
-            
+        except Exception as e:
+
             # Import and register risk plugins
             from risk.plugins.correlation_plugin import CorrelationPlugin
             from risk.plugins.circuit_breaker_plugin import CircuitBreakerPlugin
@@ -746,42 +719,42 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
         
         for stage_name, verification_func in verification_stages:
             try:
-            result = verification_func()
-            results[stage_name] = result
+                result = verification_func()
+                results[stage_name] = result
 
-            status = "PASS" if result else "FAIL"
-            if not self.is_backtest:
-            self.Debug(f"[MAIN]  {stage_name}: {status}")
+                status = "PASS" if result else "FAIL"
+                if not self.is_backtest:
+                    self.Debug(f"[MAIN]  {stage_name}: {status}")
 
             except Exception as e:
-            self.Error(f"[MAIN]  {stage_name} verification error: {e}")
-            results[stage_name] = False
+                self.Error(f"[MAIN]  {stage_name} verification error: {e}")
+                results[stage_name] = False
 
             # Final summary
             passed_stages = sum(1 for r in results.values() if r)
             total_stages = len(results)
 
             if passed_stages == total_stages:
-            if not self.is_backtest:
-            self.Log(f"[MAIN]  COMPLETE SUCCESS: {passed_stages}/{total_stages} stages passed")
-            return True
+                if not self.is_backtest:
+                    self.Log(f"[MAIN]  COMPLETE SUCCESS: {passed_stages}/{total_stages} stages passed")
+                return True
             else:
-            self.Error(f"[MAIN]  VERIFICATION FAILED: {passed_stages}/{total_stages} stages passed")
+                self.Error(f"[MAIN]  VERIFICATION FAILED: {passed_stages}/{total_stages} stages passed")
 
-            # List failed stages
-            failed_stages = [name for name, result in results.items() if not result]
-            self.Error(f"[MAIN]  Failed stages: {failed_stages}")
+                # List failed stages
+                failed_stages = [name for name, result in results.items() if not result]
+                self.Error(f"[MAIN]  Failed stages: {failed_stages}")
 
             # ENHANCED: Generate detailed diagnostic report for debugging
             diagnostic_report = self.generate_verification_diagnostic_report()
             self.Error("[MAIN]  DIAGNOSTIC REPORT:")
             for line in diagnostic_report.split('\n'):
-            if line.strip():  # Skip empty lines
-            self.Error(f"[MAIN]  {line}")
+                if line.strip():  # Skip empty lines
+                    self.Error(f"[MAIN]  {line}")
 
             return False
 
-            def OnData(self, data):
+    def OnData(self, data):
             """
             PHASE 5: Event-Driven OnData Processing
 
@@ -791,48 +764,34 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
 
             # PHASE 5 OPTIMIZATION: Use event-driven OnData processor
             try:
-
+                # Process through event-driven architecture with performance optimization
+                optimization_result = self.event_driven_ondata.process_ondata(data)
+                
+                # Check if processing was skipped due to lack of significant changes
+                if 'optimizations' in optimization_result and 'skipped_entire_ondata' in optimization_result['optimizations']:
+                    # OnData processing was intelligently skipped - no significant market changes
+                    return
+                
+                # Log performance improvements periodically
+                if 'performance_improvement_pct' in optimization_result:
+                    improvement = optimization_result['performance_improvement_pct']
+                    if improvement >= 20.0:  # Log when achieving 20%+ improvement target
+                        self.Debug(f"[MAIN]  OnData optimization: {improvement:.1f}% performance gain achieved")
+                
+                # Handle any errors from event-driven processing
+                if 'error' in optimization_result:
+                    self.Error(f"[MAIN]  Event-driven OnData error: {optimization_result['error']}")
+                    # Fall back to traditional processing if event-driven fails
+                    self._fallback_ondata_processing(data)
+                    return
+                
+                # Traditional risk management and maintenance (not event-driven yet)
+                self._perform_traditional_risk_checks()
+                
             except Exception as e:
-            except Exception as e:
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Process through event-driven architecture with performance optimization
-            optimization_result = self.event_driven_ondata.process_ondata(data)
-            
-            # Check if processing was skipped due to lack of significant changes
-            if 'optimizations' in optimization_result and 'skipped_entire_ondata' in optimization_result['optimizations']:
-                # OnData processing was intelligently skipped - no significant market changes
-                return
-            
-            # Log performance improvements periodically
-            if 'performance_improvement_pct' in optimization_result:
-                improvement = optimization_result['performance_improvement_pct']
-                if improvement >= 20.0:  # Log when achieving 20%+ improvement target
-                    self.Debug(f"[MAIN]  OnData optimization: {improvement:.1f}% performance gain achieved")
-            
-            # Handle any errors from event-driven processing
-            if 'error' in optimization_result:
-                self.Error(f"[MAIN]  Event-driven OnData error: {optimization_result['error']}")
-                # Fall back to traditional processing if event-driven fails
+                self.Error(f"[MAIN]  Critical error in event-driven OnData: {e}")
+                # Emergency fallback to traditional processing
                 self._fallback_ondata_processing(data)
-                return
-            
-            # Traditional risk management and maintenance (not event-driven yet)
-            self._perform_traditional_risk_checks()
-            
-        except Exception as e:
-            self.Error(f"[MAIN]  Critical error in event-driven OnData: {e}")
-            # Emergency fallback to traditional processing
-            self._fallback_ondata_processing(data)
     
     def _fallback_ondata_processing(self, data):
         """Emergency fallback to traditional OnData processing"""
@@ -892,60 +851,46 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
     def maintain_caches(self):
         """Perform cache maintenance for optimal performance"""
         try:
-        # Run periodic maintenance on all caches
-        self.main_cache.periodic_maintenance()
-        self.position_cache.periodic_maintenance()
-        self.market_cache.periodic_maintenance()
+            # Run periodic maintenance on all caches
+            self.main_cache.periodic_maintenance()
+            self.position_cache.periodic_maintenance()
+            self.market_cache.periodic_maintenance()
 
-        # Log cache statistics periodically (every hour in backtest)
-        if not self.is_backtest or self.Time.minute == 0:
-        self.main_cache.log_stats()
+            # Log cache statistics periodically (every hour in backtest)
+            if not self.is_backtest or self.Time.minute == 0:
+                self.main_cache.log_stats()
 
         except Exception as e:
-        self.Error(f"[MAIN]  Maintenance error: {e}")
+            self.Error(f"[MAIN]  Maintenance error: {e}")
 
         def check_circuit_breakers(self):
-        """Check all circuit breaker conditions"""
+            """Check all circuit breaker conditions"""
 
         # Rapid drawdown check
         if self.performance_tracker.get_current_drawdown() < self.circuit_breakers['rapid_drawdown']['threshold']:
-        self.state_manager.halt_all_trading("Rapid drawdown detected")
+            self.state_manager.halt_all_trading("Rapid drawdown detected")
 
         # Margin spike check
         margin_usage = self.margin_manager.get_margin_usage()
         if margin_usage > self.circuit_breakers['margin_spike']['threshold']:
-        self.state_manager.halt_all_trading("Margin usage too high")
+            self.state_manager.halt_all_trading("Margin usage too high")
 
         # Correlation spike check
         max_correlation = self.correlation_limiter.get_max_correlation()
         if max_correlation > self.circuit_breakers['correlation_spike']['threshold']:
-        self.state_manager.halt_all_trading("Correlation spike detected")
+            self.state_manager.halt_all_trading("Correlation spike detected")
 
         def SafetyCheck(self):
-        """Regular safety check routine with conditional logging"""
+            """Regular safety check routine with conditional logging"""
 
         # Conditional logging for performance
         if not self.is_backtest or self.Time.minute % 30 == 0:
-        self.Debug("=== SAFETY CHECK ===")
+            self.Debug("=== SAFETY CHECK ===")
 
         # Check data feeds (defensive programming)
         if hasattr(self.data_validator, 'get_status'):
-        try:
-
-        except Exception as e:
-        except Exception as e:
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-data_status = self.data_validator.get_status()
+            try:
+                data_status = self.data_validator.get_status()
                 if not self.is_backtest or self.Time.minute % 30 == 0:
                     self.Debug(f"Data feeds: {data_status}")
             except Exception as e:
@@ -958,72 +903,47 @@ data_status = self.data_validator.get_status()
         # Check margin (defensive programming)
         if hasattr(self.margin_manager, 'get_margin_status'):
             try:
-            margin_status = self.margin_manager.get_margin_status()
-            if isinstance(margin_status, dict) and 'usage_pct' in margin_status:
-            self.Debug(f"Margin: {margin_status['usage_pct']:.1%} used")
-            else:
-            self.Debug(f"Margin: {margin_status}")
+                margin_status = self.margin_manager.get_margin_status()
+                if isinstance(margin_status, dict) and 'usage_pct' in margin_status:
+                    self.Debug(f"Margin: {margin_status['usage_pct']:.1%} used")
+                else:
+                    self.Debug(f"Margin: {margin_status}")
             except Exception as e:
-            self.Debug(f"Margin status error: {e}")
-            else:
+                self.Debug(f"Margin status error: {e}")
+        else:
             self.Debug("Margin manager: get_margin_status method not available")
 
             # Check correlations (defensive programming)
             if hasattr(self.correlation_limiter, 'get_max_correlation'):
-            try:
-
-            except Exception as e:
-            except Exception as e:
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-max_corr = self.correlation_limiter.get_max_correlation()
-                self.Debug(f"Max correlation: {max_corr:.2f}")
-            except Exception as e:
-                self.Debug(f"Correlation check error: {e}")
-        else:
-            self.Debug("Correlation limiter: get_max_correlation method not available")
+                try:
+                    max_corr = self.correlation_limiter.get_max_correlation()
+                    self.Debug(f"Max correlation: {max_corr:.2f}")
+                except Exception as e:
+                    self.Debug(f"Correlation check error: {e}")
+            else:
+                self.Debug("Correlation limiter: get_max_correlation method not available")
         
         # Check hierarchical state system (defensive programming)
         try:
-        state_summary = self.state_manager.get_system_summary()
+            state_summary = self.state_manager.get_system_summary()
         if isinstance(state_summary, dict):
-        active = len([s for s in state_summary.get('strategy_summary', {}).values()
+            active = len([s for s in state_summary.get('strategy_summary', {}).values()
         if s.get('active_positions', 0) > 0])
         total = state_summary.get('total_strategies', 'unknown')
         self.Debug(f"Active strategies: {active}/{total}")
         else:
         self.Debug(f"State summary: {state_summary}")
         except Exception as e:
-        self.Debug(f"State summary error: {e}")
+            self.Debug(f"State summary error: {e}")
 
         # Check strategy health (defensive programming)
         for name, strategy in self.strategies.items():
-        if hasattr(strategy, 'get_health_status'):
-        try:
-
+            if hasattr(strategy, 'get_health_status'):
+                try:
+                    pass
         except Exception as e:
-        except Exception as e:
-            # Log and handle unexpected exception
 
-            print(f'Unexpected exception: {e}')
-
-            raise
-
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-health = strategy.get_health_status()
+            health = strategy.get_health_status()
                     if isinstance(health, dict) and not health.get('healthy', True):
                         self.Error(f"Strategy {name} unhealthy: {health.get('reason', 'unknown')}")
                 except Exception as e:
@@ -1043,47 +963,36 @@ health = strategy.get_health_status()
         # Performance summary
         if hasattr(self.performance_tracker, 'get_statistics'):
             try:
-            stats = self.performance_tracker.get_statistics()
+                stats = self.performance_tracker.get_statistics()
             if isinstance(stats, dict):
-            self.Debug(f"Daily P&L: ${stats.get('daily_pnl', 0):.2f}")
+                self.Debug(f"Daily P&L: ${stats.get('daily_pnl', 0):.2f}")
             self.Debug(f"Total trades: {stats.get('total_trades', 0)}")
             self.Debug(f"Win rate: {stats.get('win_rate', 0):.1%}")
             except Exception as e:
-            self.Debug(f"Performance summary error: {e}")
+                self.Debug(f"Performance summary error: {e}")
 
             # Position summary
             positions = 0
             for symbol, holding in self.Portfolio.items():
-            if holding.Invested:
-            positions += 1
+                if holding.Invested:
+                    positions += 1
 
             self.Debug(f"Positions held: {positions}")
             self.Debug(f"Portfolio value: ${self.Portfolio.TotalPortfolioValue:.2f}")
 
             # Strategy states
             for name, strategy in self.strategies.items():
-            if hasattr(strategy, 'state_machine') and hasattr(strategy.state_machine, 'current_state'):
-            state = strategy.state_machine.current_state.name if strategy.state_machine.current_state else 'Unknown'
+                if hasattr(strategy, 'state_machine') and hasattr(strategy.state_machine, 'current_state'):
+                    state = strategy.state_machine.current_state.name if strategy.state_machine.current_state else 'Unknown'
             self.Debug(f"{name}: {state}")
 
             # Margin status
             if hasattr(self.margin_manager, 'get_margin_status'):
-            try:
-
+                try:
+                    pass
             except Exception as e:
-            except Exception as e:
-                # Log and handle unexpected exception
 
-                print(f'Unexpected exception: {e}')
-
-                raise
-
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-margin_status = self.margin_manager.get_margin_status()
+                margin_status = self.margin_manager.get_margin_status()
                 if isinstance(margin_status, dict):
                     self.Debug(f"Margin usage: {margin_status.get('usage_pct', 0):.1%}")
                     self.Debug(f"Available margin: ${margin_status.get('available_margin', 0):.2f}")
@@ -1100,45 +1009,34 @@ margin_status = self.margin_manager.get_margin_status()
         by removing allocations from strategies that are no longer active.
         """
         try:
-        if hasattr(self, 'spy_concentration_manager'):
-        cleanup_result = self.spy_concentration_manager.cleanup_stale_allocations(force_reconcile=True)
+            if hasattr(self, 'spy_concentration_manager'):
+                cleanup_result = self.spy_concentration_manager.cleanup_stale_allocations(force_reconcile=True)
 
         if cleanup_result.get('cleaned_count', 0) > 0:
-        self.Log(f"[MAIN]  Cleaned {cleanup_result['cleaned_count']} stale allocations")
+            self.Log(f"[MAIN]  Cleaned {cleanup_result['cleaned_count']} stale allocations")
 
         # Log current utilization after cleanup
         utilization = cleanup_result.get('utilization_after', {})
         if utilization:
-        self.Debug(
+            self.Debug(
         f"[SPY Cleanup] Post-cleanup: {utilization.get('delta_used', 0):.1f}/{utilization.get('max_delta', 0):.1f} delta, "
         f"{utilization.get('strategies_active', 0)}/{utilization.get('max_strategies', 0)} strategies"
         )
         except Exception as e:
-        self.Error(f"[MAIN]  Failed to clean allocations: {e}")
+            self.Error(f"[MAIN]  Failed to clean allocations: {e}")
 
         def monitor_option_chain_quality(self):
-        """
+            """
         DATA QUALITY FIX #3: Monitor option chain data completeness and quality
 
         This scheduled method runs every 15 minutes to validate option chain data
         quality and alert on issues that could prevent position opening.
         """
         try:
-
+            pass
         except Exception as e:
-        except Exception as e:
-            # Log and handle unexpected exception
 
-            print(f'Unexpected exception: {e}')
-
-            raise
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-if hasattr(self, 'option_chain_manager') and self.option_chain_manager:
+            if hasattr(self, 'option_chain_manager') and self.option_chain_manager:
                 health_report = self.option_chain_manager.get_chain_data_health_report()
                 
                 # Alert on critical data quality issues

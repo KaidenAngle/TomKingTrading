@@ -286,15 +286,10 @@ class DynamicMarginManager(BaseComponent):
         Uses QuantConnect's economic calendar - always available in QC environment
         """
         try:
-        economic_events = self.algorithm.TradingCalendar.GetEconomicEvents(date, date)
+            economic_events = self.algorithm.TradingCalendar.GetEconomicEvents(date, date)
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Use QuantConnect's economic events API for FOMC meetings
+            # Use QuantConnect's economic events API for FOMC meetings
             
             # Check for FOMC-related events
             fomc_keywords = ['FOMC', 'Federal Open Market Committee', 'Fed Rate Decision']
@@ -377,15 +372,10 @@ class DynamicMarginManager(BaseComponent):
             float: Available buying power in USD, adjusted for required margin buffers
         """
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-portfolio = self.algorithm.Portfolio
+            portfolio = self.algorithm.Portfolio
             
             # Get current margin remaining
             margin_remaining = self.get_buying_power()  # Use inherited BaseComponent method
@@ -431,15 +421,10 @@ portfolio = self.algorithm.Portfolio
             float: Total required margin in USD for all positions
         """
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-if not positions:
+            if not positions:
                 return 0.0
                 
             total_margin = 0.0

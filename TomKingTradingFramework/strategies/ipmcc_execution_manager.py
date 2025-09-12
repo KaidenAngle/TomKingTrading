@@ -41,15 +41,10 @@ class FixedIPMCCExecution:
         3. If NO: Create new LEAP + weekly call position
         """
         try:
-        existing_leap = self.psm.has_active_leap(symbol)
+            existing_leap = self.psm.has_active_leap(symbol)
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# CRITICAL CHECK: Do we already have an active LEAP for this symbol?
+            # CRITICAL CHECK: Do we already have an active LEAP for this symbol?
             
             if existing_leap:
                 # SCENARIO 1: We have an active LEAP - only add weekly call
@@ -68,15 +63,10 @@ class FixedIPMCCExecution:
     def _add_weekly_call_to_existing_leap(self, symbol: str, existing_leap) -> Tuple[bool, str]:
         """Add weekly call to existing LEAP position"""
         try:
-        current_price = float(self.algo.Securities[symbol].Price)
+            current_price = float(self.algo.Securities[symbol].Price)
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Get current price and calculate weekly call strike
+            # Get current price and calculate weekly call strike
             
             # Calculate weekly call strike (typically 2-5% OTM)
             weekly_strike = self._calculate_weekly_call_strike(current_price, existing_leap.strike)
@@ -127,15 +117,10 @@ class FixedIPMCCExecution:
     def _create_new_ipmcc_position(self, symbol: str, account_value: float, vix_level: float) -> Tuple[bool, str]:
         """Create brand new IPMCC position (LEAP + weekly call)"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-current_price = float(self.algo.Securities[symbol].Price)
+            current_price = float(self.algo.Securities[symbol].Price)
             
             # Find suitable LEAP (365 DTE, ~80 delta)
             leap_contract, leap_analysis = self._find_suitable_leap(symbol, current_price)
@@ -192,15 +177,10 @@ current_price = float(self.algo.Securities[symbol].Price)
     def _find_suitable_leap(self, symbol: str, current_price: float) -> Tuple[Optional[object], Optional[Dict]]:
         """Find suitable LEAP contract (365+ DTE, ~80 delta)"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-option_chain = self.algo.OptionChainProvider.GetOptionContractList(symbol, self.algo.Time)
+            option_chain = self.algo.OptionChainProvider.GetOptionContractList(symbol, self.algo.Time)
             
             # Filter for LEAP calls (300+ DTE)
             target_expiry = self.algo.Time + timedelta(days=365)
@@ -232,15 +212,10 @@ option_chain = self.algo.OptionChainProvider.GetOptionContractList(symbol, self.
     def _find_suitable_weekly_call(self, symbol: str, current_price: float, leap_strike: float) -> Tuple[Optional[object], Optional[Dict]]:
         """Find suitable weekly call contract"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-option_chain = self.algo.OptionChainProvider.GetOptionContractList(symbol, self.algo.Time)
+            option_chain = self.algo.OptionChainProvider.GetOptionContractList(symbol, self.algo.Time)
             
             # Find weekly expiry (7 DTE)
             weekly_expiry = self._get_next_weekly_expiry()
@@ -307,17 +282,12 @@ option_chain = self.algo.OptionChainProvider.GetOptionContractList(symbol, self.
     def roll_weekly_call(self, symbol: str, component_id: str) -> Tuple[bool, str]:
         """Roll an expiring weekly call to next week"""
         try:
-        success = self.psm.close_ipmcc_weekly_call(symbol, component_id)
+            success = self.psm.close_ipmcc_weekly_call(symbol, component_id)
         if not success:
-        return False, "Failed to close existing weekly call"
+            return False, "Failed to close existing weekly call"
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Close existing weekly call
+            # Close existing weekly call
                 
             # Add new weekly call for next week
             existing_leap = self.psm.has_active_leap(symbol)

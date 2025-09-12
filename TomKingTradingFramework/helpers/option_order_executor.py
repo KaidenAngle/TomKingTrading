@@ -22,16 +22,11 @@ class OptionOrderExecutor:
             aggressive: If True, cross spread more for fill
         """
         try:
-        bid = contract.BidPrice if hasattr(contract, 'BidPrice') else 0
+            bid = contract.BidPrice if hasattr(contract, 'BidPrice') else 0
         ask = contract.AskPrice if hasattr(contract, 'AskPrice') else 0
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Get bid/ask
+            # Get bid/ask
             
             # Sanity check
             if bid <= 0 or ask <= 0:
@@ -69,21 +64,13 @@ class OptionOrderExecutor:
         orders = []
         
         try:
-        orders.append(self.place_option_limit_order(short_call, -quantity))  # Sell call
+            orders.append(self.place_option_limit_order(short_call, -quantity))  # Sell call
         orders.append(self.place_option_limit_order(long_call, quantity))    # Buy call
         orders.append(self.place_option_limit_order(short_put, -quantity))   # Sell put
         orders.append(self.place_option_limit_order(long_put, quantity))     # Buy put
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Place each leg
+            # Place each leg
             
             # Check all filled (simple check)
             all_filled = all(order is not None for order in orders)
@@ -110,15 +97,10 @@ class OptionOrderExecutor:
         for order in orders:
             if order is not None:
                 try:
-                    
+                    pass
                 except Exception as e:
 
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-if order.Status == OrderStatus.Submitted:
+                    if order.Status == OrderStatus.Submitted:
                         order.Cancel()
                     elif order.Status == OrderStatus.Filled:
                         # Reverse the filled position
@@ -133,5 +115,4 @@ if order.Status == OrderStatus.Submitted:
         spread_width = abs(long_strike - short_strike)
         margin = spread_width * quantity * multiplier
         return margin
-
 

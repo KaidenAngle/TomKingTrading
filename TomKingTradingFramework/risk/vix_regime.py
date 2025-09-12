@@ -509,4 +509,4 @@ class VIXRegimeManager:
         return results
 
 # Usage Example for QuantConnect Algorithm:
-#
+    #

@@ -49,15 +49,10 @@ class DataValidator:
         
         # Secondary: Direct VIX subscription
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-vix_symbol = self.algo.vix
+            vix_symbol = self.algo.vix
             if vix_symbol in self.algo.Securities:
                 price = self.algo.Securities[vix_symbol].Price
                 if price > 5:  # VIX below 5 is extremely rare
@@ -85,19 +80,11 @@ vix_symbol = self.algo.vix
         """
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-if option_symbol not in self.algo.Securities:
+            if option_symbol not in self.algo.Securities:
                 return None, DataSeverity.CRITICAL  # Option not subscribed
             
             security = self.algo.Securities[option_symbol]
@@ -121,19 +108,11 @@ if option_symbol not in self.algo.Securities:
         """
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-if symbol not in self.algo.Securities:
+            if symbol not in self.algo.Securities:
                 return None, DataSeverity.FATAL  # Major index missing is fatal
             
             price = self.algo.Securities[symbol].Price

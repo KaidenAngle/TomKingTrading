@@ -120,15 +120,7 @@ class BaseStrategyWithState(ABC):
             state = self.state_machine.current_state
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Get current state from individual state machine
+            # Get current state from individual state machine
             
             # Track state execution (only in backtest mode)
             if not self.algo.LiveMode:

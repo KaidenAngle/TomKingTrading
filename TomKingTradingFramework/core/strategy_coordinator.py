@@ -141,15 +141,10 @@ class StrategyCoordinator:
         
         # Execute callback
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-result = callback_func()
+            result = callback_func()
             
             # Record execution
             self.execution_history.append({
@@ -412,20 +407,12 @@ result = callback_func()
             return
             
         try:
-        self.registered_strategies[strategy_name]['executions'] += 1
+            self.registered_strategies[strategy_name]['executions'] += 1
         self.registered_strategies[strategy_name]['last_execution'] = self.algo.Time
         self.registered_strategies[strategy_name]['status'] = 'COMPLETED'
         except Exception as e:
 
-            
-            # Log and handle unexpected exception
-
-            
-            print(f'Unexpected exception: {e}')
-
-            
-            raise
-# Update execution count
+            # Update execution count
             
             # Log execution
             self.execution_history.append({
@@ -470,15 +457,10 @@ result = callback_func()
         
         for strategy_name in execution_order:
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-self.algo.Debug(f"[COORDINATOR] === EXECUTING {strategy_name} ===")
+                self.algo.Debug(f"[COORDINATOR] === EXECUTING {strategy_name} ===")
                 
                 # Check if strategy should be throttled
                 if self.should_throttle_strategy(strategy_name):

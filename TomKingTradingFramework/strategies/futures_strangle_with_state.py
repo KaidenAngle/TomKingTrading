@@ -90,23 +90,15 @@ class FuturesStrangleWithState(BaseStrategyWithState):
         """Place futures strangle orders"""
         
         try:
-        if hasattr(self.algo, 'symbols') and self.active_future in self.algo.symbols:
-        future = self.algo.symbols[self.active_future]
+            if hasattr(self.algo, 'symbols') and self.active_future in self.algo.symbols:
+                future = self.algo.symbols[self.active_future]
         else:
         future = self.algo.Symbol(self.active_future)
         if future not in self.algo.Securities:
-        self.algo.AddFuture(self.active_future)
+            self.algo.AddFuture(self.active_future)
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Get futures contract (use cached if available)
+            # Get futures contract (use cached if available)
             
             current_price = self.algo.Securities[future].Price
             
@@ -219,19 +211,11 @@ class FuturesStrangleWithState(BaseStrategyWithState):
             return True
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-future = position_to_adjust['underlying']
+            future = position_to_adjust['underlying']
             current_price = self.algo.Securities[future].Price
             
             # Determine which side is tested
@@ -434,19 +418,11 @@ future = position_to_adjust['underlying']
         """Close a strangle position"""
         
         try:
-        self.algo.MarketOrder(position['short_call'], position['contracts'])
+            self.algo.MarketOrder(position['short_call'], position['contracts'])
         self.algo.MarketOrder(position['short_put'], position['contracts'])
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Buy back both sides
+            # Buy back both sides
             
             # Update position status
             position['status'] = 'closed'
@@ -497,21 +473,13 @@ future = position_to_adjust['underlying']
         """Place futures strangle exit orders following Tom King methodology"""
         
         try:
-        positions_to_exit = [
+            positions_to_exit = [
         pos for pos in self.strangle_positions
         if pos['status'] == 'open' and self._should_exit_position(pos)
         ]
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Find positions that need closing
+            # Find positions that need closing
             
             if not positions_to_exit:
                 return True
@@ -520,17 +488,12 @@ future = position_to_adjust['underlying']
             
             for position in positions_to_exit:
                 try:
-                short_call = position['short_call']
+                    short_call = position['short_call']
                 short_put = position['short_put']
                 contracts = position['contracts']
                 except Exception as e:
 
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-# Get position details
+                    # Get position details
                     
                     # Calculate exit metrics
                     current_value = self._get_strangle_value(position)
@@ -658,19 +621,11 @@ future = position_to_adjust['underlying']
         """Check if either side is severely tested requiring immediate closure"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-future = position['underlying']
+            future = position['underlying']
             current_price = self.algo.Securities[future].Price
             
             call_strike = position['short_call'].ID.StrikePrice

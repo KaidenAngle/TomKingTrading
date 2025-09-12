@@ -80,9 +80,9 @@ class EmptyTryBlockFixer:
                 indented_content = '\n'.join(indented_lines)
                 
                 fixed_structure = f"""{indent}try:
-{indented_content}
+                    {indented_content}
 {except_indent}except {exception_part}:
-{exception_handling}"""
+    {exception_handling}"""
                 
                 fixes_made += 1
                 return fixed_structure
@@ -104,9 +104,9 @@ class EmptyTryBlockFixer:
                 orphaned_line = match.group(6)
                 
                 fixed_structure = f"""{indent}try:
-{except_indent}{orphaned_line.strip()}
+                    {except_indent}{orphaned_line.strip()}
 {except_indent}except {exception_part}:
-{exception_handling}"""
+    {exception_handling}"""
                 
                 fixes_made += 1
                 return fixed_structure

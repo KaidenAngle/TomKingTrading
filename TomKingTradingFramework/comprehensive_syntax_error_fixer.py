@@ -132,7 +132,7 @@ class ComprehensiveSyntaxErrorFixer:
         for i, line in enumerate(lines):
             original_line = line
             
-            # Pattern: f""[MAIN] -> f"[MAIN]
+            # Pattern: f"[MAIN]" -> f"[MAIN]
             if re.search(r'f""?\[', line):
                 line = re.sub(r'f""(\[)', r'f"\1', line)
             
@@ -180,7 +180,7 @@ class ComprehensiveSyntaxErrorFixer:
                     # If next line is not properly indented or is a control statement
                     if next_stripped and (next_indent <= current_indent or 
                                         next_stripped.startswith(('except', 'finally', 'else', 'elif'))):
-                        # Insert pass statement
+                                            # Insert pass statement
                         lines.insert(j, ' ' * expected_indent + 'pass')
                         fixes += 1
                         i = j + 1

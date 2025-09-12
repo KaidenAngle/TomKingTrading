@@ -66,9 +66,9 @@ class MalformedCodeFixer:
                 
                 # Move the orphaned code back inside the try block
                 fixed_structure = f"""{indent}try:
-{except_indent}{orphaned_code.strip()}
+                    {except_indent}{orphaned_code.strip()}
 {except_indent}except {exception_part}:
-{exception_handling}"""
+    {exception_handling}"""
                 return fixed_structure
             
             new_content = re.sub(pattern1, fix_orphaned_try, content, flags=re.MULTILINE)
@@ -92,9 +92,9 @@ class MalformedCodeFixer:
                                             if line.strip()])
                 
                 fixed_structure = f"""{indent}try:
-{orphaned_cleaned}
+                    {orphaned_cleaned}
 {except_indent}except {exception_part}:
-{exception_handling}"""
+    {exception_handling}"""
                 return fixed_structure
             
             new_content = re.sub(pattern2, fix_multiline_orphaned, content, flags=re.MULTILINE)
@@ -114,7 +114,7 @@ class MalformedCodeFixer:
                 with_statement = match.group(5)
                 
                 fixed_structure = f"""{indent}try:
-{except_indent}{with_statement}"""
+                    {except_indent}{with_statement}"""
                 
                 # Add the exception handling after finding the end of the with block
                 # For now, just fix the immediate structure
@@ -136,9 +136,9 @@ class MalformedCodeFixer:
                 function_call = match.group(5)
                 
                 fixed_structure = f"""{indent}try:
-{except_indent}{function_call}
+                    {except_indent}{function_call}
 {except_indent}except {exception_part}:
-{exception_handling}"""
+    {exception_handling}"""
                 return fixed_structure
             
             new_content = re.sub(pattern4, fix_function_call_pattern, content, flags=re.MULTILINE)

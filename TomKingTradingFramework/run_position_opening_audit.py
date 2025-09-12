@@ -45,7 +45,7 @@ class MockAlgorithm:
     def _initialize_components(self):
         """Initialize actual trading components for testing"""
         try:
-        # Import actual components
+            # Import actual components
         from core.unified_vix_manager import UnifiedVIXManager
         from core.unified_state_manager import UnifiedStateManager
         from core.strategy_coordinator import StrategyCoordinator
@@ -68,23 +68,23 @@ class MockAlgorithm:
         print("[AUDIT] ✅ Components initialized successfully")
 
         except Exception as e:
-        print(f"[AUDIT] ❌ Component initialization failed: {str(e)}")
+            print(f"[AUDIT] ❌ Component initialization failed: {str(e)}")
         print(f"[AUDIT] Stack trace: {traceback.format_exc()}")
 
         def Log(self, message):
-        print(f"[LOG] {message}")
+            print(f"[LOG] {message}")
 
         def Debug(self, message):
-        self.Debug(f""[RUN_POSITION_OPENING_AUDIT]  {message}"")
+            self.Debug(f"[RUN_POSITION_OPENING_AUDIT]"  {message}"")
 
         def Error(self, message):
-        self.Error(f""[RUN_POSITION_OPENING_AUDIT]  {message}"")
+            self.Error(f"[RUN_POSITION_OPENING_AUDIT]"  {message}"")
 
         def IsMarketOpen(self, symbol):
-        return True  # Mock market open
+            return True  # Mock market open
 
         def run_comprehensive_audit():
-        """Execute comprehensive position opening audit"""
+            """Execute comprehensive position opening audit"""
 
         print("=" * 80)
         print("COMPREHENSIVE POSITION OPENING AUDIT - EXECUTION")
@@ -97,19 +97,15 @@ class MockAlgorithm:
 
         # Import and run validation framework
         try:
+            pass
         except Exception as e:
-        # Log and handle unexpected exception
+            # Log and handle unexpected exception
         except Exception as e:
 
             print(f'Unexpected exception: {e}')
 
             raise
 
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
 from validation.comprehensive_position_opening_validator import PositionOpeningValidator
         
         print("[AUDIT] 🔍 Starting comprehensive validation...")

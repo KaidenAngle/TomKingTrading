@@ -19,15 +19,10 @@ class StrategyOrderExecutor:
         Execute LT112 (1-1-2 put ratio) order
         """
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-underlying = order_structure['underlying']
+            underlying = order_structure['underlying']
             strikes = order_structure['structure']
             position_size = order_structure['position_size']
             expiry_date = order_structure['expiry_date']
@@ -92,17 +87,12 @@ underlying = order_structure['underlying']
         Execute futures strangle order
         """
         try:
-        call_contract = self.create_futures_option_contract(
+            call_contract = self.create_futures_option_contract(
         futures_symbol, call_strike, expiry, OptionRight.Call
         )
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Create option contracts
+            # Create option contracts
             
             put_contract = self.create_futures_option_contract(
                 futures_symbol, put_strike, expiry, OptionRight.Put
@@ -133,18 +123,13 @@ underlying = order_structure['underlying']
         Execute IPMCC (Income Poor Man's Covered Call) order
         """
         try:
-        long_expiry = self.algo.Time + timedelta(days=TradingConstants.CALENDAR_DAYS_PER_YEAR)  # 1 year out
+            long_expiry = self.algo.Time + timedelta(days=TradingConstants.CALENDAR_DAYS_PER_YEAR)  # 1 year out
         long_call = self.create_option_contract(
         underlying, long_strike, long_expiry, OptionRight.Call
         )
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Long dated long call (LEAP-like)
+            # Long dated long call (LEAP-like)
             
             # Short dated short call (30-45 DTE)
             short_call = self.create_option_contract(
@@ -176,15 +161,10 @@ underlying = order_structure['underlying']
         Execute LEAP put ladder order
         """
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-orders = []
+            orders = []
             
             for strike in strikes:
                 # Create LEAP put contract
@@ -218,17 +198,12 @@ orders = []
         Create and add option contract to algorithm
         """
         try:
-        option = self.algo.OptionChainProvider.GetOptionContractList(
+            option = self.algo.OptionChainProvider.GetOptionContractList(
         underlying_symbol, self.algo.Time
         )
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Get the option contract from chain provider
+            # Get the option contract from chain provider
             
             # Filter to find exact contract
             contracts = [x for x in option 
@@ -263,7 +238,7 @@ orders = []
         Create futures option contract
         """
         try:
-        option_symbol = Symbol.CreateOption(
+            option_symbol = Symbol.CreateOption(
         futures_symbol,
         Market.USA,
         OptionStyle.American,
@@ -273,12 +248,7 @@ orders = []
         )
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# For futures options, use FOP (Futures Options)
+            # For futures options, use FOP (Futures Options)
             
             return self.algo.AddFutureOption(option_symbol)
             

@@ -8,15 +8,10 @@ from typing import Dict, List, Optional, Tuple
 
 # Import the enhanced event calendar if available
 try:
-    
+    pass
 except Exception as e:
 
-    # Log and handle unexpected exception
-
-    print(f'Unexpected exception: {e}')
-
-    raise
-from helpers.quantconnect_event_calendar import QuantConnectEventCalendar, EventType, MarketEvent
+    from helpers.quantconnect_event_calendar import QuantConnectEventCalendar, EventType, MarketEvent
     HAS_ENHANCED_CALENDAR = True
 except ImportError:
     HAS_ENHANCED_CALENDAR = False
@@ -180,19 +175,11 @@ class CorporateEventsChecker:
         """Get earnings date from QuantConnect fundamentals"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-if symbol in self.algo.Securities:
+            if symbol in self.algo.Securities:
                 security = self.algo.Securities[symbol]
                 
                 # Check if has fundamental data
@@ -215,19 +202,11 @@ if symbol in self.algo.Securities:
         """Get next dividend ex-date"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-if symbol in self.algo.Securities:
+            if symbol in self.algo.Securities:
                 security = self.algo.Securities[symbol]
                 
                 # Check dividend history
@@ -262,15 +241,10 @@ if symbol in self.algo.Securities:
         for quarter_month in [month, month + 3, month + 6, month + 9]:
             if quarter_month <= 12:
                 try:
-                    
+                    pass
                 except Exception as e:
 
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-date = datetime(current_year, quarter_month, day).date()
+                    date = datetime(current_year, quarter_month, day).date()
                     dates.append(date)
                 except ValueError:
                     # Handle invalid dates (e.g., Feb 30) - skip silently

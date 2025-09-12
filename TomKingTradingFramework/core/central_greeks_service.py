@@ -323,19 +323,11 @@ class CentralGreeksService(BaseComponent):
         """Calculate Greeks for individual position with caching"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-option = holding.Symbol
+            option = holding.Symbol
             underlying = option.Underlying
             
             # Check cache first
@@ -356,19 +348,11 @@ option = holding.Symbol
         """Internal position Greeks calculation"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-option = holding.Symbol
+            option = holding.Symbol
             underlying = option.Underlying
             
             # Get market data

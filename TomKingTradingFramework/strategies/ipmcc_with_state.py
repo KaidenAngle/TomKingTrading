@@ -86,19 +86,11 @@ class IPMCCWithState(BaseStrategyWithState):
         """Place IPMCC covered call orders"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-positions_opened = False
+            positions_opened = False
             
             for symbol_str in self.ipmcc_symbols:
                 # Use cached symbol if available
@@ -205,15 +197,10 @@ positions_opened = False
         success = True
         for position in positions_to_roll:
             try:
-            self.algo.MarketOrder(position['call'], position['contracts'])
+                self.algo.MarketOrder(position['call'], position['contracts'])
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-# Buy back current call
+                # Buy back current call
                 
                 # Find new call to sell
                 symbol = position['underlying']
@@ -401,18 +388,10 @@ positions_opened = False
         """Close an IPMCC position"""
         
         try:
-        self.algo.MarketOrder(position['call'], position['contracts'])
+            self.algo.MarketOrder(position['call'], position['contracts'])
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Buy back the call
+            # Buy back the call
             
             # Update position status
             position['status'] = 'closed'
@@ -437,21 +416,13 @@ positions_opened = False
         """Place IPMCC covered call exit orders following Tom King methodology"""
         
         try:
-        positions_to_exit = [
+            positions_to_exit = [
         pos for pos in self.covered_positions
         if pos['status'] == 'open' and self._should_exit_position(pos)
         ]
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Find covered call positions that need closing
+            # Find covered call positions that need closing
             
             if not positions_to_exit:
                 return True
@@ -460,18 +431,13 @@ positions_opened = False
             
             for position in positions_to_exit:
                 try:
-                call_contract = position['call']
+                    call_contract = position['call']
                 contracts = position['contracts']
                 entry_premium = position['entry_premium']
                 underlying = position['underlying']
                 except Exception as e:
 
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-# Get position details
+                    # Get position details
                     
                     # Calculate current metrics
                     current_value = self._get_option_price(call_contract)
@@ -553,19 +519,11 @@ positions_opened = False
         """Determine if IPMCC position should be exited based on Tom King rules"""
         
         try:
-        if self._check_position_profit(position, self.target_profit):
-        return True
+            if self._check_position_profit(position, self.target_profit):
+                return True
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Check profit target (20% profit for covered calls)
+            # Check profit target (20% profit for covered calls)
             
             # Check if needs rolling (approaching expiration)
             if self._check_needs_rolling(position):
@@ -596,19 +554,11 @@ positions_opened = False
         """Check if call is at risk of assignment"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-call = position['call']
+            call = position['call']
             underlying = position['underlying']
             
             # Get current price
@@ -641,22 +591,14 @@ call = position['call']
         """Check for emergency exit conditions for covered calls"""
         
         try:
-        vix = 20.0  # Default
+            vix = 20.0  # Default
         if hasattr(self.algo, 'vix_manager'):
-        vix_val = self.algo.vix_manager.get_current_vix()
+            vix_val = self.algo.vix_manager.get_current_vix()
         if vix_val and vix_val > 0:
-        vix = vix_val
+            vix = vix_val
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Check for extreme market conditions requiring closure
+            # Check for extreme market conditions requiring closure
             # If VIX spikes above 40, close calls to preserve upside
             
             if vix > 40:
@@ -678,15 +620,10 @@ call = position['call']
                 # If we have SMA data, check for strong uptrend
                 if hasattr(self.algo, 'Indicators'):
                     try:
-                        
+                        pass
                     except Exception as e:
 
-                        # Log and handle unexpected exception
-
-                        print(f'Unexpected exception: {e}')
-
-                        raise
-sma20 = self.algo.Indicators.SMA(underlying, 20)
+                        sma20 = self.algo.Indicators.SMA(underlying, 20)
                         if sma20.IsReady:
                             # If stock is more than 5% above 20-day MA, consider closing
                             if current_price > sma20.Current.Value * 1.05:
@@ -710,19 +647,11 @@ sma20 = self.algo.Indicators.SMA(underlying, 20)
         """Get the reason for IPMCC position exit"""
         
         try:
-        if self._check_position_profit(position, self.target_profit):
-        return f"Profit Target Hit (20%)"
+            if self._check_position_profit(position, self.target_profit):
+                return f"Profit Target Hit (20%)"
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Check profit target
+            # Check profit target
             
             # Check rolling expiration
             if self._check_needs_rolling(position):
@@ -758,15 +687,10 @@ sma20 = self.algo.Indicators.SMA(underlying, 20)
                 
                 if hasattr(self.algo, 'Indicators'):
                     try:
-                        
+                        pass
                     except Exception as e:
 
-                        # Log and handle unexpected exception
-
-                        print(f'Unexpected exception: {e}')
-
-                        raise
-sma20 = self.algo.Indicators.SMA(underlying, 20)
+                        sma20 = self.algo.Indicators.SMA(underlying, 20)
                         if sma20.IsReady and current_price > sma20.Current.Value * 1.05:
                             return f"Strong Uptrend Exit (5%+ above SMA20)"
                     except (AttributeError, KeyError, ValueError, TypeError) as e:

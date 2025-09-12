@@ -213,19 +213,11 @@ class MarketDataCacheManager(IManager):
         """Invalidate all cached data for a specific symbol"""
         
         try:
-        self.price_cache.invalidate_pattern(f'price_{symbol}')
+            self.price_cache.invalidate_pattern(f'price_{symbol}')
         self.price_cache.invalidate_pattern(f'data_point_{symbol}')
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Invalidate price and data point caches
+            # Invalidate price and data point caches
             
             # Invalidate technical indicators
             self.technical_cache.invalidate_pattern(symbol)
@@ -242,19 +234,11 @@ class MarketDataCacheManager(IManager):
         """Pre-populate cache with major instrument data"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-self.algo.Debug("[Market Data Cache] Warming up cache...")
+            self.algo.Debug("[Market Data Cache] Warming up cache...")
             
             # Pre-fetch major prices
             major_prices = self.get_major_prices()
@@ -292,19 +276,11 @@ self.algo.Debug("[Market Data Cache] Warming up cache...")
         """Fetch current price from QuantConnect API"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-if symbol in self.algo.Securities:
+            if symbol in self.algo.Securities:
                 price = self.algo.Securities[symbol].Price
                 return price if price > 0 else None
             else:
@@ -323,19 +299,11 @@ if symbol in self.algo.Securities:
         """Fetch comprehensive market data point"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-if symbol not in self.algo.Securities:
+            if symbol not in self.algo.Securities:
                 return None
             
             security = self.algo.Securities[symbol]
@@ -352,15 +320,10 @@ if symbol not in self.algo.Securities:
             # Calculate change percentage if we have historical data
             change_percent = 0.0
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-if hasattr(self.algo, 'History'):
+                if hasattr(self.algo, 'History'):
                     hist = self.algo.History([symbol], 1, Resolution.Daily)
                     if not hist.empty:
                         prev_close = hist['close'].iloc[-1]
@@ -401,20 +364,12 @@ if hasattr(self.algo, 'History'):
         """Assess comprehensive market conditions"""
         
         try:
-        spy_price = self.get_price('SPY')
+            spy_price = self.get_price('SPY')
         vix_value = self.get_price('VIX')
         qqq_price = self.get_price('QQQ')
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Get key prices
+            # Get key prices
             
             if not all([spy_price, vix_value, qqq_price]):
                 return None
@@ -454,19 +409,11 @@ if hasattr(self.algo, 'History'):
         """Calculate market direction based on SPY movement"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-current_price = self.get_price('SPY')
+            current_price = self.get_price('SPY')
             if not current_price:
                 return 'neutral'
             
@@ -497,19 +444,11 @@ current_price = self.get_price('SPY')
         """Calculate correlation between two assets"""
         
         try:
-        end_time = self.algo.Time
+            end_time = self.algo.Time
         start_time = end_time - timedelta(days=lookback_days)
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Get historical data
+            # Get historical data
             
             hist = self.algo.History([symbol1, symbol2], start_time, end_time, Resolution.Daily)
             
@@ -541,19 +480,11 @@ current_price = self.get_price('SPY')
         """Calculate relative strength vs benchmark"""
         
         try:
-        symbol_price = self.get_price(symbol)
+            symbol_price = self.get_price(symbol)
         benchmark_price = self.get_price(benchmark)
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Get current prices
+            # Get current prices
             
             if not symbol_price or not benchmark_price:
                 return None
@@ -589,19 +520,11 @@ current_price = self.get_price('SPY')
         """Log comprehensive cache statistics"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-price_stats = self.price_cache.get_statistics()
+            price_stats = self.price_cache.get_statistics()
             conditions_stats = self.conditions_cache.get_statistics()
             correlation_stats = self.correlation_cache.get_statistics()
             technical_stats = self.technical_cache.get_statistics()
@@ -641,19 +564,11 @@ price_stats = self.price_cache.get_statistics()
         """Get comprehensive statistics for all caches"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-return {
+            return {
                 'price_cache': self.price_cache.get_statistics(),
                 'conditions_cache': self.conditions_cache.get_statistics(),
                 'correlation_cache': self.correlation_cache.get_statistics(),
@@ -675,19 +590,11 @@ return {
         """Invalidate all market data caches"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-price_count = self.price_cache.invalidate_all()
+            price_count = self.price_cache.invalidate_all()
             conditions_count = self.conditions_cache.invalidate_all()
             correlation_count = self.correlation_cache.invalidate_all()
             technical_count = self.technical_cache.invalidate_all()
@@ -706,24 +613,19 @@ price_count = self.price_cache.invalidate_all()
     def handle_event(self, event: Event) -> bool:
         """Handle incoming events from the event bus"""
         try:
-        if event.event_type == EventType.PORTFOLIO_UPDATE:
-        # Update market conditions based on portfolio changes
+            if event.event_type == EventType.PORTFOLIO_UPDATE:
+                # Update market conditions based on portfolio changes
         self._update_market_conditions_from_portfolio(event.data)
         return True
         elif event.event_type == EventType.POSITION_OPENED or event.event_type == EventType.POSITION_CLOSED:
-        # Cache market data for instruments involved in trades
+            # Cache market data for instruments involved in trades
         if 'symbol' in event.data:
-        symbol = event.data['symbol']
+            symbol = event.data['symbol']
         self._preload_symbol_data(symbol)
         return True
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Handle market data related events
+            # Handle market data related events
             
             return False
         except Exception as e:
@@ -747,30 +649,20 @@ price_count = self.price_cache.invalidate_all()
         # Trigger market conditions refresh when portfolio changes significantly
         if 'portfolio_value' in data:
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-self.conditions_cache.invalidate_all()  # Force fresh market conditions
+                self.conditions_cache.invalidate_all()  # Force fresh market conditions
             except Exception as e:
                 self.algo.Error(f"[Market Data Cache] Error updating conditions from portfolio: {e}")
     
     def _preload_symbol_data(self, symbol: str):
         """Preload market data for a specific symbol"""
         try:
-        self.get_current_price(symbol)
+            self.get_current_price(symbol)
         self.get_market_data_point(symbol)
         except Exception as e:
-        self.algo.Debug(f"[Market Data Cache] Error preloading data for {symbol}: {e}")
+            self.algo.Debug(f"[Market Data Cache] Error preloading data for {symbol}: {e}")
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Preload current price and market data for the symbol
+            # Preload current price and market data for the symbol

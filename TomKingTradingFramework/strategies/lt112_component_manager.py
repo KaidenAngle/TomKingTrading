@@ -170,15 +170,10 @@ class FixedLT112Management:
     def execute_management_action(self, action: Dict) -> Tuple[bool, str]:
         """Execute a specific management action"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-action_type = action['action']
+            action_type = action['action']
             position_id = action['position_id']
             
             if action_type == 'CLOSE_NAKED_PUTS_ONLY':
@@ -200,15 +195,10 @@ action_type = action['action']
     def _execute_close_naked_puts_only(self, position_id: str) -> Tuple[bool, str]:
         """Close only the naked puts, keep the debit spread"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-success = self.psm.close_lt112_naked_puts_only(position_id)
+            success = self.psm.close_lt112_naked_puts_only(position_id)
             if success:
                 self.algo.Log(f"[WARNING] LT112: Closed naked puts only, keeping debit spread - {position_id}")
                 return True, "Naked puts closed successfully"
@@ -222,15 +212,10 @@ success = self.psm.close_lt112_naked_puts_only(position_id)
     def _execute_close_debit_spread_only(self, position_id: str) -> Tuple[bool, str]:
         """Close only the debit spread, keep the naked puts"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-success = self.psm.close_lt112_debit_spread_only(position_id)
+            success = self.psm.close_lt112_debit_spread_only(position_id)
             if success:
                 self.algo.Log(f"[WARNING] LT112: Closed debit spread only, keeping naked puts - {position_id}")
                 return True, "Debit spread closed successfully"
@@ -244,15 +229,10 @@ success = self.psm.close_lt112_debit_spread_only(position_id)
     def _execute_close_entire_position(self, position_id: str) -> Tuple[bool, str]:
         """Close the entire LT112 position"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-position = self.psm.positions.get(position_id)
+            position = self.psm.positions.get(position_id)
             if not position:
                 return False, "Position not found"
                 
@@ -286,15 +266,10 @@ position = self.psm.positions.get(position_id)
             # Simulate price updates
             if hasattr(self.algo.Securities, component.contract_symbol):
                 try:
-                    
+                    pass
                 except Exception as e:
 
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-component.current_price = float(self.algo.Securities[component.contract_symbol].Price)
+                    component.current_price = float(self.algo.Securities[component.contract_symbol].Price)
                 except Exception as e:
                     # Fallback to estimated pricing based on strike and underlying
                     self.algo.Debug(f"[LT112] Could not get price for {component.contract_symbol}: {e}")

@@ -82,15 +82,10 @@ class UnifiedVIXManager(BaseComponent, IManager):
         
         # Get fresh VIX value
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-if hasattr(self.algo, 'vix') and self.algo.vix is not None:
+            if hasattr(self.algo, 'vix') and self.algo.vix is not None:
                 vix_symbol = self.algo.vix
             else:
                 # FIXED: Proper fallback for missing VIX symbol
@@ -392,21 +387,13 @@ if hasattr(self.algo, 'vix') and self.algo.vix is not None:
         """Handle incoming events from the event bus"""
         
         try:
-        if event.event_type == EventType.VIX_LEVEL_REQUEST:
-        vix_value = self.get_current_vix()
+            if event.event_type == EventType.VIX_LEVEL_REQUEST:
+                vix_value = self.get_current_vix()
         regime = self.get_vix_regime()
         details = self.get_vix_details()
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Handle VIX level requests
+            # Handle VIX level requests
                 
                 # Publish response with comprehensive VIX data
                 if hasattr(self.algo, 'event_bus'):
@@ -467,15 +454,10 @@ if hasattr(self.algo, 'vix') and self.algo.vix is not None:
     def get_health_status(self) -> Dict[str, Any]:
         """Return manager health status for monitoring"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-current_vix = self.get_current_vix()
+            current_vix = self.get_current_vix()
             current_regime = self.get_vix_regime()
             
             return {

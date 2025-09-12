@@ -75,15 +75,10 @@ class EarningsAvoidanceSystem:
         
         for earnings_date_str in earnings_dates:
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-earnings_date = datetime.strptime(earnings_date_str, '%Y-%m-%d').date()
+                earnings_date = datetime.strptime(earnings_date_str, '%Y-%m-%d').date()
                 days_until_earnings = (earnings_date - current_date).days
                 
                 if 0 <= days_until_earnings <= buffer_days:
@@ -103,15 +98,10 @@ earnings_date = datetime.strptime(earnings_date_str, '%Y-%m-%d').date()
         
         for div_date_str in dividend_dates:
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-div_date = datetime.strptime(div_date_str, '%Y-%m-%d').date()
+                div_date = datetime.strptime(div_date_str, '%Y-%m-%d').date()
                 days_until_dividend = (div_date - current_date).days
                 
                 if 0 <= days_until_dividend <= buffer_days:
@@ -195,15 +185,10 @@ div_date = datetime.strptime(div_date_str, '%Y-%m-%d').date()
         Basic check that earnings calendar data is available and current
         """
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-validation = {
+            validation = {
                 'status': 'HEALTHY',
                 'calendar_entries': len(self.earnings_calendar),
                 'dividend_entries': len(self.dividend_calendar),

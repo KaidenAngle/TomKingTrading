@@ -9,7 +9,7 @@ from helpers.timezone_handler import TimezoneHandler
 class TomKingExitRules:
     """
     Manages exits for all strategies based on Tom King's rules:
-    - 0DTE: 50% profit or 3:00 PM time exit
+        - 0DTE: 50% profit or 3:00 PM time exit
     - Strangles: 50% profit or TradingConstants.DEFENSIVE_EXIT_DTE DTE
     - LT112: 50% profit or TradingConstants.DEFENSIVE_EXIT_DTE DTE
     - IPMCC: Roll short at TradingConstants.DEFENSIVE_EXIT_DTE DTE

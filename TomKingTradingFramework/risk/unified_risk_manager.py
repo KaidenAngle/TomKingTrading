@@ -122,15 +122,10 @@ class BaseRiskPlugin(ABC):
     def initialize(self, algorithm, event_bus) -> bool:
         """Base initialization"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-self._algorithm = algorithm
+            self._algorithm = algorithm
             self._event_bus = event_bus
             self._initialized = self._plugin_initialize()
             
@@ -155,19 +150,11 @@ self._algorithm = algorithm
             return None
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-return operation()
+            return operation()
         except Exception as e:
             self._error_count += 1
             self._algorithm.Error(
@@ -234,15 +221,10 @@ class UnifiedRiskManager(IManager):
     def register_plugin(self, plugin: IRiskPlugin) -> bool:
         """Register a risk plugin"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-if plugin.plugin_name in self.plugin_registry:
+            if plugin.plugin_name in self.plugin_registry:
                 self.algorithm.Error(
                     f"[Unified Risk] Plugin {plugin.plugin_name} already registered"
                 )
@@ -282,28 +264,16 @@ if plugin.plugin_name in self.plugin_registry:
         start_time = datetime.now()
         
         try:
-        for plugin in self.plugins:
-        try:
+            for plugin in self.plugins:
+                try:
+                    pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Check each plugin
+            # Check each plugin
                     
                 except Exception as e:
 
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-can_open, reason = plugin.can_open_position(symbol, quantity, context)
+                    can_open, reason = plugin.can_open_position(symbol, quantity, context)
                     if not can_open:
                         self.algorithm.Debug(
                             f"[Unified Risk] Position blocked by {plugin.plugin_name}: {reason}"
@@ -333,15 +303,10 @@ can_open, reason = plugin.can_open_position(symbol, quantity, context)
         """Notify all plugins that a position was opened"""
         for plugin in self.plugins:
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-plugin.on_position_opened(symbol, quantity, fill_price, context)
+                plugin.on_position_opened(symbol, quantity, fill_price, context)
             except Exception as e:
                 self.algorithm.Error(
                     f"[Unified Risk] Error in {plugin.plugin_name}.on_position_opened: {e}"
@@ -352,15 +317,10 @@ plugin.on_position_opened(symbol, quantity, fill_price, context)
         """Notify all plugins that a position was closed"""
         for plugin in self.plugins:
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-plugin.on_position_closed(symbol, quantity, fill_price, pnl, context)
+                plugin.on_position_closed(symbol, quantity, fill_price, pnl, context)
             except Exception as e:
                 self.algorithm.Error(
                     f"[Unified Risk] Error in {plugin.plugin_name}.on_position_closed: {e}"
@@ -370,15 +330,10 @@ plugin.on_position_closed(symbol, quantity, fill_price, pnl, context)
         """Forward market data to all plugins"""
         for plugin in self.plugins:
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-plugin.on_market_data(symbol, data)
+                plugin.on_market_data(symbol, data)
             except Exception as e:
                 self.algorithm.Debug(
                     f"[Unified Risk] Error in {plugin.plugin_name}.on_market_data: {e}"
@@ -390,15 +345,10 @@ plugin.on_market_data(symbol, data)
         
         for plugin in self.plugins:
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-events = plugin.periodic_check()
+                events = plugin.periodic_check()
                 if events:
                     all_events.extend(events)
                     
@@ -447,15 +397,10 @@ events = plugin.periodic_check()
     def _cancel_all_orders(self):
         """Cancel all pending orders"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-open_orders = self.algorithm.Transactions.GetOpenOrders()
+            open_orders = self.algorithm.Transactions.GetOpenOrders()
             for order in open_orders:
                 self.algorithm.Transactions.CancelOrder(order.Id)
                 self.algorithm.Log(f"[Unified Risk] Cancelled order: {order.Id}")
@@ -465,15 +410,10 @@ open_orders = self.algorithm.Transactions.GetOpenOrders()
     def _close_risky_positions(self):
         """Close positions deemed risky during emergency"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-for symbol, holding in self.algorithm.Portfolio.items():
+            for symbol, holding in self.algorithm.Portfolio.items():
                 if holding.Invested:
                     # Close short options (unlimited risk)
                     if (holding.Type == SecurityType.Option and 
@@ -486,15 +426,10 @@ for symbol, holding in self.algorithm.Portfolio.items():
     def _update_risk_metrics(self):
         """Update consolidated risk metrics from all plugins"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-consolidated_metrics = {
+            consolidated_metrics = {
                 'overall_risk_score': 0.0,
                 'position_count': len([h for h in self.algorithm.Portfolio.Values if h.Invested]),
                 'portfolio_value': self.algorithm.Portfolio.TotalPortfolioValue,
@@ -507,15 +442,10 @@ consolidated_metrics = {
             plugin_metrics = {}
             for plugin in self.plugins:
                 try:
-                    
+                    pass
                 except Exception as e:
 
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-metrics = plugin.get_risk_metrics()
+                    metrics = plugin.get_risk_metrics()
                     if metrics:
                         plugin_metrics[plugin.plugin_name] = metrics
                 except Exception as e:
@@ -544,15 +474,10 @@ metrics = plugin.get_risk_metrics()
         plugin_status = {}
         for plugin in self.plugins:
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-plugin_status[plugin.plugin_name] = {
+                plugin_status[plugin.plugin_name] = {
                     'version': plugin.plugin_version,
                     'metrics': plugin.get_risk_metrics()
                 }
@@ -641,15 +566,10 @@ plugin_status[plugin.plugin_name] = {
         """Shutdown all plugins"""
         for plugin in self.plugins:
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-plugin.shutdown()
+                plugin.shutdown()
             except Exception as e:
                 self.algorithm.Error(
                     f"[Unified Risk] Error shutting down {plugin.plugin_name}: {e}"
@@ -677,15 +597,10 @@ class RiskEventBus:
         if event.event_type in self.subscribers:
             for callback in self.subscribers[event.event_type]:
                 try:
-                    
+                    pass
                 except Exception as e:
 
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-callback(event)
+                    callback(event)
                 except Exception as e:
                     self.algorithm.Error(f"[Risk Event Bus] Error in event callback: {e}")
     
@@ -710,18 +625,13 @@ callback(event)
     def handle_event(self, event) -> bool:
         """Handle incoming events from the event bus"""
         try:
-        return True
+            return True
         except Exception as e:
-        self.algo.Error(f"[UnifiedRiskManager] Error handling event: {e}")
+            self.algo.Error(f"[UnifiedRiskManager] Error handling event: {e}")
         return False
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Risk manager processes position updates, market events, etc.
+            # Risk manager processes position updates, market events, etc.
             # Could trigger risk checks based on event type
     
     def get_dependencies(self) -> List[str]:

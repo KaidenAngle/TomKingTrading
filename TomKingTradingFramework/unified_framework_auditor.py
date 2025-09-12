@@ -80,26 +80,22 @@ class UnifiedFrameworkAuditor:
         
         for file_path in self.python_files:
             try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
             relative_path = str(file_path.relative_to(self.root_dir))
 
             # AST parsing for deep analysis
             try:
+                pass
             except Exception as e:
-            # Log and handle unexpected exception
+                # Log and handle unexpected exception
             except Exception as e:
 
                 print(f'Unexpected exception: {e}')
 
                 raise
 
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
 tree = ast.parse(content)
                     self._analyze_ast_structure(tree, relative_path)
                 except SyntaxError:
@@ -219,30 +215,30 @@ tree = ast.parse(content)
         
         for file_path in self.python_files:
             try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
             relative_path = str(file_path.relative_to(self.root_dir))
 
             for pattern, suggestion in reimplementation_patterns:
-            if re.search(pattern, content, re.IGNORECASE):
-            # Check if it's legitimately using the existing system
+                if re.search(pattern, content, re.IGNORECASE):
+                    # Check if it's legitimately using the existing system
             if not self._uses_existing_system(content, pattern):
-            self.quality_gate_failures.append(
+                self.quality_gate_failures.append(
             f"SYSTEM LEVERAGE: {relative_path} - {suggestion}"
             )
             system_leverage_violations += 1
 
             except Exception:
-            continue
+                continue
 
             if system_leverage_violations == 0:
-            print("   PASS: Proper system leverage maintained")
+                print("   PASS: Proper system leverage maintained")
             else:
             print(f"   FAIL: Found {system_leverage_violations} system leverage violations")
 
             def _uses_existing_system(self, content, pattern):
-            """Check if code properly uses existing systems"""
+                """Check if code properly uses existing systems"""
             # Simplified check - look for imports of unified managers
             unified_imports = [
             'unified_vix_manager', 'unified_position_sizer',
@@ -251,7 +247,7 @@ tree = ast.parse(content)
             return any(manager in content for manager in unified_imports)
 
             def _check_intentional_redundancy(self):
-            """Verify intentional redundancy is preserved where needed"""
+                """Verify intentional redundancy is preserved where needed"""
             # Known intentional redundancies in the Tom King framework
             intentional_redundancies = [
             'vix.*check',  # VIX validation at multiple levels
@@ -267,7 +263,7 @@ tree = ast.parse(content)
             print(f"   Verified {len(intentional_redundancies)} intentional redundancies")
 
             def _analyze_performance_patterns(self):
-            """Phase 3: Analyze performance and computational efficiency"""
+                """Phase 3: Analyze performance and computational efficiency"""
             print("\n3. PERFORMANCE ANALYSIS")
             print("-" * 40)
 
@@ -279,24 +275,24 @@ tree = ast.parse(content)
             print(f"   Complex functions: {complex_functions_count}")
 
             if high_complexity_count > 0:
-            print("   WARN: Performance optimization recommended")
+                print("   WARN: Performance optimization recommended")
             else:
             print("   PASS: No critical performance issues detected")
 
             def _is_complex_function(self, node):
-            """Determine if function has high complexity"""
+                """Determine if function has high complexity"""
             # Count nested structures as complexity indicator
             complexity = 0
             for child in ast.walk(node):
-            if isinstance(child, (ast.For, ast.While)):
-            complexity += 1
+                if isinstance(child, (ast.For, ast.While)):
+                    complexity += 1
             elif isinstance(child, ast.If):
-            complexity += 0.5
+                complexity += 0.5
 
             return complexity > 5
 
             def _analyze_error_handling(self):
-            """Phase 4: Analyze error handling patterns and robustness"""
+                """Phase 4: Analyze error handling patterns and robustness"""
             self.Error(f"\n4. ERROR HANDLING ANALYSIS"")
             print("-" * 40)
 
@@ -304,20 +300,16 @@ tree = ast.parse(content)
             missing_validation_count = 0
 
             for file_path in self.python_files:
-            try:
+                try:
+                    pass
             except Exception as e:
-            # Log and handle unexpected exception
-            except Exception as e:
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-
                 # Log and handle unexpected exception
+            except Exception as e:
 
                 print(f'Unexpected exception: {e}')
 
                 raise
+
 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
@@ -362,28 +354,28 @@ with open(file_path, 'r', encoding='utf-8') as f:
         
         for file_path in self.python_files:
             try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
             relative_path = str(file_path.relative_to(self.root_dir))
 
             for pattern in forbidden_patterns:
-            if re.search(pattern, content, re.MULTILINE | re.DOTALL):
-            self.integration_violations.append(
+                if re.search(pattern, content, re.MULTILINE | re.DOTALL):
+                    self.integration_violations.append(
             f"FORBIDDEN FALLBACK: {relative_path} - {pattern}"
             )
             api_violations += 1
 
             except Exception:
-            continue
+                continue
 
             print(f"   API compliance violations: {api_violations}")
 
             if api_violations == 0:
-            print("   PASS: QuantConnect API integration compliant")
+                print("   PASS: QuantConnect API integration compliant")
 
             def _analyze_trading_risks(self):
-            """Phase 6: Analyze trading-specific risk patterns"""
+                """Phase 6: Analyze trading-specific risk patterns"""
             print("\n6. TRADING RISK ANALYSIS")
             print("-" * 40)
 
@@ -397,20 +389,16 @@ with open(file_path, 'r', encoding='utf-8') as f:
             ]
 
             for file_path in self.python_files:
-            try:
+                try:
+                    pass
             except Exception as e:
-            # Log and handle unexpected exception
-            except Exception as e:
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-
                 # Log and handle unexpected exception
+            except Exception as e:
 
                 print(f'Unexpected exception: {e}')
 
                 raise
+
 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                 

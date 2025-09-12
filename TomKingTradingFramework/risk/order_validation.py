@@ -43,15 +43,10 @@ class OrderValidationSystem:
         Returns: (is_valid, reason)
         """
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-security = self.algorithm.Securities.get(symbol)
+            security = self.algorithm.Securities.get(symbol)
             if not security:
                 return False, "Symbol not found"
             
@@ -103,15 +98,10 @@ security = self.algorithm.Securities.get(symbol)
         # Place all legs
         for i, leg in enumerate(legs):
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-if leg.get('order_type') == 'MARKET':
+                if leg.get('order_type') == 'MARKET':
                     order = self.algorithm.MarketOrder(
                         leg['symbol'], 
                         leg['quantity'],
@@ -358,15 +348,10 @@ if leg.get('order_type') == 'MARKET':
         
         for order_id in order_ids:
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-self.algorithm.Transactions.CancelOrder(order_id)
+                self.algorithm.Transactions.CancelOrder(order_id)
                 self.algorithm.Log(f"   Cancelled order {order_id}")
             except (RuntimeError, InvalidOperationException, AttributeError) as e:
                 # Order may already be filled/cancelled or transaction system unavailable

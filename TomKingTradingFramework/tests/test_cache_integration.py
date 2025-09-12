@@ -169,9 +169,13 @@ class TestCacheConsolidation(unittest.TestCase):
             lambda: 'original_value'
         )
         
-        # Wait for expiration (simulate time passing)
+        # Simulate expiration by manipulating cache timestamps directly
         import time
-        time.sleep(0.002)
+        current_time = time.time()
+        # Force expiration by setting cache timestamp to past
+        if hasattr(self.cache, '_cache'):
+            for key in self.cache._cache:
+                self.cache._cache[key]['timestamp'] = current_time - 0.01
         
         # Should recompute due to expiration
         result = self.cache.get(

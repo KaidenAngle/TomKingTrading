@@ -221,19 +221,11 @@ class EventBus(IManager):
         """
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-start_time = datetime.now()
+            start_time = datetime.now()
             
             # FIXED: Validate event data to prevent corruption and handler failures
             if data is not None:
@@ -270,20 +262,12 @@ start_time = datetime.now()
                 handler_start = datetime.now()
                 
                 try:
-                handler_info['handler'](event)
+                    handler_info['handler'](event)
                 handler_info['call_count'] += 1
                 processed_count += 1
                 except Exception as e:
 
-                
-                    # Log and handle unexpected exception
-
-                
-                    print(f'Unexpected exception: {e}')
-
-                
-                    raise
-# Call the handler
+                    # Call the handler
                     
                     # Track handler performance
                     handler_time = (datetime.now() - handler_start).total_seconds() * 1000
@@ -517,19 +501,11 @@ start_time = datetime.now()
         """Internal method to publish an Event object"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-start_time = datetime.now()
+            start_time = datetime.now()
             
             # Add to history
             self.event_history.append(event)
@@ -549,20 +525,12 @@ start_time = datetime.now()
                 handler_start = datetime.now()
                 
                 try:
-                handler_info['handler'](event)
+                    handler_info['handler'](event)
                 handler_info['call_count'] += 1
                 processed_count += 1
                 except Exception as e:
 
-                
-                    # Log and handle unexpected exception
-
-                
-                    print(f'Unexpected exception: {e}')
-
-                
-                    raise
-# Call the handler with event object
+                    # Call the handler with event object
                     
                     # Track handler performance
                     handler_time = (datetime.now() - handler_start).total_seconds() * 1000
@@ -650,18 +618,10 @@ start_time = datetime.now()
         request_info = self.pending_requests[correlation_id]
         
         try:
-        request_info['callback'](event)
+            request_info['callback'](event)
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Call the registered callback
+            # Call the registered callback
             
         except Exception as e:
             self.algorithm.Error(f"[EventBus] Response callback error for {correlation_id}: {e}")
@@ -736,19 +696,11 @@ start_time = datetime.now()
         visited.add(data_id)
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-for key, value in data.items():
+            for key, value in data.items():
                 if isinstance(value, dict):
                     if self._has_circular_references(value, visited.copy(), max_depth - 1):
                         return True

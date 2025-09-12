@@ -83,8 +83,8 @@ class TargetedMalformedFixerTests:
                 # Skip blank lines and check for except
                 while j < len(lines) and (lines[j].strip() == '' or 
                                         lines[j].strip().startswith('except') == False):
-                    if lines[j].strip() != '' and not lines[j].strip().startswith('except'):
-                        break  # Found content, not the pattern we're looking for
+                                            if lines[j].strip() != '' and not lines[j].strip().startswith('except'):
+                                                break  # Found content, not the pattern we're looking for
                     j += 1
                 
                 # If we found except clause directly after try (with possible blank lines)
@@ -125,7 +125,7 @@ class TargetedMalformedFixerTests:
                         # Reconstruct the try-except block properly
                         fixed_lines.append(line)  # try:
                         
-                        # Add orphaned code to try block with proper indentation
+                            # Add orphaned code to try block with proper indentation
                         for orphan_line in orphaned_code:
                             if orphan_line.strip():
                                 # Ensure proper indentation within try block

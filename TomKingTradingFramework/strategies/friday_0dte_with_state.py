@@ -180,19 +180,11 @@ class Friday0DTEWithState(BaseStrategyWithState):
         """Internal pre-entry move analysis (cached)"""
         
         try:
-        spy = self.algo.spy
+            spy = self.algo.spy
         current_time = self.algo.Time.time()
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Get SPY or ES price
+            # Get SPY or ES price
             
             # CRITICAL FIX #3: Enhanced market open price capture with robust timing windows
             # and comprehensive fallback mechanisms per audit documentation
@@ -337,15 +329,10 @@ class Friday0DTEWithState(BaseStrategyWithState):
     def _log_cache_performance(self):
         """Log 0DTE strategy cache performance"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-entry_stats = self.entry_conditions_cache.get_statistics()
+            entry_stats = self.entry_conditions_cache.get_statistics()
             market_stats = self.market_data_cache.get_statistics()
             vix_stats = self.vix_cache.get_statistics()
             
@@ -363,15 +350,10 @@ entry_stats = self.entry_conditions_cache.get_statistics()
     def get_cache_statistics(self) -> dict:
         """Get 0DTE strategy cache statistics"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-return {
+            return {
                 'entry_conditions_cache': self.entry_conditions_cache.get_statistics(),
                 'market_data_cache': self.market_data_cache.get_statistics(),
                 'vix_cache': self.vix_cache.get_statistics(),
@@ -388,15 +370,10 @@ return {
     def invalidate_entry_cache(self, reason: str = "manual"):
         """Manually invalidate entry condition caches"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-entry_count = self.entry_conditions_cache.invalidate_all()
+            entry_count = self.entry_conditions_cache.invalidate_all()
             market_count = self.market_data_cache.invalidate_all()
             vix_count = self.vix_cache.invalidate_all()
             
@@ -412,33 +389,20 @@ entry_count = self.entry_conditions_cache.invalidate_all()
         # Invalidate entry condition caches when placing orders
         # (positions are about to change)
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-self.entry_conditions_cache.invalidate_pattern('entry_conditions')
+            self.entry_conditions_cache.invalidate_pattern('entry_conditions')
             self.entry_conditions_cache.invalidate_pattern('risk_check')
         except (AttributeError, KeyError, RuntimeError) as e:
             pass  # Don't fail order placement due to cache issues
         
         try:
-        estimated_delta = self._estimate_position_delta()
+            estimated_delta = self._estimate_position_delta()
         contracts = self._calculate_position_size()
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Check SPY concentration limits first (with potential caching from spy_concentration_manager)
+            # Check SPY concentration limits first (with potential caching from spy_concentration_manager)
             # IMPORTANT: Prevents over-exposure when multiple strategies trade SPY
             # DO NOT REMOVE: Critical risk management across strategies
             
@@ -681,20 +645,12 @@ self.entry_conditions_cache.invalidate_pattern('entry_conditions')
         total_credit = 0.0
         
         try:
-        for contract_type, contract in self.current_position.items():
-        if contract_type == 'contracts' or contract_type == 'entry_time':
-        continue
+            for contract_type, contract in self.current_position.items():
+                if contract_type == 'contracts' or contract_type == 'entry_time':
+                    continue
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Get credits from actual positions
+            # Get credits from actual positions
                     
                 if contract in self.algo.Securities:
                     position = self.algo.Portfolio[contract]
@@ -722,19 +678,11 @@ self.entry_conditions_cache.invalidate_pattern('entry_conditions')
         self.algo.Debug(f"[0DTE] VIX RETRIEVAL: Requesting VIX from unified manager...")
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-vix = self.algo.vix_manager.get_current_vix()
+            vix = self.algo.vix_manager.get_current_vix()
             self.algo.Debug(f"[0DTE] VIX RETRIEVED: Raw value = {vix}")
             
             if not vix or vix <= 0:
@@ -796,19 +744,11 @@ vix = self.algo.vix_manager.get_current_vix()
         strategy_pnl = 0.0
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-if self.current_position and isinstance(self.current_position, dict):
+            if self.current_position and isinstance(self.current_position, dict):
                 for contract_type, contract in self.current_position.items():
                     if contract_type in ['contracts', 'entry_time']:
                         continue
@@ -894,15 +834,10 @@ if self.current_position and isinstance(self.current_position, dict):
         Handles iron condor, put spread, and call spread exits atomically
         """
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-if not self.current_position:
+            if not self.current_position:
                 self.algo.Error("[0DTE] No position to exit")
                 return False
             

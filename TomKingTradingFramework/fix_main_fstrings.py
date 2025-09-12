@@ -12,7 +12,7 @@ def fix_main_fstrings():
     
     original_content = content
     
-    # Fix pattern: f""[MAIN] -> f"[MAIN]
+    # Fix pattern: f"[MAIN]" -> f"[MAIN]
     content = re.sub(r'f""(\[MAIN\])', r'f"\1', content)
     
     # Fix pattern: ""[MAIN] -> "[MAIN] 

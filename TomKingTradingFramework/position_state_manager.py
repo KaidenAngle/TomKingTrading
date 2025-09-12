@@ -17,28 +17,23 @@ except ImportError:
     
 class OptionRight:
     
-Call = 0
+    Call = 0
     
 Put = 1
 
     
 class OrderStatus:
     
-Filled = 0
+    Filled = 0
     
 PartiallyFilled = 1
     
 Canceled = 2
     
 except Exception as e:
-    
-    # Log and handle unexpected exception
 
-    print(f'Unexpected exception: {e}')
-
-    raise
-class PositionComponent:
-    """Represents a single component of a multi-legged position"""
+    class PositionComponent:
+        """Represents a single component of a multi-legged position"""
     
     def __init__(self, component_id: str, strategy: str, symbol: str, 
                  leg_type: str, contract_symbol: str, quantity: int, 
@@ -407,11 +402,11 @@ class PositionStateManagerQC:
         position = self.positions[position_id]
         
         try:
-        # Close each component
+            # Close each component
         for component in position.components.values():
-        # Place closing order for each component
+            # Place closing order for each component
         if hasattr(self.algo, 'Liquidate'):
-        self.algo.Liquidate(component.contract_symbol, f"Closing {position.strategy} position")
+            self.algo.Liquidate(component.contract_symbol, f"Closing {position.strategy} position")
 
         # Remove position from tracking
         del self.positions[position_id]
@@ -420,7 +415,7 @@ class PositionStateManagerQC:
         return True
 
         except Exception as e:
-        self.algo.Log(f"[ERROR] Failed to close position {position_id}: {e}")
+            self.algo.Log(f"[ERROR] Failed to close position {position_id}: {e}")
         return False
 
         # ================================
@@ -428,17 +423,17 @@ class PositionStateManagerQC:
         # ================================
 
         def link_order_to_component(self, order_ticket, position_id: str, component_id: str):
-        """Link QuantConnect order ticket to position component"""
+            """Link QuantConnect order ticket to position component"""
         if position_id in self.positions:
-        position = self.positions[position_id]
+            position = self.positions[position_id]
         if component_id in position.components:
-        component = position.components[component_id]
+            component = position.components[component_id]
         component.order_ticket = order_ticket
         component.qc_symbol = order_ticket.Symbol
 
         # Update with actual fill if order is filled
         if order_ticket.Status == OrderStatus.Filled:
-        component.actual_fill_price = order_ticket.AverageFillPrice
+            component.actual_fill_price = order_ticket.AverageFillPrice
         component.actual_quantity = order_ticket.Quantity
         component.fill_time = self.algo.Time
         component.order_status = "FILLED"
@@ -452,23 +447,19 @@ class PositionStateManagerQC:
         return False
 
         def execute_component_order(self, component: PositionComponent, position_id: str, action: str = 'open'):
-        """Execute actual QuantConnect order for component"""
+            """Execute actual QuantConnect order for component"""
         try:
+            pass
         except Exception as e:
-        # Log and handle unexpected exception
-        except Exception as e:
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-
             # Log and handle unexpected exception
+        except Exception as e:
 
+        
             print(f'Unexpected exception: {e}')
 
+        
             raise
+
 # Get the QC Symbol
             qc_symbol = self.algo.Symbol(component.contract_symbol) if isinstance(component.contract_symbol, str) else component.contract_symbol
             
@@ -605,10 +596,10 @@ class PositionStateManagerQC:
     def deserialize_state(self, state_json: str):
         """Restore position state from persistence"""
         try:
-        state_data = json.loads(state_json)
+            state_data = json.loads(state_json)
 
         for pos_id, pos_data in state_data['positions'].items():
-        # Recreate MultiLegPosition
+            # Recreate MultiLegPosition
         position = MultiLegPosition(
         position_id=pos_id,
         strategy=pos_data['strategy'],
@@ -623,7 +614,7 @@ class PositionStateManagerQC:
 
         # Recreate components
         for comp_id, comp_data in pos_data['components'].items():
-        component = PositionComponent(
+            component = PositionComponent(
         component_id=comp_id,
         strategy=comp_data['strategy'],
         symbol=comp_data['symbol'],
@@ -657,10 +648,10 @@ class PositionStateManagerQC:
         self.algo.Log(f"[PERSISTENCE] Restored {len(self.positions)} multi-legged positions")
 
         except Exception as e:
-        self.algo.Log(f"[ERROR] State deserialization failed: {e}")
+            self.algo.Log(f"[ERROR] State deserialization failed: {e}")
 
         def get_state_summary(self) -> Dict:
-        """Get summary of current state for monitoring"""
+            """Get summary of current state for monitoring"""
         summary = {
         'total_positions': len(self.positions),
         'positions_by_strategy': {},
@@ -670,23 +661,18 @@ class PositionStateManagerQC:
         }
 
         for position in self.positions.values():
-        # Count by strategy
+            # Count by strategy
         if position.strategy not in summary['positions_by_strategy']:
-        summary['positions_by_strategy'][position.strategy] = 0
+            summary['positions_by_strategy'][position.strategy] = 0
         summary['positions_by_strategy'][position.strategy] += 1
 
         # Count by status
         if position.status not in summary['positions_by_status']:
-        summary['positions_by_status'][position.status] = 0
+            summary['positions_by_status'][position.status] = 0
         summary['positions_by_status'][position.status] += 1
 
         # Count total components
         summary['total_components'] += len(position.components)
         except Exception as e:
-            # Log and handle unexpected exception
 
-            print(f'Unexpected exception: {e}')
-
-            raise
-        
-        return summary
+            return summary

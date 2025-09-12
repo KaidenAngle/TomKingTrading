@@ -55,7 +55,7 @@ class TargetedSyntaxErrorFixer:
             fixes_in_file = 0
             
             # Pattern 1: Fix unterminated f-strings with missing opening quote
-            # self.Error(f""[MAIN] -> self.Error(f"[MAIN]
+            # self.Error(f"[MAIN]" -> self.Error(f"[MAIN]
             content, fix_count = self._fix_unterminated_fstrings(content)
             fixes_in_file += fix_count
             
@@ -98,7 +98,7 @@ class TargetedSyntaxErrorFixer:
         lines = content.split('\n')
         
         for i, line in enumerate(lines):
-            # Pattern: f""[MAIN] -> f"[MAIN]
+            # Pattern: f"[MAIN]" -> f"[MAIN]
             if re.search(r'f""?\[', line):
                 original_line = line
                 # Fix double quotes at start of f-string

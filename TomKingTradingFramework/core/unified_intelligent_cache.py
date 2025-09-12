@@ -251,15 +251,10 @@ class UnifiedIntelligentCache(Generic[T]):
             # Cache miss - use factory if provided
             if factory:
                 try:
-                    
+                    pass
                 except Exception as e:
 
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-value = factory()
+                    value = factory()
                     self.put(key, value, cache_type=cache_type, tags=tags)
                     return value
                 except Exception as e:
@@ -299,18 +294,10 @@ value = factory()
             current_time = self.algo.Time
             
             try:
-            size_bytes = self._estimate_size(value)
+                size_bytes = self._estimate_size(value)
             except Exception as e:
 
-            
-                # Log and handle unexpected exception
-
-            
-                print(f'Unexpected exception: {e}')
-
-            
-                raise
-# Estimate memory usage
+                # Estimate memory usage
                 
                 # Check memory limits
                 if size_bytes > self.max_memory_bytes:
@@ -546,15 +533,10 @@ value = factory()
         """Get current position snapshot for change detection"""
         snapshot = {}
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-for symbol, holding in self.algo.Portfolio.items():
+            for symbol, holding in self.algo.Portfolio.items():
                 if holding.Invested and abs(holding.Quantity) > 0:
                     snapshot[str(symbol)] = holding.Quantity
         except Exception as e:
@@ -567,20 +549,12 @@ for symbol, holding in self.algo.Portfolio.items():
             return False
         
         try:
-        for symbol_str in self._tracked_symbols:
-        if (symbol_str in entry.invalidation_tags or
+            for symbol_str in self._tracked_symbols:
+                if (symbol_str in entry.invalidation_tags or
         entry.cache_type == CacheType.MARKET_DATA):
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Check tracked symbols for price changes
+            # Check tracked symbols for price changes
                     
                     if symbol_str in self.algo.Securities:
                         current_price = self.algo.Securities[symbol_str].Price
@@ -604,15 +578,10 @@ for symbol, holding in self.algo.Portfolio.items():
         """Check custom invalidation hooks"""
         for hook_name, hook in self._invalidation_hooks.items():
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-if hook(key, entry.data):
+                if hook(key, entry.data):
                     return True
             except Exception as e:
                 self.algo.Debug(f"[UnifiedCache] Hook {hook_name} failed: {e}")
@@ -679,15 +648,10 @@ if hook(key, entry.data):
     def _estimate_size(self, value: Any) -> int:
         """Estimate memory usage of a value"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-if isinstance(value, (int, float, bool)):
+            if isinstance(value, (int, float, bool)):
                 return 24
             elif isinstance(value, str):
                 return 50 + len(value)

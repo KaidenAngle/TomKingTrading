@@ -37,16 +37,11 @@ class OptionChainManager:
     def add_option_subscription(self, symbol_str):
         """Add option subscription for a symbol with proper configuration"""
         try:
-        if symbol_str not in self.algo.Securities:
-        equity = self.algo.AddEquity(symbol_str, Resolution.Minute)
+            if symbol_str not in self.algo.Securities:
+                equity = self.algo.AddEquity(symbol_str, Resolution.Minute)
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Add the underlying equity if not already added
+            # Add the underlying equity if not already added
             
             # Add option subscription
             option = self.algo.AddOption(symbol_str, Resolution.Minute)
@@ -71,15 +66,10 @@ class OptionChainManager:
     def get_option_chain(self, symbol_str, min_dte=0, max_dte=730):
         """Get filtered option chain with production-grade caching"""
         try:
-        self._run_cache_maintenance()
+            self._run_cache_maintenance()
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Run periodic cache maintenance
+            # Run periodic cache maintenance
             
             # Create cache key for this specific request
             cache_key = f'chain_{symbol_str}_{min_dte}_{max_dte}'
@@ -143,15 +133,10 @@ class OptionChainManager:
     def get_contracts_by_delta(self, symbol_str, target_delta, option_right, dte):
         """Find option contracts closest to target delta"""
         try:
-        chain = self.get_option_chain(symbol_str, dte - 1, dte + 1)
+            chain = self.get_option_chain(symbol_str, dte - 1, dte + 1)
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Get filtered chain
+            # Get filtered chain
             
             if not chain:
                 self.algo.Debug(f"No option chain found for {symbol_str} with {dte} DTE")
@@ -195,15 +180,10 @@ class OptionChainManager:
     def calculate_greeks(self, contract, underlying_price, current_time):
         """FIXED: Delegate to centralized GreeksMonitor instead of duplicating Black-Scholes"""
         try:
-        dte = (contract.Expiry - current_time).total_seconds() / (24 * TradingConstants.SECONDS_PER_HOUR)
+            dte = (contract.Expiry - current_time).total_seconds() / (24 * TradingConstants.SECONDS_PER_HOUR)
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Time to expiration in days
+            # Time to expiration in days
             
             # Get implied volatility (use contract IV if available, else estimate)
             if hasattr(contract, 'ImpliedVolatility') and contract.ImpliedVolatility > 0:
@@ -269,15 +249,10 @@ class OptionChainManager:
     def _log_cache_statistics(self):
         """Log unified cache performance statistics"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-unified_stats = self.chain_cache.get_statistics()
+            unified_stats = self.chain_cache.get_statistics()
             
             if not self.algo.LiveMode:  # Only detailed logging in backtest
                 self.algo.Debug(
@@ -298,15 +273,10 @@ unified_stats = self.chain_cache.get_statistics()
     def get_cache_statistics(self) -> dict:
         """Get comprehensive unified cache statistics"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-unified_stats = self.chain_cache.get_statistics()
+            unified_stats = self.chain_cache.get_statistics()
             return {
                 'unified_cache': unified_stats,
                 'option_chain_specific': {
@@ -322,15 +292,10 @@ unified_stats = self.chain_cache.get_statistics()
     def invalidate_chain_cache(self, symbol_str: str = None, reason: str = "manual"):
         """Invalidate option chain cache"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-if symbol_str:
+            if symbol_str:
                 # Invalidate specific symbol patterns in MARKET_DATA cache type
                 count = self.chain_cache.invalidate_pattern(f'chain_{symbol_str}')
                 self.algo.Debug(f"[Option Chain Cache] Invalidated {count} entries for {symbol_str}. Reason: {reason}")
@@ -405,19 +370,14 @@ if symbol_str:
         integrate through the dependency container system.
         """
         try:
-        if hasattr(self.algo, 'dependency_container'):
-        self.external_chain_cache = self.algo.dependency_container.get_lazy_proxy('option_cache_manager')
+            if hasattr(self.algo, 'dependency_container'):
+                self.external_chain_cache = self.algo.dependency_container.get_lazy_proxy('option_cache_manager')
         else:
         # Fallback for systems without dependency container
         self.external_chain_cache = None
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# FIXED: Use dependency container instead of direct instantiation
+            # FIXED: Use dependency container instead of direct instantiation
             
             self.algo.Debug("[Option Chain Manager] Successfully integrated with existing OptionChainCache system")
             
@@ -432,12 +392,12 @@ if symbol_str:
         STREAMLINED: Essential option chain quality validation without redundancy
         
         Validates core quality metrics needed for position opening decisions:
-        - Chain availability and basic completeness
+            - Chain availability and basic completeness
         - Integration with existing cache performance metrics
         """
         try:
-        if hasattr(self, 'external_chain_cache'):
-        chain = self.external_chain_cache.get_option_chain(
+            if hasattr(self, 'external_chain_cache'):
+                chain = self.external_chain_cache.get_option_chain(
         symbol_str,
         min_expiry=0,
         max_expiry=60
@@ -446,12 +406,7 @@ if symbol_str:
         chain = self.get_option_chain(symbol_str)
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Get chain using existing cache system if available
+            # Get chain using existing cache system if available
             
             validation_result = {
                 'symbol': symbol_str,

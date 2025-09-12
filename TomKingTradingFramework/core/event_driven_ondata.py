@@ -18,7 +18,7 @@ class EventDrivenOnData:
     
     Replaces traditional periodic OnData processing with event-driven architecture
     for 20%+ performance improvement through:
-    - Elimination of unnecessary periodic checks
+        - Elimination of unnecessary periodic checks
     - Event-triggered updates only when data changes
     - Intelligent batching and filtering
     - Performance monitoring and optimization
@@ -60,15 +60,7 @@ class EventDrivenOnData:
             optimization_result = self.event_optimizer.optimize_ondata_performance(data)
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# PHASE 5 OPTIMIZATION: Use event-driven optimizer
+            # PHASE 5 OPTIMIZATION: Use event-driven optimizer
             
             # Check if processing can be skipped
             if not self._should_process_data(data):

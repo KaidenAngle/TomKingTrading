@@ -188,19 +188,11 @@ class ManualModeFallback:
         """Execute trade normally when not in manual mode"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-if direction.upper() == "BUY":
+            if direction.upper() == "BUY":
                 if entry_price:
                     return self.algorithm.LimitOrder(symbol, quantity, entry_price)
                 else:

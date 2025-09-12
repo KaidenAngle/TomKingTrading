@@ -141,18 +141,19 @@ class RateLimiter:
                     if not self.delayed_requests.empty():
                         execute_time, callback, args, kwargs = self.delayed_requests.get(timeout=1)
                         
-                        # Wait until execution time
-                        wait_time = execute_time - time.time()
-                        if wait_time > 0:
-                            time.sleep(min(wait_time, 1))  # Max 1 second sleep
+                        # Check if execution time has arrived (non-blocking)
+                        current_time = time.time()
+                        if current_time < execute_time:
+                            # Re-queue for later execution
+                            self.delayed_requests.put((execute_time, callback, args, kwargs))
+                            continue
                         
                         # Execute the callback
                         try:
                             callback(*args, **kwargs)
                         except Exception as e:
                             self.algo.Log(f"[RATE LIMITER] Scheduled request error: {e}")
-                    else:
-                        time.sleep(0.1)  # Short sleep when no requests
+                    # No requests available (empty queue timeout already handled by get())
                 except Exception as e:
                     self.algo.Log(f"[RATE LIMITER] Scheduler error: {e}")
         

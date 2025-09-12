@@ -743,15 +743,10 @@ class RiskParameters:
     def save_parameters_to_file(self, filename: str) -> bool:
         """Save all parameters to JSON file"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-with open(filename, 'w') as f:
+            with open(filename, 'w') as f:
                 json.dump(self.get_all_risk_parameters(), f, indent=2, default=str)
             return True
         except Exception as e:
@@ -761,15 +756,10 @@ with open(filename, 'w') as f:
     def load_parameters_from_file(self, filename: str) -> bool:
         """Load parameters from JSON file"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-with open(filename, 'r') as f:
+            with open(filename, 'r') as f:
                 loaded_params = json.load(f)
             
             # Update parameters from loaded data

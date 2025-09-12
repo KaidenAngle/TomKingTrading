@@ -96,12 +96,12 @@ class EmptyTryBlockFixer:
                     expected_indent = current_indent + 4
                     
                     # Look ahead to find what comes after try:
-                    j = i + 1
+                        j = i + 1
                     found_proper_content = False
                     
                     # Skip empty lines immediately after try:
-                    while j < len(lines) and not lines[j].strip():
-                        j += 1
+                        while j < len(lines) and not lines[j].strip():
+                            j += 1
                     
                     if j < len(lines):
                         next_line = lines[j]

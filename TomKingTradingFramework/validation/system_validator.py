@@ -81,15 +81,10 @@ class SystemValidator:
         # Test Friday 0DTE
         if hasattr(self.algo, 'friday_0dte'):
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-can_enter, reason = self.algo.friday_0dte.can_enter_position(
+                can_enter, reason = self.algo.friday_0dte.can_enter_position(
                     2, [], 100000, None
                 )
                 self.info.append(f"[WARNING] Friday 0DTE validation: {reason}")
@@ -99,15 +94,10 @@ can_enter, reason = self.algo.friday_0dte.can_enter_position(
         # Test LT112
         if hasattr(self.algo, 'lt112_strategy'):
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-can_enter, reason = self.algo.lt112_strategy.can_enter_position(
+                can_enter, reason = self.algo.lt112_strategy.can_enter_position(
                     2, [], 100000
                 )
                 self.info.append(f"[WARNING] LT112 validation: {reason}")
@@ -120,34 +110,24 @@ can_enter, reason = self.algo.lt112_strategy.can_enter_position(
         # Test correlation limits
         if hasattr(self.algo, 'correlation_manager'):
             try:
-            test_positions = ['SPY', 'QQQ']
+                test_positions = ['SPY', 'QQQ']
             allowed, msg = self.algo.correlation_manager.enforce_correlation_limits(
             'IWM', 2
             )
             self.info.append(f"[WARNING] Correlation limits working")
             except Exception as e:
-            self.critical_issues.append(f"[WARNING] Correlation manager error: {e}")
+                self.critical_issues.append(f"[WARNING] Correlation manager error: {e}")
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-# Test with sample positions
+                # Test with sample positions
         
         # Test VIX regime
         if hasattr(self.algo, 'vix_manager'):
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-regime = self.algo.vix_manager.get_current_regime()
+                regime = self.algo.vix_manager.get_current_regime()
                 if regime:
                     self.info.append(f"[WARNING] VIX regime detected: {regime.get('name', 'Unknown')}")
                 else:
@@ -180,19 +160,14 @@ regime = self.algo.vix_manager.get_current_regime()
         
         if hasattr(self.algo, 'position_size_calculator'):
             try:
-            test_cases = [
+                test_cases = [
             ('friday_0dte', 50000, 2, 20),
             ('lt112', 100000, 3, 25),
             ('ipmcc', 150000, 4, 30)
             ]
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-# Test position sizing for different scenarios
+                # Test position sizing for different scenarios
                 
                 for strategy, account, phase, vix in test_cases:
                     result = self.algo.position_size_calculator.calculate_position_size(
@@ -213,19 +188,11 @@ regime = self.algo.vix_manager.get_current_regime()
         """Validate correlation configuration"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-from config.correlation_config import CorrelationConfig
+            from config.correlation_config import CorrelationConfig
             
             # Test dynamic limits for different account sizes
             test_accounts = [25000, 50000, 100000, 200000]
@@ -249,15 +216,10 @@ from config.correlation_config import CorrelationConfig
                 
             # Check VIX regime adjustments
             try:
-                
+                pass
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-for vix in [10, 18, 25, 35]:
+                for vix in [10, 18, 25, 35]:
                     regime = self.algo.vix_manager.get_regime_for_vix(vix)
                     self.info.append(f"[WARNING] VIX {vix}: {regime['name']}")
             except (AttributeError, KeyError, ValueError, TypeError) as e:
@@ -268,19 +230,14 @@ for vix in [10, 18, 25, 35]:
         
         if hasattr(self.algo, 'option_chain_manager'):
             try:
-            subs = self.algo.option_chain_manager.option_subscriptions
+                subs = self.algo.option_chain_manager.option_subscriptions
             if subs:
-            self.info.append(f"[WARNING] Option subscriptions: {list(subs.keys())}")
+                self.info.append(f"[WARNING] Option subscriptions: {list(subs.keys())}")
             else:
             self.warnings.append("[WARNING] No option subscriptions active")
             except Exception as e:
 
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-# Check option subscriptions
+                # Check option subscriptions
                     
                 # Validate option data
                 validation = self.algo.option_chain_manager.validate_option_data()

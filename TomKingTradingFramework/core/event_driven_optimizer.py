@@ -164,18 +164,10 @@ class EventDrivenOptimizer(BaseComponent):
         start_time = datetime.now()
         
         try:
-        symbols_processed = list(self.pending_greeks_updates)
+            symbols_processed = list(self.pending_greeks_updates)
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Process all pending Greeks updates in batch
+            # Process all pending Greeks updates in batch
             
             for symbol in symbols_processed:
                 # Check if we have positions in this underlying
@@ -208,19 +200,11 @@ class EventDrivenOptimizer(BaseComponent):
         start_time = datetime.now()
         
         try:
-        total_position_changes = len(self.pending_risk_checks)
+            total_position_changes = len(self.pending_risk_checks)
         significant_changes = [r for r in self.pending_risk_checks if abs(r.get('quantity_change', 0)) > 5]
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Aggregate risk changes
+            # Aggregate risk changes
             
             # Only run comprehensive risk check if significant changes
             if significant_changes:

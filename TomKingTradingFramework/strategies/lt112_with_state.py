@@ -89,19 +89,11 @@ class LT112WithState(BaseStrategyWithState):
         """Place LT112 put spread orders"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-spy = self.algo.spy
+            spy = self.algo.spy
             current_price = self.algo.Securities[spy].Price
             
             # Find options with target DTE
@@ -222,18 +214,10 @@ spy = self.algo.spy
             return True
         
         try:
-        self._close_position(position_to_roll)
+            self._close_position(position_to_roll)
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Close current position
+            # Close current position
             
             # Open new position at further strikes
             spy = self.algo.spy
@@ -378,19 +362,11 @@ spy = self.algo.spy
         """Calculate net credit for spread using real market data"""
         
         try:
-        short_price = 0.0
+            short_price = 0.0
         long_price = 0.0
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Use actual bid/ask prices from QuantConnect
+            # Use actual bid/ask prices from QuantConnect
             
             if short_option in self.algo.Securities:
                 short_security = self.algo.Securities[short_option]
@@ -465,18 +441,10 @@ spy = self.algo.spy
         """Close an LT112 position"""
         
         try:
-        self.algo.MarketOrder(position['short_put'], position['contracts'])
+            self.algo.MarketOrder(position['short_put'], position['contracts'])
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Buy back short put
+            # Buy back short put
             
             # Sell long put
             self.algo.MarketOrder(position['long_put'], -position['contracts'])
@@ -516,15 +484,10 @@ spy = self.algo.spy
         Exits at 50% profit or TradingConstants.DEFENSIVE_EXIT_DTE DTE defensive exit
         """
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-if not self.current_position:
+            if not self.current_position:
                 self.algo.Error("[LT112] No position to exit")
                 return False
                 

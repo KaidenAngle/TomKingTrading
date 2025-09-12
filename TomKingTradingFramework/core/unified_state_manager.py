@@ -351,19 +351,11 @@ class UnifiedStateManager(IManager):
         """Save all state machines to persistent storage"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-state_data = {
+            state_data = {
                 'timestamp': str(self.algo.Time),
                 'system_state': self.system_state.name,
                 'emergency_mode': self.emergency_mode,
@@ -393,19 +385,11 @@ state_data = {
         """Load all state machines from persistent storage"""
         
         try:
-            
         
+            pass
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-if not self.algo.ObjectStore.ContainsKey(self.state_file):
+            if not self.algo.ObjectStore.ContainsKey(self.state_file):
                 return
             
             import json
@@ -455,15 +439,10 @@ if not self.algo.ObjectStore.ContainsKey(self.state_file):
     def _check_vix_spike_internal(self) -> bool:
         """Internal VIX spike check (cached)"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-vix = self.algo.vix
+            vix = self.algo.vix
             if vix in self.algo.Securities:
                 return self.algo.Securities[vix].Price > 35
         except Exception as e:
@@ -537,15 +516,10 @@ vix = self.algo.vix
     def _log_cache_performance(self):
         """Log unified state management cache performance"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-unified_stats = self.state_cache.get_statistics()
+            unified_stats = self.state_cache.get_statistics()
             
             if not self.algo.LiveMode:  # Only detailed logging in backtest
                 self.algo.Debug(
@@ -566,15 +540,10 @@ unified_stats = self.state_cache.get_statistics()
     def get_cache_statistics(self) -> Dict:
         """Get unified state management cache statistics"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-unified_stats = self.state_cache.get_statistics()
+            unified_stats = self.state_cache.get_statistics()
             return {
                 'unified_cache': unified_stats,
                 'state_specific_entries': {
@@ -591,17 +560,12 @@ unified_stats = self.state_cache.get_statistics()
     def invalidate_state_cache(self, reason: str = "manual"):
         """Manually invalidate state management caches"""
         try:
-        state_count = self.state_cache.invalidate_by_cache_type(CacheType.STATE)
+            state_count = self.state_cache.invalidate_by_cache_type(CacheType.STATE)
         market_count = self.state_cache.invalidate_by_cache_type(CacheType.MARKET_DATA)
         general_count = self.state_cache.invalidate_by_cache_type(CacheType.GENERAL)
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Invalidate state and market data cache types used by state manager
+            # Invalidate state and market data cache types used by state manager
             
             self.algo.Debug(
                 f"[State Cache] Invalidated {state_count} state + {market_count} market + {general_count} general entries. Reason: {reason}"
@@ -655,15 +619,10 @@ unified_stats = self.state_cache.get_statistics()
                 }
         """
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-current_time = self.algo.Time
+            current_time = self.algo.Time
             
             # Get basic system state
             system_info = {
@@ -769,26 +728,21 @@ current_time = self.algo.Time
     def handle_event(self, event: Event) -> bool:
         """Handle incoming events from the event bus"""
         try:
-        if event.event_type == EventType.PORTFOLIO_UPDATE:
-        self._update_portfolio_state(event.data)
+            if event.event_type == EventType.PORTFOLIO_UPDATE:
+                self._update_portfolio_state(event.data)
         return True
         elif event.event_type == EventType.POSITION_OPENED:
-        self._handle_position_opened(event.data)
+            self._handle_position_opened(event.data)
         return True
         elif event.event_type == EventType.POSITION_CLOSED:
-        self._handle_position_closed(event.data)
+            self._handle_position_closed(event.data)
         return True
         elif event.event_type == EventType.SYSTEM_HALT:
-        self._transition_system(SystemState.EMERGENCY)
+            self._transition_system(SystemState.EMERGENCY)
         return True
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Handle system-level events that affect state management
+            # Handle system-level events that affect state management
             
             return False
         except Exception as e:

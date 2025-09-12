@@ -118,18 +118,13 @@ class ProductionLogger:
     def write_trade_log(self, record: Dict):
         """Write trade record to file"""
         try:
-        existing_trades = []
+            existing_trades = []
         if self.algo.ObjectStore.ContainsKey(self.trade_log_file):
-        json_data = self.algo.ObjectStore.Read(self.trade_log_file)
+            json_data = self.algo.ObjectStore.Read(self.trade_log_file)
         existing_trades = json.loads(json_data)
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# In QuantConnect, use ObjectStore for persistence
+            # In QuantConnect, use ObjectStore for persistence
             
             existing_trades.append(record)
             
@@ -145,18 +140,13 @@ class ProductionLogger:
     def write_error_log(self, record: Dict):
         """Write error record to file"""
         try:
-        existing_errors = []
+            existing_errors = []
         if self.algo.ObjectStore.ContainsKey(self.error_log_file):
-        json_data = self.algo.ObjectStore.Read(self.error_log_file)
+            json_data = self.algo.ObjectStore.Read(self.error_log_file)
         existing_errors = json.loads(json_data)
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# In QuantConnect, use ObjectStore
+            # In QuantConnect, use ObjectStore
             
             existing_errors.append(record)
             
@@ -172,15 +162,10 @@ class ProductionLogger:
     def get_trade_history(self, days: int = 7) -> list:
         """Get recent trade history"""
         try:
-            
+            pass
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-if self.algo.ObjectStore.ContainsKey(self.trade_log_file):
+            if self.algo.ObjectStore.ContainsKey(self.trade_log_file):
                 json_data = self.algo.ObjectStore.Read(self.trade_log_file)
                 all_trades = json.loads(json_data)
                 
@@ -260,16 +245,11 @@ class NetworkMonitor:
     def heartbeat_check(self):
         """Perform heartbeat check - scheduled every minute"""
         try:
-        if not self.algo.IsMarketOpen("SPY"):
-        return
+            if not self.algo.IsMarketOpen("SPY"):
+                return
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Check if market is open
+            # Check if market is open
             
             # Test connection with simple operation
             test_successful = self.test_connection()
@@ -297,17 +277,12 @@ class NetworkMonitor:
     def test_connection(self) -> bool:
         """Test connection to broker and data feeds"""
         try:
-        value = self.algo.Portfolio.TotalPortfolioValue
+            value = self.algo.Portfolio.TotalPortfolioValue
         if value <= 0:
-        return False
+            return False
         except Exception as e:
 
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Test 1: Portfolio access
+            # Test 1: Portfolio access
             
             # Test 2: Market data access
             if "SPY" in self.algo.Securities:
@@ -352,19 +327,11 @@ class NetworkMonitor:
         self.algo.Log(f"Attempting connection recovery ({self.recovery_attempts}/{self.max_recovery_attempts})")
         
         try:
-        if hasattr(self.algo, 'tastytrade'):
-        self.algo.tastytrade = self.algo.tastytrade.__class__(self.algo)
+            if hasattr(self.algo, 'tastytrade'):
+                self.algo.tastytrade = self.algo.tastytrade.__class__(self.algo)
         except Exception as e:
 
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Re-initialize broker connection if needed
+            # Re-initialize broker connection if needed
                 
             # Test connection
             if self.test_connection():
