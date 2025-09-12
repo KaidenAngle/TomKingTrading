@@ -112,35 +112,35 @@ class PaperTradingAdapter:
         """Authenticate with Tastytrade sandbox"""
         
         try:
-        data = {
-        'login': self.sandbox_config['username'],
-        'password': self.sandbox_config['password'],
-        'remember-me': True
-        }
+            data = {
+                'login': self.sandbox_config['username'],
+                'password': self.sandbox_config['password'],
+                'remember-me': True
+            }
 
-        response = requests.post(
-        f"{self.sandbox_config['api_base']}/sessions",
-        json=data,
-        headers={
-        'Content-Type': 'application/json',
-        'User-Agent': 'TomKingFramework/17.0'
-        },
-        timeout=30
-        )
+            response = requests.post(
+                f"{self.sandbox_config['api_base']}/sessions",
+                json=data,
+                headers={
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'TomKingFramework/17.0'
+                },
+                timeout=30
+            )
 
-        if response.status_code == 201:
-        session_data = response.json().get('data', {})
-        self.session_token = session_data.get('session-token')
-        return True
-        else:
-        self.algorithm.Error(f"Sandbox auth failed: {response.status_code}")
-        return False
+            if response.status_code == 201:
+                session_data = response.json().get('data', {})
+                self.session_token = session_data.get('session-token')
+                return True
+            else:
+                self.algorithm.Error(f"Sandbox auth failed: {response.status_code}")
+                return False
 
         except Exception as e:
-        self.algorithm.Error(f"Sandbox auth error: {str(e)}")
-        return False
+            self.algorithm.Error(f"Sandbox auth error: {str(e)}")
+            return False
 
-        def get_sandbox_account(self) -> bool:
+    def get_sandbox_account(self) -> bool:
         """Get sandbox account number"""
 
         try:

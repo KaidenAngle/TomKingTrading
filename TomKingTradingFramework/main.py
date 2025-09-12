@@ -98,7 +98,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
         # Replace manual manager initialization with structured ManagerFactory
         from core.manager_factory import ManagerFactory
         
-        self.Log(""[MAIN]  PHASE 6: Initializing managers using dependency-safe ManagerFactory")
+        self.Log("[MAIN] PHASE 6: Initializing managers using dependency-safe ManagerFactory")
         
         # Initialize ManagerFactory with circular dependency resolution
         self.manager_factory = ManagerFactory(self)
@@ -107,14 +107,14 @@ class TomKingTradingIntegrated(QCAlgorithm):
         initialization_success, factory_result = self.manager_factory.initialize_all_managers_with_dependency_container()
         
         if not initialization_success:
-            self.Error(f""[MAIN]  Manager initialization FAILED: {factory_result['failed_managers']}")
-            self.Error(f""[MAIN]  Manager status: {factory_result['manager_status']}")
+            self.Error(f"[MAIN]  Manager initialization FAILED: {factory_result['failed_managers']}")
+            self.Error(f"[MAIN]  Manager status: {factory_result['manager_status']}")
             raise Exception("Critical manager initialization failure - cannot proceed")
         
         # Log successful initialization with PHASE 6 metrics
-        self.Log(f""[MAIN]  PHASE 6: ✅ All {factory_result['managers_initialized']}/{len(self.manager_factory.manager_configs)} managers initialized")
-        self.Log(f""[MAIN]  PHASE 6: Circular dependencies resolved: {factory_result.get('circular_dependencies_resolved', 0)}")
-        self.Debug(f""[MAIN]  PHASE 6: Total initialization time: {factory_result['total_duration_ms']:.1f}ms")
+        self.Log(f"[MAIN]  PHASE 6: ✅ All {factory_result['managers_initialized']}/{len(self.manager_factory.manager_configs)} managers initialized")
+        self.Log(f"[MAIN]  PHASE 6: Circular dependencies resolved: {factory_result.get('circular_dependencies_resolved', 0)}")
+        self.Debug(f"[MAIN]  PHASE 6: Total initialization time: {factory_result['total_duration_ms']:.1f}ms")
         
         # Store factory result for debugging
         self.manager_initialization_result = factory_result
@@ -132,7 +132,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
         
         # Extract all managers from ManagerFactory and assign to self attributes
         # This enables the existing code to work with the new architecture
-        self.Log(""[MAIN]  Extracting managers from factory for integration...")
+        self.Log("[MAIN]  Extracting managers from factory for integration...")
         
         # Core Managers (Tier 1)
         self.data_validator = self.manager_factory.get_manager('data_validator')
@@ -162,7 +162,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
         # Event-Driven OnData Processor (Tier 4)
         self.event_driven_ondata = self.manager_factory.get_manager('event_driven_ondata')
         
-        self.Log(""[MAIN]  ✅ Manager extraction complete - all managers available as attributes")
+        self.Log("[MAIN]  ✅ Manager extraction complete - all managers available as attributes")
         
         # ======================
         # SECURITIES INITIALIZATION
@@ -237,7 +237,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             self.state_manager.register_strategy(name)
             priority = strategy_priorities.get(name, StrategyPriority.MEDIUM)
             self.strategy_coordinator.register_strategy(name, priority=priority)
-            self.Error(f""[MAIN]  REGISTERED STRATEGY: {name} with priority {priority}")
+            self.Error(f"[MAIN]  REGISTERED STRATEGY: {name} with priority {priority}")
         
         # ======================
         # CIRCUIT BREAKERS
@@ -259,7 +259,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             try:
                 incomplete_orders = self.order_recovery.scan_incomplete_orders()
                 if incomplete_orders:
-                    self.Error(f""[MAIN]  Found {len(incomplete_orders)} incomplete orders requiring review")
+                    self.Error(f"[MAIN]  Found {len(incomplete_orders)} incomplete orders requiring review")
                     for order_id, details in incomplete_orders.items():
                         self.Error(f"  Order {order_id}: {details['status']} - {details['description']}")
 
@@ -270,7 +270,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
                     for issue in manual_intervention:
                         self.Error(f"  - {issue['group_id']}: {issue['issue']}")
             except Exception as e:
-                self.Error(f""[MAIN]  Order recovery check failed: {e}")
+                self.Error(f"[MAIN]  Order recovery check failed: {e}")
 
             # ======================
             # SCHEDULING SYSTEM (CRITICAL)
@@ -312,7 +312,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             # with automatic price-change invalidation (0.5% threshold) and TTL expiration
             else:
                 # Backtest mode: No scheduled methods to prevent CPU bottlenecks
-                self.Debug(""[MAIN]  Scheduled methods disabled in backtest mode for performance")
+                self.Debug("[MAIN]  Scheduled methods disabled in backtest mode for performance")
 
             # Load any saved states
             self.state_manager.load_states()
@@ -330,7 +330,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             # COMPREHENSIVE POSITION OPENING VALIDATION (47 FAILURE POINTS)
             # ======================
 
-            self.Debug(""[MAIN]  🔍 Running comprehensive position opening validation...")
+            self.Debug("[MAIN]  🔍 Running comprehensive position opening validation...")
             try:
 
             except Exception as e:
@@ -355,25 +355,25 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
             self.validation_report = validation_report
             
             if not validation_report.get('production_ready', False):
-                self.Error(f""[MAIN]  ⚠️ VALIDATION ISSUES: {validation_report['failed_validations']} failures detected")
-                self.Error(f""[MAIN]  ⚠️ SUCCESS RATE: {validation_report['overall_success_rate']:.1%}")
+                self.Error(f"[MAIN]  ⚠️ VALIDATION ISSUES: {validation_report['failed_validations']} failures detected")
+                self.Error(f"[MAIN]  ⚠️ SUCCESS RATE: {validation_report['overall_success_rate']:.1%}")
                 
                 # Continue with warnings but log critical issues
                 critical_count = validation_report.get('critical_failures', 0)
                 if critical_count > 0:
-                    self.Error(f""[MAIN]  🚨 {critical_count} CRITICAL failures require immediate attention")
+                    self.Error(f"[MAIN]  🚨 {critical_count} CRITICAL failures require immediate attention")
                     
                     # Log top failure categories for quick debugging
                     category_results = validation_report.get('category_results', {})
                     for category, results in category_results.items():
                         if results.get('failures', 0) > 0:
-                            self.Error(f""[MAIN]  - {category.upper()}: {results['failures']} failures")
+                            self.Error(f"[MAIN]  - {category.upper()}: {results['failures']} failures")
             else:
-                self.Log(f""[MAIN]  ✅ Position opening validation PASSED: {validation_report['overall_success_rate']:.1%} success rate")
+                self.Log(f"[MAIN]  ✅ Position opening validation PASSED: {validation_report['overall_success_rate']:.1%} success rate")
                 
         except Exception as e:
-            self.Error(f""[MAIN]  ⚠️ Position opening validation failed to run: {str(e)}")
-            self.Error(f""[MAIN]  Stack trace: {traceback.format_exc()}")
+            self.Error(f"[MAIN]  ⚠️ Position opening validation failed to run: {str(e)}")
+            self.Error(f"[MAIN]  Stack trace: {traceback.format_exc()}")
             # Continue without failing - validation is diagnostic, not blocking
         
         # Always log successful initialization 
@@ -382,8 +382,8 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
             self.Debug("All safety systems: ACTIVE")
             self.Debug("Integration verification: PASSED")
         
-        self.Error(""[MAIN]  Tom King Trading Framework initialized successfully")
-        self.Error(""[MAIN]  All performance optimizations active")
+        self.Error("[MAIN]  Tom King Trading Framework initialized successfully")
+        self.Error("[MAIN]  All performance optimizations active")
     
     def FutureOptionFilter(self, option_filter_universe):
         """Filter for future options - strikes and expiration"""
@@ -414,10 +414,10 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
         self.cache_maintenance_interval = timedelta(minutes=15)
 
         if not self.is_backtest:
-        self.Debug(""[MAIN]  High-performance caching systems initialized")
+        self.Debug("[MAIN]  High-performance caching systems initialized")
 
         except Exception as e:
-        self.Error(f""[MAIN]  Cache initialization failed: {e}")
+        self.Error(f"[MAIN]  Cache initialization failed: {e}")
 
         def initialize_unified_risk_management(self):
         """
@@ -441,7 +441,7 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
             raise
 # Get the UnifiedRiskManager from the factory
             if not hasattr(self, 'unified_risk_manager'):
-                self.Error(""[MAIN]  UnifiedRiskManager not found in factory initialization")
+                self.Error("[MAIN]  UnifiedRiskManager not found in factory initialization")
                 return False
             
             # Import and register risk plugins
@@ -456,29 +456,29 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
             circuit_breaker_plugin = CircuitBreakerPlugin()
             if self.unified_risk_manager.register_plugin(circuit_breaker_plugin):
                 plugins_registered += 1
-                self.Log(""[MAIN]  ✅ CircuitBreakerPlugin registered (preserves August 5 protections)")
+                self.Log("[MAIN]  ✅ CircuitBreakerPlugin registered (preserves August 5 protections)")
             else:
-                self.Error(""[MAIN]  ❌ Failed to register CircuitBreakerPlugin")
+                self.Error("[MAIN]  ❌ Failed to register CircuitBreakerPlugin")
             
             # 2. Correlation Plugin (HIGH - prevents correlation disasters)
             correlation_plugin = CorrelationPlugin()
             if self.unified_risk_manager.register_plugin(correlation_plugin):
                 plugins_registered += 1
-                self.Log(""[MAIN]  ✅ CorrelationPlugin registered (August 5 correlation limits)")
+                self.Log("[MAIN]  ✅ CorrelationPlugin registered (August 5 correlation limits)")
             else:
-                self.Error(""[MAIN]  ❌ Failed to register CorrelationPlugin")
+                self.Error("[MAIN]  ❌ Failed to register CorrelationPlugin")
             
             # 3. Concentration Plugin (HIGH - prevents over-exposure)
             concentration_plugin = ConcentrationPlugin()
             if self.unified_risk_manager.register_plugin(concentration_plugin):
                 plugins_registered += 1
-                self.Log(""[MAIN]  ✅ ConcentrationPlugin registered (SPY/ES concentration limits)")
+                self.Log("[MAIN]  ✅ ConcentrationPlugin registered (SPY/ES concentration limits)")
             else:
-                self.Error(""[MAIN]  ❌ Failed to register ConcentrationPlugin")
+                self.Error("[MAIN]  ❌ Failed to register ConcentrationPlugin")
             
             # Verify all plugins registered successfully
             if plugins_registered == 3:
-                self.Log(f""[MAIN]  ✅ UnifiedRiskManager initialized with {plugins_registered}/3 plugins")
+                self.Log(f"[MAIN]  ✅ UnifiedRiskManager initialized with {plugins_registered}/3 plugins")
                 
                 # Create backward compatibility aliases for existing code
                 self.correlation_limiter = self.unified_risk_manager  # For strategy access
@@ -487,13 +487,13 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
                 
                 return True
             else:
-                self.Error(f""[MAIN]  ❌ Only {plugins_registered}/3 plugins registered successfully")
+                self.Error(f"[MAIN]  ❌ Only {plugins_registered}/3 plugins registered successfully")
                 return False
                 
         except Exception as e:
-            self.Error(f""[MAIN]  UnifiedRiskManager initialization failed: {e}")
+            self.Error(f"[MAIN]  UnifiedRiskManager initialization failed: {e}")
             import traceback
-            self.Error(f""[MAIN]  Error details: {traceback.format_exc()}")
+            self.Error(f"[MAIN]  Error details: {traceback.format_exc()}")
             return False
     
     def verify_manager_initialization(self) -> bool:
@@ -546,13 +546,13 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
                 verification_results[f"{manager_name}_not_none"] = not_none
                 
                 if not (correct_type and not_none):
-                    self.Error(f""[MAIN]  Manager verification failed: {manager_name}")
+                    self.Error(f"[MAIN]  Manager verification failed: {manager_name}")
         
         # Check results
         failed_checks = [k for k, v in verification_results.items() if not v]
         
         if failed_checks:
-            self.Error(f""[MAIN]  Failed manager checks: {failed_checks}")
+            self.Error(f"[MAIN]  Failed manager checks: {failed_checks}")
             return False
         
         return True
@@ -590,13 +590,13 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
         passed_checks = sum(1 for v in verification_results.values() if v)
         total_expected = len(required_strategies) * 4  # Each strategy has 4 checks + methods
         
-        self.Debug(f""[MAIN]  Strategy verification: {passed_checks}/{total_expected}")
+        self.Debug(f"[MAIN]  Strategy verification: {passed_checks}/{total_expected}")
         
         # Check for failures
         failed_checks = [k for k, v in verification_results.items() if not v]
         
         if failed_checks:
-            self.Error(f""[MAIN]  Failed strategy checks: {failed_checks}")
+            self.Error(f"[MAIN]  Failed strategy checks: {failed_checks}")
             return False
         
         return True
@@ -652,17 +652,17 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
                         verification_results[f"{manager_name}.{method_name}_callable"] = is_callable
                         
                         if not is_callable:
-                            self.Error(f""[MAIN]  Method not callable: {manager_name}.{method_name}")
+                            self.Error(f"[MAIN]  Method not callable: {manager_name}.{method_name}")
                     else:
-                        self.Error(f""[MAIN]  Missing method: {manager_name}.{method_name}")
+                        self.Error(f"[MAIN]  Missing method: {manager_name}.{method_name}")
             else:
-                self.Error(f""[MAIN]  Manager not found for method check: {manager_name}")
+                self.Error(f"[MAIN]  Manager not found for method check: {manager_name}")
         
         # Check results
         failed_methods = [k for k, v in verification_results.items() if not v]
         
         if failed_methods:
-            self.Error(f""[MAIN]  Failed method verifications: {failed_methods}")
+            self.Error(f"[MAIN]  Failed method verifications: {failed_methods}")
             return False
         
         return True
@@ -751,10 +751,10 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
 
             status = "PASS" if result else "FAIL"
             if not self.is_backtest:
-            self.Debug(f""[MAIN]  {stage_name}: {status}")
+            self.Debug(f"[MAIN]  {stage_name}: {status}")
 
             except Exception as e:
-            self.Error(f""[MAIN]  {stage_name} verification error: {e}")
+            self.Error(f"[MAIN]  {stage_name} verification error: {e}")
             results[stage_name] = False
 
             # Final summary
@@ -763,21 +763,21 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
 
             if passed_stages == total_stages:
             if not self.is_backtest:
-            self.Log(f""[MAIN]  COMPLETE SUCCESS: {passed_stages}/{total_stages} stages passed")
+            self.Log(f"[MAIN]  COMPLETE SUCCESS: {passed_stages}/{total_stages} stages passed")
             return True
             else:
-            self.Error(f""[MAIN]  VERIFICATION FAILED: {passed_stages}/{total_stages} stages passed")
+            self.Error(f"[MAIN]  VERIFICATION FAILED: {passed_stages}/{total_stages} stages passed")
 
             # List failed stages
             failed_stages = [name for name, result in results.items() if not result]
-            self.Error(f""[MAIN]  Failed stages: {failed_stages}")
+            self.Error(f"[MAIN]  Failed stages: {failed_stages}")
 
             # ENHANCED: Generate detailed diagnostic report for debugging
             diagnostic_report = self.generate_verification_diagnostic_report()
-            self.Error(""[MAIN]  DIAGNOSTIC REPORT:")
+            self.Error("[MAIN]  DIAGNOSTIC REPORT:")
             for line in diagnostic_report.split('\n'):
             if line.strip():  # Skip empty lines
-            self.Error(f""[MAIN]  {line}")
+            self.Error(f"[MAIN]  {line}")
 
             return False
 
@@ -817,11 +817,11 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
             if 'performance_improvement_pct' in optimization_result:
                 improvement = optimization_result['performance_improvement_pct']
                 if improvement >= 20.0:  # Log when achieving 20%+ improvement target
-                    self.Debug(f""[MAIN]  OnData optimization: {improvement:.1f}% performance gain achieved")
+                    self.Debug(f"[MAIN]  OnData optimization: {improvement:.1f}% performance gain achieved")
             
             # Handle any errors from event-driven processing
             if 'error' in optimization_result:
-                self.Error(f""[MAIN]  Event-driven OnData error: {optimization_result['error']}")
+                self.Error(f"[MAIN]  Event-driven OnData error: {optimization_result['error']}")
                 # Fall back to traditional processing if event-driven fails
                 self._fallback_ondata_processing(data)
                 return
@@ -830,14 +830,14 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
             self._perform_traditional_risk_checks()
             
         except Exception as e:
-            self.Error(f""[MAIN]  Critical error in event-driven OnData: {e}")
+            self.Error(f"[MAIN]  Critical error in event-driven OnData: {e}")
             # Emergency fallback to traditional processing
             self._fallback_ondata_processing(data)
     
     def _fallback_ondata_processing(self, data):
         """Emergency fallback to traditional OnData processing"""
         
-        self.Debug(""[MAIN]  Using traditional OnData processing")
+        self.Debug("[MAIN]  Using traditional OnData processing")
         
         # Data validation
         if not self.data_validator.is_data_fresh(data):
@@ -877,7 +877,7 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
             
             if warnings:
                 for warning in warnings:
-                    self.Log(f""[MAIN]  {warning}")
+                    self.Log(f"[MAIN]  {warning}")
             
             self.event_bus.publish_greeks_event(
                 EventType.GREEKS_CALCULATED,
@@ -902,7 +902,7 @@ from validation.comprehensive_position_opening_validator import PositionOpeningV
         self.main_cache.log_stats()
 
         except Exception as e:
-        self.Error(f""[MAIN]  Maintenance error: {e}")
+        self.Error(f"[MAIN]  Maintenance error: {e}")
 
         def check_circuit_breakers(self):
         """Check all circuit breaker conditions"""
@@ -1104,7 +1104,7 @@ margin_status = self.margin_manager.get_margin_status()
         cleanup_result = self.spy_concentration_manager.cleanup_stale_allocations(force_reconcile=True)
 
         if cleanup_result.get('cleaned_count', 0) > 0:
-        self.Log(f""[MAIN]  Cleaned {cleanup_result['cleaned_count']} stale allocations")
+        self.Log(f"[MAIN]  Cleaned {cleanup_result['cleaned_count']} stale allocations")
 
         # Log current utilization after cleanup
         utilization = cleanup_result.get('utilization_after', {})
@@ -1114,7 +1114,7 @@ margin_status = self.margin_manager.get_margin_status()
         f"{utilization.get('strategies_active', 0)}/{utilization.get('max_strategies', 0)} strategies"
         )
         except Exception as e:
-        self.Error(f""[MAIN]  Failed to clean allocations: {e}")
+        self.Error(f"[MAIN]  Failed to clean allocations: {e}")
 
         def monitor_option_chain_quality(self):
         """
@@ -1144,15 +1144,15 @@ if hasattr(self, 'option_chain_manager') and self.option_chain_manager:
                 # Alert on critical data quality issues
                 overall_score = health_report.get('overall_health_score', 0)
                 if overall_score < 0.6:
-                    self.Log(f""[MAIN]  Option chain data quality degraded: {overall_score:.1%}")
+                    self.Log(f"[MAIN]  Option chain data quality degraded: {overall_score:.1%}")
                 
                 # Log recommendations for improvement
                 recommendations = health_report.get('recommendations', [])
                 for rec in recommendations[:2]:  # Log top 2 recommendations
-                    self.Debug(f""[MAIN]  {rec}")
+                    self.Debug(f"[MAIN]  {rec}")
                 
                 # Store health report for strategy access
                 self.option_chain_health = health_report
                 
         except Exception as e:
-            self.Error(f""[MAIN]  Failed to monitor chain quality: {e}")
+            self.Error(f"[MAIN]  Failed to monitor chain quality: {e}")

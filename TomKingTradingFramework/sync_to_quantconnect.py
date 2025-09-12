@@ -78,9 +78,9 @@ class QuantConnectSync:
                 print(f"  [OK] Uploaded: {file_name}")
                 return True
             else:
-                self.Error(f"  [ERROR] Failed to upload {file_name}: {result.get('errors', 'Unknown'")
+                self.Error(f"  [ERROR] Failed to upload {file_name}: {result.get('errors', 'Unknown')}")
         else:
-            self.Error(f"  [ERROR] HTTP {response.status_code} for {file_name}"")
+            self.Error(f"  [ERROR] HTTP {response.status_code} for {file_name}")
             
         return False
     
