@@ -97,39 +97,64 @@ if dte <= 21:
     # Gamma risk explodes after 21 DTE
 ```
 
-## 3. IPMCC (In-the-Money Protective Collar)
+## 3. IPMCC (Inverse Poor Man's Covered Call)
 
 ### Specifications
 ```python
 STRATEGY_IPMCC = {
-    "name": "IPMCC Weekly Calls",
+    "name": "IPMCC Poor Man's Covered Call",
     "underlying": ["SPY", "QQQ", "IWM", "AAPL", "MSFT"],
-    "shares_required": 100,
-    "call_frequency": "Weekly",
-    "call_DTE": "5-7 days",
-    "structure": "Covered Call",
-    "position_size": "Shares + margin for protective put",
-    "profit_target": "90% of extrinsic value",
-    "management": "Roll if assigned, sell weekly"
+    "structure": "LEAP Call + Weekly Call",
+    "leap_DTE": "365+ days",
+    "weekly_DTE": "7 days",
+    "position_size": "8% of account per symbol",
+    "max_contracts": 5,
+    "profit_target": "Collect weekly premiums",
+    "management": "Roll weekly calls, hold LEAP"
 }
 ```
 
+### Critical Execution Logic (Prevents Over-Leverage)
+**DUAL-PATH EXECUTION**: Always check for existing LEAPs before creating positions
+
+```python
+def execute_ipmcc_strategy(symbol, account_value):
+    """
+    CRITICAL: Check existing LEAPs first to prevent duplicates!
+    """
+    existing_leap = has_active_leap(symbol)
+    
+    if existing_leap:
+        # SCENARIO 1: Add weekly call to existing LEAP
+        return add_weekly_call_only(symbol, existing_leap)
+    else:
+        # SCENARIO 2: Create new LEAP + weekly call position
+        return create_new_ipmcc_position(symbol, account_value)
+```
+
 ### Entry Criteria
-- Own 100 shares of underlying
-- Stock not in strong downtrend
-- Earnings not within expiration period
-- IV rank > 30% (decent premium)
+- No existing LEAP for symbol (prevents duplicates)
+- IV rank > 30% (decent weekly premiums)
+- Not in strong downtrend
+- Earnings not within 30 days
+- Available buying power for 8% allocation
 
 ### Strike Selection
 ```python
-# Based on trend
-if ema8 > ema21:  # Uptrend
-    call_strike = current * 1.005  # 0.5% OTM
-elif ema8 == ema21:  # Flat
-    call_strike = current * 1.000  # ATM
-else:  # Downtrend
-    call_strike = current * 0.995  # 0.5% ITM
+# LEAP Strike (~80 delta, 15-20% OTM)
+leap_strike = current_price * 0.82  # Deep ITM for protection
+
+# Weekly Call Strike (safety-first approach)
+otm_target = current_price * 1.03    # 3% OTM
+safety_max = leap_strike * 0.95      # 5% below LEAP
+weekly_strike = min(otm_target, safety_max)  # Never above LEAP
 ```
+
+### Position Management
+- **Weekly Rolls**: Close expiring weekly, sell new 7-DTE call
+- **LEAP Hold**: Keep LEAP until 90 DTE, then roll forward
+- **Strike Validation**: Weekly call ALWAYS below LEAP strike
+- **Size Limits**: Maximum 5 contracts, 8% account allocation
 
 ## 4. Futures Strangles
 

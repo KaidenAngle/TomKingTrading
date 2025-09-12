@@ -28,6 +28,7 @@
 - [Circuit Breaker Thresholds](Architecture/CIRCUIT_BREAKER_THRESHOLDS.md) - Why these specific numbers
 - [Dynamic Position Scaling Patterns](Architecture/DYNAMIC_POSITION_SCALING_PATTERNS.md) - Intelligent scaling that preserves risk tolerance
 - [Systematic Redundancy Elimination Patterns](Architecture/SYSTEMATIC_REDUNDANCY_ELIMINATION_PATTERNS.md) - Methodology for safely removing redundant code
+- [Implementation Level Redundancy Elimination Patterns](Architecture/IMPLEMENTATION_LEVEL_REDUNDANCY_ELIMINATION_PATTERNS.md) - Consolidating duplicate calculations within active components
 - [Systematic Failure Pattern Resolution](Architecture/SYSTEMATIC_FAILURE_PATTERN_RESOLUTION.md) - Production methodology for diagnosing and resolving position opening failures through pattern classification
 
 ## Methodology Documentation
@@ -154,7 +155,7 @@ Documentation/
 ├── 📋 COMPLETE_REFERENCE_GUIDE.md  # START HERE - Quick answers
 ├── ⚠️ CRITICAL_DO_NOT_CHANGE.md    # Must read - never modify these
 ├── 📊 IMPLEMENTATION_SUMMARY.md    # Framework overview & status
-├── Architecture/ (18 docs)         # System design patterns (NEW: Systematic Redundancy Elimination)
+├── Architecture/ (20 docs)         # System design patterns (NEW: Implementation Level Redundancy Elimination)
 ├── Methodology/ (6 docs)           # Trading rules & risk
 ├── Strategies/ (1 doc)             # All 10 strategies detailed
 ├── Development/ (4 docs)           # Development process & change management
@@ -169,6 +170,9 @@ Documentation/
 ## Quick Navigation
 
 ### "I need to understand..."
+
+#### **Critical file protection:**
+→ Read [CRITICAL_FILES_PROTECTION.md](CRITICAL_FILES_PROTECTION.md) - Essential files that must never be deleted
 
 #### **Why something looks complex:**
 → Read [CRITICAL_DO_NOT_CHANGE.md](CRITICAL_DO_NOT_CHANGE.md) first
@@ -190,6 +194,7 @@ Documentation/
 
 #### **How to clean up redundant code safely:**
 → [Systematic Redundancy Elimination Patterns](Architecture/SYSTEMATIC_REDUNDANCY_ELIMINATION_PATTERNS.md) - Safe removal of redundant strategies and code
+→ [Implementation Level Redundancy Elimination Patterns](Architecture/IMPLEMENTATION_LEVEL_REDUNDANCY_ELIMINATION_PATTERNS.md) - Consolidating duplicate calculations within active components
 
 #### **How to deploy to QuantConnect cloud:**
 → [QuantConnect API Patterns](Architecture/QUANTCONNECT_API_PATTERNS.md) - Includes comprehensive MCP server deployment methodology
