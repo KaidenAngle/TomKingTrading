@@ -1,5 +1,5 @@
-# Base Strategy with State Machine Integration
-# Template for converting strategies to use state machine pattern
+# Base Strategy with State Machine Integration  
+# PHASE 3 OPTIMIZATION: Integrated with UnifiedStateManager coordination
 
 from AlgorithmImports import *
 from core.state_machine import StrategyStateMachine, StrategyState, TransitionTrigger
@@ -9,16 +9,24 @@ from datetime import time, timedelta
 
 class BaseStrategyWithState:
     """
-    Base class for strategies using state machine pattern
-    Provides clean lifecycle management and error handling
+    Base class for strategies with individual state machines
+    Integrates with UnifiedStateManager for system-wide coordination
+    Each strategy maintains its own StrategyStateMachine (CRITICAL_DO_NOT_CHANGE.md compliance)
     """
     
     def __init__(self, algorithm, strategy_name: str):
         self.algo = algorithm
         self.strategy_name = strategy_name
         
-        # Initialize state machine
+        # CREATE INDIVIDUAL STATE MACHINE (CRITICAL_DO_NOT_CHANGE.md compliance)
+        # Each strategy gets its own state machine for unique lifecycle management  
         self.state_machine = StrategyStateMachine(algorithm, strategy_name)
+        
+        # Register with UnifiedStateManager for system coordination
+        if hasattr(algorithm, 'state_manager'):
+            algorithm.state_manager.register_strategy(strategy_name, self.state_machine)
+        else:
+            self.algo.Error(f"[{strategy_name}] WARNING: UnifiedStateManager not available")
         
         # Setup basic state transitions (required for all strategies)
         self._setup_basic_transitions()
@@ -45,127 +53,74 @@ class BaseStrategyWithState:
         self.algo.Debug(f"[{strategy_name}] Initialized with state machine")
     
     def _setup_state_callbacks(self):
-        """Setup callbacks for state entry/exit"""
+        """Setup callbacks for state entry/exit with individual state machine"""
         
-        # Ready state
-        self.state_machine.set_on_enter(
-            StrategyState.READY,
-            lambda ctx: self._on_ready(ctx)
-        )
-        
-        # Analyzing state
-        self.state_machine.set_on_enter(
-            StrategyState.ANALYZING,
-            lambda ctx: self._on_start_analysis(ctx)
-        )
-        
-        # Entering position
-        self.state_machine.set_on_enter(
-            StrategyState.ENTERING,
-            lambda ctx: self._on_entering_position(ctx)
-        )
-        
-        # Position opened
-        self.state_machine.set_on_enter(
-            StrategyState.POSITION_OPEN,
-            lambda ctx: self._on_position_opened(ctx)
-        )
-        
-        # Managing position
-        self.state_machine.set_on_enter(
-            StrategyState.MANAGING,
-            lambda ctx: self._on_managing_position(ctx)
-        )
-        
-        # Exiting position
-        self.state_machine.set_on_enter(
-            StrategyState.EXITING,
-            lambda ctx: self._on_exiting_position(ctx)
-        )
-        
-        # Position closed
-        self.state_machine.set_on_enter(
-            StrategyState.CLOSED,
-            lambda ctx: self._on_position_closed(ctx)
-        )
-        
-        # Error state
-        self.state_machine.set_on_enter(
-            StrategyState.ERROR,
-            lambda ctx: self._on_error(ctx)
-        )
+        # Standard state machine callback registration
+        self.state_machine.set_on_enter(StrategyState.READY, lambda ctx: self._on_ready(ctx))
+        self.state_machine.set_on_enter(StrategyState.ANALYZING, lambda ctx: self._on_start_analysis(ctx))
+        self.state_machine.set_on_enter(StrategyState.ENTERING, lambda ctx: self._on_entering_position(ctx))
+        self.state_machine.set_on_enter(StrategyState.POSITION_OPEN, lambda ctx: self._on_position_opened(ctx))
+        self.state_machine.set_on_enter(StrategyState.MANAGING, lambda ctx: self._on_managing_position(ctx))
+        self.state_machine.set_on_enter(StrategyState.EXITING, lambda ctx: self._on_exiting_position(ctx))
+        self.state_machine.set_on_enter(StrategyState.CLOSED, lambda ctx: self._on_position_closed(ctx))
+        self.state_machine.set_on_enter(StrategyState.ERROR, lambda ctx: self._on_error(ctx))
     
     def _setup_basic_transitions(self):
-        """Setup fundamental state transitions required by all strategies"""
+        """Setup fundamental state transitions with individual state machine"""
+        
         from core.state_machine import StateTransition
         
         # CRITICAL: INITIALIZING -> READY transition (without this, strategies never trade)
         self.state_machine.add_transition(
-            StrategyState.INITIALIZING,
-            StrategyState.READY,
-            TransitionTrigger.MARKET_OPEN
+            StrategyState.INITIALIZING, StrategyState.READY, TransitionTrigger.MARKET_OPEN
         )
         
         # READY -> ANALYZING transition (when entry window opens)
         self.state_machine.add_transition(
-            StrategyState.READY,
-            StrategyState.ANALYZING,
-            TransitionTrigger.TIME_WINDOW_START
+            StrategyState.READY, StrategyState.ANALYZING, TransitionTrigger.TIME_WINDOW_START
         )
         
         # ANALYZING -> ENTERING transition (when conditions met)
         self.state_machine.add_transition(
-            StrategyState.ANALYZING,
-            StrategyState.ENTERING,
-            TransitionTrigger.ENTRY_CONDITIONS_MET
+            StrategyState.ANALYZING, StrategyState.ENTERING, TransitionTrigger.ENTRY_CONDITIONS_MET
         )
         
         # ENTERING -> POSITION_OPEN transition (when order filled)
         self.state_machine.add_transition(
-            StrategyState.ENTERING,
-            StrategyState.POSITION_OPEN,
-            TransitionTrigger.ORDER_FILLED
+            StrategyState.ENTERING, StrategyState.POSITION_OPEN, TransitionTrigger.ORDER_FILLED
         )
         
         # POSITION_OPEN -> MANAGING transition (automatic)
         self.state_machine.add_transition(
-            StrategyState.POSITION_OPEN,
-            StrategyState.MANAGING,
-            TransitionTrigger.MARKET_OPEN
+            StrategyState.POSITION_OPEN, StrategyState.MANAGING, TransitionTrigger.MARKET_OPEN
         )
         
         # MANAGING -> EXITING transition (when exit conditions met)
         self.state_machine.add_transition(
-            StrategyState.MANAGING,
-            StrategyState.EXITING,
-            TransitionTrigger.TIME_WINDOW_END
+            StrategyState.MANAGING, StrategyState.EXITING, TransitionTrigger.TIME_WINDOW_END
         )
         
         # EXITING -> CLOSED transition (when position closed)
         self.state_machine.add_transition(
-            StrategyState.EXITING,
-            StrategyState.CLOSED,
-            TransitionTrigger.ORDER_FILLED
+            StrategyState.EXITING, StrategyState.CLOSED, TransitionTrigger.ORDER_FILLED
         )
         
         # CLOSED -> READY transition (ready for next trade)
         self.state_machine.add_transition(
-            StrategyState.CLOSED,
-            StrategyState.READY,
-            TransitionTrigger.MARKET_OPEN
+            StrategyState.CLOSED, StrategyState.READY, TransitionTrigger.MARKET_OPEN
         )
         
-        self.algo.Debug(f"[{self.strategy_name}] Complete basic transitions setup completed")
+        self.algo.Debug(f"[{self.strategy_name}] Basic transitions setup completed")
     
     def execute(self):
         """Main execution method called by algorithm"""
         
         try:
-            # Check current state and execute appropriate logic
+            # Get current state from individual state machine
             state = self.state_machine.current_state
             
             # VERBOSE LOGGING: Track every execution call
-            self.algo.Debug(f"[{self.strategy_name}] EXECUTE: Current state = {state.name}, Time = {self.algo.Time}")
+            self.algo.Debug(f"[{self.strategy_name}] EXECUTE: Current state = {state.name if state else 'None'}, Time = {self.algo.Time}")
             
             if state == StrategyState.INITIALIZING:
                 self.algo.Debug(f"[{self.strategy_name}] TRACE: Checking initialization...")

@@ -4,7 +4,7 @@
 from AlgorithmImports import *
 from typing import Dict, List, Optional, Tuple
 from config.constants import TradingConstants
-from core.performance_cache import PositionAwareCache
+from core.unified_intelligent_cache import UnifiedIntelligentCache, CacheType
 from datetime import timedelta
 
 class SPYConcentrationManager:
@@ -21,23 +21,13 @@ class SPYConcentrationManager:
         self.es_positions = {}   # futures positions
         self.option_positions = {}  # SPY options
         
-        # PRODUCTION CACHING: Position-aware caching for concentration calculations
-        self.concentration_cache = PositionAwareCache(
-            algorithm,
-            max_size=200,  # Cache concentration calculations
-            ttl_minutes=1 if algorithm.LiveMode else 3,  # Short TTL for position-sensitive data
-            max_memory_mb=10,  # Small memory footprint
-            enable_stats=True
-        )
+        # UNIFIED INTELLIGENT CACHE: Position-aware caching for concentration calculations
+        # Uses CacheType.POSITION_AWARE for automatic position change invalidation
+        self.concentration_cache = algorithm.unified_cache
         
-        # Price cache for SPY and related instruments
-        self.price_cache = PositionAwareCache(
-            algorithm,
-            max_size=50,
-            ttl_minutes=0.5 if algorithm.LiveMode else 2,  # Very short TTL for prices
-            max_memory_mb=5,
-            enable_stats=True
-        )
+        # Market data cache for SPY prices - uses same unified cache with MARKET_DATA type
+        # Automatically invalidates on price changes
+        self.price_cache = algorithm.unified_cache
         
         # Maximum exposure limits (Tom King methodology)
         self.max_spy_delta = 100  # Maximum net delta exposure to SPY
@@ -153,10 +143,11 @@ class SPYConcentrationManager:
         positions_hash = hash(str(sorted(self.spy_positions.items())) + str(sorted(self.es_positions.items())))
         cache_key = f'spy_exposure_{positions_hash}'
         
-        # Try to get cached result
+        # Try to get cached result using POSITION_AWARE cache type
         cached_exposure = self.concentration_cache.get(
             cache_key,
-            lambda: self._calculate_exposure_internal()
+            lambda: self._calculate_exposure_internal(),
+            cache_type=CacheType.POSITION_AWARE
         )
         
         return cached_exposure if cached_exposure else self._get_default_exposure()
@@ -263,7 +254,8 @@ class SPYConcentrationManager:
         cache_key = 'spy_price'
         cached_price = self.price_cache.get(
             cache_key,
-            lambda: self._get_spy_price_internal()
+            lambda: self._get_spy_price_internal(),
+            cache_type=CacheType.MARKET_DATA
         )
         
         return cached_price if cached_price else 450.0
@@ -283,7 +275,8 @@ class SPYConcentrationManager:
         cache_key = 'available_delta'
         cached_available = self.concentration_cache.get(
             cache_key,
-            lambda: self._calculate_available_delta_internal()
+            lambda: self._calculate_available_delta_internal(),
+            cache_type=CacheType.POSITION_AWARE
         )
         
         return cached_available if cached_available is not None else 0.0
@@ -299,7 +292,8 @@ class SPYConcentrationManager:
         cache_key = f'can_trade_{strategy_name}_{len(self.spy_positions)}_{len(self.es_positions)}'
         cached_result = self.concentration_cache.get(
             cache_key,
-            lambda: self._can_strategy_trade_internal(strategy_name)
+            lambda: self._can_strategy_trade_internal(strategy_name),
+            cache_type=CacheType.POSITION_AWARE
         )
         
         return cached_result if cached_result is not None else False
@@ -362,7 +356,8 @@ class SPYConcentrationManager:
         cache_key = 'current_vix'
         cached_vix = self.price_cache.get(
             cache_key,
-            lambda: self._get_vix_internal()
+            lambda: self._get_vix_internal(),
+            cache_type=CacheType.MARKET_DATA
         )
         
         return cached_vix if cached_vix else 20.0
@@ -579,7 +574,7 @@ class SPYConcentrationManager:
             allocation_leaks = self._detect_allocation_leaks(actual_spy_positions)
             cleanup_results['allocation_leaks_fixed'] = allocation_leaks
             
-            # Step 8: Invalidate caches after cleanup
+            # Step 8: Invalidate caches after cleanup (unified cache already handles this properly)
             if cleanup_results['stale_removed'] or cleanup_results['reconciled_positions']:
                 self.invalidate_concentration_cache("stale_allocation_cleanup")
             

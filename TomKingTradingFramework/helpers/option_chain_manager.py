@@ -1,7 +1,7 @@
 # region imports
 from AlgorithmImports import *
 from datetime import timedelta
-from core.performance_cache import HighPerformanceCache, MarketDataCache
+from core.unified_intelligent_cache import UnifiedIntelligentCache, CacheType
 import numpy as np
 from greeks.greeks_monitor import GreeksMonitor
 # endregion
@@ -16,15 +16,9 @@ class OptionChainManager:
         self.algo = algorithm
         self.option_subscriptions = {}
         
-        # PRODUCTION CACHING: High-performance option chain caching
-        self.chain_cache = MarketDataCache(
-            algorithm,
-            max_size=200,  # Cache up to 200 different chain queries
-            ttl_minutes=5,  # 5-minute TTL for option chains
-            max_memory_mb=30,  # Limit memory usage for chain data
-            enable_stats=True,
-            price_change_threshold=0.005  # 0.5% price change invalidation
-        )
+        # UNIFIED INTELLIGENT CACHE: High-performance option chain caching
+        # Uses MARKET_DATA cache type for automatic price change invalidation
+        self.chain_cache = algorithm.unified_cache
         
         # FIXED: Use centralized GreeksMonitor instead of duplicate implementation
         self.greeks_monitor = GreeksMonitor(algorithm)
@@ -76,10 +70,11 @@ class OptionChainManager:
             # Create cache key for this specific request
             cache_key = f'chain_{symbol_str}_{min_dte}_{max_dte}'
             
-            # Try to get from cache first
+            # Try to get from cache first using MARKET_DATA type
             cached_chain = self.chain_cache.get(
                 cache_key,
-                lambda: self._fetch_option_chain_internal(symbol_str, min_dte, max_dte)
+                lambda: self._fetch_option_chain_internal(symbol_str, min_dte, max_dte),
+                cache_type=CacheType.MARKET_DATA
             )
             
             # Update legacy cache for backward compatibility
@@ -231,9 +226,8 @@ class OptionChainManager:
         """Run periodic cache maintenance and statistics"""
         current_time = self.algo.Time
         
-        # Run cache maintenance
+        # Run unified cache maintenance (handles all cache types)
         self.chain_cache.periodic_maintenance()
-        self.greeks_cache.periodic_maintenance()
         
         # Log statistics periodically
         if (current_time - self.last_cache_stats_log) > self.cache_stats_log_interval:
@@ -241,37 +235,37 @@ class OptionChainManager:
             self.last_cache_stats_log = current_time
     
     def _log_cache_statistics(self):
-        """Log cache performance statistics"""
+        """Log unified cache performance statistics"""
         try:
-            chain_stats = self.chain_cache.get_statistics()
-            greeks_stats = self.greeks_cache.get_statistics()
+            unified_stats = self.chain_cache.get_statistics()
             
             if not self.algo.LiveMode:  # Only detailed logging in backtest
                 self.algo.Debug(
-                    f"[Option Chain Cache] Chain Hit Rate: {chain_stats['hit_rate']:.1%} | "
-                    f"Greeks Hit Rate: {greeks_stats['hit_rate']:.1%} | "
-                    f"Chain Size: {chain_stats['cache_size']}/{chain_stats['max_size']} | "
-                    f"Greeks Size: {greeks_stats['cache_size']}/{greeks_stats['max_size']} | "
-                    f"Total Memory: {chain_stats['memory_usage_mb'] + greeks_stats['memory_usage_mb']:.1f}MB"
+                    f"[Option Chain Cache] Unified Hit Rate: {unified_stats['hit_rate']:.1%} | "
+                    f"Size: {unified_stats['cache_size']}/{unified_stats['max_size']} | "
+                    f"Memory: {unified_stats['memory_usage_mb']:.1f}MB | "
+                    f"Market-Data: {unified_stats.get('market_data_entries', 0)} | "
+                    f"Greeks: {unified_stats.get('greeks_entries', 0)}"
                 )
             
             # Performance warnings
-            if chain_stats['hit_rate'] < 0.4:  # Less than 40% hit rate for chains
-                self.algo.Log(f"[Performance Warning] Option chain cache hit rate low: {chain_stats['hit_rate']:.1%}")
+            if unified_stats['hit_rate'] < 0.4:  # Less than 40% hit rate for chains
+                self.algo.Log(f"[Performance Warning] Option chain cache hit rate low: {unified_stats['hit_rate']:.1%}")
                 
         except Exception as e:
             self.algo.Debug(f"[Option Chain Cache] Error logging statistics: {e}")
     
     def get_cache_statistics(self) -> dict:
-        """Get comprehensive cache statistics"""
+        """Get comprehensive unified cache statistics"""
         try:
+            unified_stats = self.chain_cache.get_statistics()
             return {
-                'chain_cache': self.chain_cache.get_statistics(),
-                'greeks_cache': self.greeks_cache.get_statistics(),
-                'total_memory_mb': (
-                    self.chain_cache.get_statistics()['memory_usage_mb'] +
-                    self.greeks_cache.get_statistics()['memory_usage_mb']
-                )
+                'unified_cache': unified_stats,
+                'option_chain_specific': {
+                    'market_data_entries': unified_stats.get('market_data_entries', 0),
+                    'greeks_entries': unified_stats.get('greeks_entries', 0)
+                },
+                'total_memory_mb': unified_stats['memory_usage_mb']
             }
         except Exception as e:
             self.algo.Error(f"[Option Chain Cache] Error getting statistics: {e}")
@@ -281,13 +275,13 @@ class OptionChainManager:
         """Invalidate option chain cache"""
         try:
             if symbol_str:
-                # Invalidate specific symbol
+                # Invalidate specific symbol patterns in MARKET_DATA cache type
                 count = self.chain_cache.invalidate_pattern(f'chain_{symbol_str}')
                 self.algo.Debug(f"[Option Chain Cache] Invalidated {count} entries for {symbol_str}. Reason: {reason}")
             else:
-                # Invalidate all
-                count = self.chain_cache.invalidate_all()
-                self.algo.Debug(f"[Option Chain Cache] Invalidated all {count} entries. Reason: {reason}")
+                # Invalidate all MARKET_DATA cache type entries
+                count = self.chain_cache.invalidate_by_cache_type(CacheType.MARKET_DATA)
+                self.algo.Debug(f"[Option Chain Cache] Invalidated all {count} market data entries. Reason: {reason}")
                 
         except Exception as e:
             self.algo.Error(f"[Option Chain Cache] Error invalidating cache: {e}")
@@ -327,8 +321,9 @@ class OptionChainManager:
                 cache_stats = self.get_cache_statistics()
                 if cache_stats:
                     validation_results.append(
-                        f"  - Cache Performance: Chain {cache_stats['chain_cache']['hit_rate']:.1%} | "
-                        f"Greeks {cache_stats['greeks_cache']['hit_rate']:.1%}"
+                        f"  - Cache Performance: Unified {cache_stats['unified_cache']['hit_rate']:.1%} | "
+                        f"Market-Data: {cache_stats['option_chain_specific']['market_data_entries']} | "
+                        f"Greeks: {cache_stats['option_chain_specific']['greeks_entries']}"
                     )
             else:
                 validation_results.append(f"[Option Chain] {symbol_str}: No option data available")

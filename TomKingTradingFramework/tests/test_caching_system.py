@@ -15,7 +15,7 @@ framework_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, framework_root)
 
 # Import caching components
-from core.performance_cache import HighPerformanceCache, PositionAwareCache, MarketDataCache
+from core.unified_intelligent_cache import UnifiedIntelligentCache, CacheType
 from core.market_data_cache import MarketDataCacheManager, MarketDataPoint, MarketConditions
 
 class MockAlgorithm:
@@ -39,12 +39,12 @@ class MockAlgorithm:
     def Error(self, message):
         pass
 
-class TestPerformanceCache(unittest.TestCase):
-    """Test the base performance cache functionality"""
+class TestUnifiedIntelligentCache(unittest.TestCase):
+    """Test the unified intelligent cache functionality"""
     
     def setUp(self):
         self.algo = MockAlgorithm()
-        self.cache = HighPerformanceCache(self.algo, max_size=10, ttl_minutes=1)
+        self.cache = UnifiedIntelligentCache(self.algo, max_size=10, ttl_minutes=1)
     
     def test_basic_put_get(self):
         """Test basic put/get functionality"""
@@ -72,7 +72,7 @@ class TestPerformanceCache(unittest.TestCase):
         
         # Second call should use cache
         factory_called = False
-        value = self.cache.get('new_key', factory)
+        value = self.cache.get('new_key', factory, cache_type=CacheType.GENERAL)
         self.assertEqual(value, 'factory_value')
         self.assertFalse(factory_called)
     
@@ -95,7 +95,7 @@ class TestPerformanceCache(unittest.TestCase):
             factory_called = True
             return 'new_value'
         
-        value = self.cache.get('expire_key', factory)
+        value = self.cache.get('expire_key', factory, cache_type=CacheType.GENERAL)
         self.assertEqual(value, 'new_value')
         self.assertTrue(factory_called)
     
@@ -148,7 +148,7 @@ class TestPerformanceCache(unittest.TestCase):
         self.cache.get('stat_key')
         
         # Miss
-        self.cache.get('nonexistent_key', lambda: 'new_value')
+        self.cache.get('nonexistent_key', lambda: 'new_value', cache_type=CacheType.GENERAL)
         
         stats = self.cache.get_statistics()
         self.assertIsInstance(stats, dict)
@@ -156,8 +156,8 @@ class TestPerformanceCache(unittest.TestCase):
         self.assertIn('total_queries', stats)
         self.assertGreater(stats['total_queries'], 0)
 
-class TestPositionAwareCache(unittest.TestCase):
-    """Test position-aware cache functionality"""
+class TestPositionAwareCacheType(unittest.TestCase):
+    """Test position-aware cache type functionality"""
     
     def setUp(self):
         self.algo = MockAlgorithm()
@@ -166,7 +166,10 @@ class TestPositionAwareCache(unittest.TestCase):
             ('SPY', Mock(Invested=True, Quantity=100)),
             ('QQQ', Mock(Invested=True, Quantity=50))
         ]
-        self.cache = PositionAwareCache(self.algo, max_size=10, ttl_minutes=1)
+        # Use unified cache with position-aware type for testing
+        self.cache = UnifiedIntelligentCache(self.algo, max_size=10, ttl_minutes=1)
+        # Set up position-aware configuration
+        self.cache.position_check_interval = timedelta(seconds=30)
     
     def test_position_change_invalidation(self):
         """Test that cache invalidates when positions change"""
@@ -188,11 +191,12 @@ class TestPositionAwareCache(unittest.TestCase):
         self.cache.check_invalidation_hooks()
         
         # Position-dependent values should be invalidated
-        # (This is a simplified test - actual implementation may vary)
-        self.cache.put('portfolio_dependent', 'should_be_invalidated')
+        # (This is a simplified test - uses position-aware cache type)
+        result = self.cache.put('portfolio_dependent', 'should_be_invalidated')
+        self.assertTrue(result)
 
-class TestMarketDataCache(unittest.TestCase):
-    """Test market data cache functionality"""
+class TestMarketDataCacheType(unittest.TestCase):
+    """Test market data cache type functionality"""
     
     def setUp(self):
         self.algo = MockAlgorithm()
@@ -201,7 +205,8 @@ class TestMarketDataCache(unittest.TestCase):
         mock_spy.Price = 450.0
         self.algo.Securities = {'SPY': mock_spy, 'VIX': Mock(Price=20.0)}
         
-        self.cache = MarketDataCache(self.algo, max_size=10, ttl_minutes=1)
+        # Use unified cache with market data configuration
+        self.cache = UnifiedIntelligentCache(self.algo, max_size=10, ttl_minutes=1, price_change_threshold=0.01)
     
     def test_price_change_invalidation(self):
         """Test that cache invalidates on significant price changes"""
@@ -213,7 +218,7 @@ class TestMarketDataCache(unittest.TestCase):
             factory_called = True
             return 'price_dependent_value'
         
-        value = self.cache.get('SPY_analysis', factory)
+        value = self.cache.get('SPY_analysis', factory, cache_type=CacheType.MARKET_DATA)
         self.assertEqual(value, 'price_dependent_value')
         self.assertTrue(factory_called)
         
@@ -225,7 +230,7 @@ class TestMarketDataCache(unittest.TestCase):
         self.cache.check_invalidation_hooks()
         
         # Factory should be called again due to price change
-        value = self.cache.get('SPY_analysis', factory)
+        value = self.cache.get('SPY_analysis', factory, cache_type=CacheType.MARKET_DATA)
         if factory_called:  # May depend on implementation details
             self.assertEqual(value, 'price_dependent_value')
 
@@ -377,10 +382,10 @@ class TestCachingIntegration(unittest.TestCase):
     def test_cache_memory_efficiency(self):
         """Test that caches don't consume excessive memory"""
         
-        # Create multiple cache instances
+        # Create multiple cache instances  
         caches = []
         for i in range(5):
-            cache = HighPerformanceCache(self.algo, max_size=100, max_memory_mb=5)
+            cache = UnifiedIntelligentCache(self.algo, max_size=100, max_memory_mb=5)
             
             # Fill with data
             for j in range(50):
@@ -400,7 +405,7 @@ class TestCachingIntegration(unittest.TestCase):
     def test_cache_hit_rates(self):
         """Test that caches achieve good hit rates"""
         
-        cache = HighPerformanceCache(self.algo, max_size=50, ttl_minutes=10)
+        cache = UnifiedIntelligentCache(self.algo, max_size=50, ttl_minutes=10)
         
         # Generate predictable access pattern
         for i in range(20):
@@ -418,7 +423,7 @@ class TestCachingIntegration(unittest.TestCase):
     def test_error_handling(self):
         """Test that caches handle errors gracefully"""
         
-        cache = HighPerformanceCache(self.algo, max_size=10)
+        cache = UnifiedIntelligentCache(self.algo, max_size=10)
         
         # Test factory function that throws exception
         def failing_factory():
@@ -441,7 +446,7 @@ class TestCachingPerformance(unittest.TestCase):
     def test_expensive_calculation_caching(self):
         """Test that expensive calculations are properly cached"""
         
-        cache = HighPerformanceCache(self.algo, max_size=100, ttl_minutes=5)
+        cache = UnifiedIntelligentCache(self.algo, max_size=100, ttl_minutes=5)
         
         calculation_count = 0
         def expensive_calculation():
@@ -452,18 +457,18 @@ class TestCachingPerformance(unittest.TestCase):
             return result
         
         # First call should perform calculation
-        result1 = cache.get('expensive', expensive_calculation)
+        result1 = cache.get('expensive', expensive_calculation, cache_type=CacheType.GENERAL)
         self.assertEqual(calculation_count, 1)
         self.assertEqual(result1, sum(range(1000)))
         
         # Second call should use cache
-        result2 = cache.get('expensive', expensive_calculation)
+        result2 = cache.get('expensive', expensive_calculation, cache_type=CacheType.GENERAL)
         self.assertEqual(calculation_count, 1)  # Still 1, not 2
         self.assertEqual(result2, result1)
         
         # Multiple subsequent calls should use cache
         for _ in range(10):
-            result = cache.get('expensive', expensive_calculation)
+            result = cache.get('expensive', expensive_calculation, cache_type=CacheType.GENERAL)
             self.assertEqual(result, result1)
         
         self.assertEqual(calculation_count, 1)  # Still only calculated once
@@ -472,9 +477,9 @@ def run_all_tests():
     """Run all caching system tests"""
     
     test_classes = [
-        TestPerformanceCache,
-        TestPositionAwareCache,
-        TestMarketDataCache,
+        TestUnifiedIntelligentCache,
+        TestPositionAwareCacheType,
+        TestMarketDataCacheType,
         TestMarketDataCacheManager,
         TestCachingIntegration,
         TestCachingPerformance
@@ -503,9 +508,9 @@ if __name__ == '__main__':
         print("✅ ALL CACHING TESTS PASSED - SYSTEM READY FOR PRODUCTION")
         print("=" * 80)
         print("\nCaching Components Verified:")
-        print("  ✓ High-Performance Base Cache (LRU, TTL, Statistics)")
-        print("  ✓ Position-Aware Cache (Position Change Invalidation)")
-        print("  ✓ Market Data Cache (Price Change Invalidation)")
+        print("  ✓ Unified Intelligent Cache (LRU, TTL, Statistics)")
+        print("  ✓ Position-Aware Cache Type (Position Change Invalidation)")
+        print("  ✓ Market Data Cache Type (Price Change Invalidation)")
         print("  ✓ Comprehensive Market Data Manager")
         print("  ✓ Memory Management & Error Handling")
         print("  ✓ Performance Improvements & Hit Rates")

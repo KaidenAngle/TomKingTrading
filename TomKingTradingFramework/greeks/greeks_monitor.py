@@ -5,7 +5,7 @@ from scipy.stats import norm
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 from core.base_component import BaseComponent
-from core.performance_cache import PositionAwareCache, CacheStats
+from core.unified_intelligent_cache import UnifiedIntelligentCache, CacheType
 from helpers.data_freshness_validator import DataFreshnessValidator
 # endregion
 
@@ -22,23 +22,14 @@ class GreeksMonitor(BaseComponent):
         self.portfolio_greeks_history = []
         self.data_validator = DataFreshnessValidator(algorithm)
         
-        # PRODUCTION CACHING: High-performance Greeks caching
-        self.greeks_cache = PositionAwareCache(
-            algorithm,
-            max_size=500,  # Cache up to 500 Greeks calculations
-            ttl_minutes=2 if algorithm.LiveMode else 5,  # Shorter TTL for live trading
-            max_memory_mb=25,  # Limit memory usage
-            enable_stats=True
-        )
+        # UNIFIED INTELLIGENT CACHE: High-performance Greeks caching
+        # Uses GREEKS cache type for automatic position-aware invalidation
+        # Greeks calculations are invalidated when positions change
+        self.greeks_cache = algorithm.unified_cache
         
-        # Black-Scholes calculation cache (separate for single option Greeks)
-        self.bs_cache = PositionAwareCache(
-            algorithm,
-            max_size=1000,  # More single option calculations
-            ttl_minutes=1 if algorithm.LiveMode else 3,  # Very short TTL for option pricing
-            max_memory_mb=15,
-            enable_stats=True
-        )
+        # Black-Scholes calculation cache (uses same unified cache with GREEKS type)
+        # Option pricing calculations automatically invalidated on market data changes
+        self.bs_cache = algorithm.unified_cache
         
         # Performance optimization: Track position changes (legacy compatibility)
         self.last_position_snapshot = {}
@@ -69,9 +60,8 @@ class GreeksMonitor(BaseComponent):
     def update(self):
         """Update Greeks with advanced caching (performance optimization)"""
         
-        # Run cache maintenance periodically
+        # Run unified cache maintenance (handles all cache types including Greeks)
         self.greeks_cache.periodic_maintenance()
-        self.bs_cache.periodic_maintenance()
         
         # Log cache statistics periodically
         if (self.algorithm.Time - self.last_stats_log) > self.cache_stats_log_interval:
@@ -82,7 +72,8 @@ class GreeksMonitor(BaseComponent):
         cache_key = 'portfolio_greeks'
         cached_greeks = self.greeks_cache.get(
             cache_key, 
-            lambda: self._calculate_portfolio_greeks_internal()
+            lambda: self._calculate_portfolio_greeks_internal(),
+            cache_type=CacheType.GREEKS
         )
         
         # Update legacy cached values for backward compatibility
@@ -106,12 +97,14 @@ class GreeksMonitor(BaseComponent):
         if dte <= 0:
             return {'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0, 'rho': 0}
         
-        # PRODUCTION CACHING: Cache Black-Scholes calculations
+        # UNIFIED INTELLIGENT CACHE: Cache Black-Scholes calculations
+        # Uses GREEKS cache type for intelligent invalidation
         cache_key = f'bs_{spot:.2f}_{strike:.2f}_{dte:.3f}_{iv:.4f}_{option_type}_{r:.4f}'
         
         cached_greeks = self.bs_cache.get(
             cache_key,
-            lambda: self._calculate_black_scholes_greeks(spot, strike, dte, iv, option_type, r)
+            lambda: self._calculate_black_scholes_greeks(spot, strike, dte, iv, option_type, r),
+            cache_type=CacheType.GREEKS
         )
         
         return cached_greeks
@@ -168,7 +161,8 @@ class GreeksMonitor(BaseComponent):
         cache_key = 'portfolio_greeks_main'
         return self.greeks_cache.get(
             cache_key,
-            lambda: self._calculate_portfolio_greeks_internal()
+            lambda: self._calculate_portfolio_greeks_internal(),
+            cache_type=CacheType.GREEKS
         )
     
     def _calculate_portfolio_greeks_internal(self) -> Dict:
@@ -294,36 +288,36 @@ class GreeksMonitor(BaseComponent):
         return portfolio_greeks
     
     def _log_cache_performance(self):
-        """Log cache performance statistics"""
+        """Log unified Greeks cache performance statistics"""
         try:
-            greeks_stats = self.greeks_cache.get_statistics()
-            bs_stats = self.bs_cache.get_statistics()
+            unified_stats = self.greeks_cache.get_statistics()
             
             if not self.algorithm.LiveMode:  # Only log in backtest to avoid spam
                 self.debug(  # Use inherited method
-                    f"[Greeks Cache] Hit Rate: {greeks_stats['hit_rate']:.1%} | "
-                    f"Portfolio Cache: {greeks_stats['cache_size']}/{greeks_stats['max_size']} | "
-                    f"BS Cache: {bs_stats['cache_size']}/{bs_stats['max_size']} | "
-                    f"Memory: {greeks_stats['memory_usage_mb']:.1f}MB + {bs_stats['memory_usage_mb']:.1f}MB"
+                    f"[Greeks Cache] Unified Hit Rate: {unified_stats['hit_rate']:.1%} | "
+                    f"Size: {unified_stats['cache_size']}/{unified_stats['max_size']} | "
+                    f"Memory: {unified_stats['memory_usage_mb']:.1f}MB | "
+                    f"Greeks Entries: {unified_stats.get('greeks_entries', 0)}"
                 )
             
             # Log performance warnings if cache performance is poor
-            if greeks_stats['hit_rate'] < 0.5:  # Less than 50% hit rate
-                self.log(f"[Performance Warning] Greeks cache hit rate low: {greeks_stats['hit_rate']:.1%}")  # Use inherited method
+            if unified_stats['hit_rate'] < 0.5:  # Less than 50% hit rate
+                self.log(f"[Performance Warning] Greeks cache hit rate low: {unified_stats['hit_rate']:.1%}")  # Use inherited method
                 
         except Exception as e:
             self.debug(f"[Greeks Cache] Error logging stats: {e}")  # Use inherited method
     
     def get_cache_statistics(self) -> Dict:
-        """Get comprehensive cache statistics for monitoring"""
+        """Get comprehensive unified cache statistics for monitoring"""
         try:
+            unified_stats = self.greeks_cache.get_statistics()
             return {
-                'greeks_cache': self.greeks_cache.get_statistics(),
-                'bs_cache': self.bs_cache.get_statistics(),
-                'total_memory_mb': (
-                    self.greeks_cache.get_statistics()['memory_usage_mb'] +
-                    self.bs_cache.get_statistics()['memory_usage_mb']
-                )
+                'unified_cache': unified_stats,
+                'greeks_specific_entries': {
+                    'greeks_entries': unified_stats.get('greeks_entries', 0),
+                    'black_scholes_calculations': unified_stats.get('greeks_entries', 0)  # B-S uses GREEKS cache type
+                },
+                'total_memory_mb': unified_stats['memory_usage_mb']
             }
         except Exception as e:
             self.error(f"[Greeks Cache] Error getting statistics: {e}")  # Use inherited method
@@ -332,11 +326,11 @@ class GreeksMonitor(BaseComponent):
     def invalidate_cache(self, reason: str = "manual"):
         """Manually invalidate Greeks cache"""
         try:
-            greeks_count = self.greeks_cache.invalidate_all()
-            bs_count = self.bs_cache.invalidate_all()
+            # Invalidate all GREEKS cache type entries (includes both portfolio and B-S calculations)
+            greeks_count = self.greeks_cache.invalidate_by_cache_type(CacheType.GREEKS)
             
             self.debug(  # Use inherited method
-                f"[Greeks Cache] Invalidated {greeks_count} portfolio + {bs_count} BS calculations. Reason: {reason}"
+                f"[Greeks Cache] Invalidated {greeks_count} Greeks calculations (portfolio + Black-Scholes). Reason: {reason}"
             )
         except Exception as e:
             self.error(f"[Greeks Cache] Error invalidating cache: {e}")  # Use inherited method

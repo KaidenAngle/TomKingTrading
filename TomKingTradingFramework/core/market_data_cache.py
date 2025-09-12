@@ -7,7 +7,7 @@ Provides centralized, high-performance caching for major market instruments
 from AlgorithmImports import *
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Union
-from core.performance_cache import MarketDataCache, HighPerformanceCache
+from core.unified_intelligent_cache import UnifiedIntelligentCache, CacheType
 from dataclasses import dataclass
 
 @dataclass
@@ -52,42 +52,19 @@ class MarketDataCacheManager:
         # Major instruments to cache
         self.major_instruments = ['SPY', 'QQQ', 'VIX', 'IWM', 'TLT', 'GLD', 'DXY']
         
-        # Price data cache with ultra-short TTL
-        self.price_cache = MarketDataCache(
-            algorithm,
-            max_size=500,  # Cache prices for multiple instruments
-            ttl_minutes=0.5 if algorithm.LiveMode else 2,  # Very short TTL
-            max_memory_mb=20,
-            enable_stats=True,
-            price_change_threshold=0.001  # 0.1% price change invalidation
-        )
-        
-        # Market conditions cache (slightly longer TTL)
-        self.conditions_cache = HighPerformanceCache(
-            algorithm,
-            max_size=100,
-            ttl_minutes=1 if algorithm.LiveMode else 3,
-            max_memory_mb=10,
-            enable_stats=True
-        )
-        
-        # Correlation cache (longer TTL)
-        self.correlation_cache = HighPerformanceCache(
-            algorithm,
-            max_size=50,
-            ttl_minutes=5 if algorithm.LiveMode else 10,
-            max_memory_mb=5,
-            enable_stats=True
-        )
-        
-        # Historical data cache for technical indicators
-        self.technical_cache = HighPerformanceCache(
-            algorithm,
-            max_size=200,
-            ttl_minutes=2 if algorithm.LiveMode else 5,
-            max_memory_mb=15,
-            enable_stats=True
-        )
+        # UNIFIED INTELLIGENT CACHE: All market data caching consolidated
+        # Uses appropriate cache types for different data patterns
+        if hasattr(algorithm, 'unified_cache'):
+            self.price_cache = algorithm.unified_cache          # MARKET_DATA type
+            self.conditions_cache = algorithm.unified_cache     # GENERAL type
+            self.correlation_cache = algorithm.unified_cache    # GENERAL type
+            self.technical_cache = algorithm.unified_cache      # MARKET_DATA type
+        else:
+            # Fallback for testing or standalone usage
+            self.price_cache = UnifiedIntelligentCache(algorithm, max_size=500, ttl_minutes=0.5 if algorithm.LiveMode else 2)
+            self.conditions_cache = self.price_cache
+            self.correlation_cache = self.price_cache
+            self.technical_cache = self.price_cache
         
         # Cache performance tracking
         self.cache_stats_log_interval = timedelta(minutes=30)
@@ -113,7 +90,8 @@ class MarketDataCacheManager:
         cache_key = f'price_{symbol}'
         cached_price = self.price_cache.get(
             cache_key,
-            lambda: self._fetch_current_price(symbol)
+            lambda: self._fetch_current_price(symbol),
+            cache_type=CacheType.MARKET_DATA
         )
         
         if cached_price and cached_price > 0:
@@ -129,7 +107,8 @@ class MarketDataCacheManager:
         cache_key = f'data_point_{symbol}'
         cached_data = self.price_cache.get(
             cache_key,
-            lambda: self._fetch_market_data_point(symbol)
+            lambda: self._fetch_market_data_point(symbol),
+            cache_type=CacheType.MARKET_DATA
         )
         
         return cached_data
@@ -141,7 +120,8 @@ class MarketDataCacheManager:
         
         cached_conditions = self.conditions_cache.get(
             cache_key,
-            lambda: self._assess_market_conditions()
+            lambda: self._assess_market_conditions(),
+            cache_type=CacheType.GENERAL
         )
         
         return cached_conditions
@@ -152,7 +132,8 @@ class MarketDataCacheManager:
         cache_key = 'major_prices'
         cached_prices = self.price_cache.get(
             cache_key,
-            lambda: self._fetch_major_prices()
+            lambda: self._fetch_major_prices(),
+            cache_type=CacheType.MARKET_DATA
         )
         
         return cached_prices if cached_prices else {}
@@ -179,7 +160,8 @@ class MarketDataCacheManager:
         cache_key = f'market_direction_{lookback_minutes}'
         cached_direction = self.conditions_cache.get(
             cache_key,
-            lambda: self._calculate_market_direction(lookback_minutes)
+            lambda: self._calculate_market_direction(lookback_minutes),
+            cache_type=CacheType.GENERAL
         )
         
         return cached_direction if cached_direction else 'neutral'
@@ -190,7 +172,8 @@ class MarketDataCacheManager:
         cache_key = f'correlation_{symbol1}_{symbol2}_{lookback_days}'
         cached_correlation = self.correlation_cache.get(
             cache_key,
-            lambda: self._calculate_correlation(symbol1, symbol2, lookback_days)
+            lambda: self._calculate_correlation(symbol1, symbol2, lookback_days),
+            cache_type=CacheType.GENERAL
         )
         
         return cached_correlation
@@ -201,6 +184,8 @@ class MarketDataCacheManager:
         cache_key = f'relative_strength_{symbol}_{benchmark}_{lookback_days}'
         cached_rs = self.technical_cache.get(
             cache_key,
+            lambda: self._calculate_relative_strength(symbol, benchmark, lookback_days),
+            cache_type=CacheType.MARKET_DATA
             lambda: self._calculate_relative_strength(symbol, benchmark, lookback_days)
         )
         

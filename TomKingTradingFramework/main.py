@@ -13,15 +13,15 @@ from config.strategy_parameters import TomKingParameters
 from config.constants import TradingConstants
 from config.strategy_validator import StrategyValidator
 
-# Core State Management - CRITICAL INTEGRATION
+# Core State Management - PHASE 3 OPTIMIZATION: COORDINATOR PATTERN
 from core.unified_state_manager import UnifiedStateManager
 from core.strategy_coordinator import StrategyCoordinator
 from core.unified_vix_manager import UnifiedVIXManager
 from core.unified_position_sizer import UnifiedPositionSizer
 from core.spy_concentration_manager import SPYConcentrationManager
 
-# Performance Optimization Systems
-from core.performance_cache import HighPerformanceCache, PositionAwareCache, MarketDataCache
+# Performance Optimization Systems - CONSOLIDATED
+from core.unified_intelligent_cache import UnifiedIntelligentCache, CacheType
 
 # State Machine Strategies - NEW IMPLEMENTATIONS
 from strategies.friday_0dte_with_state import Friday0DTEWithState
@@ -44,8 +44,8 @@ from helpers.option_order_executor import OptionOrderExecutor
 from helpers.atomic_order_executor import EnhancedAtomicOrderExecutor
 from helpers.future_options_manager import FutureOptionsManager
 
-# Position Management
-from position_state_manager import PositionStateManagerQC
+# REMOVED: Position Management now integrated into UnifiedStateManager coordinator
+# from position_state_manager import PositionStateManagerQC
 
 # Greeks and Analytics
 from greeks.greeks_monitor import GreeksMonitor
@@ -107,15 +107,13 @@ class TomKingTradingIntegrated(QCAlgorithm):
         # 5. Event Calendar - REAL-TIME QUANTCONNECT API DATA
         self.event_calendar = QuantConnectEventCalendar(self)
         
-        # 6. Unified State Manager - SYSTEM-WIDE STATE CONTROL
+        # 6. UNIFIED STATE MANAGER - COORDINATES INDIVIDUAL STRATEGY STATE MACHINES
+        # Maintains separate state machines per strategy (CRITICAL_DO_NOT_CHANGE.md compliance)
         self.state_manager = UnifiedStateManager(self)
         
         # 6.5 Order State Recovery - CRASH RECOVERY FOR MULTI-LEG ORDERS
         from helpers.order_state_recovery import OrderStateRecovery
         self.order_recovery = OrderStateRecovery(self)
-        
-        # 7. Position State Manager - REAL-TIME POSITION TRACKING
-        self.position_state_manager = PositionStateManagerQC(self)
         
         # 8. Unified Position Sizer - DYNAMIC SIZING
         self.position_sizer = UnifiedPositionSizer(self)
@@ -213,7 +211,8 @@ class TomKingTradingIntegrated(QCAlgorithm):
         }
         
         for name, strategy in self.strategies.items():
-            self.state_manager.register_strategy(name, strategy.state_machine)
+            # HIERARCHICAL STATE MANAGER: Register strategy directly (no separate state machine)
+            self.state_manager.register_strategy(name)
             priority = strategy_priorities.get(name, StrategyPriority.MEDIUM)
             self.strategy_coordinator.register_strategy(name, priority=priority)
             self.Error(f"[MAIN] REGISTERED STRATEGY: {name} with priority {priority}")
@@ -294,7 +293,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             self.Debug("[PERFORMANCE] Scheduled methods disabled in backtest mode for performance")
         
         # Load any saved states
-        self.state_manager.load_all_states()
+        self.state_manager.load_states()
         
         # ======================
         # INTEGRATION VERIFICATION (MANDATORY)
@@ -353,28 +352,22 @@ class TomKingTradingIntegrated(QCAlgorithm):
     def initialize_performance_optimizations(self):
         """Initialize all performance optimization systems"""
         try:
-            # High-performance caching systems
-            self.main_cache = HighPerformanceCache(
-                self, 
-                max_size=2000,
-                ttl_minutes=5,
-                max_memory_mb=100
-            )
-            
-            self.position_cache = PositionAwareCache(
+            # UNIFIED INTELLIGENT CACHE SYSTEM - CONSOLIDATION
+            # Replaces HighPerformanceCache + PositionAwareCache + MarketDataCache
+            self.unified_cache = UnifiedIntelligentCache(
                 self,
-                max_size=500, 
-                ttl_minutes=2,
-                max_memory_mb=25
-            )
-            
-            self.market_cache = MarketDataCache(
-                self,
+                max_size=3500,  # Combined capacity of all three caches  
+                ttl_minutes=5,  # Default TTL
+                max_memory_mb=175,  # Combined memory allocation
                 price_change_threshold=0.001,
-                max_size=1000,
-                ttl_minutes=1,
-                max_memory_mb=50
+                position_check_interval_seconds=30,
+                enable_stats=True
             )
+            
+            # Backward compatibility aliases during migration
+            self.main_cache = self.unified_cache
+            self.position_cache = self.unified_cache
+            self.market_cache = self.unified_cache
             
             # Performance tracking flags
             self.last_cache_maintenance = self.Time
@@ -396,7 +389,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             ('performance_tracker', 'SafePerformanceTracker'),
             ('event_calendar', 'QuantConnectEventCalendar'),
             ('state_manager', 'UnifiedStateManager'),
-            ('position_state_manager', 'PositionStateManagerQC'),
+            # ('position_state_manager', 'PositionStateManagerQC'), # INTEGRATED into UnifiedStateManager coordinator
             ('position_sizer', 'UnifiedPositionSizer'),
             ('greeks_monitor', 'GreeksMonitor'),
             ('correlation_limiter', 'August2024CorrelationLimiter'),
@@ -494,11 +487,12 @@ class TomKingTradingIntegrated(QCAlgorithm):
                 'get_vix_regime'
             ],
             'state_manager': [
-                'get_system_state',
-                'update_all_state_machines',  # CRITICAL: Added missing method that caused runtime error
-                'register_strategy',
-                'get_dashboard',
-                'save_all_states'
+                'register_strategy',  # Register individual strategy state machines
+                'update_system_state',  # System state coordination
+                'halt_all_trading',  # Emergency controls
+                'save_all_states',  # State persistence  
+                'load_all_states',  # State recovery
+                'get_system_summary'  # Interface compatibility
             ],
             'strategy_coordinator': [
                 'register_strategy',
@@ -581,7 +575,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
         report += "\n## CRITICAL METHOD STATUS ##\n"
         critical_methods = {
             'vix_manager.get_market_regime': "Called from main.py:527",
-            'state_manager.update_all_state_machines': "Called from main.py:534",
+            'state_manager.update_system_state': "Called from main.py (coordinator pattern)",
             'strategy_coordinator.execute_strategies': "Called from main.py:537"
         }
         
@@ -694,8 +688,8 @@ class TomKingTradingIntegrated(QCAlgorithm):
         # STRATEGY EXECUTION
         # ======================
         
-        # Update all state machines first
-        self.state_manager.update_all_state_machines(data)
+        # Update system state and check global triggers
+        self.state_manager.update_system_state()
         
         # Execute strategies through coordinator
         self.strategy_coordinator.execute_strategies(data, {
@@ -739,17 +733,17 @@ class TomKingTradingIntegrated(QCAlgorithm):
         
         # Rapid drawdown check
         if self.performance_tracker.get_current_drawdown() < self.circuit_breakers['rapid_drawdown']['threshold']:
-            self.state_manager.trigger_emergency_halt("Rapid drawdown detected")
+            self.state_manager.halt_all_trading("Rapid drawdown detected")
         
         # Margin spike check  
         margin_usage = self.margin_manager.get_margin_usage()
         if margin_usage > self.circuit_breakers['margin_spike']['threshold']:
-            self.state_manager.trigger_emergency_halt("Margin usage too high")
+            self.state_manager.halt_all_trading("Margin usage too high")
         
         # Correlation spike check
         max_correlation = self.correlation_limiter.get_max_correlation()
         if max_correlation > self.circuit_breakers['correlation_spike']['threshold']:
-            self.state_manager.trigger_emergency_halt("Correlation spike detected")
+            self.state_manager.halt_all_trading("Correlation spike detected")
     
     def SafetyCheck(self):
         """Regular safety check routine with conditional logging"""
@@ -794,20 +788,18 @@ class TomKingTradingIntegrated(QCAlgorithm):
         else:
             self.Debug("Correlation limiter: get_max_correlation method not available")
         
-        # Check state machines (defensive programming)
-        if hasattr(self.state_manager, 'get_dashboard'):
-            try:
-                state_dashboard = self.state_manager.get_dashboard()
-                if isinstance(state_dashboard, dict):
-                    active = state_dashboard.get('active_strategies', 'unknown')
-                    total = state_dashboard.get('total_strategies', 'unknown')
-                    self.Debug(f"Active strategies: {active}/{total}")
-                else:
-                    self.Debug(f"State dashboard: {state_dashboard}")
-            except Exception as e:
-                self.Debug(f"State dashboard error: {e}")
-        else:
-            self.Debug("State manager: get_dashboard method not available")
+        # Check hierarchical state system (defensive programming)
+        try:
+            state_summary = self.state_manager.get_system_summary()
+            if isinstance(state_summary, dict):
+                active = len([s for s in state_summary.get('strategy_summary', {}).values() 
+                             if s.get('active_positions', 0) > 0])
+                total = state_summary.get('total_strategies', 'unknown')
+                self.Debug(f"Active strategies: {active}/{total}")
+            else:
+                self.Debug(f"State summary: {state_summary}")
+        except Exception as e:
+            self.Debug(f"State summary error: {e}")
         
         # Check strategy health (defensive programming)
         for name, strategy in self.strategies.items():

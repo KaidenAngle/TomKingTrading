@@ -3,7 +3,7 @@
 
 from AlgorithmImports import *
 from core.state_machine import StrategyStateMachine, StrategyState, TransitionTrigger
-from core.performance_cache import HighPerformanceCache
+from core.unified_intelligent_cache import UnifiedIntelligentCache, CacheType
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from enum import Enum, auto
@@ -34,23 +34,10 @@ class UnifiedStateManager:
         # System-wide triggers
         self.global_triggers = []
         
-        # PRODUCTION CACHING: State validation and checks caching
-        self.state_cache = HighPerformanceCache(
-            algorithm,
-            max_size=300,  # Cache state validation results
-            ttl_minutes=1 if algorithm.LiveMode else 3,  # Short TTL for state checks
-            max_memory_mb=10,  # Small memory footprint
-            enable_stats=True
-        )
-        
-        # System condition cache (VIX, margin, etc.)
-        self.condition_cache = HighPerformanceCache(
-            algorithm,
-            max_size=100,
-            ttl_minutes=0.5 if algorithm.LiveMode else 2,  # Very short TTL for conditions
-            max_memory_mb=5,
-            enable_stats=True
-        )
+        # UNIFIED INTELLIGENT CACHE: State validation and condition caching
+        # Uses the main unified cache with appropriate cache types for intelligent invalidation
+        self.state_cache = algorithm.unified_cache
+        self.condition_cache = algorithm.unified_cache
         
         # State persistence
         self.state_file = "state_machines.json"
@@ -139,9 +126,8 @@ class UnifiedStateManager:
         
         current_time = self.algo.Time
         
-        # Run cache maintenance
+        # Run unified cache maintenance (handles all cache types)
         self.state_cache.periodic_maintenance()
-        self.condition_cache.periodic_maintenance()
         
         # Log cache statistics periodically
         if (current_time - self.last_cache_stats_log) > self.cache_stats_log_interval:
@@ -275,10 +261,11 @@ class UnifiedStateManager:
         # Create cache key for this position check
         cache_key = f'can_enter_{strategy_name}_{self.system_state.name}_{self.emergency_mode}'
         
-        # Try to get cached result
+        # Try to get cached result using STATE cache type
         cached_result = self.state_cache.get(
             cache_key,
-            lambda: self._check_position_entry_internal(strategy_name)
+            lambda: self._check_position_entry_internal(strategy_name),
+            cache_type=CacheType.STATE
         )
         
         return cached_result if cached_result is not None else False
@@ -426,7 +413,8 @@ class UnifiedStateManager:
         cache_key = 'vix_spike_check'
         return self.condition_cache.get(
             cache_key,
-            lambda: self._check_vix_spike_internal()
+            lambda: self._check_vix_spike_internal(),
+            cache_type=CacheType.MARKET_DATA
         )
     
     def _check_vix_spike_internal(self) -> bool:
@@ -446,7 +434,8 @@ class UnifiedStateManager:
         cache_key = 'margin_call_check'
         return self.condition_cache.get(
             cache_key,
-            lambda: self._check_margin_call_internal()
+            lambda: self._check_margin_call_internal(),
+            cache_type=CacheType.GENERAL
         )
     
     def _check_margin_call_internal(self) -> bool:
@@ -466,7 +455,8 @@ class UnifiedStateManager:
         cache_key = 'correlation_check'
         return self.condition_cache.get(
             cache_key,
-            lambda: self._check_correlation_breach_internal()
+            lambda: self._check_correlation_breach_internal(),
+            cache_type=CacheType.GENERAL
         )
     
     def _check_correlation_breach_internal(self) -> bool:
@@ -481,7 +471,8 @@ class UnifiedStateManager:
         cache_key = 'data_stale_check'
         return self.condition_cache.get(
             cache_key,
-            lambda: self._check_data_stale_internal()
+            lambda: self._check_data_stale_internal(),
+            cache_type=CacheType.GENERAL
         )
     
     def _check_data_stale_internal(self) -> bool:
@@ -496,54 +487,58 @@ class UnifiedStateManager:
         cache_key = 'market_state'
         return self.condition_cache.get(
             cache_key,
-            lambda: 'open' if self.algo.IsMarketOpen(self.algo.spy) else 'closed'
+            lambda: 'open' if self.algo.IsMarketOpen(self.algo.spy) else 'closed',
+            cache_type=CacheType.MARKET_DATA
         )
     
     def _log_cache_performance(self):
-        """Log state management cache performance"""
+        """Log unified state management cache performance"""
         try:
-            state_stats = self.state_cache.get_statistics()
-            condition_stats = self.condition_cache.get_statistics()
+            unified_stats = self.state_cache.get_statistics()
             
             if not self.algo.LiveMode:  # Only detailed logging in backtest
                 self.algo.Debug(
-                    f"[State Cache] State Hit Rate: {state_stats['hit_rate']:.1%} | "
-                    f"Condition Hit Rate: {condition_stats['hit_rate']:.1%} | "
-                    f"State Size: {state_stats['cache_size']}/{state_stats['max_size']} | "
-                    f"Condition Size: {condition_stats['cache_size']}/{condition_stats['max_size']} | "
-                    f"Total Memory: {state_stats['memory_usage_mb'] + condition_stats['memory_usage_mb']:.1f}MB"
+                    f"[State Cache] Unified Hit Rate: {unified_stats['hit_rate']:.1%} | "
+                    f"Size: {unified_stats['cache_size']}/{unified_stats['max_size']} | "
+                    f"Memory: {unified_stats['memory_usage_mb']:.1f}MB | "
+                    f"State: {unified_stats.get('state_entries', 0)} | "
+                    f"Market-Data: {unified_stats.get('market_data_entries', 0)}"
                 )
             
             # Performance warnings
-            if state_stats['hit_rate'] < 0.3:  # Less than 30% hit rate
-                self.algo.Log(f"[Performance Warning] State cache hit rate low: {state_stats['hit_rate']:.1%}")
+            if unified_stats['hit_rate'] < 0.3:  # Less than 30% hit rate
+                self.algo.Log(f"[Performance Warning] State cache hit rate low: {unified_stats['hit_rate']:.1%}")
                 
         except Exception as e:
             self.algo.Debug(f"[State Cache] Error logging statistics: {e}")
     
     def get_cache_statistics(self) -> Dict:
-        """Get state management cache statistics"""
+        """Get unified state management cache statistics"""
         try:
+            unified_stats = self.state_cache.get_statistics()
             return {
-                'state_cache': self.state_cache.get_statistics(),
-                'condition_cache': self.condition_cache.get_statistics(),
-                'total_memory_mb': (
-                    self.state_cache.get_statistics()['memory_usage_mb'] +
-                    self.condition_cache.get_statistics()['memory_usage_mb']
-                )
+                'unified_cache': unified_stats,
+                'state_specific_entries': {
+                    'state_entries': unified_stats.get('state_entries', 0),
+                    'market_data_entries': unified_stats.get('market_data_entries', 0),
+                    'general_entries': unified_stats.get('general_entries', 0)
+                },
+                'total_memory_mb': unified_stats['memory_usage_mb']
             }
         except Exception as e:
             self.algo.Error(f"[State Cache] Error getting statistics: {e}")
             return {}
     
     def invalidate_state_cache(self, reason: str = "manual"):
-        """Manually invalidate state caches"""
+        """Manually invalidate state management caches"""
         try:
-            state_count = self.state_cache.invalidate_all()
-            condition_count = self.condition_cache.invalidate_all()
+            # Invalidate state and market data cache types used by state manager
+            state_count = self.state_cache.invalidate_by_cache_type(CacheType.STATE)
+            market_count = self.state_cache.invalidate_by_cache_type(CacheType.MARKET_DATA)
+            general_count = self.state_cache.invalidate_by_cache_type(CacheType.GENERAL)
             
             self.algo.Debug(
-                f"[State Cache] Invalidated {state_count} state + {condition_count} condition checks. Reason: {reason}"
+                f"[State Cache] Invalidated {state_count} state + {market_count} market + {general_count} general entries. Reason: {reason}"
             )
         except Exception as e:
             self.algo.Error(f"[State Cache] Error invalidating cache: {e}")
@@ -692,7 +687,11 @@ class UnifiedStateManager:
         
         self._transition_system(SystemState.SHUTTING_DOWN)
     
+    def get_system_summary(self) -> Dict[str, Any]:
+        """Get system summary - alias for get_system_state() for interface compatibility"""
+        return self.get_system_state()
+    
     # Cache refresh marker - ensures QuantConnect sees latest method definitions
     def _cache_refresh_marker(self):
         """Internal marker method to force cache refresh - do not remove"""
-        return "cache_refresh_2025_09_11"
+        return "cache_refresh_2025_09_12"

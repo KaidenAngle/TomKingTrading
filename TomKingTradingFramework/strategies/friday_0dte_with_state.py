@@ -4,7 +4,7 @@
 from AlgorithmImports import *
 from strategies.base_strategy_with_state import BaseStrategyWithState
 from core.state_machine import StrategyState, TransitionTrigger
-from core.performance_cache import HighPerformanceCache, MarketDataCache
+from core.unified_intelligent_cache import UnifiedIntelligentCache, CacheType
 from datetime import time, timedelta
 import numpy as np
 
@@ -17,34 +17,11 @@ class Friday0DTEWithState(BaseStrategyWithState):
     def __init__(self, algorithm):
         super().__init__(algorithm, "Friday_0DTE")
         
-        # PRODUCTION CACHING: Entry conditions and market analysis caching
-        self.entry_conditions_cache = HighPerformanceCache(
-            algorithm,
-            max_size=100,  # Cache entry condition results
-            ttl_minutes=5,  # 5-minute TTL for entry conditions
-            max_memory_mb=5,  # Small memory footprint
-            enable_stats=True
-        )
-        
-        # Market data cache for price analysis
-        self.market_data_cache = MarketDataCache(
-            algorithm,
-            max_size=50,  # Cache market analysis results
-            ttl_minutes=2,  # Short TTL for market data
-            max_memory_mb=3,
-            enable_stats=True,
-            price_change_threshold=0.001  # 0.1% price change invalidation
-        )
-        
-        # VIX condition cache (very short TTL)
-        self.vix_cache = MarketDataCache(
-            algorithm,
-            max_size=10,
-            ttl_minutes=1,  # Very short TTL for VIX
-            max_memory_mb=2,
-            enable_stats=True,
-            price_change_threshold=0.02  # 2% VIX change invalidation
-        )
+        # UNIFIED INTELLIGENT CACHE: Entry conditions and market analysis caching
+        # Uses appropriate cache types for automatic invalidation
+        self.entry_conditions_cache = algorithm.unified_cache  # Uses GENERAL cache type
+        self.market_data_cache = algorithm.unified_cache      # Uses MARKET_DATA cache type  
+        self.vix_cache = algorithm.unified_cache              # Uses MARKET_DATA cache type
         
         # Cache performance tracking
         self.cache_stats_log_interval = timedelta(minutes=30)
