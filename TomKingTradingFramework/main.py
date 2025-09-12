@@ -926,13 +926,13 @@ class TomKingTradingIntegrated(QCAlgorithm):
         # Check hierarchical state system (defensive programming)
         try:
             state_summary = self.state_manager.get_system_summary()
-        if isinstance(state_summary, dict):
-            active = len([s for s in state_summary.get('strategy_summary', {}).values()
-        if s.get('active_positions', 0) > 0])
-        total = state_summary.get('total_strategies', 'unknown')
-        self.Debug(f"Active strategies: {active}/{total}")
-        else:
-        self.Debug(f"State summary: {state_summary}")
+            if isinstance(state_summary, dict):
+                active = len([s for s in state_summary.get('strategy_summary', {}).values()
+                             if s.get('active_positions', 0) > 0])
+                total = state_summary.get('total_strategies', 'unknown')
+                self.Debug(f"Active strategies: {active}/{total}")
+            else:
+                self.Debug(f"State summary: {state_summary}")
         except Exception as e:
             self.Debug(f"State summary error: {e}")
 
@@ -940,10 +940,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
         for name, strategy in self.strategies.items():
             if hasattr(strategy, 'get_health_status'):
                 try:
-                    pass
-        except Exception as e:
-
-            health = strategy.get_health_status()
+                    health = strategy.get_health_status()
                     if isinstance(health, dict) and not health.get('healthy', True):
                         self.Error(f"Strategy {name} unhealthy: {health.get('reason', 'unknown')}")
                 except Exception as e:
@@ -964,10 +961,10 @@ class TomKingTradingIntegrated(QCAlgorithm):
         if hasattr(self.performance_tracker, 'get_statistics'):
             try:
                 stats = self.performance_tracker.get_statistics()
-            if isinstance(stats, dict):
-                self.Debug(f"Daily P&L: ${stats.get('daily_pnl', 0):.2f}")
-            self.Debug(f"Total trades: {stats.get('total_trades', 0)}")
-            self.Debug(f"Win rate: {stats.get('win_rate', 0):.1%}")
+                if isinstance(stats, dict):
+                    self.Debug(f"Daily P&L: ${stats.get('daily_pnl', 0):.2f}")
+                    self.Debug(f"Total trades: {stats.get('total_trades', 0)}")
+                    self.Debug(f"Win rate: {stats.get('win_rate', 0):.1%}")
             except Exception as e:
                 self.Debug(f"Performance summary error: {e}")
 
@@ -989,15 +986,12 @@ class TomKingTradingIntegrated(QCAlgorithm):
             # Margin status
             if hasattr(self.margin_manager, 'get_margin_status'):
                 try:
-                    pass
-            except Exception as e:
-
-                margin_status = self.margin_manager.get_margin_status()
-                if isinstance(margin_status, dict):
-                    self.Debug(f"Margin usage: {margin_status.get('usage_pct', 0):.1%}")
-                    self.Debug(f"Available margin: ${margin_status.get('available_margin', 0):.2f}")
-            except Exception as e:
-                self.Debug(f"EOD margin status error: {e}")
+                    margin_status = self.margin_manager.get_margin_status()
+                    if isinstance(margin_status, dict):
+                        self.Debug(f"Margin usage: {margin_status.get('usage_pct', 0):.1%}")
+                        self.Debug(f"Available margin: ${margin_status.get('available_margin', 0):.2f}")
+                except Exception as e:
+                    self.Debug(f"EOD margin status error: {e}")
         
         self.Debug("=== EOD RECONCILIATION COMPLETE ===")
     
@@ -1012,16 +1006,16 @@ class TomKingTradingIntegrated(QCAlgorithm):
             if hasattr(self, 'spy_concentration_manager'):
                 cleanup_result = self.spy_concentration_manager.cleanup_stale_allocations(force_reconcile=True)
 
-        if cleanup_result.get('cleaned_count', 0) > 0:
-            self.Log(f"[MAIN]  Cleaned {cleanup_result['cleaned_count']} stale allocations")
+                if cleanup_result.get('cleaned_count', 0) > 0:
+                    self.Log(f"[MAIN]  Cleaned {cleanup_result['cleaned_count']} stale allocations")
 
-        # Log current utilization after cleanup
-        utilization = cleanup_result.get('utilization_after', {})
-        if utilization:
-            self.Debug(
-        f"[SPY Cleanup] Post-cleanup: {utilization.get('delta_used', 0):.1f}/{utilization.get('max_delta', 0):.1f} delta, "
-        f"{utilization.get('strategies_active', 0)}/{utilization.get('max_strategies', 0)} strategies"
-        )
+                # Log current utilization after cleanup
+                utilization = cleanup_result.get('utilization_after', {})
+                if utilization:
+                    self.Debug(
+                        f"[SPY Cleanup] Post-cleanup: {utilization.get('delta_used', 0):.1f}/{utilization.get('max_delta', 0):.1f} delta, "
+                        f"{utilization.get('strategies_active', 0)}/{utilization.get('max_strategies', 0)} strategies"
+                    )
         except Exception as e:
             self.Error(f"[MAIN]  Failed to clean allocations: {e}")
 
