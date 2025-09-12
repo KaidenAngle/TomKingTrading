@@ -20,7 +20,10 @@ class GreeksMonitor(BaseComponent):
         super().__init__(algorithm)
         self.position_greeks = {}
         self.portfolio_greeks_history = []
-        self.data_validator = DataFreshnessValidator(algorithm)
+        
+        # PHASE 4 OPTIMIZATION: Use shared data_validator from ManagerFactory instead of creating duplicate
+        # Prevents redundant DataFreshnessValidator instances and ensures consistency
+        self.data_validator = getattr(algorithm, 'data_validator', None)
         
         # UNIFIED INTELLIGENT CACHE: High-performance Greeks caching
         # Uses GREEKS cache type for automatic position-aware invalidation
@@ -338,13 +341,14 @@ class GreeksMonitor(BaseComponent):
     def monitor_greeks_limits(self) -> Tuple[Dict, List[str]]:
         """Check if Greeks exceed safety thresholds"""
         
-        # Validate data freshness first
-        market_conditions = self.data_validator.check_market_conditions()
-        if market_conditions['data_quality_score'] < 60:
-            self.log(f"WARNING: Poor data quality ({market_conditions['data_quality_score']}%)")  # Use inherited method
-            if market_conditions['issues']:
-                for issue in market_conditions['issues']:
-                    self.log(f"  - {issue}")  # Use inherited method
+        # Validate data freshness first (with defensive programming for early initialization)
+        if self.data_validator and hasattr(self.data_validator, 'check_market_conditions'):
+            market_conditions = self.data_validator.check_market_conditions()
+            if market_conditions and market_conditions.get('data_quality_score', 100) < 60:
+                self.log(f"WARNING: Poor data quality ({market_conditions['data_quality_score']}%)")  # Use inherited method
+                if market_conditions.get('issues'):
+                    for issue in market_conditions['issues']:
+                        self.log(f"  - {issue}")  # Use inherited method
         
         greeks = self.calculate_portfolio_greeks()
         alerts = []
@@ -457,10 +461,11 @@ class GreeksMonitor(BaseComponent):
     def get_implied_volatility(self, option) -> float:
         """Get IV from market data or calculate from prices"""
         
-        # Validate option data freshness
-        contract_issues = self.data_validator.validate_option_contract(option)
-        if contract_issues:
-            self.algo.Debug(f"Option data issues for {option.Symbol}: {contract_issues[0]}")
+        # Validate option data freshness (with defensive programming for early initialization)
+        if self.data_validator and hasattr(self.data_validator, 'validate_option_contract'):
+            contract_issues = self.data_validator.validate_option_contract(option)
+            if contract_issues:
+                self.algo.Debug(f"Option data issues for {option.Symbol}: {contract_issues[0]}")
         
         # Try QuantConnect's IV
         if hasattr(option, 'ImpliedVolatility'):

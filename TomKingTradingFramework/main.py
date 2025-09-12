@@ -89,58 +89,35 @@ class TomKingTradingIntegrated(QCAlgorithm):
         self.Error(f"[STARTUP] Tom King Trading Framework - Live: {self.LiveMode}")
         
         # ======================
-        # MANAGER INITIALIZATION (PROPER ORDER)
+        # PHASE 4 OPTIMIZATION: MANAGER FACTORY INITIALIZATION
         # ======================
         
-        # 1. Data Freshness - FIRST PRIORITY
-        self.data_validator = DataFreshnessValidator(self)
+        # Replace manual manager initialization with structured ManagerFactory
+        from core.manager_factory import ManagerFactory
         
-        # 2. Margin Management - CRITICAL FOR POSITION SIZING
-        self.margin_manager = DynamicMarginManager(self)
+        self.Log("[STARTUP] Initializing managers using ManagerFactory (Phase 4 optimization)")
         
-        # 3. Unified VIX Manager - MARKET REGIME DETECTION
-        self.vix_manager = UnifiedVIXManager(self)
+        # Initialize ManagerFactory with dependency injection and performance tracking
+        self.manager_factory = ManagerFactory(self)
         
-        # 4. Performance Tracker - OVERFLOW PROTECTED
-        self.performance_tracker = SafePerformanceTracker(self)
+        # Initialize all 16 managers with automatic dependency resolution
+        initialization_success, factory_result = self.manager_factory.initialize_all_managers()
         
-        # 5. Event Calendar - REAL-TIME QUANTCONNECT API DATA
-        self.event_calendar = QuantConnectEventCalendar(self)
+        if not initialization_success:
+            self.Error(f"[STARTUP] Manager initialization FAILED: {factory_result['failed_managers']}")
+            self.Error(f"[STARTUP] Manager status: {factory_result['manager_status']}")
+            raise Exception("Critical manager initialization failure - cannot proceed")
         
-        # 6. UNIFIED STATE MANAGER - COORDINATES INDIVIDUAL STRATEGY STATE MACHINES
-        # Maintains separate state machines per strategy (CRITICAL_DO_NOT_CHANGE.md compliance)
-        self.state_manager = UnifiedStateManager(self)
+        # Log successful initialization with performance metrics
+        self.Log(f"[STARTUP] ✅ All {factory_result['successful_managers']}/{factory_result['total_managers']} managers initialized")
+        self.Debug(f"[STARTUP] Total initialization time: {factory_result['total_duration_ms']:.1f}ms")
         
-        # 6.5 Order State Recovery - CRASH RECOVERY FOR MULTI-LEG ORDERS
-        from helpers.order_state_recovery import OrderStateRecovery
-        self.order_recovery = OrderStateRecovery(self)
+        # Store factory result for debugging
+        self.manager_initialization_result = factory_result
         
-        # 8. Unified Position Sizer - DYNAMIC SIZING
-        self.position_sizer = UnifiedPositionSizer(self)
-        
-        # 9. Greeks Monitor - RISK ANALYTICS
-        self.greeks_monitor = GreeksMonitor(self)
-        
-        # 10. Correlation Group Limiter - PORTFOLIO RISK
-        self.correlation_limiter = August2024CorrelationLimiter(self)
-        
-        # 10.5. SPY Concentration Manager - PREVENTS SPY OVER-EXPOSURE
-        self.spy_concentration_manager = SPYConcentrationManager(self)
-        
-        # 11. Strategy Coordinator - MASTER CONTROL
-        self.strategy_coordinator = StrategyCoordinator(self)
-        
-        # 12. Atomic Order Executor - BULLETPROOF ORDERS
-        self.atomic_executor = EnhancedAtomicOrderExecutor(self)
-        
-        # 13. Option Chain Manager - OPTIMIZED OPTION DATA
-        self.option_chain_manager = OptionChainManager(self)
-        
-        # 14. Option Order Executor - SPREAD EXECUTION
-        self.option_executor = OptionOrderExecutor(self)
-        
-        # 15. Future Options Manager - FUTURES OPTIONS SUPPORT
-        self.future_options_manager = FutureOptionsManager(self)
+        # Emergency validation of critical managers
+        if not self.manager_factory.emergency_manager_check():
+            raise Exception("Emergency manager check failed - critical managers not available")
         
         # ======================
         # SECURITIES INITIALIZATION

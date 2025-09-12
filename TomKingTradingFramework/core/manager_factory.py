@@ -77,6 +77,11 @@ class ManagerFactory:
         from helpers.option_order_executor import OptionOrderExecutor
         from helpers.future_options_manager import FutureOptionsManager
         
+        # PHASE 5 OPTIMIZATION: Event-Driven Architecture Components
+        from core.event_bus import EventBus
+        from core.central_greeks_service import CentralGreeksService
+        from core.event_driven_optimizer import EventDrivenOptimizer
+        
         # TIER 1: FOUNDATION MANAGERS (No dependencies - can initialize in parallel)
         foundation_managers = {
             'data_validator': ManagerConfig(
@@ -127,6 +132,17 @@ class ManagerFactory:
                 initialization_args=(self.algo,),
                 critical=False,
                 tier=2  # Move to Tier 2 since it depends on data_validator
+            ),
+            
+            # PHASE 5 OPTIMIZATION: Event-Driven Architecture Foundation
+            'event_bus': ManagerConfig(
+                name='event_bus',
+                class_type=EventBus,
+                dependencies=[],  # Foundation component - no dependencies
+                required_methods=['subscribe', 'publish', 'get_statistics'],
+                initialization_args=(self.algo,),
+                critical=True,
+                tier=1  # Foundation tier - needed by other event-driven components
             )
         }
         
@@ -174,6 +190,18 @@ class ManagerFactory:
                 required_methods=['check_correlation_limits', 'get_correlation_exposure'],
                 initialization_args=(self.algo,),
                 critical=False,
+                tier=2
+            ),
+            
+            # PHASE 5 OPTIMIZATION: Centralized Greeks Service
+            'central_greeks_service': ManagerConfig(
+                name='central_greeks_service',
+                class_type=CentralGreeksService,
+                dependencies=['event_bus', 'data_validator'],  # Needs event bus and data validation
+                required_methods=['get_portfolio_greeks', 'monitor_greeks_thresholds'],
+                initialization_args=(self.algo, None),  # Will pass event_bus in kwargs
+                initialization_kwargs={'event_bus': 'event_bus'},  # Reference to event_bus manager
+                critical=True,  # Critical for Greeks monitoring
                 tier=2
             )
         }
@@ -259,6 +287,21 @@ class ManagerFactory:
                 ],
                 initialization_args=(self.algo,),
                 critical=True,
+                tier=4
+            ),
+            
+            # PHASE 5 OPTIMIZATION: Event-Driven Performance Optimizer
+            'event_driven_optimizer': ManagerConfig(
+                name='event_driven_optimizer',
+                class_type=EventDrivenOptimizer,
+                dependencies=['event_bus', 'central_greeks_service'],  # Needs event bus and centralized Greeks
+                required_methods=['optimize_ondata_performance', 'get_optimization_statistics'],
+                initialization_args=(self.algo, None, None),  # Will pass event_bus and greeks_service in kwargs
+                initialization_kwargs={
+                    'event_bus': 'event_bus',
+                    'greeks_service': 'central_greeks_service'
+                },
+                critical=True,  # Critical for performance optimization
                 tier=4
             )
         }
@@ -426,8 +469,16 @@ class ManagerFactory:
                     self.algo.Error(f"[ManagerFactory] {manager_name}: dependency '{dep_name}' not in COMPLETED state ({dep_status})")
                     return False
             
+            # Resolve manager references in kwargs
+            resolved_kwargs = config.initialization_kwargs.copy()
+            for key, value in resolved_kwargs.items():
+                if isinstance(value, str) and value in self.managers:
+                    # Replace string reference with actual manager instance
+                    resolved_kwargs[key] = self.managers[value]
+                    self.algo.Debug(f"[ManagerFactory] {manager_name}: resolved {key} -> {value}")
+            
             # Initialize manager instance
-            manager = config.class_type(*config.initialization_args, **config.initialization_kwargs)
+            manager = config.class_type(*config.initialization_args, **resolved_kwargs)
             
             # Validate required methods exist and are callable
             missing_methods = []
