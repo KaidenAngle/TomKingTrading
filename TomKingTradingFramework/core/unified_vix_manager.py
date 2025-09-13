@@ -388,12 +388,10 @@ class UnifiedVIXManager(BaseComponent, IManager):
         
         try:
             if event.event_type == EventType.VIX_LEVEL_REQUEST:
+                # Handle VIX level requests
                 vix_value = self.get_current_vix()
-        regime = self.get_vix_regime()
-        details = self.get_vix_details()
-        except Exception as e:
-
-            # Handle VIX level requests
+                regime = self.get_vix_regime()
+                details = self.get_vix_details()
                 
                 # Publish response with comprehensive VIX data
                 if hasattr(self.algo, 'event_bus'):

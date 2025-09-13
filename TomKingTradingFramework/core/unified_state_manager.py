@@ -560,12 +560,11 @@ class UnifiedStateManager(IManager):
     def invalidate_state_cache(self, reason: str = "manual"):
         """Manually invalidate state management caches"""
         try:
-            state_count = self.state_cache.invalidate_by_cache_type(CacheType.STATE)
-        market_count = self.state_cache.invalidate_by_cache_type(CacheType.MARKET_DATA)
-        general_count = self.state_cache.invalidate_by_cache_type(CacheType.GENERAL)
-        except Exception as e:
-
             # Invalidate state and market data cache types used by state manager
+            state_count = self.state_cache.invalidate_by_cache_type(CacheType.STATE)
+            market_count = self.state_cache.invalidate_by_cache_type(CacheType.MARKET_DATA)
+            general_count = self.state_cache.invalidate_by_cache_type(CacheType.GENERAL)
+        except Exception as e:
             
             self.algo.Debug(
                 f"[State Cache] Invalidated {state_count} state + {market_count} market + {general_count} general entries. Reason: {reason}"
@@ -730,21 +729,20 @@ class UnifiedStateManager(IManager):
         try:
             if event.event_type == EventType.PORTFOLIO_UPDATE:
                 self._update_portfolio_state(event.data)
-        return True
-        elif event.event_type == EventType.POSITION_OPENED:
-            self._handle_position_opened(event.data)
-        return True
-        elif event.event_type == EventType.POSITION_CLOSED:
-            self._handle_position_closed(event.data)
-        return True
-        elif event.event_type == EventType.SYSTEM_HALT:
-            self._transition_system(SystemState.EMERGENCY)
-        return True
-        except Exception as e:
-
-            # Handle system-level events that affect state management
+                return True
+            elif event.event_type == EventType.POSITION_OPENED:
+                self._handle_position_opened(event.data)
+                return True
+            elif event.event_type == EventType.POSITION_CLOSED:
+                # Handle system-level events that affect state management
+                self._handle_position_closed(event.data)
+                return True
+            elif event.event_type == EventType.SYSTEM_HALT:
+                self._transition_system(SystemState.EMERGENCY)
+                return True
             
             return False
+            
         except Exception as e:
             self.algo.Error(f"[StateManager] Error handling event {event.event_type}: {e}")
             return False

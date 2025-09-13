@@ -87,11 +87,9 @@ class AtomicOrderGroup:
         self.algo.Debug(f"[Atomic-{self.group_id}] Executing {len(self.target_legs)} legs")
         
         try:
+            # Place all orders
             for symbol, quantity in self.target_legs:
                 order = self._place_smart_order(symbol, quantity)
-        except Exception as e:
-
-            # Place all orders
                 
                 if order:
                     self.orders.append(order)
@@ -118,9 +116,9 @@ class AtomicOrderGroup:
         try:
             if hasattr(self.algo, 'unified_pricing'):
                 is_buy = quantity > 0
-        limit_price, use_limit = self.algo.unified_pricing.calculate_limit_price(
-        symbol, is_buy
-        )
+                limit_price, use_limit = self.algo.unified_pricing.calculate_limit_price(
+                    symbol, is_buy
+                )
         except Exception as e:
 
             # Use unified pricing if available

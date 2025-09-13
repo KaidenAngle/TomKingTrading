@@ -578,9 +578,9 @@ class ManagerFactory:
                 def factory():
                     try:
                         resolved_kwargs = manager_config.initialization_kwargs.copy()
-                    for key, value in resolved_kwargs.items():
-                        if isinstance(value, str) and value in self.dependency_container.managers:
-                            resolved_kwargs[key] = self.dependency_container.managers[value]
+                        for key, value in resolved_kwargs.items():
+                            if isinstance(value, str) and value in self.dependency_container.managers:
+                                resolved_kwargs[key] = self.dependency_container.managers[value]
                     except Exception as e:
 
                         # Resolve kwargs with actual manager instances
@@ -623,13 +623,11 @@ class ManagerFactory:
         config = self.manager_configs[manager_name]
         
         try:
+            # Verify dependencies are available
             for dep_name in config.dependencies:
                 if dep_name not in self.managers:
                     self.algo.Error(f"[ManagerFactory] {manager_name}: dependency '{dep_name}' not available")
-        return False
-        except Exception as e:
-
-            # Verify dependencies are available
+                    return False
                     
                 # Verify dependency is healthy
                 dep_status = self.status_map.get(dep_name)

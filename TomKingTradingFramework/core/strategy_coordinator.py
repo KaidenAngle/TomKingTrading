@@ -407,12 +407,11 @@ class StrategyCoordinator:
             return
             
         try:
-            self.registered_strategies[strategy_name]['executions'] += 1
-        self.registered_strategies[strategy_name]['last_execution'] = self.algo.Time
-        self.registered_strategies[strategy_name]['status'] = 'COMPLETED'
-        except Exception as e:
-
             # Update execution count
+            self.registered_strategies[strategy_name]['executions'] += 1
+            self.registered_strategies[strategy_name]['last_execution'] = self.algo.Time
+            self.registered_strategies[strategy_name]['status'] = 'COMPLETED'
+        except Exception as e:
             
             # Log execution
             self.execution_history.append({

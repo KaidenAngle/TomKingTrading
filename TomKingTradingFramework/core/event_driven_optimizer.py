@@ -200,11 +200,10 @@ class EventDrivenOptimizer(BaseComponent):
         start_time = datetime.now()
         
         try:
-            total_position_changes = len(self.pending_risk_checks)
-        significant_changes = [r for r in self.pending_risk_checks if abs(r.get('quantity_change', 0)) > 5]
-        except Exception as e:
-
             # Aggregate risk changes
+            total_position_changes = len(self.pending_risk_checks)
+            significant_changes = [r for r in self.pending_risk_checks if abs(r.get('quantity_change', 0)) > 5]
+        except Exception as e:
             
             # Only run comprehensive risk check if significant changes
             if significant_changes:
