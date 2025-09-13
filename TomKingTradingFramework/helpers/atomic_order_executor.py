@@ -359,7 +359,320 @@ class EnhancedAtomicOrderExecutor:
         del self.active_groups[group.group_id]
         
         return success
-    
+
+    def execute_ipmcc_atomic(self, leap_call, weekly_call, quantity: int = 1) -> bool:
+        """Execute IPMCC atomically - LEAP Call + Weekly Call coordination
+
+        CRITICAL: Prevents expensive LEAP without income generation
+        Risk: LEAP (£8,000+) + Weekly (-£200) partial fills = dangerous positions
+
+        Args:
+            leap_call: LEAP call option contract (long position)
+            weekly_call: Weekly call option contract (short position)
+            quantity: Number of contracts (default 1)
+
+        Returns:
+            bool: True if both legs filled atomically, False if rolled back
+        """
+
+        # Comprehensive pre-execution validation
+        if not self._validate_ipmcc_configuration(leap_call, weekly_call, quantity):
+            return False
+
+        group = self.create_atomic_group("IPMCC")
+
+        # Add both legs with proper direction
+        group.add_leg(leap_call, quantity)    # Buy LEAP call (long)
+        group.add_leg(weekly_call, -quantity) # Sell weekly call (short)
+
+        # Persist order group BEFORE execution for crash recovery
+        if hasattr(self.algo, 'order_recovery'):
+            legs = [(leap_call, quantity), (weekly_call, -quantity)]
+            self.algo.order_recovery.persist_order_group_start(
+                group.group_id, legs, "IPMCC"
+            )
+
+        # Execute atomically
+        success = group.execute()
+
+        # Move to completed and clean up
+        self.completed_groups[group.group_id] = group
+        del self.active_groups[group.group_id]
+
+        # Update recovery system
+        if hasattr(self.algo, 'order_recovery'):
+            if success:
+                self.algo.order_recovery.mark_order_group_complete(group.group_id)
+            else:
+                self.algo.order_recovery.mark_order_group_failed(
+                    group.group_id,
+                    f"IPMCC execution failed: {group.get_status()}"
+                )
+
+        if success:
+            self.algo.Debug(f"IPMCC executed successfully: {group.group_id}")
+            self.algo.Debug(f"LEAP: {leap_call} x{quantity}, Weekly: {weekly_call} x{-quantity}")
+        else:
+            self.algo.Error(f"IPMCC execution failed: {group.get_status()}")
+            self.algo.Error("IPMCC rollback completed - no dangerous positions created")
+
+        return success
+
+    def execute_leap_ladder_atomic(self, ladder_legs: List[tuple], strategy_name: str = "LEAPLadder") -> bool:
+        """Execute LEAP put ladder atomically - Multiple protection levels
+
+        IMPORTANT: Ensures complete protection ladder construction
+        Risk: Partial ladder = gaps in portfolio protection coverage
+
+        Args:
+            ladder_legs: List of (put_contract, quantity) tuples
+            strategy_name: Strategy identifier for tracking
+
+        Returns:
+            bool: True if all rungs filled atomically, False if rolled back
+        """
+
+        # Comprehensive pre-execution validation
+        if not self._validate_leap_ladder_configuration(ladder_legs):
+            return False
+
+        group = self.create_atomic_group(strategy_name)
+
+        # Add all ladder rungs (all long puts)
+        for put_contract, contracts in ladder_legs:
+            if contracts <= 0:
+                self.algo.Error(f"[LEAP-Ladder] Invalid quantity for {put_contract}: {contracts}")
+                return False
+            group.add_leg(put_contract, contracts)
+
+        # Persist order group BEFORE execution for crash recovery
+        if hasattr(self.algo, 'order_recovery'):
+            self.algo.order_recovery.persist_order_group_start(
+                group.group_id, ladder_legs, strategy_name
+            )
+
+        # Execute atomically
+        success = group.execute()
+
+        # Move to completed and clean up
+        self.completed_groups[group.group_id] = group
+        del self.active_groups[group.group_id]
+
+        # Update recovery system
+        if hasattr(self.algo, 'order_recovery'):
+            if success:
+                self.algo.order_recovery.mark_order_group_complete(group.group_id)
+            else:
+                self.algo.order_recovery.mark_order_group_failed(
+                    group.group_id,
+                    f"LEAP ladder execution failed: {group.get_status()}"
+                )
+
+        if success:
+            self.algo.Debug(f"LEAP ladder executed successfully: {group.group_id}")
+            self.algo.Debug(f"Ladder rungs: {len(ladder_legs)} protection levels")
+        else:
+            self.algo.Error(f"LEAP ladder execution failed: {group.get_status()}")
+            self.algo.Error("LEAP ladder rollback completed - no partial protection")
+
+        return success
+
+    def _validate_ipmcc_configuration(self, leap_call, weekly_call, quantity: int) -> bool:
+        """Validate IPMCC configuration to prevent dangerous setups
+
+        CRITICAL VALIDATION: Weekly call strike MUST be below LEAP call strike
+        Violation creates unlimited risk if assigned
+        """
+
+        try:
+            # Basic parameter validation
+            if not leap_call or not weekly_call:
+                self.algo.Error("[IPMCC-Validation] Missing option contracts")
+                return False
+
+            if quantity <= 0 or quantity > 100:  # Sanity check
+                self.algo.Error(f"[IPMCC-Validation] Invalid quantity: {quantity}")
+                return False
+
+            # Extract strike prices for validation
+            leap_strike = self._extract_strike_price(leap_call)
+            weekly_strike = self._extract_strike_price(weekly_call)
+
+            if not leap_strike or not weekly_strike:
+                self.algo.Error("[IPMCC-Validation] Could not extract strike prices")
+                return False
+
+            # CRITICAL SAFETY CHECK: Weekly strike must be above LEAP strike
+            # This prevents the covered call from being "in the money" relative to LEAP
+            if weekly_strike <= leap_strike:
+                self.algo.Error(f"[IPMCC-Validation] DANGEROUS CONFIGURATION DETECTED!")
+                self.algo.Error(f"Weekly strike ({weekly_strike}) <= LEAP strike ({leap_strike})")
+                self.algo.Error("This creates unlimited risk if weekly call is assigned")
+                return False
+
+            # Validate expiration relationship
+            if not self._validate_ipmcc_expirations(leap_call, weekly_call):
+                return False
+
+            # Check available buying power for LEAP
+            if hasattr(self.algo, 'Portfolio'):
+                leap_cost = self._estimate_leap_cost(leap_call, quantity)
+                if leap_cost and leap_cost > self.algo.Portfolio.Cash * 0.15:  # 15% max
+                    self.algo.Error(f"[IPMCC-Validation] LEAP cost too high: ${leap_cost:.0f}")
+                    return False
+
+            self.algo.Debug(f"[IPMCC-Validation] Configuration validated successfully")
+            self.algo.Debug(f"LEAP strike: {leap_strike}, Weekly strike: {weekly_strike}")
+
+            return True
+
+        except Exception as e:
+            self.algo.Error(f"[IPMCC-Validation] Validation error: {e}")
+            return False
+
+    def _validate_leap_ladder_configuration(self, ladder_legs: List[tuple]) -> bool:
+        """Validate LEAP ladder configuration for proper protection setup"""
+
+        try:
+            # Basic validation
+            if not ladder_legs or len(ladder_legs) == 0:
+                self.algo.Error("[LEAP-Validation] No ladder legs provided")
+                return False
+
+            if len(ladder_legs) > 6:  # Reasonable maximum
+                self.algo.Error(f"[LEAP-Validation] Too many ladder rungs: {len(ladder_legs)}")
+                return False
+
+            # Validate each rung
+            total_cost = 0
+            strikes = []
+
+            for i, (put_contract, quantity) in enumerate(ladder_legs):
+                if not put_contract:
+                    self.algo.Error(f"[LEAP-Validation] Missing contract for rung {i+1}")
+                    return False
+
+                if quantity <= 0 or quantity > 50:  # Reasonable limits
+                    self.algo.Error(f"[LEAP-Validation] Invalid quantity for rung {i+1}: {quantity}")
+                    return False
+
+                # Extract and validate strike
+                strike = self._extract_strike_price(put_contract)
+                if strike:
+                    strikes.append(strike)
+
+                # Estimate cost
+                cost = self._estimate_option_cost(put_contract, quantity)
+                if cost:
+                    total_cost += cost
+
+            # Validate strike progression (should be descending for put protection)
+            if len(strikes) > 1:
+                for i in range(1, len(strikes)):
+                    if strikes[i] >= strikes[i-1]:
+                        self.algo.Warning(f"[LEAP-Validation] Unusual strike progression at rung {i+1}")
+
+            # Check total allocation (should be reasonable for protection)
+            if hasattr(self.algo, 'Portfolio') and total_cost:
+                if total_cost > self.algo.Portfolio.TotalPortfolioValue * 0.20:  # 20% max
+                    self.algo.Error(f"[LEAP-Validation] Ladder cost too high: ${total_cost:.0f}")
+                    return False
+
+            self.algo.Debug(f"[LEAP-Validation] Ladder validated: {len(ladder_legs)} rungs")
+            if total_cost:
+                self.algo.Debug(f"Estimated total cost: ${total_cost:.0f}")
+
+            return True
+
+        except Exception as e:
+            self.algo.Error(f"[LEAP-Validation] Validation error: {e}")
+            return False
+
+    def _validate_ipmcc_expirations(self, leap_call, weekly_call) -> bool:
+        """Validate expiration relationship for IPMCC"""
+
+        try:
+            # Extract expiration dates if possible
+            leap_expiry = getattr(leap_call, 'Expiry', None) if hasattr(leap_call, 'Expiry') else None
+            weekly_expiry = getattr(weekly_call, 'Expiry', None) if hasattr(weekly_call, 'Expiry') else None
+
+            if leap_expiry and weekly_expiry:
+                # LEAP should expire after weekly
+                if leap_expiry <= weekly_expiry:
+                    self.algo.Error("[IPMCC-Validation] LEAP expires before/same as weekly call")
+                    return False
+
+                # Weekly should be relatively short term
+                days_to_weekly = (weekly_expiry.date() - self.algo.Time.date()).days
+                if days_to_weekly > 14:  # More than 2 weeks
+                    self.algo.Warning(f"[IPMCC-Validation] Weekly call unusually long: {days_to_weekly} days")
+
+                # LEAP should be long term
+                days_to_leap = (leap_expiry.date() - self.algo.Time.date()).days
+                if days_to_leap < 180:  # Less than 6 months
+                    self.algo.Warning(f"[IPMCC-Validation] LEAP unusually short: {days_to_leap} days")
+
+            return True
+
+        except Exception as e:
+            self.algo.Debug(f"[IPMCC-Validation] Expiration validation error: {e}")
+            return True  # Don't fail on expiration validation errors
+
+    def _extract_strike_price(self, option_contract) -> float:
+        """Extract strike price from option contract"""
+
+        try:
+            # Try multiple methods to extract strike price
+            if hasattr(option_contract, 'Strike'):
+                return float(option_contract.Strike)
+            elif hasattr(option_contract, 'StrikePrice'):
+                return float(option_contract.StrikePrice)
+            elif hasattr(option_contract, 'ID') and hasattr(option_contract.ID, 'StrikePrice'):
+                return float(option_contract.ID.StrikePrice)
+            else:
+                # Try to extract from symbol string if available
+                symbol_str = str(option_contract)
+                # Look for strike pattern in symbol (implementation depends on format)
+                self.algo.Debug(f"[Strike-Extract] Could not extract strike from: {symbol_str}")
+                return None
+
+        except Exception as e:
+            self.algo.Debug(f"[Strike-Extract] Error extracting strike: {e}")
+            return None
+
+    def _estimate_leap_cost(self, leap_call, quantity: int) -> float:
+        """Estimate LEAP call cost for validation"""
+
+        try:
+            if hasattr(self.algo, 'Securities') and leap_call in self.algo.Securities:
+                security = self.algo.Securities[leap_call]
+                if hasattr(security, 'Price') and security.Price > 0:
+                    # LEAP calls are typically expensive
+                    cost_per_contract = security.Price * 100  # Options are per 100 shares
+                    return cost_per_contract * quantity
+
+            return None
+
+        except Exception as e:
+            self.algo.Debug(f"[Cost-Estimate] Error estimating LEAP cost: {e}")
+            return None
+
+    def _estimate_option_cost(self, option_contract, quantity: int) -> float:
+        """Estimate option cost for validation"""
+
+        try:
+            if hasattr(self.algo, 'Securities') and option_contract in self.algo.Securities:
+                security = self.algo.Securities[option_contract]
+                if hasattr(security, 'Price') and security.Price > 0:
+                    cost_per_contract = security.Price * 100  # Options are per 100 shares
+                    return cost_per_contract * quantity
+
+            return None
+
+        except Exception as e:
+            self.algo.Debug(f"[Cost-Estimate] Error estimating option cost: {e}")
+            return None
+
     def get_active_groups(self) -> List[Dict]:
         """Get status of all active groups"""
         

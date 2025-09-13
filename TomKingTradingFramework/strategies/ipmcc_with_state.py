@@ -83,61 +83,33 @@ class IPMCCWithState(BaseStrategyWithState):
         return True
     
     def _place_entry_orders(self) -> bool:
-        """Place IPMCC covered call orders"""
-        
-        try:
-        
-            pass
-        except Exception as e:
+        """Place IPMCC orders - LEAP Call + Weekly Call strategy
 
+        CRITICAL: Implements proper IPMCC with atomic execution
+        Dual Path: Create new LEAP+Weekly OR add weekly to existing LEAP
+        """
+
+        try:
             positions_opened = False
-            
+
             for symbol_str in self.ipmcc_symbols:
                 # Use cached symbol if available
                 if hasattr(self.algo, 'symbols') and symbol_str in self.algo.symbols:
                     symbol = self.algo.symbols[symbol_str]
                 else:
                     symbol = self.algo.Symbol(symbol_str)
-                
-                # Check if we have uncovered shares
-                shares = self._get_uncovered_shares(symbol)
-                if shares < 100:
-                    continue
-                
-                # Find options with target DTE
-                contracts = self._find_target_dte_options(symbol)
-                if not contracts:
-                    self.algo.Debug(f"[IPMCC] No suitable contracts for {symbol_str}")
-                    continue
-                
-                # Find 30 delta call
-                call_contract = self._find_delta_strike(contracts, self.call_delta, "call")
-                if not call_contract:
-                    self.algo.Debug(f"[IPMCC] No suitable call for {symbol_str}")
-                    continue
-                
-                # Calculate how many contracts to sell
-                contracts_to_sell = int(shares / 100)
-                
-                # Check SPY concentration limits if trading SPY
-                if symbol_str == 'SPY' and hasattr(self.algo, 'spy_concentration_manager'):
-                    # Covered calls have delta around 0.30
-                    estimated_delta = self.call_delta * contracts_to_sell * 100
-                    approved, reason = self.algo.spy_concentration_manager.request_spy_allocation(
-                        strategy_name="IPMCC",
-                        position_type="covered_call",
-                        requested_delta=estimated_delta,
-                        requested_contracts=contracts_to_sell
-                    )
-                    
-                    if not approved:
-                        self.algo.Debug(f"[IPMCC] SPY allocation denied: {reason}")
-                        continue
-                
-                # Place order to sell calls
-                order = self.algo.MarketOrder(call_contract, -contracts_to_sell)
-                
-                if order:
+
+                # CRITICAL: Dual-path IPMCC execution logic
+                existing_leap = self._find_existing_leap_position(symbol)
+
+                if existing_leap:
+                    # PATH 1: Add weekly call to existing LEAP
+                    success = self._add_weekly_call_to_leap(existing_leap, symbol)
+                else:
+                    # PATH 2: Create new LEAP + weekly call position atomically
+                    success = self._create_new_ipmcc_position(symbol)
+
+                if success:
                     # Track position
                     position = {
                         'entry_time': self.algo.Time,
@@ -704,6 +676,340 @@ class IPMCCWithState(BaseStrategyWithState):
     
     def _can_trade_again_today(self) -> bool:
         """IPMCC can check for new positions daily"""
-        
+
         # Can sell more calls if we have uncovered shares
         return self._has_uncovered_shares()
+
+    def _find_existing_leap_position(self, symbol) -> dict:
+        """Find existing LEAP call position for symbol
+
+        Returns LEAP position dict if found, None if no existing LEAP
+        """
+
+        try:
+            # Search through existing positions for LEAP calls
+            for position in self.covered_positions:
+                if (position.get('underlying') == symbol and
+                    position.get('status') == 'open' and
+                    position.get('position_type') == 'leap_call'):
+
+                    # Verify it's actually a LEAP (365+ days at entry)
+                    if position.get('original_dte', 0) >= 365:
+                        return position
+
+            return None
+
+        except Exception as e:
+            self.algo.Error(f"[IPMCC] Error finding existing LEAP: {e}")
+            return None
+
+    def _add_weekly_call_to_leap(self, leap_position: dict, symbol) -> bool:
+        """Add weekly call to existing LEAP position
+
+        Args:
+            leap_position: Existing LEAP call position
+            symbol: Underlying symbol
+
+        Returns:
+            bool: True if weekly call added successfully
+        """
+
+        try:
+            # Find suitable weekly call
+            weekly_contracts = self._find_weekly_options(symbol)
+            if not weekly_contracts:
+                self.algo.Debug(f"[IPMCC] No suitable weekly options for {symbol}")
+                return False
+
+            # Find appropriate strike (above LEAP strike)
+            leap_strike = leap_position.get('leap_strike', 0)
+            weekly_call = self._find_weekly_call_above_leap(weekly_contracts, leap_strike)
+
+            if not weekly_call:
+                self.algo.Debug(f"[IPMCC] No suitable weekly call above LEAP strike {leap_strike}")
+                return False
+
+            # Calculate quantity based on LEAP position
+            leap_contracts = leap_position.get('contracts', 1)
+
+            # Check SPY concentration if needed
+            if str(symbol) == 'SPY' and hasattr(self.algo, 'spy_concentration_manager'):
+                estimated_delta = 0.30 * leap_contracts * 100  # Weekly call delta estimate
+                approved, reason = self.algo.spy_concentration_manager.request_spy_allocation(
+                    strategy_name="IPMCC",
+                    position_type="weekly_call",
+                    requested_delta=estimated_delta,
+                    requested_contracts=leap_contracts
+                )
+
+                if not approved:
+                    self.algo.Debug(f"[IPMCC] SPY allocation denied for weekly: {reason}")
+                    return False
+
+            # Place weekly call order (single leg, not atomic needed)
+            order = self.algo.MarketOrder(weekly_call, -leap_contracts)
+
+            if order:
+                # Update LEAP position to include weekly call
+                leap_position.update({
+                    'weekly_call': weekly_call,
+                    'weekly_entry_time': self.algo.Time,
+                    'weekly_entry_premium': self._get_option_price(weekly_call),
+                    'has_weekly': True
+                })
+
+                self.algo.Debug(f"[IPMCC] Added weekly call to existing LEAP: {weekly_call}")
+                return True
+            else:
+                self.algo.Error(f"[IPMCC] Failed to place weekly call order")
+                return False
+
+        except Exception as e:
+            self.algo.Error(f"[IPMCC] Error adding weekly call to LEAP: {e}")
+            return False
+
+    def _create_new_ipmcc_position(self, symbol) -> bool:
+        """Create new LEAP + Weekly call IPMCC position atomically
+
+        CRITICAL: Uses atomic execution to prevent partial positions
+
+        Args:
+            symbol: Underlying symbol
+
+        Returns:
+            bool: True if both LEAP and weekly created atomically
+        """
+
+        try:
+            # Find LEAP call options (365+ DTE)
+            leap_contracts = self._find_leap_options(symbol)
+            if not leap_contracts:
+                self.algo.Debug(f"[IPMCC] No suitable LEAP options for {symbol}")
+                return False
+
+            # Find weekly call options (7-14 DTE)
+            weekly_contracts = self._find_weekly_options(symbol)
+            if not weekly_contracts:
+                self.algo.Debug(f"[IPMCC] No suitable weekly options for {symbol}")
+                return False
+
+            # Select LEAP call (~80 delta, deep ITM)
+            leap_call = self._find_delta_strike(leap_contracts, 0.80, "call")
+            if not leap_call:
+                self.algo.Debug(f"[IPMCC] No suitable LEAP call for {symbol}")
+                return False
+
+            # Select weekly call (above LEAP strike for safety)
+            leap_strike = self._extract_strike_from_contract(leap_call)
+            weekly_call = self._find_weekly_call_above_leap(weekly_contracts, leap_strike)
+            if not weekly_call:
+                self.algo.Debug(f"[IPMCC] No suitable weekly call above LEAP strike")
+                return False
+
+            # Calculate position size (8% max allocation)
+            if hasattr(self.algo, 'Portfolio'):
+                account_value = self.algo.Portfolio.TotalPortfolioValue
+                max_allocation = account_value * 0.08  # 8% per symbol
+
+                leap_cost = self._estimate_leap_cost(leap_call)
+                if leap_cost and leap_cost > max_allocation:
+                    contracts = int(max_allocation / leap_cost)
+                    if contracts < 1:
+                        self.algo.Debug(f"[IPMCC] LEAP too expensive for allocation: ${leap_cost:.0f}")
+                        return False
+                else:
+                    contracts = 1  # Default single contract
+            else:
+                contracts = 1
+
+            # Check SPY concentration limits
+            if str(symbol) == 'SPY' and hasattr(self.algo, 'spy_concentration_manager'):
+                # LEAP calls have high delta (~0.80), weekly calls ~0.30
+                estimated_delta = (0.80 - 0.30) * contracts * 100  # Net delta ~0.50
+                approved, reason = self.algo.spy_concentration_manager.request_spy_allocation(
+                    strategy_name="IPMCC",
+                    position_type="leap_plus_weekly",
+                    requested_delta=estimated_delta,
+                    requested_contracts=contracts
+                )
+
+                if not approved:
+                    self.algo.Debug(f"[IPMCC] SPY allocation denied: {reason}")
+                    return False
+
+            # CRITICAL: Execute IPMCC atomically using new atomic method
+            if hasattr(self.algo, 'atomic_executor'):
+                success = self.algo.atomic_executor.execute_ipmcc_atomic(
+                    leap_call=leap_call,
+                    weekly_call=weekly_call,
+                    quantity=contracts
+                )
+
+                if success:
+                    # Track new IPMCC position
+                    position = {
+                        'entry_time': self.algo.Time,
+                        'underlying': symbol,
+                        'position_type': 'leap_call',
+                        'leap_call': leap_call,
+                        'leap_strike': leap_strike,
+                        'weekly_call': weekly_call,
+                        'weekly_strike': self._extract_strike_from_contract(weekly_call),
+                        'contracts': contracts,
+                        'leap_entry_premium': self._get_option_price(leap_call),
+                        'weekly_entry_premium': self._get_option_price(weekly_call),
+                        'original_dte': self._get_days_to_expiry(leap_call),
+                        'status': 'open',
+                        'has_weekly': True,
+                        'state': StrategyState.POSITION_OPEN
+                    }
+
+                    self.covered_positions.append(position)
+
+                    self.algo.Debug(f"[IPMCC] Created new IPMCC position for {symbol}")
+                    self.algo.Debug(f"LEAP: {leap_call} x{contracts}, Weekly: {weekly_call} x{contracts}")
+
+                    return True
+                else:
+                    self.algo.Error(f"[IPMCC] Atomic execution failed for {symbol}")
+                    return False
+            else:
+                self.algo.Error(f"[IPMCC] Atomic executor not available")
+                return False
+
+        except Exception as e:
+            self.algo.Error(f"[IPMCC] Error creating new IPMCC position: {e}")
+            return False
+
+    def _find_leap_options(self, symbol) -> List:
+        """Find LEAP options (365+ days to expiration)"""
+
+        try:
+            min_expiry = self.algo.Time + timedelta(days=365)
+            max_expiry = self.algo.Time + timedelta(days=730)  # Up to 2 years
+
+            # Get option chain
+            chain = self.algo.OptionChainProvider.GetOptionContractList(symbol, self.algo.Time)
+
+            # Filter for LEAP calls
+            leap_contracts = [
+                c for c in chain
+                if (min_expiry <= c.ID.Date <= max_expiry and
+                    c.ID.OptionRight == OptionRight.Call)
+            ]
+
+            return leap_contracts
+
+        except Exception as e:
+            self.algo.Debug(f"[IPMCC] Error finding LEAP options: {e}")
+            return []
+
+    def _find_weekly_options(self, symbol) -> List:
+        """Find weekly options (7-14 days to expiration)"""
+
+        try:
+            min_expiry = self.algo.Time + timedelta(days=7)
+            max_expiry = self.algo.Time + timedelta(days=14)
+
+            # Get option chain
+            chain = self.algo.OptionChainProvider.GetOptionContractList(symbol, self.algo.Time)
+
+            # Filter for weekly calls
+            weekly_contracts = [
+                c for c in chain
+                if (min_expiry <= c.ID.Date <= max_expiry and
+                    c.ID.OptionRight == OptionRight.Call)
+            ]
+
+            return weekly_contracts
+
+        except Exception as e:
+            self.algo.Debug(f"[IPMCC] Error finding weekly options: {e}")
+            return []
+
+    def _find_weekly_call_above_leap(self, weekly_contracts: List, leap_strike: float):
+        """Find weekly call with strike above LEAP strike for safety"""
+
+        try:
+            # Filter calls above LEAP strike
+            safe_calls = [
+                c for c in weekly_contracts
+                if c.ID.StrikePrice > leap_strike
+            ]
+
+            if not safe_calls:
+                return None
+
+            # Find call closest to 3% OTM from current price
+            if hasattr(self.algo, 'Securities'):
+                underlying = safe_calls[0].ID.Underlying
+                if underlying in self.algo.Securities:
+                    current_price = self.algo.Securities[underlying].Price
+                    target_strike = current_price * 1.03  # 3% OTM
+
+                    # Find closest to target
+                    best_call = min(safe_calls,
+                                  key=lambda c: abs(c.ID.StrikePrice - target_strike))
+                    return best_call
+
+            # Fallback: return lowest strike above LEAP
+            return min(safe_calls, key=lambda c: c.ID.StrikePrice)
+
+        except Exception as e:
+            self.algo.Debug(f"[IPMCC] Error finding weekly call above LEAP: {e}")
+            return None
+
+    def _extract_strike_from_contract(self, contract) -> float:
+        """Extract strike price from option contract"""
+
+        try:
+            if hasattr(contract, 'ID') and hasattr(contract.ID, 'StrikePrice'):
+                return float(contract.ID.StrikePrice)
+            elif hasattr(contract, 'Strike'):
+                return float(contract.Strike)
+            else:
+                return 0.0
+
+        except Exception as e:
+            self.algo.Debug(f"[IPMCC] Error extracting strike: {e}")
+            return 0.0
+
+    def _get_days_to_expiry(self, contract) -> int:
+        """Get days to expiration for contract"""
+
+        try:
+            if hasattr(contract, 'ID') and hasattr(contract.ID, 'Date'):
+                expiry = contract.ID.Date
+                return (expiry.date() - self.algo.Time.date()).days
+            else:
+                return 0
+
+        except Exception as e:
+            self.algo.Debug(f"[IPMCC] Error getting DTE: {e}")
+            return 0
+
+    def _estimate_leap_cost(self, leap_call) -> float:
+        """Estimate LEAP call cost for position sizing"""
+
+        try:
+            underlying = leap_call.ID.Underlying if hasattr(leap_call, 'ID') else None
+            if underlying and underlying in self.algo.Securities:
+                # LEAP calls are typically expensive, estimate based on intrinsic + time value
+                current_price = self.algo.Securities[underlying].Price
+                strike = self._extract_strike_from_contract(leap_call)
+
+                if current_price > strike:
+                    intrinsic = current_price - strike
+                    # Estimate time value based on DTE and volatility
+                    time_value = intrinsic * 0.3  # Rough estimate
+                    total_premium = intrinsic + time_value
+                    return total_premium * 100  # Options are per 100 shares
+                else:
+                    # OTM LEAP, estimate based on time value only
+                    return current_price * 0.1 * 100  # Rough estimate
+
+            return None
+
+        except Exception as e:
+            self.algo.Debug(f"[IPMCC] Error estimating LEAP cost: {e}")
+            return None

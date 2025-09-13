@@ -87,13 +87,13 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
         return True
     
     def _place_entry_orders(self) -> bool:
-        """Build or rebuild put ladder"""
-        
-        try:
-        
-            pass
-        except Exception as e:
+        """Build or rebuild put ladder using atomic execution
 
+        CRITICAL: Uses atomic execution for multi-rung ladder construction
+        Prevents partial ladder with gaps in protection
+        """
+
+        try:
             spy = self.algo.spy
             current_price = self.algo.Securities[spy].Price
             
@@ -102,35 +102,37 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
             total_allocation = portfolio_value * self.target_allocation
             allocation_per_rung = total_allocation / self.ladder_rungs
             
-            positions_opened = False
-            
+            # Collect all ladder rungs for atomic execution
+            ladder_legs = []
+            pending_positions = []
+
             for i, strike_pct in enumerate(self.put_strikes):
                 # Check if this rung needs filling
                 if self._rung_exists(i):
                     continue
-                
+
                 # Calculate target strike
                 target_strike = round(current_price * strike_pct, 0)
-                
+
                 # Find LEAP options
                 contracts = self._find_leap_options(spy)
                 if not contracts:
                     self.algo.Debug(f"[Ladder] No LEAP options found for rung {i}")
                     continue
-                
+
                 # Find best put contract
                 put_contract = self._find_closest_strike(contracts, target_strike, "put")
                 if not put_contract:
                     continue
-                
+
                 # Calculate contracts to buy
                 put_price = self._get_option_price(put_contract)
                 if put_price <= 0:
                     continue
-                
+
                 contracts_to_buy = max(1, int(allocation_per_rung / (put_price * 100)))
-                
-                # Check SPY concentration limits before placing order
+
+                # Check SPY concentration limits before adding to atomic execution
                 if hasattr(self.algo, 'spy_concentration_manager'):
                     # LEAP puts have delta around -0.40 to -0.50
                     estimated_delta = -0.45 * contracts_to_buy * 100
@@ -140,38 +142,57 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
                         requested_delta=estimated_delta,
                         requested_contracts=contracts_to_buy
                     )
-                    
+
                     if not approved:
                         self.algo.Debug(f"[Ladder] SPY allocation denied for rung {i}: {reason}")
                         continue
-                
-                # Place order
-                order = self.algo.MarketOrder(put_contract, contracts_to_buy)
-                
-                if order:
-                    # Track position
-                    position = {
-                        'entry_time': self.algo.Time,
-                        'rung_index': i,
-                        'put_contract': put_contract,
-                        'contracts': contracts_to_buy,
-                        'entry_price': put_price,
-                        'target_strike_pct': strike_pct,
-                        'status': 'open',
-                        'state': StrategyState.POSITION_OPEN
-                    }
-                    
-                    self.ladder_positions.append(position)
-                    positions_opened = True
-                    
-                    self.algo.Debug(
-                        f"[Ladder] Built rung {i}: {contracts_to_buy}x {put_contract.Strike} puts"
+
+                # Add to atomic execution list
+                ladder_legs.append((put_contract, contracts_to_buy))
+
+                # Prepare position tracking
+                position = {
+                    'entry_time': self.algo.Time,
+                    'rung_index': i,
+                    'put_contract': put_contract,
+                    'contracts': contracts_to_buy,
+                    'entry_price': put_price,
+                    'target_strike_pct': strike_pct,
+                    'status': 'open',
+                    'state': StrategyState.POSITION_OPEN
+                }
+                pending_positions.append(position)
+
+            # Execute ladder atomically if we have legs to place
+            if ladder_legs:
+                self.algo.Debug(f"[Ladder] Executing {len(ladder_legs)} ladder rungs atomically")
+
+                # CRITICAL: Use atomic execution for ladder construction
+                if hasattr(self.algo, 'atomic_executor'):
+                    success = self.algo.atomic_executor.execute_leap_ladder_atomic(
+                        ladder_legs=ladder_legs,
+                        strategy_name="LEAP_Ladder"
                     )
-            
-            if positions_opened:
-                self.last_rebalance = self.algo.Time
-            
-            return positions_opened
+
+                    if success:
+                        # All legs filled - add all positions to tracking
+                        for position in pending_positions:
+                            self.ladder_positions.append(position)
+                            self.algo.Debug(
+                                f"[Ladder] Built rung {position['rung_index']}: {position['contracts']}x {position['put_contract'].Strike} puts"
+                            )
+
+                        self.last_rebalance = self.algo.Time
+                        return True
+                    else:
+                        self.algo.Error("[Ladder] Atomic ladder execution failed - no partial positions created")
+                        return False
+                else:
+                    self.algo.Error("[Ladder] Atomic executor not available")
+                    return False
+            else:
+                self.algo.Debug("[Ladder] No new ladder rungs needed")
+                return True
             
         except Exception as e:
             self.algo.Error(f"[Ladder] Entry error: {e}")

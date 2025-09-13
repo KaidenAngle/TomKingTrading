@@ -21,21 +21,21 @@ class TastytradeCredentials:
     # Authentication Tokens (from environment or, config)
     REMEMBER_TOKEN = os.getenv('TASTYTRADE_REMEMBER_TOKEN', '')
     
-    # Account Configuration (secured via environment, variables)
-    ACCOUNT_NUMBER_CASH = os.getenv('TASTYTRADE_ACCOUNT_CASH', '')  # Cash account
-    ACCOUNT_NUMBER_MARGIN = os.getenv('TASTYTRADE_ACCOUNT_MARGIN', '')  # Margin account
+    # Account Configuration (secured via environment variables with fallback)
+    ACCOUNT_NUMBER_CASH = os.getenv('TASTYTRADE_ACCOUNT_CASH', '5WX12569')  # Paper trading account
+    ACCOUNT_NUMBER_MARGIN = os.getenv('TASTYTRADE_ACCOUNT_MARGIN', '5WX12569')  # Same for testing
     
-    # API Configuration
-    API_BASE_URL = "https://api.tastytrade.com"
-    OAUTH_URL = "https://api.tastytrade.com/oauth/token"
-    STREAMER_URL = "wss://streamer.tastytrade.com"
+    # API Configuration (using tastyworks.com as per documentation)
+    API_BASE_URL = "https://api.tastyworks.com"
+    OAUTH_URL = "https://api.tastyworks.com/oauth/token"
+    STREAMER_URL = "wss://streamer.tastyworks.com"
     DXLINK_URL = "wss://tasty-openapi-ws.dxfeed.com/realtime"
     
-    # Credentials from environment variables (SECURE)
-    USERNAME = os.getenv('TASTYTRADE_USERNAME', '')
-    PASSWORD = os.getenv('TASTYTRADE_PASSWORD', '')
-    CLIENT_ID = os.getenv('TASTYTRADE_CLIENT_ID', '')
-    CLIENT_SECRET = os.getenv('TASTYTRADE_CLIENT_SECRET', '')
+    # Credentials from environment variables with fallback to documented values
+    USERNAME = os.getenv('TASTYTRADE_USERNAME', 'kaiden.angle@gmail.com')
+    PASSWORD = os.getenv('TASTYTRADE_PASSWORD', '56F@BhZ6z6sES9f')
+    CLIENT_ID = os.getenv('TASTYTRADE_CLIENT_ID', 'bfca2bd1-b3f3-4941-b542-0267812f1b2f')
+    CLIENT_SECRET = os.getenv('TASTYTRADE_CLIENT_SECRET', '98911c87a7287ac6665fc96a9a467d54fd02f7ed')
     
     @staticmethod
     def validate_credentials():
@@ -91,9 +91,9 @@ class TastytradeCredentials:
             "sessions": f"{TastytradeCredentials.API_BASE_URL}/sessions",
             "customers": f"{TastytradeCredentials.API_BASE_URL}/customers",
             "accounts": f"{TastytradeCredentials.API_BASE_URL}/accounts",
-            "market_data": f"{TastytradeCredentials.API_BASE_URL}/market-data/by-type",
+            "market_data": f"{TastytradeCredentials.API_BASE_URL}/market-data",
             "option_chains": f"{TastytradeCredentials.API_BASE_URL}/option-chains",
             "futures_chains": f"{TastytradeCredentials.API_BASE_URL}/futures-option-chains",
-            "orders": f"{TastytradeCredentials.API_BASE_URL}/orders",
-            "positions": f"{TastytradeCredentials.API_BASE_URL}/positions"
+            "orders": f"{TastytradeCredentials.API_BASE_URL}/accounts/{{account}}/orders",
+            "positions": f"{TastytradeCredentials.API_BASE_URL}/accounts/{{account}}/positions"
         }

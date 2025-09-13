@@ -3,6 +3,7 @@ from AlgorithmImports import *
 from typing import Dict, List, Optional
 from helpers.atomic_order_executor import EnhancedAtomicOrderExecutor
 from brokers.tastytrade_api_client import TastytradeApiClient
+from datetime import timedelta
 # endregion
 
 class TastytradeIntegrationAdapter:
@@ -141,6 +142,9 @@ class TastytradeIntegrationAdapter:
     def _create_tastytrade_order_ticket(self, symbol, quantity: int, tastytrade_response: Dict):
         """Create complete TastyTrade order ticket compatible with AtomicOrderExecutor"""
         
+        # Create reference to OrderStatus for nested class
+        OrderStatusRef = OrderStatus
+        
         class TastyTradeOrderTicket:
             """Complete order ticket implementation for TastyTrade integration"""
             
@@ -149,7 +153,7 @@ class TastytradeIntegrationAdapter:
                 self.Quantity = quantity
                 self.OrderId = response.get('id', f'tt-{self._generate_order_id()}')
                 self.Tag = 'TastyTrade-Live'
-                self.Status = OrderStatus.Submitted
+                self.Status = OrderStatusRef.Submitted
                 self._tastytrade_response = response
                 self._integration_adapter = integration_adapter
                 self._last_status_check = None
@@ -181,7 +185,7 @@ class TastytradeIntegrationAdapter:
                 """Update order status from TastyTrade API"""
                 try:
                     # Only update if order is still active
-                    if self.Status in [OrderStatus.Filled, OrderStatus.Canceled, OrderStatus.Invalid]:
+                    if self.Status in [OrderStatusRef.Filled, OrderStatusRef.Canceled, OrderStatusRef.Invalid]:
                         return
                     
                     # Get status from TastyTrade API
@@ -200,12 +204,12 @@ class TastytradeIntegrationAdapter:
                 
                 # Map TastyTrade status to QuantConnect status
                 status_mapping = {
-                    'received': OrderStatus.Submitted,
-                    'routed': OrderStatus.Submitted, 
-                    'filled': OrderStatus.Filled,
-                    'cancelled': OrderStatus.Canceled,
-                    'rejected': OrderStatus.Invalid,
-                    'expired': OrderStatus.Canceled
+                    'received': OrderStatusRef.Submitted,
+                    'routed': OrderStatusRef.Submitted, 
+                    'filled': OrderStatusRef.Filled,
+                    'cancelled': OrderStatusRef.Canceled,
+                    'rejected': OrderStatusRef.Invalid,
+                    'expired': OrderStatusRef.Canceled
                 }
                 
                 new_status = status_mapping.get(tt_status, self.Status)
@@ -223,7 +227,7 @@ class TastytradeIntegrationAdapter:
                 try:
                     success = self._integration_adapter.tastytrade_client.cancel_order(self.OrderId)
                     if success:
-                        self.Status = OrderStatus.CancelPending
+                        self.Status = OrderStatusRef.CancelPending
                         return True
                     return False
                 except Exception as e:
