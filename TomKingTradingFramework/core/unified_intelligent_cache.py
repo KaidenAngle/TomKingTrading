@@ -549,12 +549,10 @@ class UnifiedIntelligentCache(Generic[T]):
             return False
         
         try:
+            # Check tracked symbols for price changes
             for symbol_str in self._tracked_symbols:
                 if (symbol_str in entry.invalidation_tags or
-        entry.cache_type == CacheType.MARKET_DATA):
-        except Exception as e:
-
-            # Check tracked symbols for price changes
+                    entry.cache_type == CacheType.MARKET_DATA):
                     
                     if symbol_str in self.algo.Securities:
                         current_price = self.algo.Securities[symbol_str].Price

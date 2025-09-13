@@ -294,54 +294,31 @@ class GreeksMonitor(BaseComponent, IManager):
     def _log_cache_performance(self):
         """Log unified Greeks cache performance statistics"""
         try:
+            # Log cache performance statistics
+            if hasattr(self.algo, 'unified_cache'):
+                stats = self.algo.unified_cache.get_statistics()
+                self.algo.Debug(f"[GreeksMonitor] Cache hit rate: {stats.get('hit_rate', 0):.2%}")
+                self.algo.Debug(f"[GreeksMonitor] Cache size: {stats.get('size', 0)} entries")
             
         except Exception as e:
-
             # Log and handle unexpected exception
-
+            self.algo.Debug(f"[GreeksMonitor] Cache performance logging error: {e}")
             print(f'Unexpected exception: {e}')
-
-            raise
-unified_stats = self.greeks_cache.get_statistics()
-            
-            if not self.algorithm.LiveMode:  # Only log in backtest to avoid spam
-                self.debug(  # Use inherited method
-                    f"[Greeks Cache] Unified Hit Rate: {unified_stats['hit_rate']:.1%} | "
-                    f"Size: {unified_stats['cache_size']}/{unified_stats['max_size']} | "
-                    f"Memory: {unified_stats['memory_usage_mb']:.1f}MB | "
-                    f"Greeks Entries: {unified_stats.get('greeks_entries', 0)}"
-                )
-            
-            # Log performance warnings if cache performance is poor
-            if unified_stats['hit_rate'] < 0.5:  # Less than 50% hit rate
-                self.log(f"[Performance Warning] Greeks cache hit rate low: {unified_stats['hit_rate']:.1%}")  # Use inherited method
-                
-        except Exception as e:
-            self.debug(f"[Greeks Cache] Error logging stats: {e}")  # Use inherited method
     
     def get_cache_statistics(self) -> Dict:
         """Get comprehensive unified cache statistics for monitoring"""
         try:
+            # Get comprehensive cache statistics
+            if hasattr(self.algo, 'unified_cache'):
+                return self.algo.unified_cache.get_statistics()
+            else:
+                return {'status': 'cache_unavailable', 'hit_rate': 0}
             
         except Exception as e:
-
             # Log and handle unexpected exception
-
+            self.algo.Debug(f"[GreeksMonitor] Error getting cache statistics: {e}")
             print(f'Unexpected exception: {e}')
-
-            raise
-unified_stats = self.greeks_cache.get_statistics()
-            return {
-                'unified_cache': unified_stats,
-                'greeks_specific_entries': {
-                    'greeks_entries': unified_stats.get('greeks_entries', 0),
-                    'black_scholes_calculations': unified_stats.get('greeks_entries', 0)  # B-S uses GREEKS cache type
-                },
-                'total_memory_mb': unified_stats['memory_usage_mb']
-            }
-        except Exception as e:
-            self.error(f"[Greeks Cache] Error getting statistics: {e}")  # Use inherited method
-            return {}
+            return {'status': 'error', 'hit_rate': 0}
     
     def invalidate_cache(self, reason: str = "manual"):
         """Manually invalidate Greeks cache"""

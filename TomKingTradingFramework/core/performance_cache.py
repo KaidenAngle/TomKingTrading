@@ -467,10 +467,8 @@ class MarketDataCache(HighPerformanceCache[T]):
                 if symbol_str in key:
                     if symbol_str in self.algo.Securities:
                         current_price = self.algo.Securities[symbol_str].Price
-        except Exception as e:
-
-            # Extract symbol from key if present
                         
+                        # Extract symbol from key if present
                         if symbol_str in self._last_prices:
                             last_price = self._last_prices[symbol_str]
                             change_pct = abs(current_price - last_price) / last_price

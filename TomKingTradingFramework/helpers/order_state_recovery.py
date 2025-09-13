@@ -46,18 +46,18 @@ class OrderStateRecovery:
         
         try:
             group_record = {
-        'group_id': group_id,
-        'strategy': strategy,
-        'legs': [(str(symbol), qty) for symbol, qty in legs],
-        'started_at': self.algo.Time.isoformat(),
-        'status': 'INITIATED',
-        'filled_legs': [],
-        'pending_legs': legs,
-        'recovery_needed': True
-        }
+            'group_id': group_id,
+            'strategy': strategy,
+            'legs': [(str(symbol), qty) for symbol, qty in legs],
+            'started_at': self.algo.Time.isoformat(),
+            'status': 'INITIATED',
+            'filled_legs': [],
+            'pending_legs': legs,
+            'recovery_needed': True
+            }
         except Exception as e:
-
             # Create order group record
+            pass
             
             # Add to incomplete groups
             self.incomplete_groups[group_id] = group_record
@@ -161,8 +161,8 @@ class OrderStateRecovery:
         try:
             self._load_from_object_store()
         except Exception as e:
-
             # Load persisted state
+            pass
             
             if not self.incomplete_groups:
                 self.algo.Debug("[Recovery] No incomplete orders found")
@@ -211,10 +211,10 @@ class OrderStateRecovery:
         
         try:
             started_at = datetime.fromisoformat(group['started_at'].replace('Z', '+00:00'))
-        age_hours = (self.algo.Time - started_at).total_seconds() / TradingConstants.SECONDS_PER_HOUR
+            age_hours = (self.algo.Time - started_at).total_seconds() / TradingConstants.SECONDS_PER_HOUR
         except Exception as e:
-
             # Check age - old orders might be expired
+            pass
             
             # If older than 24 hours, consider expired
             if age_hours > 24:

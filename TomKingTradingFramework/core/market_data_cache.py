@@ -213,11 +213,9 @@ class MarketDataCacheManager(IManager):
         """Invalidate all cached data for a specific symbol"""
         
         try:
-            self.price_cache.invalidate_pattern(f'price_{symbol}')
-        self.price_cache.invalidate_pattern(f'data_point_{symbol}')
-        except Exception as e:
-
             # Invalidate price and data point caches
+            self.price_cache.invalidate_pattern(f'price_{symbol}')
+            self.price_cache.invalidate_pattern(f'data_point_{symbol}')
             
             # Invalidate technical indicators
             self.technical_cache.invalidate_pattern(symbol)
@@ -364,12 +362,10 @@ class MarketDataCacheManager(IManager):
         """Assess comprehensive market conditions"""
         
         try:
-            spy_price = self.get_price('SPY')
-        vix_value = self.get_price('VIX')
-        qqq_price = self.get_price('QQQ')
-        except Exception as e:
-
             # Get key prices
+            spy_price = self.get_price('SPY')
+            vix_value = self.get_price('VIX')
+            qqq_price = self.get_price('QQQ')
             
             if not all([spy_price, vix_value, qqq_price]):
                 return None
@@ -444,11 +440,9 @@ class MarketDataCacheManager(IManager):
         """Calculate correlation between two assets"""
         
         try:
-            end_time = self.algo.Time
-        start_time = end_time - timedelta(days=lookback_days)
-        except Exception as e:
-
             # Get historical data
+            end_time = self.algo.Time
+            start_time = end_time - timedelta(days=lookback_days)
             
             hist = self.algo.History([symbol1, symbol2], start_time, end_time, Resolution.Daily)
             

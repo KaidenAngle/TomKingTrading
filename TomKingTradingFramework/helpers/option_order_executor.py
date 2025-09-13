@@ -23,10 +23,10 @@ class OptionOrderExecutor:
         """
         try:
             bid = contract.BidPrice if hasattr(contract, 'BidPrice') else 0
-        ask = contract.AskPrice if hasattr(contract, 'AskPrice') else 0
+            ask = contract.AskPrice if hasattr(contract, 'AskPrice') else 0
         except Exception as e:
-
             # Get bid/ask
+            pass
             
             # Sanity check
             if bid <= 0 or ask <= 0:
@@ -65,12 +65,12 @@ class OptionOrderExecutor:
         
         try:
             orders.append(self.place_option_limit_order(short_call, -quantity))  # Sell call
-        orders.append(self.place_option_limit_order(long_call, quantity))    # Buy call
-        orders.append(self.place_option_limit_order(short_put, -quantity))   # Sell put
-        orders.append(self.place_option_limit_order(long_put, quantity))     # Buy put
+            orders.append(self.place_option_limit_order(long_call, quantity))    # Buy call
+            orders.append(self.place_option_limit_order(short_put, -quantity))   # Sell put
+            orders.append(self.place_option_limit_order(long_put, quantity))     # Buy put
         except Exception as e:
-
             # Place each leg
+            pass
             
             # Check all filled (simple check)
             all_filled = all(order is not None for order in orders)

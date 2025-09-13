@@ -51,57 +51,57 @@ class TastytradeApiClient:
         Uses remember token if available, falls back to username/password
         """
         try:
-        # Try remember token first
-        if self.remember_token:
-        self.algorithm.Log("Attempting authentication with remember token")
+            # Try remember token first
+            if self.remember_token:
+                self.algorithm.Log("Attempting authentication with remember token")
 
-        data = {
-        'remember-token': self.remember_token
-        }
+                data = {
+                    'remember-token': self.remember_token
+                }
 
-        response = requests.post(
-        self.endpoints['sessions'],
-        json=data,
-        headers={
-        'Content-Type': 'application/json',
-        'User-Agent': 'TomKingFramework/17.0'
-        },
-        timeout=30
-        )
+                response = requests.post(
+                    self.endpoints['sessions'],
+                    json=data,
+                    headers={
+                        'Content-Type': 'application/json',
+                        'User-Agent': 'TomKingFramework/17.0'
+                    },
+                    timeout=30
+                )
 
-        if response.status_code == 201:
-        session_data = response.json().get('data', {})
-        self.session_token = session_data.get('session-token')
-        new_remember = session_data.get('remember-token')
+                if response.status_code == 201:
+                    session_data = response.json().get('data', {})
+                    self.session_token = session_data.get('session-token')
+                    new_remember = session_data.get('remember-token')
 
-        if new_remember:
-        self.remember_token = new_remember
-        self.algorithm.Log(f"New remember token received")
+                    if new_remember:
+                        self.remember_token = new_remember
+                        self.algorithm.Log(f"New remember token received")
 
-        self.last_auth_time = datetime.now()
-        self.algorithm.Log("Authentication successful with remember token")
-        return True
+                    self.last_auth_time = datetime.now()
+                    self.algorithm.Log("Authentication successful with remember token")
+                    return True
 
-        # Fall back to username/password
-        self.algorithm.Log("Attempting username/password authentication")
+            # Fall back to username/password
+            self.algorithm.Log("Attempting username/password authentication")
 
-        data = {
-        'login': TastytradeCredentials.USERNAME,
-        'password': TastytradeCredentials.PASSWORD,
-        'remember-me': True
-        }
+            data = {
+                'login': TastytradeCredentials.USERNAME,
+                'password': TastytradeCredentials.PASSWORD,
+                'remember-me': True
+            }
 
-        response = requests.post(
-        self.endpoints['sessions'],
-        json=data,
-        headers={
-        'Content-Type': 'application/json',
-        'User-Agent': 'TomKingFramework/17.0'
-        },
-        timeout=30
-        )
+            response = requests.post(
+                self.endpoints['sessions'],
+                json=data,
+                headers={
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'TomKingFramework/17.0'
+                },
+                timeout=30
+            )
 
-        if response.status_code == 201:
+            if response.status_code == 201:
         session_data = response.json().get('data', {})
         self.session_token = session_data.get('session-token')
         self.remember_token = session_data.get('remember-token')

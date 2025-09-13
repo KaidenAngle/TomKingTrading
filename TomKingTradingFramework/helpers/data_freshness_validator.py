@@ -106,7 +106,6 @@ class DataFreshnessValidator:
             if hasattr(contract, 'BidPrice') and hasattr(contract, 'AskPrice'):
                 bid = contract.BidPrice
                 ask = contract.AskPrice
-        except Exception as e:
                 
                 # Check for valid bid/ask
                 if bid <= 0 or ask <= 0:
