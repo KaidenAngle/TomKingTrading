@@ -111,9 +111,25 @@ class AtomicOrderGroup:
             return False
     
     def _place_smart_order(self, symbol, quantity: int):
-        """Place order with smart routing using unified pricing"""
+        """Place order with smart routing and live execution delegation"""
         
         try:
+            # DELEGATION: Check if live executor is available (TastyTrade integration)
+            if (hasattr(self.algo, 'atomic_executor') and 
+                self.algo.atomic_executor.live_executor and 
+                hasattr(self.algo.atomic_executor.live_executor, 'place_live_order')):
+                
+                try:
+                    live_order = self.algo.atomic_executor.live_executor.place_live_order(symbol, quantity)
+                    if live_order:
+                        self.algo.Debug(f"[Atomic-{self.group_id}] Live execution: {symbol} x{quantity}")
+                        return live_order
+                    else:
+                        self.algo.Debug(f"[Atomic-{self.group_id}] Live execution failed, falling back to QC")
+                except Exception as e:
+                    self.algo.Error(f"[Atomic-{self.group_id}] Live executor error: {e}, falling back to QC")
+            
+            # QUANTCONNECT EXECUTION: Original smart routing logic
             if hasattr(self.algo, 'unified_pricing'):
                 is_buy = quantity > 0
                 limit_price, use_limit = self.algo.unified_pricing.calculate_limit_price(
@@ -262,6 +278,7 @@ class EnhancedAtomicOrderExecutor:
     """
     Enhanced order executor with atomic multi-leg support
     Production-ready with monitoring and rollback
+    SUPPORTS LIVE EXECUTION DELEGATION
     """
     
     def __init__(self, algorithm):
@@ -269,6 +286,19 @@ class EnhancedAtomicOrderExecutor:
         self.active_groups = {}  # Track active atomic groups
         self.completed_groups = {}  # History of completed groups
         self.group_counter = 0
+        
+        # Live execution delegation support
+        self.live_executor = None  # Will be set by TastyTrade integration
+    
+    def set_live_executor(self, live_executor):
+        """Set live execution backend (TastyTrade integration)"""
+        self.live_executor = live_executor
+        self.algo.Log("[AtomicExecutor] Live executor registered")
+    
+    def clear_live_executor(self):
+        """Clear live execution backend"""
+        self.live_executor = None
+        self.algo.Log("[AtomicExecutor] Live executor cleared")
     
     def create_atomic_group(self, strategy_name: str = "") -> AtomicOrderGroup:
         """Create new atomic order group"""
