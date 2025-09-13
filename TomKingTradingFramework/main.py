@@ -112,7 +112,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             raise Exception("Critical manager initialization failure - cannot proceed")
         
         # Log successful initialization with PHASE 6 metrics
-        self.Log(f"[MAIN]  PHASE 6: ✅ All {factory_result['managers_initialized']}/{len(self.manager_factory.manager_configs)} managers initialized")
+        self.Log(f"[MAIN]  PHASE 6: SUCCESS - All {factory_result['managers_initialized']}/{len(self.manager_factory.manager_configs)} managers initialized")
         self.Log(f"[MAIN]  PHASE 6: Circular dependencies resolved: {factory_result.get('circular_dependencies_resolved', 0)}")
         self.Debug(f"[MAIN]  PHASE 6: Total initialization time: {factory_result['total_duration_ms']:.1f}ms")
         
@@ -159,10 +159,32 @@ class TomKingTradingIntegrated(QCAlgorithm):
         self.option_executor = self.manager_factory.get_manager('option_executor')
         self.future_options_manager = self.manager_factory.get_manager('future_options_manager')
         
+        # TastyTrade Integration (Live Mode Only)
+        self.tastytrade_client = None
+        self.tastytrade_integration = None
+        if not self.is_backtest:  # Only in live mode
+            try:
+                from brokers.tastytrade_api_client import TastytradeApiClient
+                from brokers.tastytrade_integration_adapter import TastytradeIntegrationAdapter
+                
+                self.tastytrade_client = TastytradeApiClient(self)
+                self.tastytrade_integration = TastytradeIntegrationAdapter(
+                    self, self.atomic_executor, self.tastytrade_client
+                )
+                
+                status = self.tastytrade_integration.get_integration_status()
+                self.Log(f"[MAIN] SUCCESS - TastyTrade Integration: {status}")
+                
+            except Exception as e:
+                self.Error(f"[MAIN] WARNING - TastyTrade integration failed: {e}")
+                self.Error("[MAIN] Continuing with QuantConnect-only execution")
+        else:
+            self.Debug("[MAIN] Backtest mode - TastyTrade integration disabled")
+        
         # Event-Driven OnData Processor (Tier 4)
         self.event_driven_ondata = self.manager_factory.get_manager('event_driven_ondata')
         
-        self.Log("[MAIN]  ✅ Manager extraction complete - all managers available as attributes")
+        self.Log("[MAIN]  SUCCESS - Manager extraction complete - all managers available as attributes")
         
         # ======================
         # SECURITIES INITIALIZATION
@@ -330,7 +352,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             # COMPREHENSIVE POSITION OPENING VALIDATION (47 FAILURE POINTS)
             # ======================
 
-            self.Debug("[MAIN]  🔍 Running comprehensive position opening validation...")
+            self.Debug("[MAIN]  INFO - Running comprehensive position opening validation...")
             try:
                 from validation.comprehensive_position_opening_validator import PositionOpeningValidator
                 
@@ -341,13 +363,13 @@ class TomKingTradingIntegrated(QCAlgorithm):
                 self.validation_report = validation_report
                 
                 if not validation_report.get('production_ready', False):
-                    self.Error(f"[MAIN]  ⚠️ VALIDATION ISSUES: {validation_report['failed_validations']} failures detected")
-                    self.Error(f"[MAIN]  ⚠️ SUCCESS RATE: {validation_report['overall_success_rate']:.1%}")
+                    self.Error(f"[MAIN]  WARNING - VALIDATION ISSUES: {validation_report['failed_validations']} failures detected")
+                    self.Error(f"[MAIN]  WARNING - SUCCESS RATE: {validation_report['overall_success_rate']:.1%}")
                     
                     # Continue with warnings but log critical issues
                     critical_count = validation_report.get('critical_failures', 0)
                     if critical_count > 0:
-                        self.Error(f"[MAIN]  🚨 {critical_count} CRITICAL failures require immediate attention")
+                        self.Error(f"[MAIN]  CRITICAL - {critical_count} CRITICAL failures require immediate attention")
                         
                         # Log top failure categories for quick debugging
                         category_results = validation_report.get('category_results', {})
@@ -355,10 +377,10 @@ class TomKingTradingIntegrated(QCAlgorithm):
                             if results.get('failures', 0) > 0:
                                 self.Error(f"[MAIN]  - {category.upper()}: {results['failures']} failures")
                 else:
-                    self.Log(f"[MAIN]  ✅ Position opening validation PASSED: {validation_report['overall_success_rate']:.1%} success rate")
+                    self.Log(f"[MAIN]  SUCCESS - Position opening validation PASSED: {validation_report['overall_success_rate']:.1%} success rate")
                     
             except Exception as e:
-                self.Error(f"[MAIN]  ⚠️ Position opening validation failed to run: {str(e)}")
+                self.Error(f"[MAIN]  WARNING - Position opening validation failed to run: {str(e)}")
                 self.Error(f"[MAIN]  Stack trace: {traceback.format_exc()}")
                 # Continue without failing - validation is diagnostic, not blocking
         
@@ -429,7 +451,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             circuit_breaker_plugin = CircuitBreakerPlugin()
             if self.unified_risk_manager.register_plugin(circuit_breaker_plugin):
                 plugins_registered += 1
-                self.Log("[MAIN]  ✅ CircuitBreakerPlugin registered (preserves August 5 protections)")
+                self.Log("[MAIN]  SUCCESS - CircuitBreakerPlugin registered (preserves August 5 protections)")
             else:
                 self.Error("[MAIN]  ❌ Failed to register CircuitBreakerPlugin")
             
@@ -437,7 +459,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
             correlation_plugin = CorrelationPlugin()
             if self.unified_risk_manager.register_plugin(correlation_plugin):
                 plugins_registered += 1
-                self.Log("[MAIN]  ✅ CorrelationPlugin registered (August 5 correlation limits)")
+                self.Log("[MAIN]  SUCCESS - CorrelationPlugin registered (August 5 correlation limits)")
             else:
                 self.Error("[MAIN]  ❌ Failed to register CorrelationPlugin")
             
@@ -445,13 +467,13 @@ class TomKingTradingIntegrated(QCAlgorithm):
             concentration_plugin = ConcentrationPlugin()
             if self.unified_risk_manager.register_plugin(concentration_plugin):
                 plugins_registered += 1
-                self.Log("[MAIN]  ✅ ConcentrationPlugin registered (SPY/ES concentration limits)")
+                self.Log("[MAIN]  SUCCESS - ConcentrationPlugin registered (SPY/ES concentration limits)")
             else:
                 self.Error("[MAIN]  ❌ Failed to register ConcentrationPlugin")
             
             # Verify all plugins registered successfully
             if plugins_registered == 3:
-                self.Log(f"[MAIN]  ✅ UnifiedRiskManager initialized with {plugins_registered}/3 plugins")
+                self.Log(f"[MAIN]  SUCCESS - UnifiedRiskManager initialized with {plugins_registered}/3 plugins")
                 
                 # Create backward compatibility aliases for existing code
                 self.correlation_limiter = self.unified_risk_manager  # For strategy access
@@ -1027,24 +1049,17 @@ class TomKingTradingIntegrated(QCAlgorithm):
         quality and alert on issues that could prevent position opening.
         """
         try:
-            pass
-        except Exception as e:
-
             if hasattr(self, 'option_chain_manager') and self.option_chain_manager:
                 health_report = self.option_chain_manager.get_chain_data_health_report()
-                
                 # Alert on critical data quality issues
                 overall_score = health_report.get('overall_health_score', 0)
                 if overall_score < 0.6:
                     self.Log(f"[MAIN]  Option chain data quality degraded: {overall_score:.1%}")
-                
                 # Log recommendations for improvement
                 recommendations = health_report.get('recommendations', [])
                 for rec in recommendations[:2]:  # Log top 2 recommendations
                     self.Debug(f"[MAIN]  {rec}")
-                
                 # Store health report for strategy access
                 self.option_chain_health = health_report
-                
         except Exception as e:
             self.Error(f"[MAIN]  Failed to monitor chain quality: {e}")

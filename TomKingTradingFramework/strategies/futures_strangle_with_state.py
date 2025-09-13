@@ -123,9 +123,24 @@ class FuturesStrangleWithState(BaseStrategyWithState):
             # Calculate position size
             contracts_to_trade = self._calculate_strangle_size()
             
-            # Use atomic executor for strangle
+            # Hybrid execution: TastyTrade for live, atomic executor for backtests
             success = False
-            if hasattr(self.algo, 'atomic_executor'):
+            if not self.algo.is_backtest and hasattr(self.algo, 'tastytrade_integration'):
+                # Live mode - use TastyTrade integration
+                # Extract parameters for TastyTrade format
+                call_strike = call_contract.Strike
+                put_strike = put_contract.Strike
+                expiry_date = call_contract.Expiry
+                
+                success = self.algo.tastytrade_integration.execute_strangle_live(
+                    call_strike=call_strike,
+                    put_strike=put_strike,
+                    expiry_date=expiry_date,
+                    underlying_symbol="ES",  # Standard futures symbol
+                    quantity=contracts_to_trade
+                )
+            elif hasattr(self.algo, 'atomic_executor'):
+                # Backtest mode - use atomic executor
                 success = self.algo.atomic_executor.execute_strangle_atomic(
                     call_contract, put_contract, contracts_to_trade
                 )
@@ -211,30 +226,26 @@ class FuturesStrangleWithState(BaseStrategyWithState):
             return True
         
         try:
-        
-            pass
-        except Exception as e:
-
             future = position_to_adjust['underlying']
             current_price = self.algo.Securities[future].Price
-            
+
             # Determine which side is tested
             call_strike = position_to_adjust['short_call'].ID.StrikePrice
             put_strike = position_to_adjust['short_put'].ID.StrikePrice
-            
             call_distance = abs(current_price - call_strike) / current_price
             put_distance = abs(current_price - put_strike) / current_price
-            
+
             if call_distance < 0.05:  # Call side tested
-                # Roll call up and out
+                # Buy back current call
                 self.algo.MarketOrder(position_to_adjust['short_call'], position_to_adjust['contracts'])
-                
+
                 # Find new call further OTM
                 new_call_strike = round(current_price * 1.20, 0)  # 20% OTM
                 contracts = self._find_futures_options(future)
                 new_call = self._find_closest_strike(contracts, new_call_strike, "call")
-                
+
                 if new_call:
+                    # Sell new call
                     self.algo.MarketOrder(new_call, -position_to_adjust['contracts'])
                     position_to_adjust['short_call'] = new_call
                     position_to_adjust['adjustments'].append({
@@ -244,17 +255,18 @@ class FuturesStrangleWithState(BaseStrategyWithState):
                         'new_strike': new_call_strike
                     })
                     self.algo.Debug(f"[Strangle] Rolled call to {new_call_strike}")
-                    
+
             elif put_distance < 0.05:  # Put side tested
-                # Roll put down and out
+                # Buy back current put
                 self.algo.MarketOrder(position_to_adjust['short_put'], position_to_adjust['contracts'])
-                
+
                 # Find new put further OTM
                 new_put_strike = round(current_price * 0.80, 0)  # 20% OTM
                 contracts = self._find_futures_options(future)
                 new_put = self._find_closest_strike(contracts, new_put_strike, "put")
-                
+
                 if new_put:
+                    # Sell new put
                     self.algo.MarketOrder(new_put, -position_to_adjust['contracts'])
                     position_to_adjust['short_put'] = new_put
                     position_to_adjust['adjustments'].append({
@@ -264,9 +276,8 @@ class FuturesStrangleWithState(BaseStrategyWithState):
                         'new_strike': new_put_strike
                     })
                     self.algo.Debug(f"[Strangle] Rolled put to {new_put_strike}")
-            
+
             return True
-            
         except Exception as e:
             self.algo.Error(f"[Strangle] Adjustment error: {e}")
             return False
@@ -619,22 +630,16 @@ class FuturesStrangleWithState(BaseStrategyWithState):
         """Check if either side is severely tested requiring immediate closure"""
         
         try:
-        
-            pass
-        except Exception as e:
-
             future = position['underlying']
             current_price = self.algo.Securities[future].Price
-            
             call_strike = position['short_call'].ID.StrikePrice
             put_strike = position['short_put'].ID.StrikePrice
-            
+
             # Severe test: price within 2% of strike
             call_distance = abs(current_price - call_strike) / current_price
             put_distance = abs(current_price - put_strike) / current_price
-            
             return call_distance < 0.02 or put_distance < 0.02
-            
+
         except Exception as e:
             self.algo.Debug(f"[FuturesStrangle] Error checking tested sides: {e}")
             return False

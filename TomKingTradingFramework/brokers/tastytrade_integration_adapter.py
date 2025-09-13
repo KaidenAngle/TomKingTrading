@@ -260,10 +260,10 @@ class TastytradeIntegrationAdapter:
         The atomic executor will automatically route to TastyTrade in live mode.
         
         This ensures:
-        1. ✅ All safety features preserved (rollback, validation, etc.)
-        2. ✅ Atomic execution guarantees maintained  
-        3. ✅ TastyTrade used as execution backend only
-        4. ✅ Consistent behavior across environments
+        1. All safety features preserved (rollback, validation, etc.)
+        2. Atomic execution guarantees maintained  
+        3. TastyTrade used as execution backend only
+        4. Consistent behavior across environments
         """
         
         # ALWAYS use atomic executor - no bypassing!
@@ -271,6 +271,120 @@ class TastytradeIntegrationAdapter:
         return self.atomic_executor.execute_iron_condor_atomic(
             short_call, long_call, short_put, long_put, quantity
         )
+    
+    def execute_lt112_live(self, long_put, short_put, naked_puts, quantity: int = 1) -> bool:
+        """
+        Execute LT112 (1-1-2 Put Ratio) using atomic executor with TastyTrade integration
+        
+        LT112 Structure: Long 1 put + Short 1 put (debit spread) + Short 2 naked puts
+        This creates a 1:1:2 put ratio spread for income generation
+        """
+        
+        # Use atomic executor for safe multi-leg execution
+        # Will route to TastyTrade in live mode automatically
+        return self.atomic_executor.execute_lt112_atomic(
+            long_put, short_put, naked_puts, quantity
+        )
+    
+    def execute_ipmcc_live(self, leap_call, weekly_call, quantity: int = 1) -> bool:
+        """
+        Execute IPMCC (Income Poor Man's Covered Call) using atomic executor
+        
+        IPMCC Structure: Long LEAP call (365+ DTE) + Short weekly call (7 DTE)
+        This creates a diagonal call spread for income generation
+        """
+        
+        # Use atomic executor for safe two-leg execution
+        return self.atomic_executor.execute_ipmcc_atomic(
+            leap_call, weekly_call, quantity
+        )
+    
+    def execute_leap_ladder_live(self, put_strikes: List, expiry_date, quantity: int = 1) -> bool:
+        """
+        Execute LEAP Put Ladder using atomic executor
+        
+        LEAP Ladder Structure: Multiple long puts at different strikes (365+ DTE)
+        Creates portfolio protection ladder at 5%, 10%, 15%, 20% OTM levels
+        """
+        
+        # Convert TastyTrade parameters to atomic executor format
+        # Atomic executor expects: List[tuple] of (contract, quantity) pairs
+        
+        try:
+            # Convert strikes to contract tuples for atomic execution
+            ladder_legs = []
+            for strike in put_strikes:
+                # Use the algorithm's option chain to get the actual contract
+                put_contract = self.algo.OptionChainProvider.GetOptionContracts(
+                    self.algo.Symbol("SPY"), expiry_date
+                ).Where(lambda x: x.ID.OptionRight == OptionRight.Put and 
+                                  x.ID.StrikePrice == strike).FirstOrDefault()
+                
+                if put_contract:
+                    ladder_legs.append((put_contract, quantity))
+                else:
+                    self.algo.Error(f"[TT-Integration] Could not resolve LEAP put contract for strike {strike}")
+                    return False
+            
+            if ladder_legs:
+                return self.atomic_executor.execute_leap_ladder_atomic(
+                    ladder_legs, "LEAP_Ladder_TT"
+                )
+            else:
+                self.algo.Error("[TT-Integration] No valid LEAP contracts found for ladder")
+                return False
+                
+        except Exception as e:
+            self.algo.Error(f"[TT-Integration] LEAP ladder execution failed: {e}")
+            return False
+    
+    def execute_strangle_live(self, call_strike, put_strike, expiry_date, 
+                             underlying_symbol, quantity: int = 1) -> bool:
+        """
+        Execute Futures Strangle using atomic executor
+        
+        Strangle Structure: Short call OTM + Short put OTM
+        Used on futures contracts (/ES, /CL, /GC, etc.) for income generation
+        """
+        
+        # Convert TastyTrade parameters to QuantConnect contract objects
+        # Atomic executor expects: (call_contract, put_contract, quantity)
+        
+        try:
+            # Get the underlying symbol for option chain lookup
+            underlying = self.algo.Symbol(underlying_symbol) if isinstance(underlying_symbol, str) else underlying_symbol
+            
+            # Get option contracts for the expiry date
+            option_contracts = self.algo.OptionChainProvider.GetOptionContracts(
+                underlying, expiry_date
+            )
+            
+            # Find call contract
+            call_contract = option_contracts.Where(
+                lambda x: x.ID.OptionRight == OptionRight.Call and 
+                         x.ID.StrikePrice == call_strike
+            ).FirstOrDefault()
+            
+            # Find put contract  
+            put_contract = option_contracts.Where(
+                lambda x: x.ID.OptionRight == OptionRight.Put and 
+                         x.ID.StrikePrice == put_strike
+            ).FirstOrDefault()
+            
+            if call_contract and put_contract:
+                return self.atomic_executor.execute_strangle_atomic(
+                    call_contract, put_contract, quantity
+                )
+            else:
+                missing = []
+                if not call_contract: missing.append(f"call@{call_strike}")
+                if not put_contract: missing.append(f"put@{put_strike}")
+                self.algo.Error(f"[TT-Integration] Could not resolve strangle contracts: {', '.join(missing)}")
+                return False
+                
+        except Exception as e:
+            self.algo.Error(f"[TT-Integration] Strangle execution failed: {e}")
+            return False
     
     def _convert_symbols_to_tastytrade(self, qc_legs: List) -> List[Dict]:
         """Convert QuantConnect symbols to TastyTrade format"""

@@ -167,8 +167,23 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
             if ladder_legs:
                 self.algo.Debug(f"[Ladder] Executing {len(ladder_legs)} ladder rungs atomically")
 
-                # CRITICAL: Use atomic execution for ladder construction
-                if hasattr(self.algo, 'atomic_executor'):
+                # Hybrid execution: TastyTrade for live, atomic executor for backtests
+                success = False
+                if not self.algo.is_backtest and hasattr(self.algo, 'tastytrade_integration'):
+                    # Live mode - use TastyTrade integration
+                    # Extract put strikes and expiry from ladder_legs for TastyTrade format
+                    # ladder_legs contains (contract, quantity) tuples
+                    put_strikes = [leg[0].ID.StrikePrice for leg in ladder_legs]
+                    expiry_date = ladder_legs[0][0].ID.Date if ladder_legs else None
+                    quantity = 1  # Standard quantity for ladder construction
+                    
+                    success = self.algo.tastytrade_integration.execute_leap_ladder_live(
+                        put_strikes=put_strikes,
+                        expiry_date=expiry_date,
+                        quantity=quantity
+                    )
+                elif hasattr(self.algo, 'atomic_executor'):
+                    # Backtest mode - use atomic executor
                     success = self.algo.atomic_executor.execute_leap_ladder_atomic(
                         ladder_legs=ladder_legs,
                         strategy_name="LEAP_Ladder"
@@ -289,42 +304,34 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
         """Rebalance ladder to maintain target allocation"""
         
         try:
-        
-            pass
-        except Exception as e:
-
             portfolio_value = self.algo.position_sizer.get_portfolio_value()
             target_value = portfolio_value * self.target_allocation
             current_value = self._get_ladder_value()
-            
+
             # Check if rebalancing needed (>20% deviation)
             deviation = abs(current_value - target_value) / target_value
             if deviation < 0.20:
                 return True
-            
+
             self.algo.Debug(f"[Ladder] Rebalancing: current ${current_value:.0f}, target ${target_value:.0f}")
-            
+
             # Adjust each rung proportionally
             adjustment_factor = target_value / current_value if current_value > 0 else 1
-            
             for position in self.ladder_positions:
                 if position['status'] != 'open':
                     continue
-                
                 new_contracts = int(position['contracts'] * adjustment_factor)
                 delta_contracts = new_contracts - position['contracts']
-                
                 if delta_contracts != 0:
                     self.algo.MarketOrder(position['put_contract'], delta_contracts)
                     position['contracts'] = new_contracts
-                    
                     self.algo.Debug(
                         f"[Ladder] Adjusted rung {position['rung_index']} by {delta_contracts} contracts"
                     )
-            
+
             self.last_rebalance = self.algo.Time
             return True
-            
+
         except Exception as e:
             self.algo.Error(f"[Ladder] Rebalance error: {e}")
             return False
@@ -507,29 +514,25 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
         """Place LEAP ladder exit orders following Tom King methodology"""
         
         try:
-            positions_to_exit = [
-        pos for pos in self.ladder_positions
-        if pos['status'] == 'open' and self._should_exit_position(pos)
-        ]
-        except Exception as e:
-
             # Find positions that need exiting
-            
+            positions_to_exit = [
+                pos for pos in self.ladder_positions
+                if pos['status'] == 'open' and self._should_exit_position(pos)
+            ]
+
             if not positions_to_exit:
                 return True
-            
+
             exit_success = True
-            
+
             for position in positions_to_exit:
                 try:
+                    # Get position details
                     put_contract = position['put_contract']
                     contracts = position['contracts']
                     entry_price = position['entry_price']
                     rung_index = position['rung_index']
-                except Exception as e:
 
-                    # Get position details
-                    
                     # Calculate current metrics
                     current_price = self._get_option_price(put_contract)
                     pnl = (current_price - entry_price) * 100 * contracts
@@ -612,50 +615,42 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
     
     def _should_exit_position(self, position) -> bool:
         """Determine if LEAP position should be exited based on Tom King rules"""
-        
-        try:
-        
-            pass
-        except Exception as e:
 
+        try:
             put_contract = position['put_contract']
-            
+
             # Check expiration - roll at 90 DTE or close if can't roll
             days_to_expiry = (put_contract.ID.Date - self.algo.Time).days
             if days_to_expiry <= self.roll_dte:
-                # Try to find rolling opportunity first
                 spy = self.algo.spy
                 current_price = self.algo.Securities[spy].Price
-                target_strike = round(current_price * position['target_strike_pct'], 0)
+                target_strike = round(current_price * position.get('target_strike_pct', 0.85), 0)
                 contracts = self._find_leap_options(spy)
                 new_put = self._find_closest_strike(contracts, target_strike, "put")
-                
                 if not new_put:
                     # Can't roll, must exit
                     return True
-            
+
             # Check if deep ITM - take profit opportunity
             if self._check_deep_itm(position):
                 spy = self.algo.spy
                 current_price = self.algo.Securities[spy].Price
                 strike = position['put_contract'].ID.StrikePrice
-                
+
                 # Deep ITM with significant profit - Tom King rule for protection ladders
                 current_option_price = self._get_option_price(position['put_contract'])
                 entry_price = position['entry_price']
-                
                 if entry_price > 0:
                     profit_pct = (current_option_price - entry_price) / entry_price
-                    # Exit if put has doubled in value (TradingConstants.FULL_PERCENTAGE% profit)
+                    # Exit if put has doubled in value (100%+ profit)
                     if profit_pct >= 1.0:
                         return True
-            
+
             # Check for emergency liquidation conditions
             if self._check_emergency_exit(position):
                 return True
-            
+
             return False
-            
         except Exception as e:
             self.algo.Debug(f"[LEAPLadders] Error checking exit condition: {e}")
             return False
@@ -667,19 +662,18 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
             # Check if ladder allocation has grown too large (>10% of portfolio)
             portfolio_value = self.algo.position_sizer.get_portfolio_value()
             ladder_value = self._get_ladder_value()
-        except Exception as e:
-            
+
             if ladder_value > portfolio_value * 0.10:
                 return True
-            
+
             # Check if individual position has grown disproportionately
             put_price = self._get_option_price(position['put_contract'])
             position_value = put_price * 100 * position['contracts']
-            
+
             # Exit if single rung > 3% of portfolio (concentration risk)
             if position_value > portfolio_value * 0.03:
                 return True
-            
+
             # Check for black swan market conditions (VIX spike)
             vix = self._get_vix_value()
             if vix > 60:  # Extreme volatility - consider taking profits
@@ -696,49 +690,43 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
     
     def _get_exit_reason(self, position) -> str:
         """Get the reason for LEAP position exit"""
-        
-        try:
-        
-            pass
-        except Exception as e:
 
+        try:
             put_contract = position['put_contract']
             days_to_expiry = (put_contract.ID.Date - self.algo.Time).days
-            
+
             # Check expiration
             if days_to_expiry <= self.roll_dte:
                 return f"Expiration Approaching ({days_to_expiry} DTE)"
-            
+
             # Check profit taking
             current_price = self._get_option_price(position['put_contract'])
             entry_price = position['entry_price']
-            
             if entry_price > 0:
                 profit_pct = (current_price - entry_price) / entry_price
                 if profit_pct >= 1.0:
-                    return f"Profit Taking (TradingConstants.FULL_PERCENTAGE%+ gain)"
-            
+                    return f"Profit Taking (100%+ gain)"
+
             # Check deep ITM
             if self._check_deep_itm(position):
                 return "Deep ITM Protection Activated"
-            
+
             # Check emergency conditions
             portfolio_value = self.algo.position_sizer.get_portfolio_value()
             ladder_value = self._get_ladder_value()
-            
             if ladder_value > portfolio_value * 0.10:
                 return "Ladder Over-Allocation (>10%)"
-            
+
             position_value = current_price * 100 * position['contracts']
             if position_value > portfolio_value * 0.03:
                 return "Position Concentration Risk (>3%)"
-            
+
             vix = self._get_vix_value()
-            if vix > 60:
+            if vix > 60 and profit_pct >= 2.0:
                 return f"VIX Spike Profit Taking (VIX: {vix:.1f})"
-            
+
             return "Manual Exit"
-            
+
         except Exception as e:
             self.algo.Debug(f"[LEAPLadders] Error determining exit reason: {e}")
             return "Exit Error"
