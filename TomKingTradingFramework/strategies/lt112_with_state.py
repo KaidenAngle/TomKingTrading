@@ -362,11 +362,10 @@ class LT112WithState(BaseStrategyWithState):
         """Calculate net credit for spread using real market data"""
         
         try:
-            short_price = 0.0
-        long_price = 0.0
-        except Exception as e:
-
             # Use actual bid/ask prices from QuantConnect
+            short_price = 0.0
+            long_price = 0.0
+        except Exception as e:
             
             if short_option in self.algo.Securities:
                 short_security = self.algo.Securities[short_option]

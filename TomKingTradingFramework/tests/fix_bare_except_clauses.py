@@ -97,19 +97,8 @@ def fix_bare_except_clauses():
         file_path = os.path.join(framework_root, fix['file'])
         
         try:
-            
-        
-        except Exception as e:
-
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-with open(file_path, 'r', encoding='utf-8') as f:
+            # Apply fix for bare except clauses
+            with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
             # Replace the old bare except with specific exception handling

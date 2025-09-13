@@ -46,7 +46,8 @@ if margin_available:
 ```python
 # What was missing
 correlation_check = calculate_correlation(new_position, existing_positions)
-if correlation_check > 0.70:
+# Current correlation thresholds are in MASTER_RISK_PARAMETERS.md
+if correlation_check > CORRELATION_THRESHOLD:
     reject_trade()  # This would have saved £200k+
 ```
 

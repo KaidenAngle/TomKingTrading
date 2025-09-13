@@ -160,10 +160,10 @@ class PhaseBasedGreeksLimits:
             - reason: str - Explanation
         """
         try:
-        security = self.algo.Securities[symbol]
-        if not hasattr(security, 'Greeks') or not security.Greeks:
-        # Can't validate without Greeks, allow with warning
-        return True, "Warning: Greeks not available for validation"
+            security = self.algo.Securities[symbol]
+            if not hasattr(security, 'Greeks') or not security.Greeks:
+                # Can't validate without Greeks, allow with warning
+                return True, "Warning: Greeks not available for validation"
         except Exception as e:
 
             # Log and handle unexpected exception

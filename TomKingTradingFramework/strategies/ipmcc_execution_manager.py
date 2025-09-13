@@ -282,12 +282,11 @@ class FixedIPMCCExecution:
     def roll_weekly_call(self, symbol: str, component_id: str) -> Tuple[bool, str]:
         """Roll an expiring weekly call to next week"""
         try:
-            success = self.psm.close_ipmcc_weekly_call(symbol, component_id)
-        if not success:
-            return False, "Failed to close existing weekly call"
-        except Exception as e:
-
             # Close existing weekly call
+            success = self.psm.close_ipmcc_weekly_call(symbol, component_id)
+            if not success:
+                return False, "Failed to close existing weekly call"
+        except Exception as e:
                 
             # Add new weekly call for next week
             existing_leap = self.psm.has_active_leap(symbol)

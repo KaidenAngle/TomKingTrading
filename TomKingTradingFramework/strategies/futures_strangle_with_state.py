@@ -92,10 +92,10 @@ class FuturesStrangleWithState(BaseStrategyWithState):
         try:
             if hasattr(self.algo, 'symbols') and self.active_future in self.algo.symbols:
                 future = self.algo.symbols[self.active_future]
-        else:
-        future = self.algo.Symbol(self.active_future)
-        if future not in self.algo.Securities:
-            self.algo.AddFuture(self.active_future)
+            else:
+                future = self.algo.Symbol(self.active_future)
+                if future not in self.algo.Securities:
+                    self.algo.AddFuture(self.active_future)
         except Exception as e:
 
             # Get futures contract (use cached if available)
@@ -418,11 +418,10 @@ class FuturesStrangleWithState(BaseStrategyWithState):
         """Close a strangle position"""
         
         try:
-            self.algo.MarketOrder(position['short_call'], position['contracts'])
-        self.algo.MarketOrder(position['short_put'], position['contracts'])
-        except Exception as e:
-
             # Buy back both sides
+            self.algo.MarketOrder(position['short_call'], position['contracts'])
+            self.algo.MarketOrder(position['short_put'], position['contracts'])
+        except Exception as e:
             
             # Update position status
             position['status'] = 'closed'
@@ -488,12 +487,11 @@ class FuturesStrangleWithState(BaseStrategyWithState):
             
             for position in positions_to_exit:
                 try:
-                    short_call = position['short_call']
-                short_put = position['short_put']
-                contracts = position['contracts']
-                except Exception as e:
-
                     # Get position details
+                    short_call = position['short_call']
+                    short_put = position['short_put']
+                    contracts = position['contracts']
+                except Exception as e:
                     
                     # Calculate exit metrics
                     current_value = self._get_strangle_value(position)

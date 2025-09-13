@@ -232,10 +232,6 @@ class MarketDataCacheManager(IManager):
         """Pre-populate cache with major instrument data"""
         
         try:
-        
-            pass
-        except Exception as e:
-
             self.algo.Debug("[Market Data Cache] Warming up cache...")
             
             # Pre-fetch major prices
@@ -250,7 +246,6 @@ class MarketDataCacheManager(IManager):
                     self.get_cross_asset_correlation('SPY', symbol)
             
             self.algo.Debug(f"[Market Data Cache] Cache warmed up with {len(major_prices)} instruments")
-            
         except Exception as e:
             self.algo.Debug(f"[Market Data Cache] Error warming up cache: {e}")
     
@@ -274,10 +269,6 @@ class MarketDataCacheManager(IManager):
         """Fetch current price from QuantConnect API"""
         
         try:
-        
-            pass
-        except Exception as e:
-
             if symbol in self.algo.Securities:
                 price = self.algo.Securities[symbol].Price
                 return price if price > 0 else None
@@ -297,10 +288,6 @@ class MarketDataCacheManager(IManager):
         """Fetch comprehensive market data point"""
         
         try:
-        
-            pass
-        except Exception as e:
-
             if symbol not in self.algo.Securities:
                 return None
             
@@ -318,9 +305,6 @@ class MarketDataCacheManager(IManager):
             # Calculate change percentage if we have historical data
             change_percent = 0.0
             try:
-                pass
-            except Exception as e:
-
                 if hasattr(self.algo, 'History'):
                     hist = self.algo.History([symbol], 1, Resolution.Daily)
                     if not hist.empty:
@@ -405,10 +389,6 @@ class MarketDataCacheManager(IManager):
         """Calculate market direction based on SPY movement"""
         
         try:
-        
-            pass
-        except Exception as e:
-
             current_price = self.get_price('SPY')
             if not current_price:
                 return 'neutral'
@@ -474,11 +454,9 @@ class MarketDataCacheManager(IManager):
         """Calculate relative strength vs benchmark"""
         
         try:
-            symbol_price = self.get_price(symbol)
-        benchmark_price = self.get_price(benchmark)
-        except Exception as e:
-
             # Get current prices
+            symbol_price = self.get_price(symbol)
+            benchmark_price = self.get_price(benchmark)
             
             if not symbol_price or not benchmark_price:
                 return None
@@ -514,10 +492,6 @@ class MarketDataCacheManager(IManager):
         """Log comprehensive cache statistics"""
         
         try:
-        
-            pass
-        except Exception as e:
-
             price_stats = self.price_cache.get_statistics()
             conditions_stats = self.conditions_cache.get_statistics()
             correlation_stats = self.correlation_cache.get_statistics()
@@ -558,10 +532,6 @@ class MarketDataCacheManager(IManager):
         """Get comprehensive statistics for all caches"""
         
         try:
-        
-            pass
-        except Exception as e:
-
             return {
                 'price_cache': self.price_cache.get_statistics(),
                 'conditions_cache': self.conditions_cache.get_statistics(),
@@ -584,10 +554,6 @@ class MarketDataCacheManager(IManager):
         """Invalidate all market data caches"""
         
         try:
-        
-            pass
-        except Exception as e:
-
             price_count = self.price_cache.invalidate_all()
             conditions_count = self.conditions_cache.invalidate_all()
             correlation_count = self.correlation_cache.invalidate_all()
@@ -609,14 +575,14 @@ class MarketDataCacheManager(IManager):
         try:
             if event.event_type == EventType.PORTFOLIO_UPDATE:
                 # Update market conditions based on portfolio changes
-        self._update_market_conditions_from_portfolio(event.data)
-        return True
-        elif event.event_type == EventType.POSITION_OPENED or event.event_type == EventType.POSITION_CLOSED:
-            # Cache market data for instruments involved in trades
-        if 'symbol' in event.data:
-            symbol = event.data['symbol']
-        self._preload_symbol_data(symbol)
-        return True
+                self._update_market_conditions_from_portfolio(event.data)
+                return True
+            elif event.event_type == EventType.POSITION_OPENED or event.event_type == EventType.POSITION_CLOSED:
+                # Cache market data for instruments involved in trades
+                if 'symbol' in event.data:
+                    symbol = event.data['symbol']
+                    self._preload_symbol_data(symbol)
+                return True
         except Exception as e:
 
             # Handle market data related events
@@ -643,9 +609,6 @@ class MarketDataCacheManager(IManager):
         # Trigger market conditions refresh when portfolio changes significantly
         if 'portfolio_value' in data:
             try:
-                pass
-            except Exception as e:
-
                 self.conditions_cache.invalidate_all()  # Force fresh market conditions
             except Exception as e:
                 self.algo.Error(f"[Market Data Cache] Error updating conditions from portfolio: {e}")
@@ -654,9 +617,8 @@ class MarketDataCacheManager(IManager):
         """Preload market data for a specific symbol"""
         try:
             self.get_current_price(symbol)
-        self.get_market_data_point(symbol)
+            self.get_market_data_point(symbol)
         except Exception as e:
             self.algo.Debug(f"[Market Data Cache] Error preloading data for {symbol}: {e}")
-        except Exception as e:
 
             # Preload current price and market data for the symbol

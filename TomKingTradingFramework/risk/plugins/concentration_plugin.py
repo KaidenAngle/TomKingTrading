@@ -25,18 +25,11 @@ class ConcentrationPlugin(BaseRiskPlugin):
     def _plugin_initialize(self) -> bool:
         """Initialize concentration tracking"""
         try:
-        self.spy_positions = {}    # Strategy -> position details
-        self.es_positions = {}     # ES futures positions
-        self.option_positions = {}  # SPY/SPX options
-        self.other_positions = {}   # Other concentrated positions
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Track positions by underlying asset groups
+            # Track positions by underlying asset groups
+            self.spy_positions = {}    # Strategy -> position details
+            self.es_positions = {}     # ES futures positions
+            self.option_positions = {}  # SPY/SPX options
+            self.other_positions = {}   # Other concentrated positions
             
             # Maximum exposure limits (Tom King methodology - NEVER CHANGE)
             self.max_spy_delta = 100           # Maximum net delta exposure
@@ -47,7 +40,7 @@ class ConcentrationPlugin(BaseRiskPlugin):
             self.multipliers = {
                 'SPY': 1,      # Base reference
                 'ES': 50,      # ES futures: $50 per point
-                'MES': 5,      # MES futures: $5 per point  
+                'MES': 5,      # MES futures: $5 per point
                 'SPX': 10,     # SPX options: ~10x SPY
                 'QQQ': 1,      # QQQ tracking
                 'IWM': 1,      # IWM tracking
@@ -71,21 +64,21 @@ class ConcentrationPlugin(BaseRiskPlugin):
             self.allocation_leaks_detected = 0
             self.stale_allocations_cleaned = 0
             
-            # Current market data
+            # Current market data initialization
+            self._last_spy_price = None
             self.current_prices = {}
             self.last_price_update = self._algorithm.Time
             
-            # Performance metrics
+            # Performance metrics initialization complete
             self.concentration_checks = 0
             self.blocked_concentrations = 0
             self.cleanups_performed = 0
             
             self._algorithm.Log("[Concentration Plugin] Initialized with multi-asset concentration tracking")
-            
             return True
-            
         except Exception as e:
-            self._algorithm.Error(f"[Concentration Plugin] Initialization error: {e}")
+            # Log and handle unexpected exception
+            self.algo.Error(f"Failed to initialize concentration plugin: {e}")
             return False
     
     def can_open_position(self, symbol: str, quantity: int, 
@@ -429,41 +422,45 @@ class ConcentrationPlugin(BaseRiskPlugin):
     def _sync_positions_with_portfolio(self):
         """Sync position tracking with actual portfolio"""
         try:
-        actual_symbols = set()
-        for holding in self._algorithm.Portfolio.Values:
-        if holding.Invested:
-        actual_symbols.add(holding.Symbol)
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Get actual positions
+            actual_symbols = set()
+            for holding in self._algorithm.Portfolio.Values:
+                if holding.Invested:
+                    actual_symbols.add(holding.Symbol)
             
             # Remove tracking for positions that no longer exist
             all_position_dicts = [self.spy_positions, self.es_positions, 
                                 self.option_positions, self.other_positions]
             
+            # Sync tracking with actual positions - systematic cleanup
+            for position_dict in all_position_dicts:
+                symbols_to_remove = []
+                for symbol in position_dict.keys():
+                    if symbol not in actual_symbols:
+                        symbols_to_remove.append(symbol)
+                for symbol in symbols_to_remove:
+                    del position_dict[symbol]
+            
+            # Update group exposures for removed positions
             for positions_dict in all_position_dicts:
                 for strategy_name, position in list(positions_dict.items()):
-                    if position['symbol'] not in actual_symbols:
-                        group = position['group']
-                        delta = position['delta']
+                    if position.get('symbol') not in actual_symbols:
+                        group = position.get('group', 'UNKNOWN')
+                        delta = position.get('delta', 0)
                         
                         # Update group tracking
-                        self.group_exposures[group] = max(0, self.group_exposures[group] - abs(delta))
+                        if group in self.group_exposures:
+                            self.group_exposures[group] = max(0, self.group_exposures[group] - abs(delta))
                         
                         # Remove position
                         del positions_dict[strategy_name]
                         
                         self._algorithm.Debug(
-                            f"[Concentration Plugin] Synced out stale position: {strategy_name} -> {position['symbol']}"
+                            f"[Concentration Plugin] Synced out stale position: {strategy_name} -> {position.get('symbol', 'UNKNOWN')}"
                         )
             
         except Exception as e:
-            self._algorithm.Debug(f"[Concentration Plugin] Error syncing positions: {e}")
+            # Log and handle unexpected exception  
+            self.algo.Error(f"Error syncing positions with portfolio: {e}")
     
     def _cleanup_stale_allocations(self) -> Dict[str, Any]:
         """Clean up stale position allocations"""
@@ -475,19 +472,7 @@ class ConcentrationPlugin(BaseRiskPlugin):
         }
         
         try:
-            
-        
-        except Exception as e:
-
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-cutoff_time = self._algorithm.Time - timedelta(hours=4)
+            cutoff_time = self._algorithm.Time - timedelta(hours=4)
             
             all_position_dicts = [
                 ('spy', self.spy_positions),

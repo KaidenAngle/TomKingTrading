@@ -96,12 +96,10 @@ class QuantConnectEventCalendar:
             return
             
         try:
+            # Subscribe to earnings announcements
             if hasattr(self.algorithm, 'AddFundamental'):
                 # Use QuantConnect's fundamental data
-        equity = self.algorithm.AddEquity(symbol.Value, Resolution.Daily)
-        except Exception as e:
-
-            # Subscribe to earnings announcements
+                equity = self.algorithm.AddEquity(symbol.Value, Resolution.Daily)
                 
                 # Request fundamental data
                 fundamental = self.algorithm.AddData(
@@ -133,9 +131,8 @@ class QuantConnectEventCalendar:
         try:
             if self.algorithm.Securities.ContainsKey(symbol):
                 security = self.algorithm.Securities[symbol]
-        except Exception as e:
-
-            # Get earnings events from QuantConnect
+                
+                # Get earnings events from QuantConnect
                 
                 # Access fundamental data if available
                 if hasattr(security, 'Fundamentals'):
@@ -320,15 +317,12 @@ class QuantConnectEventCalendar:
         """Determine if earnings are pre-market based on historical patterns"""
         # This would ideally come from the API but we can infer from patterns
         try:
-            pass
-        except Exception as e:
-
             if hasattr(fundamentals, 'EarningReports'):
                 # Check historical announcement times if available
                 return True  # Default to pre-market for safety
         except Exception as e:
             # Failed to determine announcement time - default to pre-market for safety
-            self.algo.Debug(f"Failed to get announcement time for {symbol}: {e}")
+            self.algorithm.Debug(f"Failed to get announcement time: {e}")
         return True
     
     def _is_cache_valid(self, cache_key: str) -> bool:

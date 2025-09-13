@@ -51,15 +51,8 @@ class TestPhase9FixesVerification(unittest.TestCase):
         for strategy_module in strategy_files:
             with self.subTest(strategy=strategy_module):
                 try:
-                module = importlib.import_module(strategy_module)
-                except Exception as e:
-
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-# Import the strategy module
+                    # Import the strategy module
+                    module = importlib.import_module(strategy_module)
                     
                     # Find the strategy class (assumes pattern: ModuleNameWithState)
                     class_name = None
@@ -85,15 +78,7 @@ class TestPhase9FixesVerification(unittest.TestCase):
                     
                     # Try to instantiate and verify method exists
                     try:
-                        
-                    except Exception as e:
-
-                        # Log and handle unexpected exception
-
-                        print(f'Unexpected exception: {e}')
-
-                        raise
-instance = strategy_class(self.mock_algorithm)
+                        instance = strategy_class(self.mock_algorithm)
                         self.assertTrue(
                             callable(getattr(instance, '_place_exit_orders', None)),
                             f"{class_name}._place_exit_orders is not callable"
@@ -115,18 +100,8 @@ instance = strategy_class(self.mock_algorithm)
         """Test 2: Verify AccountPhase enum is properly centralized"""
         
         try:
-        from config.constants import AccountPhase
-        except Exception as e:
-
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Test centralized AccountPhase import
+            # Test centralized AccountPhase import
+            from config.constants import AccountPhase
             
             # Verify enum has expected values
             expected_phases = ['PHASE_1', 'PHASE_2', 'PHASE_3', 'PHASE_4'] 
@@ -152,18 +127,8 @@ instance = strategy_class(self.mock_algorithm)
         """Test 3: Verify centralized portfolio value access is working"""
         
         try:
-        from core.unified_position_sizer import UnifiedPositionSizer
-        except Exception as e:
-
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Test UnifiedPositionSizer has centralized methods
+            # Test UnifiedPositionSizer has centralized methods
+            from core.unified_position_sizer import UnifiedPositionSizer
             
             sizer = UnifiedPositionSizer(self.mock_algorithm)
             
@@ -196,18 +161,8 @@ instance = strategy_class(self.mock_algorithm)
         """Test 4: Verify secure credential handling is implemented"""
         
         try:
-        from brokers.paper_trading_adapter import PaperTradingAdapter
-        except Exception as e:
-
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Test that paper trading adapter uses environment variables
+            # Test that paper trading adapter uses environment variables
+            from brokers.paper_trading_adapter import PaperTradingAdapter
             
             # Mock environment variables to test validation
             with patch.dict(os.environ, {
@@ -238,20 +193,10 @@ instance = strategy_class(self.mock_algorithm)
         """Test 5: Verify all fixes work together without conflicts"""
         
         try:
-        from config.constants import AccountPhase, TradingConstants
-        from core.unified_position_sizer import UnifiedPositionSizer
-        from risk.position_sizing import PositionSizer
-        except Exception as e:
-
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Test that we can import and use multiple components together
+            # Test that we can import and use multiple components together
+            from config.constants import AccountPhase, TradingConstants
+            from core.unified_position_sizer import UnifiedPositionSizer
+            from risk.position_sizing import PositionSizer
             
             # Test AccountPhase works with position sizing
             sizer = UnifiedPositionSizer(self.mock_algorithm) 
@@ -276,19 +221,9 @@ instance = strategy_class(self.mock_algorithm)
         """Test 6: Verify fixes don't break existing functionality"""
         
         try:
-        from strategies.base_strategy_with_state import BaseStrategyWithState
-        from core.state_machine import StrategyState, TransitionTrigger
-        except Exception as e:
-
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Test that we can still import base classes
+            # Test that we can still import base classes
+            from strategies.base_strategy_with_state import BaseStrategyWithState
+            from core.state_machine import StrategyState, TransitionTrigger
             
             # Verify base functionality still works
             self.assertTrue(hasattr(BaseStrategyWithState, '_place_exit_orders'))

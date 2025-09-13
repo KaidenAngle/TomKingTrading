@@ -111,15 +111,12 @@ class SystemValidator:
         if hasattr(self.algo, 'correlation_manager'):
             try:
                 test_positions = ['SPY', 'QQQ']
-            allowed, msg = self.algo.correlation_manager.enforce_correlation_limits(
-            'IWM', 2
-            )
-            self.info.append(f"[WARNING] Correlation limits working")
+                allowed, msg = self.algo.correlation_manager.enforce_correlation_limits(
+                    'IWM', 2
+                )
+                self.info.append(f"[WARNING] Correlation limits working")
             except Exception as e:
                 self.critical_issues.append(f"[WARNING] Correlation manager error: {e}")
-            except Exception as e:
-
-                # Test with sample positions
         
         # Test VIX regime
         if hasattr(self.algo, 'vix_manager'):
@@ -230,14 +227,12 @@ class SystemValidator:
         
         if hasattr(self.algo, 'option_chain_manager'):
             try:
-                subs = self.algo.option_chain_manager.option_subscriptions
-            if subs:
-                self.info.append(f"[WARNING] Option subscriptions: {list(subs.keys())}")
-            else:
-            self.warnings.append("[WARNING] No option subscriptions active")
-            except Exception as e:
-
                 # Check option subscriptions
+                subs = self.algo.option_chain_manager.option_subscriptions
+                if subs:
+                    self.info.append(f"[WARNING] Option subscriptions: {list(subs.keys())}")
+                else:
+                    self.warnings.append("[WARNING] No option subscriptions active")
                     
                 # Validate option data
                 validation = self.algo.option_chain_manager.validate_option_data()

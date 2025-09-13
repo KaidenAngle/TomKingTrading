@@ -502,9 +502,9 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
             for position in positions_to_exit:
                 try:
                     put_contract = position['put_contract']
-                contracts = position['contracts']
-                entry_price = position['entry_price']
-                rung_index = position['rung_index']
+                    contracts = position['contracts']
+                    entry_price = position['entry_price']
+                    rung_index = position['rung_index']
                 except Exception as e:
 
                     # Get position details
@@ -643,11 +643,10 @@ class LEAPPutLaddersWithState(BaseStrategyWithState):
         """Check for emergency exit conditions specific to LEAP ladders"""
         
         try:
-            portfolio_value = self.algo.position_sizer.get_portfolio_value()
-        ladder_value = self._get_ladder_value()
-        except Exception as e:
-
             # Check if ladder allocation has grown too large (>10% of portfolio)
+            portfolio_value = self.algo.position_sizer.get_portfolio_value()
+            ladder_value = self._get_ladder_value()
+        except Exception as e:
             
             if ladder_value > portfolio_value * 0.10:
                 return True

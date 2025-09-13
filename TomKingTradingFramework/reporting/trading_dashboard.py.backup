@@ -144,7 +144,7 @@ class TradingDashboard:
             summary.append(f"\n   {strategy}:")
             summary.append(f"      Open Positions: {open_positions}")
             summary.append(f"      Realized P&L: ${perf['realized_pnl']:,.2f}")
-            summary.append(f"      Win Rate: {perf['win_rate']*100:.1f}%")
+            summary.append(f"      Win Rate: {perf['win_rate']*TradingConstants.FULL_PERCENTAGE:.1f}%")
             summary.append(f"      Total Trades: {perf['trades']}")
         
         # Greeks summary
@@ -331,7 +331,15 @@ class TradingDashboard:
         Save dashboard state to ObjectStore
         """
         try:
-            dashboard_state = {
+            
+        except Exception as e:
+
+            # Log and handle unexpected exception
+
+            print(f'Unexpected exception: {e}')
+
+            raise
+dashboard_state = {
                 'timestamp': str(self.algo.Time),
                 'positions': self.positions_by_strategy,
                 'performance': self.strategy_performance,
@@ -342,7 +350,4 @@ class TradingDashboard:
             self.algo.ObjectStore.Save(key, json.dumps(dashboard_state))
             
         except Exception as e:
-            # Log and handle unexpected exception
             self.algo.Error(f"Failed to save dashboard: {str(e)}")
-            print(f'Unexpected exception: {e}')
-            raise

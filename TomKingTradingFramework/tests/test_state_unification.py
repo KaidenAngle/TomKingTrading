@@ -36,15 +36,7 @@ def test_unified_state_manager():
     
     # Test 1: Construction
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-state_manager = UnifiedStateManager(algorithm)
+        state_manager = UnifiedStateManager(algorithm)
         print("[PASS] UnifiedStateManager construction successful")
     except Exception as e:
         print(f"[FAIL] UnifiedStateManager construction failed: {e}")
@@ -160,19 +152,9 @@ def main():
     print("=" * 60)
     
     try:
-    if not test_unified_state_manager():
-    return False
-    except Exception as e:
-
-    
-        # Log and handle unexpected exception
-
-    
-        print(f'Unexpected exception: {e}')
-
-    
-        raise
-# Test 1: UnifiedStateManager functionality
+        # Test 1: UnifiedStateManager functionality
+        if not test_unified_state_manager():
+            return False
             
         # Test 2: State consolidation
         if not verify_state_consolidation():

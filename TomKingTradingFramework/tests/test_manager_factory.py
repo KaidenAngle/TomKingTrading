@@ -37,15 +37,7 @@ def test_manager_factory_construction():
     
     # Test 1: Construction
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-factory = ManagerFactory(algorithm)
+        factory = ManagerFactory(algorithm)
         print("[PASS] ManagerFactory construction successful")
     except Exception as e:
         print(f"[FAIL] ManagerFactory construction failed: {e}")
@@ -171,15 +163,7 @@ def verify_manager_factory_integration():
             if file.endswith('.py'):
                 filepath = os.path.join(root, file)
                 try:
-                    
-                except Exception as e:
-
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
                         if 'ManagerFactory' in content:
                             manager_factory_files.append(filepath)
@@ -198,15 +182,7 @@ with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
     
     # Check for dependency container
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-from core.dependency_container import DependencyContainer
+        from core.dependency_container import DependencyContainer
         print("[PASS] DependencyContainer exists")
     except ImportError:
         print("[WARN] DependencyContainer not found, but ManagerFactory may have alternate DI")
@@ -220,19 +196,9 @@ def main():
     print("=" * 60)
     
     try:
-    if not test_manager_factory_construction():
-    return False
-    except Exception as e:
-
-    
-        # Log and handle unexpected exception
-
-    
-        print(f'Unexpected exception: {e}')
-
-    
-        raise
-# Test 1: ManagerFactory functionality
+        # Test 1: ManagerFactory functionality
+        if not test_manager_factory_construction():
+            return False
             
         # Test 2: ManagerConfig functionality  
         if not test_manager_config():

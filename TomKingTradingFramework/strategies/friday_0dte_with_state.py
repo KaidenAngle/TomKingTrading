@@ -180,11 +180,9 @@ class Friday0DTEWithState(BaseStrategyWithState):
         """Internal pre-entry move analysis (cached)"""
         
         try:
-            spy = self.algo.spy
-        current_time = self.algo.Time.time()
-        except Exception as e:
-
             # Get SPY or ES price
+            spy = self.algo.spy
+            current_time = self.algo.Time.time()
             
             # CRITICAL FIX #3: Enhanced market open price capture with robust timing windows
             # and comprehensive fallback mechanisms per audit documentation
@@ -398,11 +396,9 @@ class Friday0DTEWithState(BaseStrategyWithState):
             pass  # Don't fail order placement due to cache issues
         
         try:
-            estimated_delta = self._estimate_position_delta()
-        contracts = self._calculate_position_size()
-        except Exception as e:
-
             # Check SPY concentration limits first (with potential caching from spy_concentration_manager)
+            estimated_delta = self._estimate_position_delta()
+            contracts = self._calculate_position_size()
             # IMPORTANT: Prevents over-exposure when multiple strategies trade SPY
             # DO NOT REMOVE: Critical risk management across strategies
             
@@ -645,12 +641,10 @@ class Friday0DTEWithState(BaseStrategyWithState):
         total_credit = 0.0
         
         try:
+            # Get credits from actual positions
             for contract_type, contract in self.current_position.items():
                 if contract_type == 'contracts' or contract_type == 'entry_time':
                     continue
-        except Exception as e:
-
-            # Get credits from actual positions
                     
                 if contract in self.algo.Securities:
                     position = self.algo.Portfolio[contract]

@@ -432,9 +432,9 @@ class IPMCCWithState(BaseStrategyWithState):
             for position in positions_to_exit:
                 try:
                     call_contract = position['call']
-                contracts = position['contracts']
-                entry_premium = position['entry_premium']
-                underlying = position['underlying']
+                    contracts = position['contracts']
+                    entry_premium = position['entry_premium']
+                    underlying = position['underlying']
                 except Exception as e:
 
                     # Get position details
@@ -592,10 +592,10 @@ class IPMCCWithState(BaseStrategyWithState):
         
         try:
             vix = 20.0  # Default
-        if hasattr(self.algo, 'vix_manager'):
-            vix_val = self.algo.vix_manager.get_current_vix()
-        if vix_val and vix_val > 0:
-            vix = vix_val
+            if hasattr(self.algo, 'vix_manager'):
+                vix_val = self.algo.vix_manager.get_current_vix()
+                if vix_val and vix_val > 0:
+                    vix = vix_val
         except Exception as e:
 
             # Check for extreme market conditions requiring closure

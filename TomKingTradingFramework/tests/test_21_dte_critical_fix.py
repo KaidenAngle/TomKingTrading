@@ -468,22 +468,16 @@ class Test21DTESystemIntegration(unittest.TestCase):
         # incorrect conditional logic is not imported or referenced
         
         try:
-        from risk.defensive_manager import DefensiveManager
-        self.fail("DefensiveManager should not exist - it was removed for methodology violations")
+            from risk.defensive_manager import DefensiveManager
+            self.fail("DefensiveManager should not exist - it was removed for methodology violations")
         except ImportError:
-        # Expected - file was properly removed
-        pass
+            # Expected - file was properly removed
+            pass
         except Exception as e:
-
-        
             # Log and handle unexpected exception
-
-        
             print(f'Unexpected exception: {e}')
-
-        
             raise
-# This should fail since we removed the file
+        # This should fail since we removed the file
     
     def test_consistent_21_dte_across_components(self):
         """Verify TradingConstants.DEFENSIVE_EXIT_DTE DTE threshold is consistent across all components"""

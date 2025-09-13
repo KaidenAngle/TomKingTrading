@@ -80,15 +80,7 @@ def test_strategy_integration():
     integration_count = 0
     for strategy_file in strategy_files:
         try:
-            
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-with open(strategy_file, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(strategy_file, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
                 
             for pattern in integration_patterns:
@@ -118,19 +110,7 @@ def test_circular_dependency_elimination():
     # For now, we'll verify the event bus request-response pattern exists
     
     try:
-        
-    
-    except Exception as e:
-
-    
-        # Log and handle unexpected exception
-
-    
-        print(f'Unexpected exception: {e}')
-
-    
-        raise
-from core.event_bus import EventBus, EventType
+        from core.event_bus import EventBus, EventType
         
         # Check for request-response events
         request_events = [e for e in EventType if 'request' in e.value]
@@ -161,15 +141,7 @@ def test_august_5_protections_comprehensive():
     
     # Test 1: Correlation risk management
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-from risk.unified_risk_manager import UnifiedRiskManager
+        from risk.unified_risk_manager import UnifiedRiskManager
         print("[PASS] UnifiedRiskManager available for correlation protection")
         protections_verified += 1
     except ImportError:
@@ -178,29 +150,15 @@ from risk.unified_risk_manager import UnifiedRiskManager
     
     # Test 2: SPY concentration limits
     try:
-    risk_files = []
-    for root, dirs, files in os.walk('.'):
-    for file in files:
-    if file.endswith('.py'):
-    filepath = os.path.join(root, file)
-    try:
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-# Check if SPY concentration is managed
+        risk_files = []
+        for root, dirs, files in os.walk('.'):
+            for file in files:
+                if file.endswith('.py'):
+                    filepath = os.path.join(root, file)
+                    try:
+                        # Check if SPY concentration is managed
                         
-                    except Exception as e:
-
-                        # Log and handle unexpected exception
-
-                        print(f'Unexpected exception: {e}')
-
-                        raise
-with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                             content = f.read()
                             if 'spy_concentration' in content.lower() or 'request_spy_allocation' in content:
                                 risk_files.append(filepath)
@@ -221,15 +179,7 @@ with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
     
     # Test 3: Position limits by phase
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-from risk.unified_risk_manager import UnifiedRiskManager
+        from risk.unified_risk_manager import UnifiedRiskManager
         from unittest.mock import MagicMock
         
         algorithm = MagicMock()
@@ -257,15 +207,7 @@ from risk.unified_risk_manager import UnifiedRiskManager
             if file.endswith('.py'):
                 filepath = os.path.join(root, file)
                 try:
-                    
-                except Exception as e:
-
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
                         if 'circuit_breaker' in content.lower() or 'emergency' in content.lower():
                             circuit_breaker_files.append(filepath)
@@ -296,15 +238,7 @@ def test_performance_improvements():
     
     # Test 1: Unified caching system
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-from core.unified_intelligent_cache import UnifiedIntelligentCache
+        from core.unified_intelligent_cache import UnifiedIntelligentCache
         print("[PASS] UnifiedIntelligentCache reduces cache overhead")
         improvements_detected += 1
     except ImportError:
@@ -312,15 +246,7 @@ from core.unified_intelligent_cache import UnifiedIntelligentCache
     
     # Test 2: Event-driven architecture
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-from core.event_bus import EventBus
+        from core.event_bus import EventBus
         print("[PASS] EventBus enables event-driven performance improvements")
         improvements_detected += 1
     except ImportError:
@@ -328,15 +254,7 @@ from core.event_bus import EventBus
     
     # Test 3: Manager factory reduces initialization overhead
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-from core.manager_factory import ManagerFactory
+        from core.manager_factory import ManagerFactory
         print("[PASS] ManagerFactory reduces initialization overhead")
         improvements_detected += 1
     except ImportError:
@@ -394,22 +312,7 @@ def test_system_completeness():
                 total_files_checked += 1
                 
                 try:
-                    
-                
-                except Exception as e:
-    """Implement test system completeness"""
-    # IMPLEMENTATION NOTE: Basic implementation - customize as needed
-    pass
-
-                
-                    # Log and handle unexpected exception
-
-                
-                    print(f'Unexpected exception: {e}')
-
-                
-                    raise
-with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
                         
                     for pattern in placeholder_patterns:
@@ -447,19 +350,9 @@ def main():
     total_tests = 6
     
     try:
-    if test_main_algorithm_integration():
-    tests_passed += 1
-    except Exception as e:
-
-    
-        # Log and handle unexpected exception
-
-    
-        print(f'Unexpected exception: {e}')
-
-    
-        raise
-# Test 1: Main algorithm integration
+        # Test 1: Main algorithm integration
+        if test_main_algorithm_integration():
+            tests_passed += 1
             
         print()
         

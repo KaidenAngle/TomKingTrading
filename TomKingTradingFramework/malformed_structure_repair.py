@@ -154,8 +154,8 @@ class MalformedStructureRepair:
                     next_indent = len(next_line) - len(next_line.lstrip())
                     
                     # If we hit something at or less indented than try:
-                        if next_indent <= current_indent:
-                            # Check if it's except/finally/else
+                    if next_indent <= current_indent:
+                        # Check if it's except/finally/else
                         if next_stripped.startswith(('except', 'finally', 'else:')):
                             break
                         else:

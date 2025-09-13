@@ -743,22 +743,16 @@ class RiskParameters:
     def save_parameters_to_file(self, filename: str) -> bool:
         """Save all parameters to JSON file"""
         try:
-            pass
-        except Exception as e:
-
             with open(filename, 'w') as f:
                 json.dump(self.get_all_risk_parameters(), f, indent=2, default=str)
             return True
         except Exception as e:
-            self.Error(f"Error saving parameters: {e}"")
+            self.Error(f"Error saving parameters: {e}")
             return False
     
     def load_parameters_from_file(self, filename: str) -> bool:
         """Load parameters from JSON file"""
         try:
-            pass
-        except Exception as e:
-
             with open(filename, 'r') as f:
                 loaded_params = json.load(f)
             
@@ -769,7 +763,7 @@ class RiskParameters:
             
             return True
         except Exception as e:
-            self.Error(f"Error loading parameters: {e}"")
+            self.Error(f"Error loading parameters: {e}")
             return False
 
 

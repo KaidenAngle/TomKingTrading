@@ -47,12 +47,11 @@ class SafePerformanceTracker:
         """
         
         try:
-            pnl_decimal = Decimal(str(pnl))
-        fees_decimal = Decimal(str(fees))
-        slippage_decimal = Decimal(str(slippage))
-        except Exception as e:
-
             # Convert to Decimal for precision
+            pnl_decimal = Decimal(str(pnl))
+            fees_decimal = Decimal(str(fees))
+            slippage_decimal = Decimal(str(slippage))
+        except Exception as e:
             
             # Check individual values first
             if abs(pnl_decimal) > self.MAX_VALUE:

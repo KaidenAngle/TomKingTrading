@@ -81,27 +81,19 @@ class UnifiedFrameworkAuditor:
         for file_path in self.python_files:
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+                    content = f.read()
 
-            relative_path = str(file_path.relative_to(self.root_dir))
+                relative_path = str(file_path.relative_to(self.root_dir))
 
-            # AST parsing for deep analysis
-            try:
-                pass
-            except Exception as e:
-                # Log and handle unexpected exception
-            except Exception as e:
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-
-tree = ast.parse(content)
-                    self._analyze_ast_structure(tree, relative_path)
-                except SyntaxError:
-                    self.critical_issues.append(
-                        f"SYNTAX ERROR: {relative_path} - Cannot parse AST"
-                    )
+                # AST parsing for deep analysis
+                try:
+                    tree = ast.parse(content)
+                    self._analyze_ast(tree, relative_path, content)
+                except SyntaxError as e:
+                    self.syntax_errors.append(f"{relative_path}:{e.lineno} - {e.msg}")
+                except Exception as e:
+                    print(f'Unexpected exception in {relative_path}: {e}')
+                    continue
                 
                 # Pattern-based analysis for complex structures
                 self._analyze_code_patterns(content, relative_path)
@@ -141,14 +133,14 @@ tree = ast.parse(content)
         """Pattern-based analysis for complex code structures"""
         lines = content.split('\n')
         
-        # Check for nested loops (O(n²) or worse complexity)
+        # Check for nested loops (O(n^2) or worse complexity)
         nested_loop_depth = 0
         for i, line in enumerate(lines):
             if re.match(r'\s*(for|while)\s+.*:', line):
                 nested_loop_depth += 1
                 if nested_loop_depth >= 3:
                     self.performance_issues['high_complexity'].append(
-                        f"{file_path}:{i+1} - O(n³) complexity detected"
+                        f"{file_path}:{i+1} - O(n^3) complexity detected"
                     )
             elif line.strip() and not line.startswith(' '):
                 nested_loop_depth = 0
@@ -216,18 +208,18 @@ tree = ast.parse(content)
         for file_path in self.python_files:
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+                    content = f.read()
 
-            relative_path = str(file_path.relative_to(self.root_dir))
+                relative_path = str(file_path.relative_to(self.root_dir))
 
-            for pattern, suggestion in reimplementation_patterns:
-                if re.search(pattern, content, re.IGNORECASE):
-                    # Check if it's legitimately using the existing system
-            if not self._uses_existing_system(content, pattern):
-                self.quality_gate_failures.append(
-            f"SYSTEM LEVERAGE: {relative_path} - {suggestion}"
-            )
-            system_leverage_violations += 1
+                for pattern, suggestion in reimplementation_patterns:
+                    if re.search(pattern, content, re.IGNORECASE):
+                        # Check if it's legitimately using the existing system
+                        if not self._uses_existing_system(content, pattern):
+                            self.quality_gate_failures.append(
+                                f"SYSTEM LEVERAGE: {relative_path} - {suggestion}"
+                            )
+                            system_leverage_violations += 1
 
             except Exception:
                 continue
@@ -235,84 +227,75 @@ tree = ast.parse(content)
             if system_leverage_violations == 0:
                 print("   PASS: Proper system leverage maintained")
             else:
-            print(f"   FAIL: Found {system_leverage_violations} system leverage violations")
+                print(f"   FAIL: Found {system_leverage_violations} system leverage violations")
 
-            def _uses_existing_system(self, content, pattern):
-                """Check if code properly uses existing systems"""
-            # Simplified check - look for imports of unified managers
-            unified_imports = [
+    def _uses_existing_system(self, content, pattern):
+        """Check if code properly uses existing systems"""
+        # Simplified check - look for imports of unified managers
+        unified_imports = [
             'unified_vix_manager', 'unified_position_sizer',
             'unified_state_manager', 'kelly_criterion'
-            ]
-            return any(manager in content for manager in unified_imports)
+        ]
+        return any(manager in content for manager in unified_imports)
 
-            def _check_intentional_redundancy(self):
-                """Verify intentional redundancy is preserved where needed"""
-            # Known intentional redundancies in the Tom King framework
-            intentional_redundancies = [
+    def _check_intentional_redundancy(self):
+        """Verify intentional redundancy is preserved where needed"""
+        # Known intentional redundancies in the Tom King framework
+        intentional_redundancies = [
             'vix.*check',  # VIX validation at multiple levels
             'circuit.*break',  # Circuit breaker redundancy
             'state.*save'  # State persistence redundancy
-            ]
+        ]
 
-            redundancy_violations = 0
+        redundancy_violations = 0
 
-            # This would require more sophisticated analysis in production
-            # For now, flag if critical safety redundancies are missing
+        # This would require more sophisticated analysis in production
+        # For now, flag if critical safety redundancies are missing
 
-            print(f"   Verified {len(intentional_redundancies)} intentional redundancies")
+        print(f"   Verified {len(intentional_redundancies)} intentional redundancies")
 
-            def _analyze_performance_patterns(self):
-                """Phase 3: Analyze performance and computational efficiency"""
-            print("\n3. PERFORMANCE ANALYSIS")
-            print("-" * 40)
+    def _analyze_performance_patterns(self):
+        """Phase 3: Analyze performance and computational efficiency"""
+        print("\n3. PERFORMANCE ANALYSIS")
+        print("-" * 40)
 
-            # Algorithm complexity analysis
-            high_complexity_count = len(self.performance_issues['high_complexity'])
-            complex_functions_count = len(self.performance_issues['complex_functions'])
+        # Algorithm complexity analysis
+        high_complexity_count = len(self.performance_issues['high_complexity'])
+        complex_functions_count = len(self.performance_issues['complex_functions'])
 
-            print(f"   High complexity patterns: {high_complexity_count}")
-            print(f"   Complex functions: {complex_functions_count}")
+        print(f"   High complexity patterns: {high_complexity_count}")
+        print(f"   Complex functions: {complex_functions_count}")
 
-            if high_complexity_count > 0:
-                print("   WARN: Performance optimization recommended")
-            else:
+        if high_complexity_count > 0:
+            print("   WARN: Performance optimization recommended")
+        else:
             print("   PASS: No critical performance issues detected")
 
-            def _is_complex_function(self, node):
-                """Determine if function has high complexity"""
-            # Count nested structures as complexity indicator
-            complexity = 0
-            for child in ast.walk(node):
-                if isinstance(child, (ast.For, ast.While)):
-                    complexity += 1
+    def _is_complex_function(self, node):
+        """Determine if function has high complexity"""
+        # Count nested structures as complexity indicator
+        complexity = 0
+        for child in ast.walk(node):
+            if isinstance(child, (ast.For, ast.While)):
+                complexity += 1
             elif isinstance(child, ast.If):
                 complexity += 0.5
 
-            return complexity > 5
+        return complexity > 5
 
-            def _analyze_error_handling(self):
-                """Phase 4: Analyze error handling patterns and robustness"""
-            self.Error(f"\n4. ERROR HANDLING ANALYSIS"")
-            print("-" * 40)
+    def _analyze_error_handling(self):
+        """Phase 4: Analyze error handling patterns and robustness"""
+        print("\n4. ERROR HANDLING ANALYSIS")
+        print("-" * 40)
 
-            bare_except_count = 0
-            missing_validation_count = 0
+        bare_except_count = 0
+        missing_validation_count = 0
 
-            for file_path in self.python_files:
-                try:
-                    pass
-            except Exception as e:
-                # Log and handle unexpected exception
-            except Exception as e:
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-
-with open(file_path, 'r', encoding='utf-8') as f:
+        for file_path in self.python_files:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
-                
+                    
                 relative_path = str(file_path.relative_to(self.root_dir))
                 
                 # Check for bare except clauses
@@ -329,14 +312,15 @@ with open(file_path, 'r', encoding='utf-8') as f:
                         if not re.search(r'if.*is None|assert|raise', content):
                             missing_validation_count += 1
                 
-            except Exception:
+            except Exception as e:
+                print(f'Unexpected exception: {e}')
                 continue
         
         print(f"   Bare except clauses: {bare_except_count}")
         print(f"   Missing validations: {missing_validation_count}")
         
         if bare_except_count == 0 and missing_validation_count == 0:
-            self.Error(f"   PASS: Error handling patterns look good"")
+            print("   PASS: Error handling patterns look good")
     
     def _verify_integration_compliance(self):
         """Phase 5: Verify QuantConnect API integration compliance"""
@@ -355,51 +339,42 @@ with open(file_path, 'r', encoding='utf-8') as f:
         for file_path in self.python_files:
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+                    content = f.read()
 
-            relative_path = str(file_path.relative_to(self.root_dir))
+                relative_path = str(file_path.relative_to(self.root_dir))
 
-            for pattern in forbidden_patterns:
-                if re.search(pattern, content, re.MULTILINE | re.DOTALL):
-                    self.integration_violations.append(
-            f"FORBIDDEN FALLBACK: {relative_path} - {pattern}"
-            )
-            api_violations += 1
+                for pattern in forbidden_patterns:
+                    if re.search(pattern, content, re.MULTILINE | re.DOTALL):
+                        self.integration_violations.append(
+                            f"FORBIDDEN FALLBACK: {relative_path} - {pattern}"
+                        )
+                        api_violations += 1
 
             except Exception:
                 continue
 
-            print(f"   API compliance violations: {api_violations}")
+        print(f"   API compliance violations: {api_violations}")
 
-            if api_violations == 0:
-                print("   PASS: QuantConnect API integration compliant")
+        if api_violations == 0:
+            print("   PASS: QuantConnect API integration compliant")
 
-            def _analyze_trading_risks(self):
-                """Phase 6: Analyze trading-specific risk patterns"""
-            print("\n6. TRADING RISK ANALYSIS")
-            print("-" * 40)
+    def _analyze_trading_risks(self):
+        """Phase 6: Analyze trading-specific risk patterns"""
+        print("\n6. TRADING RISK ANALYSIS")
+        print("-" * 40)
 
-            risk_issues = 0
+        risk_issues = 0
 
-            # Check for critical trading risk patterns
-            risk_patterns = [
+        # Check for critical trading risk patterns
+        risk_patterns = [
             (r'position.*size.*unlimited', 'Unlimited position sizing risk'),
             (r'stop.*loss.*disabled', 'Stop loss protection disabled'),
             (r'margin.*check.*skip', 'Margin validation bypassed'),
-            ]
+        ]
 
-            for file_path in self.python_files:
-                try:
-                    pass
-            except Exception as e:
-                # Log and handle unexpected exception
-            except Exception as e:
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-
-with open(file_path, 'r', encoding='utf-8') as f:
+        for file_path in self.python_files:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
                 relative_path = str(file_path.relative_to(self.root_dir))
@@ -471,7 +446,7 @@ with open(file_path, 'r', encoding='utf-8') as f:
                 print(f"{i:2d}. {failure}")
         
         if self.error_handling_gaps:
-            self.Error(f"\nERROR HANDLING GAPS ({len(self.error_handling_gaps")
+            print(f"\nERROR HANDLING GAPS ({len(self.error_handling_gaps)}):")
             for i, gap in enumerate(self.error_handling_gaps, 1):
                 print(f"{i:2d}. {gap}")
         

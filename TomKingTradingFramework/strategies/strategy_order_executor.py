@@ -124,9 +124,9 @@ class StrategyOrderExecutor:
         """
         try:
             long_expiry = self.algo.Time + timedelta(days=TradingConstants.CALENDAR_DAYS_PER_YEAR)  # 1 year out
-        long_call = self.create_option_contract(
-        underlying, long_strike, long_expiry, OptionRight.Call
-        )
+            long_call = self.create_option_contract(
+                underlying, long_strike, long_expiry, OptionRight.Call
+            )
         except Exception as e:
 
             # Long dated long call (LEAP-like)

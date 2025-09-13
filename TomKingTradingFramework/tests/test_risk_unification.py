@@ -39,15 +39,7 @@ def test_unified_risk_manager_construction():
     
     # Test 1: Construction
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-risk_manager = UnifiedRiskManager(algorithm)
+        risk_manager = UnifiedRiskManager(algorithm)
         print("[PASS] UnifiedRiskManager construction successful")
     except Exception as e:
         print(f"[FAIL] UnifiedRiskManager construction failed: {e}")
@@ -108,15 +100,7 @@ def test_august_2024_safety_features():
     
     # Test 1: Correlation risk tracking exists
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-metrics = risk_manager.get_risk_status()
+        metrics = risk_manager.get_risk_status()
         if 'risk_level' not in metrics:
             # Try alternative approach
             if not hasattr(risk_manager, 'risk_metrics'):
@@ -185,15 +169,7 @@ def test_plugin_architecture():
     
     # Test 2: Plugin interface (IRiskPlugin) exists
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-from risk.unified_risk_manager import IRiskPlugin
+        from risk.unified_risk_manager import IRiskPlugin
         print("[PASS] IRiskPlugin interface exists")
     except ImportError:
         print("[FAIL] IRiskPlugin interface missing")
@@ -249,15 +225,7 @@ def test_risk_consolidation():
                         
                         # Check if file indicates it's been consolidated
                         try:
-                            
-                        except Exception as e:
-
-                            # Log and handle unexpected exception
-
-                            print(f'Unexpected exception: {e}')
-
-                            raise
-with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                                 content = f.read()
                                 if 'unified_risk_manager' in content.lower() or 'consolidated' in content.lower():
                                     consolidated_count += 1
@@ -274,15 +242,7 @@ with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
             if file.endswith('.py'):
                 filepath = os.path.join(root, file)
                 try:
-                    
-                except Exception as e:
-
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
                         if 'UnifiedRiskManager' in content:
                             unified_usage_files.append(filepath)
@@ -341,15 +301,7 @@ def verify_safety_system_completeness():
     
     # Test risk evaluation
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-can_open = risk_manager.can_open_position('SPY', 100, {})
+        can_open = risk_manager.can_open_position('SPY', 100, {})
         print("[PASS] Risk evaluation functional")
     except Exception as e:
         print(f"[WARN] Risk evaluation may need real data: {e}")
@@ -364,19 +316,9 @@ def main():
     print("=" * 60)
     
     try:
-    if not test_unified_risk_manager_construction():
-    return False
-    except Exception as e:
-
-    
-        # Log and handle unexpected exception
-
-    
-        print(f'Unexpected exception: {e}')
-
-    
-        raise
-# Test 1: UnifiedRiskManager functionality
+        # Test 1: UnifiedRiskManager functionality
+        if not test_unified_risk_manager_construction():
+            return False
             
         # Test 2: August 2024 safety features preserved
         if not test_august_2024_safety_features():

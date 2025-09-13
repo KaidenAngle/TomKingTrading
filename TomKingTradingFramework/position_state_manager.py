@@ -26,14 +26,13 @@ class OrderStatus:
     
     Filled = 0
     
-PartiallyFilled = 1
+    PartiallyFilled = 1
     
-Canceled = 2
-    
-except Exception as e:
+    Canceled = 2
 
-    class PositionComponent:
-        """Represents a single component of a multi-legged position"""
+    
+class PositionComponent:
+    """Represents a single component of a multi-legged position"""
     
     def __init__(self, component_id: str, strategy: str, symbol: str, 
                  leg_type: str, contract_symbol: str, quantity: int, 
@@ -403,20 +402,19 @@ class PositionStateManagerQC:
         
         try:
             # Close each component
-        for component in position.components.values():
-            # Place closing order for each component
-        if hasattr(self.algo, 'Liquidate'):
-            self.algo.Liquidate(component.contract_symbol, f"Closing {position.strategy} position")
+            for component in position.components.values():
+                # Place closing order for each component
+                if hasattr(self.algo, 'Liquidate'):
+                    self.algo.Liquidate(component.contract_symbol, f"Closing {position.strategy} position")
 
-        # Remove position from tracking
-        del self.positions[position_id]
+            # Remove position from tracking
+            del self.positions[position_id]
 
-        self.algo.Log(f"[WARNING] Closed multi-legged position {position_id} ({position.strategy})")
-        return True
-
+            self.algo.Log(f"[WARNING] Closed multi-legged position {position_id} ({position.strategy})")
+            return True
         except Exception as e:
             self.algo.Log(f"[ERROR] Failed to close position {position_id}: {e}")
-        return False
+            return False
 
         # ================================
         # ORDER EXECUTION INTEGRATION
@@ -426,33 +424,47 @@ class PositionStateManagerQC:
             """Link QuantConnect order ticket to position component"""
         if position_id in self.positions:
             position = self.positions[position_id]
-        if component_id in position.components:
-            component = position.components[component_id]
-        component.order_ticket = order_ticket
-        component.qc_symbol = order_ticket.Symbol
+            if component_id in position.components:
+                component = position.components[component_id]
+                component.order_ticket = order_ticket
+                component.qc_symbol = order_ticket.Symbol
 
-        # Update with actual fill if order is filled
-        if order_ticket.Status == OrderStatus.Filled:
-            component.actual_fill_price = order_ticket.AverageFillPrice
-        component.actual_quantity = order_ticket.Quantity
-        component.fill_time = self.algo.Time
-        component.order_status = "FILLED"
-        component.entry_price = order_ticket.AverageFillPrice
-
-        self.algo.Log(f"[ORDER] Linked filled order to {component_id}: Price={component.actual_fill_price}, Qty={component.actual_quantity}")
-        else:
-        component.order_status = str(order_ticket.Status)
-
-        return True
+                # Update with actual fill if order is filled
+                if order_ticket.Status == OrderStatus.Filled:
+                    component.actual_fill_price = order_ticket.AverageFillPrice
+                    component.actual_quantity = order_ticket.Quantity
+                    component.fill_time = self.algo.Time
+                    component.order_status = "FILLED"
+                    component.entry_price = order_ticket.AverageFillPrice
+                    self.algo.Log(f"[ORDER] Linked filled order to {component_id}: Price={component.actual_fill_price}, Qty={component.actual_quantity}")
+                else:
+                    component.order_status = str(order_ticket.Status)
+                return True
         return False
 
-        def execute_component_order(self, component: PositionComponent, position_id: str, action: str = 'open'):
-            """Execute actual QuantConnect order for component"""
+    def execute_component_order(self, component: PositionComponent, position_id: str, action: str = 'open'):
+        """Execute actual QuantConnect order for component"""
         try:
-            pass
+            # Execute QuantConnect order for this component
+            if action == 'open':
+                # Place opening order
+                if component.contract_type == 'option':
+                    order_ticket = self.algo.MarketOrder(component.contract_symbol, component.quantity)
+                else:
+                    order_ticket = self.algo.MarketOrder(component.contract_symbol, component.quantity)
+            else:
+                # Place closing order  
+                order_ticket = self.algo.Liquidate(component.contract_symbol, f"Closing {action}")
+            
+            # Link the order ticket to the component
+            if order_ticket:
+                component.order_ticket = order_ticket
+                component.qc_symbol = order_ticket.Symbol
+                return order_ticket
+            return None
         except Exception as e:
-            # Log and handle unexpected exception
-        except Exception as e:
+            self.algo.Log(f"[ERROR] Failed to execute order for component: {e}")
+            return None
 
         
             print(f'Unexpected exception: {e}')
@@ -598,81 +610,79 @@ class PositionStateManagerQC:
         try:
             state_data = json.loads(state_json)
 
-        for pos_id, pos_data in state_data['positions'].items():
-            # Recreate MultiLegPosition
-        position = MultiLegPosition(
-        position_id=pos_id,
-        strategy=pos_data['strategy'],
-        symbol=pos_data['symbol']
-        )
+            for pos_id, pos_data in state_data['positions'].items():
+                # Recreate MultiLegPosition
+                position = MultiLegPosition(
+                    position_id=pos_id,
+                    strategy=pos_data['strategy'],
+                    symbol=pos_data['symbol']
+                )
 
-        # Restore metadata
-        position.entry_time = datetime.fromisoformat(pos_data['entry_time'])
-        position.status = pos_data['status']
-        position.total_pnl = pos_data['total_pnl']
-        position.metadata = pos_data.get('metadata', {})
+                # Restore metadata
+                position.entry_time = datetime.fromisoformat(pos_data['entry_time'])
+                position.status = pos_data['status']
+                position.total_pnl = pos_data['total_pnl']
+                position.metadata = pos_data.get('metadata', {})
 
-        # Recreate components
-        for comp_id, comp_data in pos_data['components'].items():
-            component = PositionComponent(
-        component_id=comp_id,
-        strategy=comp_data['strategy'],
-        symbol=comp_data['symbol'],
-        leg_type=comp_data['leg_type'],
-        contract_symbol=comp_data['contract_symbol'],
-        quantity=comp_data['quantity'],
-        strike=comp_data['strike'],
-        expiry=datetime.fromisoformat(comp_data['expiry']),
-        right=OptionRight.Call if comp_data.get('right') == 'OptionRight.Call' else OptionRight.Put if comp_data.get('right') == 'OptionRight.Put' else None
-        )
+                # Recreate components
+                for comp_id, comp_data in pos_data['components'].items():
+                    component = PositionComponent(
+                        component_id=comp_id,
+                        strategy=comp_data['strategy'],
+                        symbol=comp_data['symbol'],
+                        leg_type=comp_data['leg_type'],
+                        contract_symbol=comp_data['contract_symbol'],
+                        quantity=comp_data['quantity'],
+                        strike=comp_data['strike'],
+                        expiry=datetime.fromisoformat(comp_data['expiry']),
+                        right=OptionRight.Call if comp_data.get('right') == 'OptionRight.Call' else OptionRight.Put if comp_data.get('right') == 'OptionRight.Put' else None
+                    )
 
-        # Restore component state
-        component.entry_time = datetime.fromisoformat(comp_data['entry_time'])
-        component.entry_price = comp_data['entry_price']
-        component.current_price = comp_data['current_price']
-        component.status = comp_data['status']
-        component.pnl = comp_data['pnl']
-        component.days_held = comp_data['days_held']
+                    # Restore component state
+                    component.entry_time = datetime.fromisoformat(comp_data['entry_time'])
+                    component.entry_price = comp_data['entry_price']
+                    component.current_price = comp_data['current_price']
+                    component.status = comp_data['status']
+                    component.pnl = comp_data['pnl']
+                    component.days_held = comp_data['days_held']
 
-        # Restore order tracking state
-        component.order_status = comp_data.get('order_status', 'PENDING')
-        component.actual_fill_price = comp_data.get('actual_fill_price')
-        component.actual_quantity = comp_data.get('actual_quantity')
-        component.fill_time = datetime.fromisoformat(comp_data['fill_time']) if comp_data.get('fill_time') else None
-        component.commission = comp_data.get('commission', 0.0)
+                    # Restore order tracking state
+                    component.order_status = comp_data.get('order_status', 'PENDING')
+                    component.actual_fill_price = comp_data.get('actual_fill_price')
+                    component.actual_quantity = comp_data.get('actual_quantity')
+                    component.fill_time = datetime.fromisoformat(comp_data['fill_time']) if comp_data.get('fill_time') else None
+                    component.commission = comp_data.get('commission', 0.0)
 
-        position.add_component(component)
+                    position.add_component(component)
 
-        self.positions[pos_id] = position
+                self.positions[pos_id] = position
 
-        self.algo.Log(f"[PERSISTENCE] Restored {len(self.positions)} multi-legged positions")
-
+            self.algo.Log(f"[PERSISTENCE] Restored {len(self.positions)} multi-legged positions")
         except Exception as e:
             self.algo.Log(f"[ERROR] State deserialization failed: {e}")
 
-        def get_state_summary(self) -> Dict:
-            """Get summary of current state for monitoring"""
+    def get_state_summary(self) -> Dict:
+        """Get summary of current state for monitoring"""
         summary = {
-        'total_positions': len(self.positions),
-        'positions_by_strategy': {},
-        'positions_by_status': {},
-        'total_components': 0,
-        'unfilled_components': len(self.get_unfilled_components())
+            'total_positions': len(self.positions),
+            'positions_by_strategy': {},
+            'positions_by_status': {},
+            'total_components': 0,
+            'unfilled_components': len(self.get_unfilled_components())
         }
 
         for position in self.positions.values():
             # Count by strategy
-        if position.strategy not in summary['positions_by_strategy']:
-            summary['positions_by_strategy'][position.strategy] = 0
-        summary['positions_by_strategy'][position.strategy] += 1
+            if position.strategy not in summary['positions_by_strategy']:
+                summary['positions_by_strategy'][position.strategy] = 0
+            summary['positions_by_strategy'][position.strategy] += 1
 
-        # Count by status
-        if position.status not in summary['positions_by_status']:
-            summary['positions_by_status'][position.status] = 0
-        summary['positions_by_status'][position.status] += 1
+            # Count by status
+            if position.status not in summary['positions_by_status']:
+                summary['positions_by_status'][position.status] = 0
+            summary['positions_by_status'][position.status] += 1
 
-        # Count total components
-        summary['total_components'] += len(position.components)
-        except Exception as e:
-
-            return summary
+            # Count total components
+            summary['total_components'] += len(position.components)
+            
+        return summary

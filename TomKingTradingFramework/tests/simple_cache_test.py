@@ -94,19 +94,9 @@ def main():
     print("=" * 60)
     
     try:
-    if not test_cache_basic_functionality():
-    return False
-    except Exception as e:
-
-    
-        # Log and handle unexpected exception
-
-    
-        print(f'Unexpected exception: {e}')
-
-    
-        raise
-# Test 1: Basic functionality
+        # Test 1: Basic functionality
+        if not test_cache_basic_functionality():
+            return False
             
         # Test 2: Verify consolidation
         if not verify_cache_consolidation():

@@ -57,15 +57,7 @@ class TestComprehensiveFrameworkAudit(unittest.TestCase):
                 if file.endswith('.py'):
                     filepath = os.path.join(root, file)
                     try:
-                        
-                    except Exception as e:
-
-                        # Log and handle unexpected exception
-
-                        print(f'Unexpected exception: {e}')
-
-                        raise
-with open(filepath, 'r', encoding='utf-8') as f:
+                        with open(filepath, 'r', encoding='utf-8') as f:
                             content = f.read()
                             
                         for pattern in credential_patterns:
@@ -123,15 +115,7 @@ with open(filepath, 'r', encoding='utf-8') as f:
             if hasattr(method, '__isabstractmethod__') and method.__isabstractmethod__:
                 # Get source and verify it uses ellipsis, not pass
                 try:
-                    
-                except Exception as e:
-
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-source = inspect.getsource(method)
+                    source = inspect.getsource(method)
                     self.assertIn('...', source, f"{method_name} should use ellipsis notation")
                     self.assertNotIn('pass', source, f"{method_name} should not use pass statement")
                 except (ImportError, ModuleNotFoundError) as e:
@@ -236,15 +220,7 @@ source = inspect.getsource(method)
         
         for import_path in critical_imports:
             try:
-                
-            except Exception as e:
-
-                # Log and handle unexpected exception
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-__import__(import_path)
+                __import__(import_path)
             except ImportError as e:
                 self.fail(f"Critical import failed: {import_path} - {e}")
         

@@ -25,9 +25,6 @@ class LivePositionRecovery:
     def save_positions(self):
         """Save current positions to ObjectStore"""
         try:
-            pass
-        except Exception as e:
-
             positions = []
             for symbol, holding in self.algo.Portfolio.items():
                 if holding.Invested:
@@ -55,9 +52,6 @@ class LivePositionRecovery:
     def recover_positions(self):
         """Recover positions from ObjectStore on restart"""
         try:
-            pass
-        except Exception as e:
-
             if self.algo.ObjectStore.ContainsKey(self.storage_key):
                 json_state = self.algo.ObjectStore.Read(self.storage_key)
                 state = json.loads(json_state)
@@ -71,7 +65,6 @@ class LivePositionRecovery:
                     return state
                 else:
                     self.algo.Log(f"Saved state too old ({time_diff:.1f} hours), starting fresh")
-            
         except Exception as e:
             self.algo.Log(f"Failed to recover positions: {str(e)}")
         
@@ -162,10 +155,8 @@ class LiveFuturesRoller:
     def roll_position(self, current_symbol, holding):
         """Roll a futures position to next month"""
         try:
-            next_contract = self.get_next_month_contract(current_symbol)
-        except Exception as e:
-
             # Get next month contract
+            next_contract = self.get_next_month_contract(current_symbol)
             
             if next_contract:
                 # Close current position
@@ -175,7 +166,6 @@ class LiveFuturesRoller:
                 self.algo.MarketOrder(next_contract, holding.Quantity)
                 
                 self.algo.Log(f"Rolled {current_symbol} to {next_contract}")
-        
         except Exception as e:
             self.algo.Log(f"Failed to roll {current_symbol}: {str(e)}")
     
@@ -212,9 +202,6 @@ class LiveBrokerFailover:
     def place_order_with_failover(self, symbol, quantity, order_type='MARKET'):
         """Place order with automatic failover"""
         try:
-            pass
-        except Exception as e:
-
             if self.use_tastytrade and hasattr(self.algo, 'tastytrade_api'):
                 # Try TastyTrade first
                 result = self.place_tastytrade_order(symbol, quantity, order_type)
@@ -237,14 +224,12 @@ class LiveBrokerFailover:
         # Use the TastyTrade integration if available
         if hasattr(self.algo, 'tastytrade') and self.algo.tastytrade:
             try:
-                limit_price = None
-            if order_type == 'LIMIT':
-                security = self.algo.Securities[symbol]
-            # Use mid price for limit orders
-            limit_price = (security.BidPrice + security.AskPrice) / 2
-            except Exception as e:
-
                 # Determine limit price if needed
+                limit_price = None
+                if order_type == 'LIMIT':
+                    security = self.algo.Securities[symbol]
+                    # Use mid price for limit orders
+                    limit_price = (security.BidPrice + security.AskPrice) / 2
                 
                 # Place the order through TastyTrade
                 result = self.algo.tastytrade.place_order(
@@ -260,7 +245,6 @@ class LiveBrokerFailover:
                 else:
                     self.algo.Log(f"TastyTrade order failed for {symbol}")
                     return None
-                    
             except Exception as e:
                 self.algo.Log(f"Error placing TastyTrade order: {str(e)}")
                 return None

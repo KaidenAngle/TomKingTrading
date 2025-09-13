@@ -42,13 +42,11 @@ class UnifiedOrderPricing:
         """
         
         try:
+            # Get bid/ask if not provided
             if bid_price is None or ask_price is None:
                 if symbol not in self.algo.Securities:
                     self.algo.Error(f"[UnifiedPricing] Symbol {symbol} not in securities")
-        return (0, False)
-        except Exception as e:
-
-            # Get bid/ask if not provided
+                    return (0, False)
                 
                 security = self.algo.Securities[symbol]
                 bid_price = security.BidPrice if hasattr(security, 'BidPrice') else security.Price
@@ -62,6 +60,7 @@ class UnifiedOrderPricing:
             # Calculate spread
             spread = ask_price - bid_price
             mid_price = (bid_price + ask_price) / 2
+        except Exception as e:
             
             # Check if spread is reasonable
             if spread < self.min_spread_for_limit:

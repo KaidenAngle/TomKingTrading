@@ -33,26 +33,19 @@ class CorrelationPlugin(BaseRiskPlugin):
     def _plugin_initialize(self) -> bool:
         """Initialize correlation risk management"""
         try:
-        self.correlation_groups = {
-        'A1': ['ES', 'MES', 'NQ', 'MNQ', 'RTY', 'M2K', 'YM', 'MYM'],  # Equity Indices
-        'A2': ['SPY', 'QQQ', 'IWM', 'DIA'],  # Equity ETFs + IPMCC positions
-        'B1': ['GC', 'MGC', 'GLD', 'TLT', 'ZB', 'ZN'],  # Safe Haven
-        'B2': ['SI', 'SIL', 'SLV', 'HG', 'PL', 'PA'],  # Industrial Metals
-        'C1': ['CL', 'MCL', 'QM', 'RB', 'HO', 'XLE', 'XOP'],  # Crude Complex
-        'C2': ['NG'],  # Natural Gas
-        'D1': ['ZC', 'ZS', 'ZW'],  # Grains
-        'D2': ['LE', 'HE', 'GF'],  # Proteins
-        'E': ['6E', '6B', '6A', '6C', 'M6E', 'M6A', 'DXY']  # Currencies
-        }
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Tom King's correlation groups (exactly as original - CRITICAL_DO_NOT_CHANGE)
+            self.correlation_groups = {
+                'A1': ['ES', 'MES', 'NQ', 'MNQ', 'RTY', 'M2K', 'YM', 'MYM'],  # Equity Indices
+                'A2': ['SPY', 'QQQ', 'IWM', 'DIA'],  # Equity ETFs + IPMCC positions
+                'B1': ['GC', 'MGC', 'GLD', 'TLT', 'ZB', 'ZN'],  # Safe Haven
+                'B2': ['SI', 'SIL', 'SLV', 'HG', 'PL', 'PA'],  # Industrial Metals
+                'C1': ['CL', 'MCL', 'QM', 'RB', 'HO', 'XLE', 'XOP'],  # Crude Complex
+                'C2': ['NG'],  # Natural Gas
+                'D1': ['ZC', 'ZS', 'ZW'],  # Grains
+                'D2': ['LE', 'HE', 'GF'],  # Proteins
+                'E': ['6E', '6B', '6A', '6C', 'M6E', 'M6A', 'DXY']  # Currencies
+            }
             
+            # Tom King's correlation groups (exactly as original - CRITICAL_DO_NOT_CHANGE)
             # August 5, 2024 crisis correlation weights (NEVER CHANGE)
             self.crisis_correlation_weights = {
                 'A1': 0.95,  # Equity Indices - Nearly perfect correlation during crashes
@@ -70,7 +63,7 @@ class CorrelationPlugin(BaseRiskPlugin):
             self.active_positions_by_group = {}
             self.position_timestamps = {}  # Track when positions were opened
             
-            # Phase-based limits (Tom King methodology)
+            # Phase-based limits (Tom King methodology) - initialization complete  
             self.phase_limits = self._get_phase_limits()
             
             # VIX regime tracking
@@ -78,7 +71,7 @@ class CorrelationPlugin(BaseRiskPlugin):
             self.vix_regime = 'NORMAL'
             self.last_vix_update = self._algorithm.Time
             
-            # Emergency controls
+            # Emergency controls complete
             self.bypass_attempts = []
             self.enforcement_enabled = True
             self.max_total_equity_positions = 3  # A1 + A2 combined
@@ -89,29 +82,30 @@ class CorrelationPlugin(BaseRiskPlugin):
             self.last_metrics_update = self._algorithm.Time
             
             return True
-            
         except Exception as e:
-            self._algorithm.Error(f"[Correlation Plugin] Initialization error: {e}")
+            # Log and handle unexpected exception
+            self.algo.Error(f"Failed to initialize correlation plugin: {e}")
             return False
     
     def _get_phase_limits(self) -> Dict[str, int]:
         """Get correlation limits based on Tom King phase system"""
         try:
-            
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-account_value = float(self._algorithm.Portfolio.TotalPortfolioValue)
-            
             # Import Tom King parameters for consistency
-            from config.strategy_parameters import TomKingParameters
-            phase = TomKingParameters.get_phase_for_account_size(account_value)
+            account_value = float(self._algorithm.Portfolio.TotalPortfolioValue)
             
-            # Phase-based limits (exactly as original)
+            # Determine phase based on account size (Tom King methodology)
+            if account_value < 40000:
+                phase = 0  # MES-only accounts
+            elif account_value < 55000:
+                phase = 1  # Phase 1: Foundation
+            elif account_value < 75000:
+                phase = 2  # Phase 2: Growth  
+            elif account_value < 95000:
+                phase = 3  # Phase 3: Advanced
+            else:
+                phase = 4  # Phase 4: Professional
+            
+            # Phase-based limits (exactly as original Tom King methodology)
             if phase == 0:  # MES-only accounts (under $40k)
                 return {
                     'A1': 1, 'A2': 1, 'B1': 1, 'B2': 1,
@@ -137,14 +131,11 @@ account_value = float(self._algorithm.Portfolio.TotalPortfolioValue)
                     'A1': 3, 'A2': 3, 'B1': 2, 'B2': 2,
                     'C1': 3, 'C2': 2, 'D1': 2, 'D2': 2, 'E': 2
                 }
-                
+            
         except Exception as e:
-            self._algorithm.Error(f"[Correlation Plugin] Error getting phase limits: {e}")
-            # Conservative fallback
-            return {
-                'A1': 1, 'A2': 1, 'B1': 1, 'B2': 1,
-                'C1': 1, 'C2': 1, 'D1': 1, 'D2': 1, 'E': 1
-            }
+            # Log and handle unexpected exception
+            self.algo.Error(f"Error getting phase limits: {e}")
+            return {'A1': 1, 'A2': 1, 'B1': 1, 'B2': 1, 'C1': 1, 'C2': 1, 'D1': 1, 'D2': 1, 'E': 1}
     
     def can_open_position(self, symbol: str, quantity: int, 
                          context: Dict[str, Any] = None) -> tuple[bool, str]:
@@ -439,18 +430,11 @@ account_value = float(self._algorithm.Portfolio.TotalPortfolioValue)
     def _sync_positions_with_portfolio(self):
         """Sync position tracking with actual portfolio positions"""
         try:
-        actual_symbols = set()
-        for holding in self._algorithm.Portfolio.Values:
-        if holding.Invested:
-        actual_symbols.add(holding.Symbol)
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Get actual positions from portfolio
+            # Get actual positions from portfolio
+            actual_symbols = set()
+            for holding in self._algorithm.Portfolio.Values:
+                if holding.Invested:
+                    actual_symbols.add(holding.Symbol)
             
             # Remove tracking for positions that no longer exist
             for group, positions in list(self.active_positions_by_group.items()):

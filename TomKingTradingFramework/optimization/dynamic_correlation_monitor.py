@@ -86,15 +86,8 @@ class DynamicCorrelationMonitor:
     def _calculate_correlation(self, symbol1: str, symbol2: str) -> Optional[float]:
         """Calculate correlation between two symbols"""
         try:
-            
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-returns1 = np.array(list(self.returns_history[symbol1]))
+            # Calculate correlation between symbols
+            returns1 = np.array(list(self.returns_history[symbol1]))
             returns2 = np.array(list(self.returns_history[symbol2]))
             
             if len(returns1) != len(returns2) or len(returns1) < self.window_size:

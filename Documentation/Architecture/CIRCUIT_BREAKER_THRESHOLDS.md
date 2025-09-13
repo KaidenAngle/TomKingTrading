@@ -1,77 +1,47 @@
-# Circuit Breaker Thresholds
+# Circuit Breaker Implementation
 
 ## Overview
-Circuit breakers halt trading when specific risk thresholds are breached. Each threshold is based on statistical analysis and real disaster scenarios. These are NOT arbitrary numbers.
+This document explains the implementation of circuit breakers in the Tom King Trading Framework. For complete parameter definitions and thresholds, see [Master Risk Parameters](../Methodology/MASTER_RISK_PARAMETERS.md).
 
-## The Circuit Breakers
+All circuit breaker thresholds are defined in the master parameters file.
 
-### 1. Rapid Drawdown: -3% in 5 Minutes
+## Implementation Architecture
+
+### CircuitBreakerManager Class
 ```python
-CIRCUIT_BREAKERS = {
-    'rapid_drawdown': {
-        'threshold': -0.03,  # 3% loss
-        'window': timedelta(minutes=5)
-    }
-}
+class CircuitBreakerManager:
+    """Monitors portfolio conditions and triggers emergency halts"""
+
+    def __init__(self, algo):
+        self.algo = algo
+        # Import thresholds from master parameters
+        from Methodology.MASTER_RISK_PARAMETERS import CIRCUIT_BREAKERS
+        self.thresholds = CIRCUIT_BREAKERS
+
+    def check_rapid_drawdown(self) -> bool:
+        """Monitor for flash crash conditions"""
+        # Implementation details...
+
+    def check_correlation_spike(self) -> bool:
+        """Monitor for dangerous correlation levels"""
+        # Implementation details...
+
+    def check_margin_spike(self) -> bool:
+        """Monitor for margin call risk"""
+        # Implementation details...
 ```
 
-#### Why 3%?
-- **Normal market move**: SPY moves 0.5-1% in 5 minutes
-- **Unusual move**: 1-2% in 5 minutes (concerning)
-- **Disaster move**: 3%+ in 5 minutes (STOP EVERYTHING)
-
-#### Why 5 Minutes?
-- **Too short (1 min)**: False triggers from single ticks
-- **Too long (15 min)**: Too much damage already done
-- **5 minutes**: Catches flash crashes early
-
-#### Historical Events Caught:
-- May 6, 2010: Flash Crash (-3.5% in 5 min)
-- Aug 24, 2015: China Devaluation (-3.2% in 5 min)
-- Feb 5, 2018: Volmageddon (-3.1% in 5 min)
-
-### 2. Correlation Spike: 0.90
+### Integration with Main Algorithm
 ```python
-CIRCUIT_BREAKERS = {
-    'correlation_spike': {
-        'threshold': 0.90  # 90% correlation
-    }
-}
-```
+def OnData(self, data):
+    # Check circuit breakers before any trading
+    if self.circuit_breaker.is_triggered():
+        self.Log("[EMERGENCY] Circuit breaker triggered - halting all trading")
+        self.halt_all_strategies()
+        return
 
-#### Why 0.90?
+    # Normal trading logic continues...
 ```
-Correlation Analysis:
-< 0.50: Independent positions (safe)
-0.50-0.70: Some correlation (monitor)
-0.70-0.90: High correlation (warning)
-> 0.90: Everything moving together (DANGER)
-```
-
-#### What It Means:
-- 0.90 correlation = 81% of variance explained
-- Essentially the same trade in different wrappers
-- No diversification benefit
-- August 5, 2024 hit 0.95 correlation
-
-### 3. Margin Spike: 80%
-```python
-CIRCUIT_BREAKERS = {
-    'margin_spike': {
-        'threshold': 0.80  # 80% margin used
-    }
-}
-```
-
-#### Why 80%?
-```
-Margin Usage Zones:
-0-30%: Safe zone (plenty of buffer)
-30-50%: Normal trading zone
-50-70%: Caution zone (reduce new trades)
-70-80%: Warning zone (defensive mode)
-> 80%: DANGER ZONE (halt trading)
-> 90%: Margin call imminent
 ```
 
 #### Buffer Calculation:

@@ -26,9 +26,9 @@ class TastytradeCredentials:
     ACCOUNT_NUMBER_MARGIN = os.getenv('TASTYTRADE_ACCOUNT_MARGIN', '')  # Margin account
     
     # API Configuration
-    API_BASE_URL = "https://api.tastyworks.com"
-    OAUTH_URL = "https://api.tastyworks.com/oauth/token"
-    STREAMER_URL = "wss://streamer.tastyworks.com"
+    API_BASE_URL = "https://api.tastytrade.com"
+    OAUTH_URL = "https://api.tastytrade.com/oauth/token"
+    STREAMER_URL = "wss://streamer.tastytrade.com"
     DXLINK_URL = "wss://tasty-openapi-ws.dxfeed.com/realtime"
     
     # Credentials from environment variables (SECURE)

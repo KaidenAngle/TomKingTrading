@@ -72,11 +72,10 @@ class CriticalValidations:
     def validate_margin_requirements(self, required_bp: float, strategy_name: str = "") -> bool:
         """Check if we have sufficient buying power for the trade"""
         try:
-            available_margin = self.algo.Portfolio.MarginRemaining
-        total_value = self.algo.Portfolio.TotalPortfolioValue
-        except Exception as e:
-
             # Get available margin
+            available_margin = self.algo.Portfolio.MarginRemaining
+            total_value = self.algo.Portfolio.TotalPortfolioValue
+        except Exception as e:
             
             # Keep 20% buffer for safety
             safety_buffer = total_value * 0.20

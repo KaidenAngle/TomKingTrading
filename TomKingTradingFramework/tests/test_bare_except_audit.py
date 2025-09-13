@@ -21,15 +21,7 @@ def find_bare_except_clauses():
             if file.endswith('.py'):
                 filepath = os.path.join(root, file)
                 try:
-                    
-                except Exception as e:
-
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-with open(filepath, 'r', encoding='utf-8') as f:
+                    with open(filepath, 'r', encoding='utf-8') as f:
                         content = f.read()
                         
                     matches = pattern.finditer(content)

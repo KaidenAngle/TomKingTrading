@@ -63,28 +63,31 @@ class GreeksMonitor(BaseComponent, IManager):
     
     def update(self):
         """Update Greeks with advanced caching (performance optimization)"""
-        
-        # Run unified cache maintenance (handles all cache types including Greeks)
-        self.greeks_cache.periodic_maintenance()
-        
-        # Log cache statistics periodically
-        if (self.algorithm.Time - self.last_stats_log) > self.cache_stats_log_interval:
-            self._log_cache_performance()
-            self.last_stats_log = self.algorithm.Time
-        
-        # Use cached portfolio Greeks with position change detection
-        cache_key = 'portfolio_greeks'
-        cached_greeks = self.greeks_cache.get(
-            cache_key, 
-            lambda: self._calculate_portfolio_greeks_internal(),
-            cache_type=CacheType.GREEKS
-        )
-        
-        # Update legacy cached values for backward compatibility
-        self.cached_portfolio_greeks = cached_greeks
-        self.last_greeks_calculation = self.algorithm.Time
-        
-        return cached_greeks
+        try:
+            # Run unified cache maintenance (handles all cache types including Greeks)
+            self.greeks_cache.periodic_maintenance()
+            
+            # Log cache statistics periodically
+            if (self.algorithm.Time - self.last_stats_log) > self.cache_stats_log_interval:
+                self._log_cache_performance()
+                self.last_stats_log = self.algorithm.Time
+            
+            # Use cached portfolio Greeks with position change detection
+            cache_key = 'portfolio_greeks'
+            cached_greeks = self.greeks_cache.get(
+                cache_key, 
+                lambda: self._calculate_portfolio_greeks_internal(),
+                cache_type=CacheType.GREEKS
+            )
+            
+            # Update legacy cached values for backward compatibility
+            self.cached_portfolio_greeks = cached_greeks
+            self.last_greeks_calculation = self.algorithm.Time
+            
+            return cached_greeks
+        except Exception as e:
+            self.error(f"Error updating Greeks: {e}")
+            return self._get_default_portfolio_greeks()
     
     def _get_position_snapshot(self):
         """Get snapshot of current positions for change detection"""
@@ -116,48 +119,51 @@ class GreeksMonitor(BaseComponent, IManager):
     def _calculate_black_scholes_greeks(self, spot: float, strike: float, dte: float, 
                                       iv: float, option_type: str, r: float = 0.05) -> Dict:
         """Internal Black-Scholes calculation (cached by calculate_option_greeks)"""
+        try:
+            T = max(0.001, dte / 365.0)  # Minimum 0.001 to prevent zero
+            sqrt_T = np.sqrt(T)
             
-        T = max(0.001, dte / 365.0)  # Minimum 0.001 to prevent zero
-        sqrt_T = np.sqrt(T)
-        
-        # Prevent division by zero
-        if iv <= 0:
-            iv = 0.20  # Default 20% IV
-        if sqrt_T <= 0:
-            sqrt_T = 0.001  # Fallback for edge case
+            # Prevent division by zero
+            if iv <= 0:
+                iv = 0.20  # Default 20% IV
+            if sqrt_T <= 0:
+                sqrt_T = 0.001  # Fallback for edge case
+                
+            d1 = (np.log(spot / strike) + (r + 0.5 * iv ** 2) * T) / (iv * sqrt_T)
+            d2 = d1 - iv * sqrt_T
             
-        d1 = (np.log(spot / strike) + (r + 0.5 * iv ** 2) * T) / (iv * sqrt_T)
-        d2 = d1 - iv * sqrt_T
-        
-        # Calculate Greeks based on option type
-        if option_type.upper() == 'CALL':
-            delta = norm.cdf(d1)
-            theta = (-spot * norm.pdf(d1) * iv / (2 * sqrt_T) 
-                    - r * strike * np.exp(-r * T) * norm.cdf(d2)) / 365
-            rho = strike * T * np.exp(-r * T) * norm.cdf(d2) / 100
-        else:  # PUT
-            delta = norm.cdf(d1) - 1
-            theta = (-spot * norm.pdf(d1) * iv / (2 * sqrt_T) 
-                    + r * strike * np.exp(-r * T) * norm.cdf(-d2)) / 365
-            rho = -strike * T * np.exp(-r * T) * norm.cdf(-d2) / 100
+            # Calculate Greeks based on option type
+            if option_type.upper() == 'CALL':
+                delta = norm.cdf(d1)
+                theta = (-spot * norm.pdf(d1) * iv / (2 * sqrt_T) 
+                        - r * strike * np.exp(-r * T) * norm.cdf(d2)) / 365
+                rho = strike * T * np.exp(-r * T) * norm.cdf(d2) / 100
+            else:  # PUT
+                delta = norm.cdf(d1) - 1
+                theta = (-spot * norm.pdf(d1) * iv / (2 * sqrt_T) 
+                        + r * strike * np.exp(-r * T) * norm.cdf(-d2)) / 365
+                rho = -strike * T * np.exp(-r * T) * norm.cdf(-d2) / 100
+                
+            # Greeks same for calls and puts
+            # Protect against division by zero
+            if spot == 0 or iv == 0 or sqrt_T == 0:
+                gamma = 0
+            else:
+                gamma = norm.pdf(d1) / (spot * iv * sqrt_T)
             
-        # Greeks same for calls and puts
-        # Protect against division by zero
-        if spot == 0 or iv == 0 or sqrt_T == 0:
-            gamma = 0
-        else:
-            gamma = norm.pdf(d1) / (spot * iv * sqrt_T)
+            vega = spot * norm.pdf(d1) * sqrt_T / TradingConstants.FULL_PERCENTAGE  # Per 1% IV change
         
-        vega = spot * norm.pdf(d1) * sqrt_T / TradingConstants.FULL_PERCENTAGE  # Per 1% IV change
-        
-        return {
-            'delta': delta,
-            'gamma': gamma,
-            'theta': theta,
-            'vega': vega,
-            'rho': rho,
-            'iv': iv
-        }
+            return {
+                'delta': delta,
+                'gamma': gamma,
+                'theta': theta,
+                'vega': vega,
+                'rho': rho,
+                'iv': iv
+            }
+        except Exception as e:
+            self.error(f"Error calculating Black-Scholes Greeks: {e}")
+            return {'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0, 'rho': 0, 'iv': 0.20}
         
     def calculate_portfolio_greeks(self) -> Dict:
         """Calculate total portfolio Greeks with caching"""
@@ -171,173 +177,164 @@ class GreeksMonitor(BaseComponent, IManager):
     
     def _calculate_portfolio_greeks_internal(self) -> Dict:
         """Internal portfolio Greeks calculation (cached by calculate_portfolio_greeks)"""
-        
-        portfolio_greeks = {
-            'delta': 0,
-            'gamma': 0,
-            'theta': 0,
-            'vega': 0,
-            'rho': 0,
-            'positions': [],
-            'by_underlying': {},
-            'by_expiry': {},
-            'timestamp': self.algorithm.Time
-        }
-        
-        # Process each position (optimized to skip non-invested)
-        for symbol, holding in self.algorithm.Portfolio.items():
-            if not holding.Invested or holding.Quantity == 0:
-                continue
-                
-            # Handle options
-            if holding.Type == SecurityType.Option:
-                option = holding.Symbol
-                underlying = option.Underlying
-                
-                # Get current data
-                if underlying not in self.algorithm.Securities:
+        try:
+            portfolio_greeks = {
+                'delta': 0,
+                'gamma': 0,
+                'theta': 0,
+                'vega': 0,
+                'rho': 0,
+                'positions': [],
+                'by_underlying': {},
+                'by_expiry': {},
+                'timestamp': self.algorithm.Time
+            }
+            
+            # Process each position (optimized to skip non-invested)
+            for symbol, holding in self.algorithm.Portfolio.items():
+                if not holding.Invested or holding.Quantity == 0:
                     continue
                     
-                spot = self.algorithm.Securities[underlying].Price
-                strike = option.ID.StrikePrice
-                expiry = option.ID.Date
-                dte = (expiry - self.algorithm.Time).days
-                
-                # Get or estimate IV
-                iv = self.get_implied_volatility(option)
-                
-                option_type = "CALL" if option.ID.OptionRight == OptionRight.Call else "PUT"
-                
-                # Calculate Greeks
-                greeks = self.calculate_option_greeks(spot, strike, dte, iv, option_type)
-                
-                # CRITICAL FIX: Handle sign conventions properly
-                # Position size already includes sign (negative for short)
-                position_size = holding.Quantity
-                
-                # Apply proper sign conventions:
-                # - Delta: Already has correct sign from Black-Scholes
-                # - Gamma: Always positive, multiply by position sign
-                # - Theta: Already negative for long, adjust for position
-                # - Vega: Positive for long, adjust for position sign
-                # - Rho: Already has correct sign from B-S
-                
-                position_greeks = {
-                    'symbol': str(symbol),
-                    'underlying': str(underlying),
-                    'quantity': position_size,
-                    'strike': strike,
-                    'dte': dte,
-                    'type': option_type,
-                    'delta': greeks['delta'] * position_size * 100,
-                    'gamma': abs(greeks['gamma']) * position_size * 100,  # Gamma * position sign
-                    'theta': greeks['theta'] * abs(position_size) * 100,  # Theta sign from B-S
-                    'vega': abs(greeks['vega']) * position_size * 100,    # Vega * position sign
-                    'rho': greeks['rho'] * position_size * 100,
-                    'iv': greeks['iv']
-                }
-                
-                # Add to portfolio totals
-                portfolio_greeks['delta'] += position_greeks['delta']
-                portfolio_greeks['gamma'] += position_greeks['gamma']
-                portfolio_greeks['theta'] += position_greeks['theta']
-                portfolio_greeks['vega'] += position_greeks['vega']
-                portfolio_greeks['rho'] += position_greeks['rho']
-                
-                portfolio_greeks['positions'].append(position_greeks)
-                
-                # Group by underlying
-                underlying_str = str(underlying)
-                if underlying_str not in portfolio_greeks['by_underlying']:
-                    portfolio_greeks['by_underlying'][underlying_str] = {
-                        'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0
+                # Handle options
+                if holding.Type == SecurityType.Option:
+                    option = holding.Symbol
+                    underlying = option.Underlying
+                    
+                    # Get current data
+                    if underlying not in self.algorithm.Securities:
+                        continue
+                        
+                    spot = self.algorithm.Securities[underlying].Price
+                    strike = option.ID.StrikePrice
+                    expiry = option.ID.Date
+                    dte = (expiry - self.algorithm.Time).days
+                    
+                    # Get or estimate IV
+                    iv = self.get_implied_volatility(option)
+                    
+                    option_type = "CALL" if option.ID.OptionRight == OptionRight.Call else "PUT"
+                    
+                    # Calculate Greeks
+                    greeks = self.calculate_option_greeks(spot, strike, dte, iv, option_type)
+                    
+                    # CRITICAL FIX: Handle sign conventions properly
+                    # Position size already includes sign (negative for short)
+                    position_size = holding.Quantity
+                    
+                    # Apply proper sign conventions:
+                    # - Delta: Already has correct sign from Black-Scholes
+                    # - Gamma: Always positive, multiply by position sign
+                    # - Theta: Already negative for long, adjust for position
+                    # - Vega: Positive for long, adjust for position sign
+                    # - Rho: Already has correct sign from B-S
+                    
+                    position_greeks = {
+                        'symbol': str(symbol),
+                        'underlying': str(underlying),
+                        'quantity': position_size,
+                        'strike': strike,
+                        'dte': dte,
+                        'type': option_type,
+                        'delta': greeks['delta'] * position_size * 100,
+                        'gamma': abs(greeks['gamma']) * position_size * 100,  # Gamma * position sign
+                        'theta': greeks['theta'] * abs(position_size) * 100,  # Theta sign from B-S
+                        'vega': abs(greeks['vega']) * position_size * 100,    # Vega * position sign
+                        'rho': greeks['rho'] * position_size * 100,
+                        'iv': greeks['iv']
                     }
-                portfolio_greeks['by_underlying'][underlying_str]['delta'] += position_greeks['delta']
-                portfolio_greeks['by_underlying'][underlying_str]['gamma'] += position_greeks['gamma']
-                portfolio_greeks['by_underlying'][underlying_str]['theta'] += position_greeks['theta']
-                portfolio_greeks['by_underlying'][underlying_str]['vega'] += position_greeks['vega']
-                
-                # Group by expiry
-                expiry_str = expiry.strftime('%Y-%m-%d')
-                if expiry_str not in portfolio_greeks['by_expiry']:
-                    portfolio_greeks['by_expiry'][expiry_str] = {
-                        'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0, 'positions': 0
+                    
+                    # Add to portfolio totals
+                    portfolio_greeks['delta'] += position_greeks['delta']
+                    portfolio_greeks['gamma'] += position_greeks['gamma']
+                    portfolio_greeks['theta'] += position_greeks['theta']
+                    portfolio_greeks['vega'] += position_greeks['vega']
+                    portfolio_greeks['rho'] += position_greeks['rho']
+                    
+                    portfolio_greeks['positions'].append(position_greeks)
+                    
+                    # Group by underlying
+                    underlying_str = str(underlying)
+                    if underlying_str not in portfolio_greeks['by_underlying']:
+                        portfolio_greeks['by_underlying'][underlying_str] = {
+                            'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0
+                        }
+                    portfolio_greeks['by_underlying'][underlying_str]['delta'] += position_greeks['delta']
+                    portfolio_greeks['by_underlying'][underlying_str]['gamma'] += position_greeks['gamma']
+                    portfolio_greeks['by_underlying'][underlying_str]['theta'] += position_greeks['theta']
+                    portfolio_greeks['by_underlying'][underlying_str]['vega'] += position_greeks['vega']
+                    
+                    # Group by expiry
+                    expiry_str = expiry.strftime('%Y-%m-%d')
+                    if expiry_str not in portfolio_greeks['by_expiry']:
+                        portfolio_greeks['by_expiry'][expiry_str] = {
+                            'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0, 'positions': 0
+                        }
+                    portfolio_greeks['by_expiry'][expiry_str]['delta'] += position_greeks['delta']
+                    portfolio_greeks['by_expiry'][expiry_str]['gamma'] += position_greeks['gamma']
+                    portfolio_greeks['by_expiry'][expiry_str]['theta'] += position_greeks['theta']
+                    portfolio_greeks['by_expiry'][expiry_str]['vega'] += position_greeks['vega']
+                    portfolio_greeks['by_expiry'][expiry_str]['positions'] += 1
+                    
+                # Handle stock/ETF positions (delta = 1 per share)
+                elif holding.Type == SecurityType.Equity:
+                    equity_delta = holding.Quantity
+                    portfolio_greeks['delta'] += equity_delta
+                    
+                    position_info = {
+                        'symbol': str(symbol),
+                        'quantity': holding.Quantity,
+                        'type': 'EQUITY',
+                        'delta': equity_delta,
+                        'gamma': 0,
+                        'theta': 0,
+                        'vega': 0,
+                        'rho': 0
                     }
-                portfolio_greeks['by_expiry'][expiry_str]['delta'] += position_greeks['delta']
-                portfolio_greeks['by_expiry'][expiry_str]['gamma'] += position_greeks['gamma']
-                portfolio_greeks['by_expiry'][expiry_str]['theta'] += position_greeks['theta']
-                portfolio_greeks['by_expiry'][expiry_str]['vega'] += position_greeks['vega']
-                portfolio_greeks['by_expiry'][expiry_str]['positions'] += 1
+                    portfolio_greeks['positions'].append(position_info)
                 
-            # Handle stock/ETF positions (delta = 1 per share)
-            elif holding.Type == SecurityType.Equity:
-                equity_delta = holding.Quantity
-                portfolio_greeks['delta'] += equity_delta
-                
-                position_info = {
-                    'symbol': str(symbol),
-                    'quantity': holding.Quantity,
-                    'type': 'EQUITY',
-                    'delta': equity_delta,
-                    'gamma': 0,
-                    'theta': 0,
-                    'vega': 0,
-                    'rho': 0
-                }
-                portfolio_greeks['positions'].append(position_info)
-                
-        # Store in history
-        self.portfolio_greeks_history.append(portfolio_greeks.copy())
-        
-        return portfolio_greeks
+            # Store in history
+            self.portfolio_greeks_history.append(portfolio_greeks.copy())
+            
+            return portfolio_greeks
+        except Exception as e:
+            self.error(f"Error calculating portfolio Greeks: {e}")
+            return self._get_default_portfolio_greeks()
     
     def _log_cache_performance(self):
         """Log unified Greeks cache performance statistics"""
         try:
             # Log cache performance statistics
-            if hasattr(self.algo, 'unified_cache'):
-                stats = self.algo.unified_cache.get_statistics()
-                self.algo.Debug(f"[GreeksMonitor] Cache hit rate: {stats.get('hit_rate', 0):.2%}")
-                self.algo.Debug(f"[GreeksMonitor] Cache size: {stats.get('size', 0)} entries")
-            
+            if hasattr(self.algorithm, 'unified_cache'):
+                stats = self.algorithm.unified_cache.get_statistics()
+                self.debug(f"[GreeksMonitor] Cache hit rate: {stats.get('hit_rate', 0):.2%}")
+                self.debug(f"[GreeksMonitor] Cache size: {stats.get('size', 0)} entries")
         except Exception as e:
             # Log and handle unexpected exception
-            self.algo.Debug(f"[GreeksMonitor] Cache performance logging error: {e}")
-            print(f'Unexpected exception: {e}')
+            self.debug(f"[GreeksMonitor] Cache performance logging error: {e}")
     
     def get_cache_statistics(self) -> Dict:
         """Get comprehensive unified cache statistics for monitoring"""
         try:
             # Get comprehensive cache statistics
-            if hasattr(self.algo, 'unified_cache'):
-                return self.algo.unified_cache.get_statistics()
+            if hasattr(self.algorithm, 'unified_cache'):
+                return self.algorithm.unified_cache.get_statistics()
             else:
                 return {'status': 'cache_unavailable', 'hit_rate': 0}
-            
         except Exception as e:
             # Log and handle unexpected exception
-            self.algo.Debug(f"[GreeksMonitor] Error getting cache statistics: {e}")
-            print(f'Unexpected exception: {e}')
+            self.debug(f"[GreeksMonitor] Error getting cache statistics: {e}")
             return {'status': 'error', 'hit_rate': 0}
     
     def invalidate_cache(self, reason: str = "manual"):
         """Manually invalidate Greeks cache"""
         try:
-        greeks_count = self.greeks_cache.invalidate_by_cache_type(CacheType.GREEKS)
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Invalidate all GREEKS cache type entries (includes both portfolio and B-S calculations)
-            
-            self.debug(  # Use inherited method
+            # Invalidate all GREEKS cache type entries (includes both portfolio and B-S calculations)
+            greeks_count = self.greeks_cache.invalidate_by_cache_type(CacheType.GREEKS)
+            self.debug(
                 f"[Greeks Cache] Invalidated {greeks_count} Greeks calculations (portfolio + Black-Scholes). Reason: {reason}"
             )
         except Exception as e:
-            self.error(f"[Greeks Cache] Error invalidating cache: {e}")  # Use inherited method
+            self.error(f"[Greeks Cache] Error invalidating cache: {e}")
         
     def monitor_greeks_limits(self) -> Tuple[Dict, List[str]]:
         """Check if Greeks exceed safety thresholds"""
@@ -484,15 +481,7 @@ class GreeksMonitor(BaseComponent, IManager):
             
         # Calculate from option prices (simplified)
         try:
-            
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-if option.BidPrice > 0 and option.AskPrice > 0:
+            if option.BidPrice > 0 and option.AskPrice > 0:
                 mid_price = (option.BidPrice + option.AskPrice) / 2
                 
                 # Fallback IV estimate when QuantConnect IV unavailable
@@ -514,11 +503,11 @@ if option.BidPrice > 0 and option.AskPrice > 0:
                     base_iv = 0.30 + (time_factor * 0.10)
                     return min(base_iv, 0.80)  # Cap at 80%
         except Exception as e:
-            self.algo.Debug(f"IV estimation error: {e}")
+            self.debug(f"IV estimation error: {e}")
             
-        # Conservative default IV with logging
-        self.algo.Debug(f"Using default IV 20% for option {option.Symbol}")
-        return 0.20
+            # Conservative default IV with logging
+            self.debug(f"Using default IV 20% for option {option.Symbol}")
+            return 0.20
         
     def log_position_greeks(self, greeks: Dict):
         """Log detailed position Greeks breakdown"""
@@ -647,15 +636,8 @@ if option.BidPrice > 0 and option.AskPrice > 0:
                 }
         """
         try:
-        base_greeks = self.calculate_portfolio_greeks()
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Get base portfolio Greeks using existing cached method
+            # Get base portfolio Greeks using existing cached method
+            base_greeks = self.calculate_portfolio_greeks()
             
             # Add comprehensive risk analysis
             risk_analysis = {
@@ -734,9 +716,8 @@ if option.BidPrice > 0 and option.AskPrice > 0:
             })
             
             return enhanced_greeks
-            
         except Exception as e:
-            self.error(f"[GreeksMonitor] Error getting portfolio greeks: {e}")  # Use inherited method
+            self.error(f"[GreeksMonitor] Error getting portfolio greeks: {e}")
             # Return safe fallback
             return {
                 'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0, 'rho': 0,
@@ -771,20 +752,13 @@ if option.BidPrice > 0 and option.AskPrice > 0:
                 }
         """
         try:
-        required_fields = ['symbol', 'quantity', 'underlying_price', 'strike', 'expiry', 'option_type']
-        missing_fields = [field for field in required_fields if field not in position_data]
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Validate required fields
+            # Validate required fields
+            required_fields = ['symbol', 'quantity', 'underlying_price', 'strike', 'expiry', 'option_type']
+            missing_fields = [field for field in required_fields if field not in position_data]
             
             if missing_fields:
                 error_msg = f"Missing required fields: {missing_fields}"
-                self.error(f"[GreeksMonitor] {error_msg}")  # Use inherited method
+                self.error(f"[GreeksMonitor] {error_msg}")
                 return {'error': error_msg}
             
             # Extract position data
@@ -887,9 +861,8 @@ if option.BidPrice > 0 and option.AskPrice > 0:
             })
             
             return result
-            
         except Exception as e:
-            self.error(f"[GreeksMonitor] Error calculating position greeks: {e}")  # Use inherited method
+            self.error(f"[GreeksMonitor] Error calculating position greeks: {e}")
             return {
                 'error': str(e),
                 'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0, 'rho': 0,
@@ -899,15 +872,7 @@ if option.BidPrice > 0 and option.AskPrice > 0:
     def _calculate_overall_risk_score(self, risk_analysis: Dict) -> int:
         """Calculate overall risk score from 0-100"""
         try:
-            
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-score = 0
+            score = 0
             for risk_data in risk_analysis.values():
                 if risk_data['status'] == 'CRITICAL':
                     score += 30
@@ -968,3 +933,11 @@ score = 0
     def get_manager_name(self) -> str:
         """Return unique name for this manager"""
         return "greeks_monitor"
+    
+    def _get_default_portfolio_greeks(self) -> Dict:
+        """Return default portfolio Greeks for error cases"""
+        return {
+            'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0, 'rho': 0,
+            'positions': [], 'by_underlying': {}, 'by_expiry': {},
+            'timestamp': self.algorithm.Time
+        }

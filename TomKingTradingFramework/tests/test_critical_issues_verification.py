@@ -15,15 +15,7 @@ class TestCriticalIssuesFixes(unittest.TestCase):
     def test_1_abstract_method_implementation(self):
         """Test BaseRiskPlugin abstract methods are properly defined"""
         try:
-            
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-from risk.unified_risk_manager import BaseRiskPlugin
+            from risk.unified_risk_manager import BaseRiskPlugin
             
             # Check that abstract methods exist and are properly defined
             self.assertTrue(hasattr(BaseRiskPlugin, 'plugin_name'))
@@ -44,15 +36,7 @@ from risk.unified_risk_manager import BaseRiskPlugin
     def test_2_credentials_security(self):
         """Test hardcoded account numbers moved to environment variables"""
         try:
-            
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-from config.tastytrade_credentials_secure import TastytradeCredentials
+            from config.tastytrade_credentials_secure import TastytradeCredentials
             
             # Check that account numbers are using environment variables
             self.assertIsNotNone(TastytradeCredentials.ACCOUNT_NUMBER_CASH)
@@ -75,15 +59,7 @@ from config.tastytrade_credentials_secure import TastytradeCredentials
     def test_3_manager_interface_compliance(self):
         """Test managers implement IManager interface"""
         try:
-            
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-from core.dependency_container import IManager
+            from core.dependency_container import IManager
             from core.unified_state_manager import UnifiedStateManager
             from core.market_data_cache import MarketDataCacheManager
             
@@ -106,15 +82,7 @@ from core.dependency_container import IManager
     def test_4_constants_consolidation(self):
         """Test hardcoded constants moved to TradingConstants"""
         try:
-            
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-from config.constants import TradingConstants
+            from config.constants import TradingConstants
             
             # Check circuit breaker constants exist
             circuit_breaker_constants = [
@@ -147,15 +115,7 @@ from config.constants import TradingConstants
     def test_5_circuit_breaker_uses_constants(self):
         """Test CircuitBreakerPlugin uses centralized constants"""
         try:
-            
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-from risk.plugins.circuit_breaker_plugin import CircuitBreakerPlugin
+            from risk.plugins.circuit_breaker_plugin import CircuitBreakerPlugin
             from config.constants import TradingConstants
             
             # Create a mock algorithm
@@ -191,20 +151,13 @@ from risk.plugins.circuit_breaker_plugin import CircuitBreakerPlugin
     def test_6_integration_verification(self):
         """Test overall integration health"""
         try:
-        from core.dependency_container import DependencyContainer, IManager
-        from core.event_bus import EventBus
-        from core.unified_state_manager import UnifiedStateManager
-        from core.market_data_cache import MarketDataCacheManager
-        from config.constants import TradingConstants
-        from risk.plugins.circuit_breaker_plugin import CircuitBreakerPlugin
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Import key framework components
+            # Import key framework components
+            from core.dependency_container import DependencyContainer, IManager
+            from core.event_bus import EventBus
+            from core.unified_state_manager import UnifiedStateManager
+            from core.market_data_cache import MarketDataCacheManager
+            from config.constants import TradingConstants
+            from risk.plugins.circuit_breaker_plugin import CircuitBreakerPlugin
             
             # Check all imports work
             self.assertTrue(True, "All critical imports successful")

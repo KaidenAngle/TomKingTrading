@@ -30,6 +30,7 @@ class FinalDeepVerificationAuditor:
         self.undetected_problems = []
         self.false_completions = []
         self.systematic_gaps = []
+        self.syntax_errors = []
         
         # Deep system mapping
         self.all_functions = defaultdict(list)
@@ -86,24 +87,13 @@ class FinalDeepVerificationAuditor:
                 
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+                    content = f.read()
 
-            relative_path = str(file_path.relative_to(self.root_dir))
+                relative_path = str(file_path.relative_to(self.root_dir))
 
-            # Deep AST analysis
-            try:
-                pass
-            except Exception as e:
-                # Log and handle unexpected exception
-            except Exception as e:
-
-                
-                print(f'Unexpected exception: {e}')
-
-                
-                raise
-
-tree = ast.parse(content)
+                # Deep AST analysis
+                try:
+                    tree = ast.parse(content)
                     self._deep_ast_analysis(tree, relative_path, content)
                 except SyntaxError as e:
                     self.critical_missed_issues.append(
@@ -219,7 +209,7 @@ tree = ast.parse(content)
                 )
             
             # Check for print statements in production code (should use logging)
-            if 'self.Log(f" in line and 'audit' not in file_path.lower("):
+            if 'print(' in line and 'audit' not in file_path.lower():
                 self.hidden_quality_failures.append(
                     f"PRINT IN PRODUCTION: {file_path}:{i}"
                 )
@@ -246,86 +236,77 @@ tree = ast.parse(content)
         if unified_auditor_path.exists():
             try:
                 with open(unified_auditor_path, 'r') as f:
-            auditor_content = f.read()
+                    auditor_content = f.read()
 
-            # Check if it has proper error handling
-            if 'except Exception' in auditor_content and 'continue' in auditor_content:
-                self.false_completions.append(
-            "UNIFIED AUDITOR SILENTLY IGNORES ERRORS - May miss critical issues"
-            )
+                # Check if it has proper error handling
+                if 'except Exception' in auditor_content and 'continue' in auditor_content:
+                    self.false_completions.append(
+                        "UNIFIED AUDITOR SILENTLY IGNORES ERRORS - May miss critical issues"
+                    )
 
-            # Check if it excludes files it shouldn't
-            if '"audit"' in auditor_content:
-                self.systematic_gaps.append(
-            "UNIFIED AUDITOR EXCLUDES ITSELF - Cannot audit its own quality"
+                # Check if it excludes files it shouldn't
+                if '"audit"' in auditor_content:
+                    self.systematic_gaps.append(
+                        "UNIFIED AUDITOR EXCLUDES ITSELF - Cannot audit its own quality"
             )
 
             except Exception as e:
                 self.critical_missed_issues.append(
-            f"CANNOT READ UNIFIED AUDITOR: {e}"
-            )
-            else:
+                    f"CANNOT READ UNIFIED AUDITOR: {e}"
+                )
+        else:
             self.critical_missed_issues.append(
-            "UNIFIED AUDITOR MISSING - Previous fix claim was false"
+                "UNIFIED AUDITOR MISSING - Previous fix claim was false"
             )
 
-            # Double-check duplicate functions with NO FILTERS
-            true_duplicates = 0
-            for func_name, locations in self.all_functions.items():
-                if len(locations) > 1:
-                    # NO FILTERING - Count ALL duplicates
-            true_duplicates += 1
+        # Double-check duplicate functions with NO FILTERS
+        true_duplicates = 0
+        for func_name, locations in self.all_functions.items():
+            if len(locations) > 1:
+                # NO FILTERING - Count ALL duplicates
+                true_duplicates += 1
 
-            # Check if these are actually problematic
-            if len(locations) > 2 and func_name not in ['__init__', 'main', 'initialize']:
-                self.hidden_quality_failures.append(
-            f"EXCESSIVE DUPLICATION: {func_name} in {len(locations)} files"
+                # Check if these are actually problematic
+                if len(locations) > 2 and func_name not in ['__init__', 'main', 'initialize']:
+                    self.hidden_quality_failures.append(
+                        f"EXCESSIVE DUPLICATION: {func_name} in {len(locations)} files"
+                    )
+
+        print(f"   Found {true_duplicates} functions with duplicates (no filtering)")
+
+        if true_duplicates > 120:
+            self.false_completions.append(
+                f"PREVIOUS CLAIM OF FIXING DUPLICATES WAS FALSE - Still have {true_duplicates}"
             )
 
-            print(f"   Found {true_duplicates} functions with duplicates (no filtering)")
+    def _verify_claimed_fixes(self):
+        """Phase 3: Verify that claimed fixes are actually fixed"""
+        print("\n3. VERIFYING CLAIMED FIXES")
+        print("-" * 60)
 
-            if true_duplicates > 120:
-                self.false_completions.append(
-            f"PREVIOUS CLAIM OF FIXING DUPLICATES WAS FALSE - Still have {true_duplicates}"
-            )
-
-            def _verify_claimed_fixes(self):
-                """Phase 3: Verify that claimed fixes are actually fixed"""
-            print("\n3. VERIFYING CLAIMED FIXES")
-            print("-" * 60)
-
-            # Check if old audit tools were actually removed
-            old_audit_tools = [
+        # Check if old audit tools were actually removed
+        old_audit_tools = [
             'audit_performance.py',
             'audit_error_handling.py',
             'audit_integration_compliance.py',
             'audit_final_comprehensive_verification.py'
-            ]
+        ]
 
-            still_exist = []
-            for tool in old_audit_tools:
-                if (self.root_dir / tool).exists():
-                    still_exist.append(tool)
+        still_exist = []
+        for tool in old_audit_tools:
+            if (self.root_dir / tool).exists():
+                still_exist.append(tool)
 
-            if still_exist:
-                self.false_completions.append(
-            f"CLAIMED REMOVAL OF AUDIT TOOLS WAS FALSE - Still exist: {still_exist}"
+        if still_exist:
+            self.false_completions.append(
+                f"CLAIMED REMOVAL OF AUDIT TOOLS WAS FALSE - Still exist: {still_exist}"
             )
 
-            # Check if system leverage was actually improved
-            system_leverage_violations = 0
-            for file_path in self.python_files:
-                try:
-                    pass
-            except Exception as e:
-                # Log and handle unexpected exception
-            except Exception as e:
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-
-with open(file_path, 'r') as f:
+        # Check if system leverage was actually improved
+        system_leverage_violations = 0
+        for file_path in self.python_files:
+            try:
+                with open(file_path, 'r') as f:
                     content = f.read()
                 
                 # Check for patterns that should use unified systems
@@ -354,44 +335,35 @@ with open(file_path, 'r') as f:
         for file_path in self.python_files:
             try:
                 with open(file_path, 'r') as f:
-            content = f.read()
+                    content = f.read()
 
-            relative_path = str(file_path.relative_to(self.root_dir))
+                relative_path = str(file_path.relative_to(self.root_dir))
 
-            # Find imports within the project
-            local_imports = re.findall(r'from ([a-zA-Z_][a-zA-Z0-9_.]*) import', content)
-            local_imports.extend(re.findall(r'import ([a-zA-Z_][a-zA-Z0-9_.]*)', content))
+                # Find imports within the project
+                local_imports = re.findall(r'from ([a-zA-Z_][a-zA-Z0-9_.]*) import', content)
+                local_imports.extend(re.findall(r'import ([a-zA-Z_][a-zA-Z0-9_.]*)', content))
 
-            for imp in local_imports:
-                if not imp.startswith(('os', 'sys', 'datetime', 're', 'typing')):
-                    dependency_graph[relative_path].add(imp)
+                for imp in local_imports:
+                    if not imp.startswith(('os', 'sys', 'datetime', 're', 'typing')):
+                        dependency_graph[relative_path].add(imp)
 
             except Exception:
                 continue
 
-            # Simple circular dependency detection
-            for file_path, deps in dependency_graph.items():
-                for dep in deps:
-                    dep_path = f"{dep.replace('.', '/')}.py"
-            if dep_path in dependency_graph:
-                if file_path.replace('\\', '/') in str(dependency_graph[dep_path]):
-                    self.critical_missed_issues.append(
-            f"CIRCULAR DEPENDENCY: {file_path} <-> {dep_path}"
-            )
+        # Simple circular dependency detection
+        for file_path, deps in dependency_graph.items():
+            for dep in deps:
+                dep_path = f"{dep.replace('.', '/')}.py"
+                if dep_path in dependency_graph:
+                    if file_path.replace('\\', '/') in str(dependency_graph[dep_path]):
+                        self.critical_missed_issues.append(
+                            f"CIRCULAR DEPENDENCY: {file_path} <-> {dep_path}"
+                        )
 
-            # Check for memory leaks
-            for file_path in self.python_files:
-                try:
-                    pass
-            except Exception as e:
-                # Log and handle unexpected exception
-            except Exception as e:
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-
-with open(file_path, 'r') as f:
+        # Check for memory leaks
+        for file_path in self.python_files:
+            try:
+                with open(file_path, 'r') as f:
                     content = f.read()
                 
                 # Look for potential memory leaks
@@ -437,82 +409,70 @@ with open(file_path, 'r') as f:
         for file_path in self.python_files:
             try:
                 with open(file_path, 'r') as f:
-            content = f.read()
-        """Implement  check false completions"""
-        # IMPLEMENTATION NOTE: Basic implementation - customize as needed
-        pass
-
-            for indicator in incomplete_indicators:
-                if indicator in content:
-                    incomplete_count += 1
-            self.undetected_problems.append(
-            f"INCOMPLETE IMPLEMENTATION: {file_path}"
-            )
-            break
+                    content = f.read()
+                
+                for indicator in incomplete_indicators:
+                    if indicator in content:
+                        incomplete_count += 1
+                        self.undetected_problems.append(
+                            f"INCOMPLETE IMPLEMENTATION: {file_path}"
+                        )
+                        break
 
             except Exception:
                 continue
 
-            if incomplete_count > 10:
-                self.false_completions.append(
-            f"MANY INCOMPLETE IMPLEMENTATIONS - {incomplete_count} files have TODOs/placeholders"
+        if incomplete_count > 10:
+            self.false_completions.append(
+                f"MANY INCOMPLETE IMPLEMENTATIONS - {incomplete_count} files have TODOs/placeholders"
             )
 
-            def _cross_validate_everything(self):
-                """Phase 6: Cross-validate all findings"""
-            print("\n6. CROSS-VALIDATING EVERYTHING")
-            print("-" * 60)
+    def _cross_validate_everything(self):
+        """Phase 6: Cross-validate all findings"""
+        print("\n6. CROSS-VALIDATING EVERYTHING")
+        print("-" * 60)
 
-            # Validate that we found MORE issues than previous audits
-            total_new_issues = (len(self.critical_missed_issues) +
-            len(self.hidden_quality_failures) +
-            len(self.undetected_problems) +
-            len(self.false_completions) +
-            len(self.systematic_gaps))
+        # Validate that we found MORE issues than previous audits
+        total_new_issues = (len(self.critical_missed_issues) +
+                           len(self.hidden_quality_failures) +
+                           len(self.undetected_problems) +
+                           len(self.false_completions) +
+                           len(self.systematic_gaps))
 
-            print(f"   New issues found: {total_new_issues}")
+        print(f"   New issues found: {total_new_issues}")
 
-            # Cross-check against known good implementations
-            self._validate_against_standards()
+        # Cross-check against known good implementations
+        self._validate_against_standards()
 
-            # Final sanity check
-            if total_new_issues == 0:
-                self.audit_claims_vs_reality.append(
-            "SUSPICIOUS: Found zero new issues - previous audits may have been accurate"
-            )
-            elif total_new_issues < 50:
-                self.audit_claims_vs_reality.append(
-            f"MODERATE: Found {total_new_issues} new issues - previous audits were mostly accurate"
-            )
-            else:
+        # Final sanity check
+        if total_new_issues == 0:
             self.audit_claims_vs_reality.append(
-            f"SIGNIFICANT: Found {total_new_issues} new issues - previous audits missed substantial problems"
+                "SUSPICIOUS: Found zero new issues - previous audits may have been accurate"
+            )
+        elif total_new_issues < 50:
+            self.audit_claims_vs_reality.append(
+                f"MODERATE: Found {total_new_issues} new issues - previous audits were mostly accurate"
+            )
+        else:
+            self.audit_claims_vs_reality.append(
+                f"SIGNIFICANT: Found {total_new_issues} new issues - previous audits missed substantial problems"
             )
 
-            def _validate_against_standards(self):
-                """Validate against industry standards"""
-            # Check for proper logging usage
-            logging_count = 0
-            print_count = 0
+    def _validate_against_standards(self):
+        """Validate against industry standards"""
+        # Check for proper logging usage
+        logging_count = 0
+        print_count = 0
 
-            for file_path in self.python_files:
-                try:
-                    pass
-            except Exception as e:
-                # Log and handle unexpected exception
-            except Exception as e:
-
-                print(f'Unexpected exception: {e}')
-
-                raise
-
-with open(file_path, 'r') as f:
+        for file_path in self.python_files:
+            try:
+                with open(file_path, 'r') as f:
                     content = f.read()
                 
                 if 'import logging' in content or 'from logging' in content:
                     logging_count += 1
                 
-                if 'self.Log(f" in content and 'audit' not in str(file_path"):
+                if 'self.Log(f"' in content and 'audit' not in str(file_path):
                     print_count += 1
                     
             except Exception:

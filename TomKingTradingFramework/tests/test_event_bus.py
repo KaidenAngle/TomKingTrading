@@ -34,15 +34,7 @@ def test_event_bus_construction():
     
     # Test 1: Construction
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-event_bus = EventBus(algorithm)
+        event_bus = EventBus(algorithm)
         print("[PASS] EventBus construction successful")
     except Exception as e:
         print(f"[FAIL] EventBus construction failed: {e}")
@@ -103,15 +95,7 @@ def test_event_subscription_publishing():
     
     # Test subscription
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-event_bus.subscribe(EventType.POSITION_OPENED, test_handler)
+        event_bus.subscribe(EventType.POSITION_OPENED, test_handler)
         print("[PASS] Event subscription successful")
     except Exception as e:
         print(f"[FAIL] Event subscription failed: {e}")
@@ -119,15 +103,7 @@ event_bus.subscribe(EventType.POSITION_OPENED, test_handler)
     
     # Test publishing
     try:
-        
-    except Exception as e:
-
-        # Log and handle unexpected exception
-
-        print(f'Unexpected exception: {e}')
-
-        raise
-event_bus.publish(EventType.POSITION_OPENED, {"symbol": "SPY", "quantity": 100})
+        event_bus.publish(EventType.POSITION_OPENED, {"symbol": "SPY", "quantity": 100})
         print("[PASS] Event publishing successful")
     except Exception as e:
         print(f"[FAIL] Event publishing failed: {e}")
@@ -197,15 +173,7 @@ def verify_event_bus_integration():
             if file.endswith('.py'):
                 filepath = os.path.join(root, file)
                 try:
-                    
-                except Exception as e:
-
-                    # Log and handle unexpected exception
-
-                    print(f'Unexpected exception: {e}')
-
-                    raise
-with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
                         if 'EventBus' in content or 'event_bus' in content:
                             event_bus_files.append(filepath)
@@ -248,19 +216,9 @@ def main():
     print("=" * 60)
     
     try:
-    if not test_event_bus_construction():
-    return False
-    except Exception as e:
-
-    
-        # Log and handle unexpected exception
-
-    
-        print(f'Unexpected exception: {e}')
-
-    
-        raise
-# Test 1: EventBus functionality
+        # Test 1: EventBus functionality
+        if not test_event_bus_construction():
+            return False
             
         # Test 2: Event subscription/publishing
         if not test_event_subscription_publishing():

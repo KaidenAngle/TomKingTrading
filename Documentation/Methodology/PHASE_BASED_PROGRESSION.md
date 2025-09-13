@@ -36,8 +36,8 @@ Tom King's framework uses a 4-phase progression system. Each phase unlocks new s
 - **Ratio Spreads**: 1:2 ratios allowed
 - **Multiple Futures**: /MCL + /GC strangles
 
-#### Increased Limits
-- Max 5 positions total
+#### Enhanced Scaling
+- **Dynamic Position Limits**: Base positions × 1.5 multiplier (strategy-dependent)
 - Max 7% per position
 - Max 50% buying power usage
 - SPY delta limit: -500
@@ -58,8 +58,8 @@ Tom King's framework uses a 4-phase progression system. Each phase unlocks new s
 - **/ES Upgrade**: Move from /MES to /ES
 - **Broken Wings**: Directional iron condors
 
-#### Enhanced Limits
-- Max 7 positions total
+#### Advanced Scaling
+- **Dynamic Position Limits**: Base positions × 2.0 multiplier (strategy-dependent)
 - Max 10% per position
 - Max 65% buying power usage
 - SPY delta limit: -750
@@ -192,39 +192,115 @@ def check_phase_demotion(self) -> bool:
 
 ## Phase-Based Configuration
 
-### Dynamic Parameters
+### Dynamic Position Limits System
 ```python
+# MODERN APPROACH: Dynamic scaling based on strategy and market conditions
+# Position limits now scale intelligently with account size and experience
+
+# Phase multipliers for earned position scaling
+PHASE_POSITION_MULTIPLIERS = {
+    1: 1.0,    # Phase 1: Use base positions (conservative learning)
+    2: 1.5,    # Phase 2: 50% more positions (proven competence)
+    3: 2.0,    # Phase 3: Double positions (optimization phase)
+    4: 2.5,    # Phase 4: Professional scaling (full system)
+}
+
+# Strategy-specific base positions (conservative foundations)
+STRATEGY_BASE_POSITIONS = {
+    '0DTE': 2,      # Conservative base for gamma risk
+    'STRANGLE': 3,  # Lower risk strategy
+    'LT112': 2,     # Conservative for correlation risk
+    'IPMCC': 1,     # Capital intensive strategy
+    'RATIO_SPREAD': 2,
+    'DIAGONAL': 2,
+    'LEAP_PUTS': 3,
+}
+
+# Dynamic calculation: base_positions * phase_multiplier * vix_adjustment
+# Example: Phase 4 0DTE = 2 * 2.5 = 5 positions (normal VIX)
+#         Phase 4 0DTE = 2 * 2.5 * 0.5 = 2 positions (VIX > 35)
+
+# Strategy caps prevent runaway scaling
+STRATEGY_CAPS = {
+    'LT112': 8,      # Tom King disaster prevention (had 6, blew up)
+    'IPMCC': 6,      # Capital intensive limit
+    'RATIO_SPREAD': 5,  # Unlimited risk limit
+    '0DTE': 12,      # Gamma risk limit
+}
+
+# Phase configuration (other parameters remain phase-based)
 PHASE_PARAMETERS = {
     1: {
-        "max_positions": 3,
+        "position_multiplier": 1.0,     # Base positions only
         "max_position_size": 0.05,
         "max_bp_usage": 0.30,
         "max_spy_delta": -300,
-        "strategies": ["0DTE", "IPMCC", "MCL_Strangle", "LEAP_Start"]
+        "strategies": ["0DTE", "IPMCC", "STRANGLE", "LEAP_PUTS"]
     },
     2: {
-        "max_positions": 5,
+        "position_multiplier": 1.5,     # 50% more positions
         "max_position_size": 0.07,
         "max_bp_usage": 0.50,
         "max_spy_delta": -500,
-        "strategies": ["0DTE", "LT112", "IPMCC", "Futures_Strangle", "LEAP", "Ratio_2_1"]
+        "strategies": ["0DTE", "LT112", "IPMCC", "STRANGLE", "LEAP_PUTS"]
     },
     3: {
-        "max_positions": 7,
+        "position_multiplier": 2.0,     # Double positions
         "max_position_size": 0.10,
         "max_bp_usage": 0.65,
         "max_spy_delta": -750,
-        "strategies": ["All_except_diagonals"]
+        "strategies": ["ALL_except_experimental"]
     },
     4: {
-        "max_positions": 10,
+        "position_multiplier": 2.5,     # Professional scaling
         "max_position_size": 0.15,
         "max_bp_usage": 0.80,
         "max_spy_delta": -1000,
-        "strategies": ["All"]
+        "strategies": ["ALL_STRATEGIES"]
     }
 }
 ```
+
+**Key Benefits of Dynamic System:**
+- **Scales with Account Size**: Larger accounts can utilize capital more efficiently
+- **Preserves Risk Tolerance**: Risk ratios remain consistent across phases
+- **Market Adaptive**: VIX-based adjustments for changing conditions
+- **Strategy Aware**: Different strategies have different risk profiles
+- **Disaster Prevention**: Absolute caps prevent correlation disasters
+
+*See `Architecture/DYNAMIC_POSITION_SCALING_PATTERNS.md` for complete technical details.*
+
+## Kelly Criterion Position Sizing
+
+### Why 0.25 Kelly Factor
+The framework uses Kelly Criterion with a conservative **0.25 factor** across all strategies. This is Tom King's specific parameter based on extensive testing.
+
+#### The Kelly Formula for Options
+```python
+kelly_fraction = (win_rate × avg_win/avg_loss - loss_rate) / (avg_win/avg_loss)
+position_size = portfolio_value × kelly_fraction × 0.25  # Tom King factor
+```
+
+#### Why 0.25 is Optimal:
+- **Full Kelly (1.0)**: 50% chance of 50% drawdown (too aggressive)
+- **Half Kelly (0.5)**: Still too volatile for options trading
+- **Quarter Kelly (0.25)**: Optimal balance of growth vs. safety
+
+#### Mathematical Justification:
+```
+Growth Rate ≈ kelly_factor × (1 - kelly_factor/2) × edge
+0.25 Kelly: 0.25 × 0.875 = 0.219 (21.9% of edge)
+1.0 Kelly: 1.0 × 0.5 = 0.500 (50% of edge)
+
+Result: 75% less risk for only 56% less growth
+```
+
+#### Phase-Based Kelly Implementation:
+- **All Phases**: Use 0.25 Kelly factor (consistent risk management)
+- **Position Size Cap**: Never exceed 15% of portfolio per position
+- **Portfolio Heat**: Maximum 40% total portfolio at risk
+
+*Complete Kelly Criterion implementation details are in [Master Risk Parameters](MASTER_RISK_PARAMETERS.md).*
 
 ## Monitoring Phase Progress
 

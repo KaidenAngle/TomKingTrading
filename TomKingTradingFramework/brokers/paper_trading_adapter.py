@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import threading
 import queue
+import time
 from threading import Lock
 # endregion
 
@@ -242,7 +243,7 @@ class PaperTradingAdapter:
         """
 
         if not self.enable_mirroring or not self.is_authenticated:
-        return
+            return
 
         # Log the event
         self.algorithm.Log(f"[HYBRID] Mirroring order: {order_event.Symbol} "
@@ -250,35 +251,20 @@ class PaperTradingAdapter:
 
         # Queue order for sandbox execution
         if order_event.Status == OrderStatus.Filled:
-        self.order_queue.put({
-        'qc_order_id': order_event.OrderId,
-        'symbol': str(order_event.Symbol),
-        'quantity': order_event.Quantity,
-        'direction': order_event.Direction,
-        'fill_price': order_event.FillPrice,
-        'order_type': order_event.OrderType
-        })
+            self.order_queue.put({
+                'qc_order_id': order_event.OrderId,
+                'symbol': str(order_event.Symbol),
+                'quantity': order_event.Quantity,
+                'direction': order_event.Direction,
+                'fill_price': order_event.FillPrice,
+                'order_type': order_event.OrderType
+            })
 
-        def execute_sandbox_order(self, order_data):
+    def execute_sandbox_order(self, order_data):
         """Execute order in Tastytrade sandbox"""
 
         try:
-        except Exception as e:
-        # Log and handle unexpected exception
-        except Exception as e:
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Map symbol
+            # Map symbol
             symbol = self.map_symbol_to_sandbox(order_data['symbol'])
             
             # Determine order side
@@ -347,61 +333,43 @@ class PaperTradingAdapter:
             return {}
         
         try:
-        headers = {
-        'Authorization': self.session_token,
-        'User-Agent': 'TomKingFramework/17.0'
-        }
+            headers = {
+                'Authorization': self.session_token,
+                'User-Agent': 'TomKingFramework/17.0'
+            }
 
-        response = requests.get(
-        f"{self.sandbox_config['api_base']}/accounts/{self.sandbox_account}/positions",
-        headers=headers,
-        timeout=10
-        )
+            response = requests.get(
+                f"{self.sandbox_config['api_base']}/accounts/{self.sandbox_account}/positions",
+                headers=headers,
+                timeout=10
+            )
 
-        if response.status_code == 200:
-        data = response.json()
-        positions = data.get('data', {}).get('items', [])
+            if response.status_code == 200:
+                data = response.json()
+                positions = data.get('data', {}).get('items', [])
 
-        # Update positions (thread-safe)
-        with self._position_lock:
-        self.sandbox_positions = {}
-        for pos in positions:
-        symbol = pos.get('symbol')
-        quantity = pos.get('quantity')
-        self.sandbox_positions[symbol] = quantity
+                # Update positions (thread-safe)
+                with self._position_lock:
+                    self.sandbox_positions = {}
+                    for pos in positions:
+                        symbol = pos.get('symbol')
+                        quantity = pos.get('quantity')
+                        self.sandbox_positions[symbol] = quantity
 
-        return self.sandbox_positions
+                return self.sandbox_positions
 
         except Exception as e:
-        self.algorithm.Error(f"Get positions error: {str(e)}")
+            self.algorithm.Error(f"Get positions error: {str(e)}")
+            return {}
 
-        return {}
-
-        def get_sandbox_balance(self) -> Dict:
+    def get_sandbox_balance(self) -> Dict:
         """Get account balance from sandbox"""
 
         if not self.is_authenticated:
-        return {}
+            return {}
 
         try:
-        except Exception as e:
-        # Log and handle unexpected exception
-        except Exception as e:
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-headers = {
+            headers = {
                 'Authorization': self.session_token,
                 'User-Agent': 'TomKingFramework/17.0'
             }

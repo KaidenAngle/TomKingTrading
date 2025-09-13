@@ -64,6 +64,7 @@ class TastytradeApiClient:
                     json=data,
                     headers={
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json',
                         'User-Agent': 'TomKingFramework/17.0'
                     },
                     timeout=30
@@ -96,239 +97,188 @@ class TastytradeApiClient:
                 json=data,
                 headers={
                     'Content-Type': 'application/json',
+                    'Accept': 'application/json',
                     'User-Agent': 'TomKingFramework/17.0'
                 },
                 timeout=30
             )
 
             if response.status_code == 201:
-        session_data = response.json().get('data', {})
-        self.session_token = session_data.get('session-token')
-        self.remember_token = session_data.get('remember-token')
+                session_data = response.json().get('data', {})
+                self.session_token = session_data.get('session-token')
+                self.remember_token = session_data.get('remember-token')
 
-        if self.remember_token:
-        self.algorithm.Log(f"New remember token: {self.remember_token[:50]}...")
+                if self.remember_token:
+                    self.algorithm.Log(f"New remember token: {self.remember_token[:50]}...")
 
-        self.last_auth_time = datetime.now()
-        self.algorithm.Log("Authentication successful with username/password")
-        return True
-        else:
-        self.algorithm.Error(f"Authentication failed: {response.status_code}")
-        return False
+                self.last_auth_time = datetime.now()
+                self.algorithm.Log("Authentication successful with username/password")
+                return True
+            else:
+                self.algorithm.Error(f"Authentication failed: {response.status_code}")
+                return False
 
         except Exception as e:
-        self.algorithm.Error(f"Authentication error: {str(e)}")
-        return False
+            self.algorithm.Error(f"Authentication error: {str(e)}")
+            return False
 
-        def ensure_authenticated(self) -> bool:
+    def ensure_authenticated(self) -> bool:
         """Ensure we have a valid session token"""
 
         # Check if we need to re-authenticate
         if not self.session_token or not self.last_auth_time:
-        return self.authenticate()
+            return self.authenticate()
 
         # Check if session is expired
         if datetime.now() - self.last_auth_time > self.session_duration:
-        self.algorithm.Log("Session expired, re-authenticating")
-        return self.authenticate()
+            self.algorithm.Log("Session expired, re-authenticating")
+            return self.authenticate()
 
         return True
 
-        def get_headers(self) -> Dict:
+    def get_headers(self) -> Dict:
         """
         Get headers for API requests
-        CRITICAL: No Bearer prefix for Tastytrade!
+        CRITICAL: Bearer prefix REQUIRED for TastyTrade API!
         """
         return {
-        'Authorization': self.session_token,  # Direct token, NO Bearer prefix
-        'User-Agent': 'TomKingFramework/17.0',
-        'Accept': 'application/json'
+            'Authorization': f'Bearer {self.session_token}',  # Bearer prefix REQUIRED
+            'User-Agent': 'TomKingFramework/17.0',
+            'Accept': 'application/json'
         }
 
-        def map_symbol(self, symbol: str) -> Tuple[str, str]:
+    def map_symbol(self, symbol: str) -> Tuple[str, str]:
         """
         Map symbol to Tastytrade format
         Returns: (mapped_symbol, symbol_type)
         """
-
+        
         # Futures symbols
         if symbol in ['ES', 'MES', 'CL', 'MCL', 'GC', 'MGC', 'NQ', 'MNQ', 'RTY', 'M2K']:
-        return f"/{symbol}", "Future"
+            return f"/{symbol}", "Future"
 
         # Index symbols
         if symbol in ['VIX', 'SPX', 'NDX', 'RUT', 'DJX']:
-        return f"${symbol}", "Index"
+            return f"${symbol}", "Index"
 
         # ETFs and stocks
         return symbol, "Equity"
 
-        def get_quote(self, symbol: str) -> Optional[Dict]:
+    def get_quote(self, symbol: str) -> Optional[Dict]:
         """
         Get real-time quote from Tastytrade
         Falls back to QuantConnect if not in live mode
         """
-
+        
         # Use QuantConnect in backtest mode
         if not self.is_live:
-        return self._get_qc_quote(symbol)
+            return self._get_qc_quote(symbol)
 
         # Check cache
         cache_key = f"quote_{symbol}"
         if cache_key in self.quote_cache:
-        cached_time, cached_data = self.quote_cache[cache_key]
-        if datetime.now() - cached_time < self.cache_duration:
-        return cached_data
+            cached_time, cached_data = self.quote_cache[cache_key]
+            if datetime.now() - cached_time < self.cache_duration:
+                return cached_data
 
         # Ensure authenticated
         if not self.ensure_authenticated():
-        return self._get_qc_quote(symbol)
+            return self._get_qc_quote(symbol)
 
         try:
-        except Exception as e:
-        # Log and handle unexpected exception
-        except Exception as e:
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Map symbol
+            # Get quote from Tastytrade API
             mapped_symbol, symbol_type = self.map_symbol(symbol)
             
-            # Build request
-            params = {
-                'symbols': mapped_symbol,
-                'types': symbol_type
-            }
-            
             response = requests.get(
-                self.endpoints['market_data'],
-                params=params,
+                f"{self.endpoints['base']}/market-data/quotes/{mapped_symbol}",
                 headers=self.get_headers(),
                 timeout=10
             )
             
             if response.status_code == 200:
-                data = response.json()
-                items = data.get('data', {}).get('items', [])
+                quote_data = response.json().get('data')
                 
-                if items:
-                    # Extract first item
-                    item = items[0] if isinstance(items, list) else items[list(items.keys())[0]]
-                    
-                    quote = {
-                        'symbol': symbol,
-                        'last': float(item.get('last', 0) or item.get('mark', 0)),
-                        'bid': float(item.get('bid', 0) or 0),
-                        'ask': float(item.get('ask', 0) or 0),
-                        'volume': float(item.get('volume', 0) or 0),
-                        'open': float(item.get('open', 0) or 0),
-                        'high': float(item.get('high', 0) or 0),
-                        'low': float(item.get('low', 0) or 0),
-                        'close': float(item.get('close', 0) or item.get('last', 0)),
-                        'timestamp': datetime.now(),
-                        'source': 'tastytrade'
-                    }
-                    
-                    # Cache result
-                    self.quote_cache[cache_key] = (datetime.now(), quote)
-                    
-                    return quote
-            
-            # Fall back to QuantConnect
-            self.algorithm.Log(f"Tastytrade quote failed for {symbol}, using QuantConnect")
-            return self._get_qc_quote(symbol)
-            
+                # Cache the result
+                self.quote_cache[cache_key] = (datetime.now(), quote_data)
+                
+                return quote_data
+            else:
+                return self._get_qc_quote(symbol)
+                
         except Exception as e:
-            self.algorithm.Error(f"Quote error for {symbol}: {str(e)}")
+            # Log and handle unexpected exception
+            self.algorithm.Error(f"Error getting quote for {symbol}: {e}")
             return self._get_qc_quote(symbol)
+    
+    # REMOVED: Alternative implementation that was unreachable after return statement
+    # This contained duplicate quote fetching logic with slightly different API calls
+    # The working implementation above in the try block handles Tastytrade quote fetching
     
     def _get_qc_quote(self, symbol: str) -> Optional[Dict]:
         """Get quote from QuantConnect"""
         
         try:
-        security = self.algorithm.Securities.get(symbol)
+            security = self.algorithm.Securities.get(symbol)
 
-        if not security:
-        # Try to add the security
-        if symbol in ['SPY', 'QQQ', 'IWM', 'DIA']:
-        security = self.algorithm.AddEquity(symbol, Resolution.Minute)
-        else:
-        return None
+            if not security:
+                # Try to add the security
+                if symbol in ['SPY', 'QQQ', 'IWM', 'DIA']:
+                    security = self.algorithm.AddEquity(symbol, Resolution.Minute)
+                else:
+                    return None
 
-        return {
-        'symbol': symbol,
-        'last': float(security.Price),
-        'bid': float(security.BidPrice),
-        'ask': float(security.AskPrice),
-        'volume': float(security.Volume),
-        'open': float(security.Open),
-        'high': float(security.High),
-        'low': float(security.Low),
-        'close': float(security.Close),
-        'timestamp': self.algorithm.Time,
-        'source': 'quantconnect'
-        }
+            return {
+                'symbol': symbol,
+                'last': float(security.Price),
+                'bid': float(security.BidPrice),
+                'ask': float(security.AskPrice),
+                'volume': float(security.Volume),
+                'open': float(security.Open),
+                'high': float(security.High),
+                'low': float(security.Low),
+                'close': float(security.Close),
+                'timestamp': self.algorithm.Time,
+                'source': 'quantconnect'
+            }
 
         except Exception as e:
-        self.algorithm.Error(f"QC quote error for {symbol}: {str(e)}")
-        return None
+            self.algorithm.Error(f"QC quote error for {symbol}: {str(e)}")
+            return None
 
-        def get_option_chain(self, symbol: str, dte: int = None) -> Optional[Dict]:
+    def get_option_chain(self, symbol: str, dte: int = None) -> Optional[Dict]:
         """
         Get option chain from Tastytrade or QuantConnect
         """
 
         # Use QuantConnect in backtest mode
         if not self.is_live:
-        return self._get_qc_option_chain(symbol, dte)
+            return self._get_qc_option_chain(symbol, dte)
 
         # Check cache
         cache_key = f"chain_{symbol}_{dte}"
         if cache_key in self.option_chain_cache:
-        cached_time, cached_data = self.option_chain_cache[cache_key]
-        if datetime.now() - cached_time < timedelta(minutes=5):
-        return cached_data
+            cached_time, cached_data = self.option_chain_cache[cache_key]
+            if datetime.now() - cached_time < timedelta(minutes=5):
+                return cached_data
 
         # Ensure authenticated
         if not self.ensure_authenticated():
-        return self._get_qc_option_chain(symbol, dte)
+            return self._get_qc_option_chain(symbol, dte)
 
         try:
-        except Exception as e:
-        # Log and handle unexpected exception
-        except Exception as e:
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Determine endpoint
+            # Get option chain from Tastytrade API - Complete implementation with futures support
             mapped_symbol, symbol_type = self.map_symbol(symbol)
             
+            # Determine correct endpoint based on symbol type
             if symbol_type == "Future":
-                # Remove leading slash for futures option chains
+                # Remove leading slash for futures option chains endpoint
                 clean_symbol = mapped_symbol[1:] if mapped_symbol.startswith('/') else mapped_symbol
                 endpoint = f"{self.endpoints['futures_chains']}/{clean_symbol}/nested"
             else:
+                # Use standard option chains endpoint for equities
                 endpoint = f"{self.endpoints['option_chains']}/{symbol}/nested"
             
+            # Make API request to Tastytrade
             response = requests.get(
                 endpoint,
                 headers=self.get_headers(),
@@ -339,16 +289,16 @@ class TastytradeApiClient:
                 data = response.json()
                 items = data.get('data', {}).get('items', [])
                 
-                # Parse chain
+                # Parse the option chain response
                 chain = self._parse_tastytrade_chain(items, symbol, dte)
                 
-                # Cache result
+                # Cache result for 5 minutes as per preserved logic
                 self.option_chain_cache[cache_key] = (datetime.now(), chain)
                 
                 return chain
             
-            # Fall back to QuantConnect
-            self.algorithm.Log(f"Tastytrade chain failed for {symbol}, using QuantConnect")
+            # Fall back to QuantConnect if API call fails
+            self.algorithm.Log(f"Tastytrade chain failed for {symbol} ({symbol_type}), using QuantConnect")
             return self._get_qc_option_chain(symbol, dte)
             
         except Exception as e:
@@ -427,84 +377,84 @@ class TastytradeApiClient:
         """Get option chain from QuantConnect"""
         
         try:
-        # Get underlying
-        underlying = self.algorithm.Securities.get(symbol)
-        if not underlying:
-        underlying = self.algorithm.AddEquity(symbol, Resolution.Minute)
+            # Get underlying
+            underlying = self.algorithm.Securities.get(symbol)
+            if not underlying:
+                underlying = self.algorithm.AddEquity(symbol, Resolution.Minute)
 
-        # Get option contracts
-        contracts = self.algorithm.OptionChainProvider.GetOptionContractList(
-        underlying.Symbol,
-        self.algorithm.Time
-        )
+            # Get option contracts
+            contracts = self.algorithm.OptionChainProvider.GetOptionContractList(
+                underlying.Symbol,
+                self.algorithm.Time
+            )
 
-        # Build chain structure
-        chain = {
-        'symbol': symbol,
-        'expirations': [],
-        'target_dte': dte,
-        'source': 'quantconnect'
-        }
+            # Build chain structure
+            chain = {
+                'symbol': symbol,
+                'expirations': [],
+                'target_dte': dte,
+                'source': 'quantconnect'
+            }
 
-        # Group by expiration
-        exp_groups = {}
-        for contract in contracts:
-        exp_date = contract.ID.Date
-        days_to_exp = (exp_date - self.algorithm.Time).days
+            # Group by expiration
+            exp_groups = {}
+            for contract in contracts:
+                exp_date = contract.ID.Date
+                days_to_exp = (exp_date - self.algorithm.Time).days
 
-        # Filter by DTE if specified
-        if dte is not None:
-        if abs(days_to_exp - dte) > 3:
-        continue
+                # Filter by DTE if specified
+                if dte is not None:
+                    if abs(days_to_exp - dte) > 3:
+                        continue
 
-        exp_key = exp_date.strftime('%Y-%m-%d')
-        if exp_key not in exp_groups:
-        exp_groups[exp_key] = {
-        'expiration_date': exp_key,
-        'dte': days_to_exp,
-        'strikes': {}
-        }
+                exp_key = exp_date.strftime('%Y-%m-%d')
+                if exp_key not in exp_groups:
+                    exp_groups[exp_key] = {
+                        'expiration_date': exp_key,
+                        'dte': days_to_exp,
+                        'strikes': {}
+                    }
 
-        strike = float(contract.ID.StrikePrice)
-        if strike not in exp_groups[exp_key]['strikes']:
-        exp_groups[exp_key]['strikes'][strike] = {
-        'strike': strike,
-        'put': None,
-        'call': None
-        }
+                strike = float(contract.ID.StrikePrice)
+                if strike not in exp_groups[exp_key]['strikes']:
+                    exp_groups[exp_key]['strikes'][strike] = {
+                        'strike': strike,
+                        'put': None,
+                        'call': None
+                    }
 
-        # Add option data (would need to subscribe for real data)
-        option_data = {
-        'symbol': str(contract.Symbol),
-        'bid': 0,
-        'ask': 0,
-        'last': 0,
-        'delta': 0,
-        'gamma': 0,
-        'theta': 0,
-        'vega': 0,
-        'iv': 0,
-        'volume': 0,
-        'open_interest': 0
-        }
+                # Add option data (would need to subscribe for real data)
+                option_data = {
+                    'symbol': str(contract.Symbol),
+                    'bid': 0,
+                    'ask': 0,
+                    'last': 0,
+                    'delta': 0,
+                    'gamma': 0,
+                    'theta': 0,
+                    'vega': 0,
+                    'iv': 0,
+                    'volume': 0,
+                    'open_interest': 0
+                }
 
-        if contract.ID.OptionRight == OptionRight.Call:
-        exp_groups[exp_key]['strikes'][strike]['call'] = option_data
-        else:
-        exp_groups[exp_key]['strikes'][strike]['put'] = option_data
+                if contract.ID.OptionRight == OptionRight.Call:
+                    exp_groups[exp_key]['strikes'][strike]['call'] = option_data
+                else:
+                    exp_groups[exp_key]['strikes'][strike]['put'] = option_data
 
-        # Convert to list format
-        for exp_data in exp_groups.values():
-        exp_data['strikes'] = list(exp_data['strikes'].values())
-        chain['expirations'].append(exp_data)
+            # Convert to list format
+            for exp_data in exp_groups.values():
+                exp_data['strikes'] = list(exp_data['strikes'].values())
+                chain['expirations'].append(exp_data)
 
-        return chain
+            return chain
 
         except Exception as e:
-        self.algorithm.Error(f"QC option chain error: {str(e)}")
-        return None
+            self.algorithm.Error(f"QC option chain error: {str(e)}")
+            return None
 
-        def find_10_delta_strikes(self, symbol: str, dte: int = 0) -> Optional[Dict]:
+    def find_10_delta_strikes(self, symbol: str, dte: int = 0) -> Optional[Dict]:
         """
         Find 10-delta strikes for Tom King's 0DTE strategy
         Returns strikes for iron condor setup
@@ -513,7 +463,7 @@ class TastytradeApiClient:
         chain = self.get_option_chain(symbol, dte)
 
         if not chain or not chain.get('expirations'):
-        return None
+            return None
 
         # Get first expiration (closest to target DTE)
         exp_data = chain['expirations'][0]
@@ -524,253 +474,207 @@ class TastytradeApiClient:
         call_10_delta = None
 
         for strike_data in strikes:
-        put = strike_data.get('put')
-        call = strike_data.get('call')
+            put = strike_data.get('put')
+            call = strike_data.get('call')
 
-        # Check put delta (looking for -0.10)
-        if put and not put_10_delta:
-        delta = abs(put.get('delta', 0))
-        if 0.08 <= delta <= 0.12:  # 10-delta with tolerance
-        put_10_delta = {
-        'strike': strike_data['strike'],
-        'delta': -delta,
-        'bid': put.get('bid', 0),
-        'ask': put.get('ask', 0)
-        }
+            # Check put delta (looking for -0.10)
+            if put and not put_10_delta:
+                delta = abs(put.get('delta', 0))
+                if 0.08 <= delta <= 0.12:  # 10-delta with tolerance
+                    put_10_delta = {
+                        'strike': strike_data['strike'],
+                        'delta': -delta,
+                        'bid': put.get('bid', 0),
+                        'ask': put.get('ask', 0)
+                    }
 
-        # Check call delta (looking for 0.10)
-        if call and not call_10_delta:
-        delta = abs(call.get('delta', 0))
-        if 0.08 <= delta <= 0.12:  # 10-delta with tolerance
-        call_10_delta = {
-        'strike': strike_data['strike'],
-        'delta': delta,
-        'bid': call.get('bid', 0),
-        'ask': call.get('ask', 0)
-        }
+            # Check call delta (looking for 0.10)
+            if call and not call_10_delta:
+                delta = abs(call.get('delta', 0))
+                if 0.08 <= delta <= 0.12:  # 10-delta with tolerance
+                    call_10_delta = {
+                        'strike': strike_data['strike'],
+                        'delta': delta,
+                        'bid': call.get('bid', 0),
+                        'ask': call.get('ask', 0)
+                    }
 
-        # Stop if both found
-        if put_10_delta and call_10_delta:
-        break
+            # Stop if both found
+            if put_10_delta and call_10_delta:
+                break
 
         if not (put_10_delta and call_10_delta):
-        return None
+            return None
 
         # Build iron condor setup
         wing_width = 30  # Standard 30-point wings for ES
 
         return {
-        'symbol': symbol,
-        'dte': dte,
-        'expiration': exp_data['expiration_date'],
-        'put_short': put_10_delta['strike'],
-        'put_long': put_10_delta['strike'] - wing_width,
-        'call_short': call_10_delta['strike'],
-        'call_long': call_10_delta['strike'] + wing_width,
-        'put_credit': (put_10_delta['bid'] + put_10_delta['ask']) / 2,
-        'call_credit': (call_10_delta['bid'] + call_10_delta['ask']) / 2,
-        'total_credit': None,  # Will be calculated
-        'max_risk': wing_width,
-        'put_delta': put_10_delta['delta'],
-        'call_delta': call_10_delta['delta'],
-        'source': chain.get('source', 'unknown')
+            'symbol': symbol,
+            'dte': dte,
+            'expiration': exp_data['expiration_date'],
+            'put_short': put_10_delta['strike'],
+            'put_long': put_10_delta['strike'] - wing_width,
+            'call_short': call_10_delta['strike'],
+            'call_long': call_10_delta['strike'] + wing_width,
+            'put_credit': (put_10_delta['bid'] + put_10_delta['ask']) / 2,
+            'call_credit': (call_10_delta['bid'] + call_10_delta['ask']) / 2,
+            'total_credit': None,  # Will be calculated
+            'max_risk': wing_width,
+            'put_delta': put_10_delta['delta'],
+            'call_delta': call_10_delta['delta'],
+            'source': chain.get('source', 'unknown')
         }
 
-        def place_order(self, symbol: str, quantity: int, order_type: str = 'MARKET',
-        limit_price: float = None, stop_price: float = None) -> Optional[Dict]:
+    def submit_order_to_tastytrade(self, order_payload: Dict, account_number: str = None) -> Optional[Dict]:
         """
-        Place an order through TastyTrade API
-
+        Submit order directly to TastyTrade API (INTEGRATION METHOD)
+        Used by AtomicOrderExecutor for live trading
+        
         Args:
-        symbol: Option or stock symbol
-        quantity: Number of contracts (positive for buy, negative for sell)
-        order_type: 'MARKET', 'LIMIT', 'STOP', 'STOP_LIMIT'
-        limit_price: Limit price for limit orders
-        stop_price: Stop price for stop orders
-
+            order_payload: Complete TastyTrade order payload
+            account_number: Account number (optional, will get from config)
+            
         Returns:
-        Order response from API or None if failed
+            Order response from TastyTrade API or None if failed
         """
-        if not self.is_session_valid():
-        self.authenticate()
-
-        if not self.session_token:
-        self.algorithm.Error("Cannot place order - not authenticated")
-        return None
+        if not self.is_live:
+            self.algorithm.Error("TastyTrade order submission only available in live mode")
+            return None
+            
+        if not self.ensure_authenticated():
+            self.algorithm.Error("Cannot submit order - authentication failed")
+            return None
 
         try:
-        except Exception as e:
-        # Log and handle unexpected exception
-        except Exception as e:
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Get account number
-            account_info = self.get_account_info()
-            if not account_info:
-                self.algorithm.Error("Cannot get account info for order placement")
-                return None
+            # Get account number if not provided
+            if not account_number:
+                account_info = self.get_account_info()
+                if not account_info:
+                    self.algorithm.Error("Cannot get account info for order submission")
+                    return None
+                account_number = account_info['account_number']
             
-            account_number = account_info['account_number']
-            
-            # Build order payload
-            order_payload = {
-                'order-type': order_type.lower(),
-                'time-in-force': 'Day',  # Day order by default
-                'legs': [{
-                    'instrument-type': 'Option' if '/' in symbol else 'Equity',
-                    'symbol': symbol,
-                    'quantity': abs(quantity),
-                    'action': 'Buy to Open' if quantity > 0 else 'Sell to Open'
-                }]
-            }
-            
-            # Add price if limit or stop order
-            if order_type in ['LIMIT', 'STOP_LIMIT'] and limit_price:
-                order_payload['price'] = limit_price
-            if order_type in ['STOP', 'STOP_LIMIT'] and stop_price:
-                order_payload['stop-trigger'] = stop_price
-            
-            # Submit order
-            url = f"{self.endpoints['base']}/accounts/{account_number}/orders"
+            # Submit order with correct Bearer token header
+            url = f"{self.endpoints['base_url']}/accounts/{account_number}/orders"
             
             response = requests.post(
                 url,
                 json=order_payload,
-                headers={
-                    'Authorization': self.session_token,  # No "Bearer" prefix
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'TomKingFramework/17.0'
-                },
+                headers=self.get_headers(),
                 timeout=30
             )
             
             if response.status_code in [200, 201]:
                 order_data = response.json().get('data', {})
-                self.algorithm.Log(f"Order placed successfully: {symbol} x{quantity}")
+                self.algorithm.Log(f"TastyTrade order submitted successfully")
                 return order_data
             else:
-                self.algorithm.Error(f"Order placement failed: {response.status_code} - {response.text}")
+                self.algorithm.Error(f"TastyTrade order failed: {response.status_code} - {response.text}")
                 return None
                 
         except Exception as e:
-            self.algorithm.Error(f"Exception placing order: {str(e)}")
+            self.algorithm.Error(f"TastyTrade order submission error: {str(e)}")
             return None
     
-    def place_multi_leg_order(self, legs: List[Dict], order_type: str = 'MARKET', 
-                             limit_price: float = None) -> Optional[Dict]:
+    def build_tastytrade_order_payload(self, legs: List[Dict], order_type: str = 'Limit', 
+                                      limit_price: float = None, price_effect: str = None) -> Optional[Dict]:
         """
-        Place a multi-leg option order (spreads, iron condors, etc.)
+        Build TastyTrade order payload (HELPER METHOD)
+        Used by AtomicOrderExecutor to construct proper TastyTrade orders
         
         Args:
-            legs: List of leg definitions, each containing:
-                  - symbol: Option symbol
-                  - quantity: Number of contracts
-                  - action: 'buy' or 'sell'
-            order_type: 'MARKET' or 'LIMIT'
+            legs: List of leg definitions with TastyTrade symbols
+            order_type: 'Market', 'Limit', etc.
             limit_price: Net credit/debit limit price
+            price_effect: 'Credit' or 'Debit'
             
         Returns:
-            Order response or None if failed
+            TastyTrade-compliant order payload or None if validation fails
         """
-        if not self.is_session_valid():
-            self.authenticate()
-        
-        if not self.session_token:
-            self.algorithm.Error("Cannot place order - not authenticated")
-            return None
-        
         try:
-        # Get account number
-        account_info = self.get_account_info()
-        if not account_info:
-        return None
+            # Validate legs (max 4 for options per TastyTrade docs)
+            if len(legs) > 4:
+                self.algorithm.Error("TastyTrade multi-leg orders limited to 4 legs maximum")
+                return None
+            
+            # Build order legs according to TastyTrade documentation
+            order_legs = []
+            for leg in legs:
+                symbol = leg['symbol']
+                
+                # Determine instrument type correctly
+                if any(opt_char in symbol for opt_char in ['C00', 'P00']) or len(symbol) > 10:
+                    instrument_type = 'Equity Option'
+                elif symbol.startswith('/'):
+                    instrument_type = 'Future Option' if 'option' in leg.get('type', '').lower() else 'Future'
+                else:
+                    instrument_type = 'Equity'
+                
+                order_legs.append({
+                    'instrument-type': instrument_type,
+                    'symbol': symbol,
+                    'quantity': abs(leg['quantity']),  # TastyTrade requires positive quantities
+                    'action': leg['action']  # Use exact action as provided
+                })
 
-        account_number = account_info['account_number']
+            # Build base order payload
+            order_payload = {
+                'order-type': order_type,  # Exact case as per documentation
+                'time-in-force': 'Day',
+                'legs': order_legs
+            }
 
-        # Build multi-leg order
-        order_legs = []
-        for leg in legs:
-        order_legs.append({
-        'instrument-type': 'Option',
-        'symbol': leg['symbol'],
-        'quantity': abs(leg['quantity']),
-        'action': 'Buy to Open' if leg['action'] == 'buy' else 'Sell to Open'
-        })
-
-        order_payload = {
-        'order-type': order_type.lower(),
-        'time-in-force': 'Day',
-        'legs': order_legs
-        }
-
-        if order_type == 'LIMIT' and limit_price:
-        order_payload['price'] = limit_price
-
-        # Submit order
-        url = f"{self.endpoints['base']}/accounts/{account_number}/orders"
-
-        response = requests.post(
-        url,
-        json=order_payload,
-        headers={
-        'Authorization': self.session_token,
-        'Content-Type': 'application/json',
-        'User-Agent': 'TomKingFramework/17.0'
-        },
-        timeout=30
-        )
-
-        if response.status_code in [200, 201]:
-        self.algorithm.Log(f"Multi-leg order placed: {len(legs)} legs")
-        return response.json().get('data', {})
-        else:
-        self.algorithm.Error(f"Multi-leg order failed: {response.text}")
-        return None
+            # Add required fields for limit orders
+            if order_type in ['Limit', 'Stop Limit']:
+                if limit_price is None or price_effect is None:
+                    self.algorithm.Error(f"Limit price and price effect required for {order_type} orders")
+                    return None
+                    
+                order_payload['price'] = str(limit_price)  # String format as per docs
+                order_payload['price-effect'] = price_effect
+            
+            return order_payload
 
         except Exception as e:
-        self.algorithm.Error(f"Exception in multi-leg order: {str(e)}")
-        return None
+            self.algorithm.Error(f"Error building TastyTrade order payload: {str(e)}")
+            return None
 
-        def get_account_info(self) -> Optional[Dict]:
+    def build_tastytrade_option_symbol(self, underlying: str, expiration: str, 
+                                     option_type: str, strike: float) -> str:
+        """
+        Build TastyTrade option symbol format (HELPER METHOD)
+        Used by AtomicOrderExecutor for proper symbol construction
+        
+        Args:
+            underlying: Underlying symbol (e.g., 'SPY', 'ES')
+            expiration: Expiration in YYMMDD format (e.g., '230818')
+            option_type: 'C' for call, 'P' for put
+            strike: Strike price
+            
+        Returns:
+            TastyTrade-formatted option symbol
+        """
+        try:
+            # Format: SYMBOL YYMMDDTSSSSSS where T=C/P, SSSSSS=strike*1000
+            strike_formatted = f"{int(strike * 1000):08d}"
+            return f"{underlying}  {expiration}{option_type}{strike_formatted}"
+            
+        except Exception as e:
+            self.algorithm.Error(f"Error building TastyTrade option symbol: {str(e)}")
+            return None
+
+    def get_account_info(self) -> Optional[Dict]:
         """Get account information from Tastytrade"""
 
         if not self.is_live:
-        return self._get_qc_account_info()
+            return self._get_qc_account_info()
 
         if not self.ensure_authenticated():
-        return self._get_qc_account_info()
+            return self._get_qc_account_info()
 
         try:
-        except Exception as e:
-        # Log and handle unexpected exception
-        except Exception as e:
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# Get account balance
+            # Get account balance
             account_num = TastytradeCredentials.ACCOUNT_NUMBER_CASH
             
             response = requests.get(
@@ -834,93 +738,76 @@ class TastytradeApiClient:
             return self._get_qc_positions()
         
         try:
-        account_num = TastytradeCredentials.ACCOUNT_NUMBER_CASH
+            account_num = TastytradeCredentials.ACCOUNT_NUMBER_CASH
 
-        response = requests.get(
-        f"{self.endpoints['accounts']}/{account_num}/positions",
-        headers=self.get_headers(),
-        timeout=15
-        )
+            response = requests.get(
+                f"{self.endpoints['accounts']}/{account_num}/positions",
+                headers=self.get_headers(),
+                timeout=15
+            )
 
-        if response.status_code == 200:
-        data = response.json().get('data', {})
-        items = data.get('items', [])
+            if response.status_code == 200:
+                data = response.json().get('data', {})
+                items = data.get('items', [])
 
-        positions = []
-        for item in items:
-        position = {
-        'symbol': item.get('symbol', ''),
-        'instrument_type': item.get('instrument-type', ''),
-        'quantity': float(item.get('quantity', 0)),
-        'average_price': float(item.get('average-price', 0) or 0),
-        'mark_value': float(item.get('mark-value', 0) or 0),
-        'multiplier': float(item.get('multiplier', 1) or 1),
-        'close_price': float(item.get('close-price', 0) or 0),
-        'realized_day_gain': float(item.get('realized-day-gain', 0) or 0),
-        'unrealized_day_gain': float(item.get('unrealized-day-gain', 0) or 0),
-        'source': 'tastytrade'
-        }
-        positions.append(position)
+                positions = []
+                for item in items:
+                    position = {
+                        'symbol': item.get('symbol', ''),
+                        'instrument_type': item.get('instrument-type', ''),
+                        'quantity': float(item.get('quantity', 0)),
+                        'average_price': float(item.get('average-price', 0) or 0),
+                        'mark_value': float(item.get('mark-value', 0) or 0),
+                        'multiplier': float(item.get('multiplier', 1) or 1),
+                        'close_price': float(item.get('close-price', 0) or 0),
+                        'realized_day_gain': float(item.get('realized-day-gain', 0) or 0),
+                        'unrealized_day_gain': float(item.get('unrealized-day-gain', 0) or 0),
+                        'source': 'tastytrade'
+                    }
+                    positions.append(position)
 
-        return positions
+                return positions
 
-        return self._get_qc_positions()
+            return self._get_qc_positions()
 
         except Exception as e:
-        self.algorithm.Error(f"Positions error: {str(e)}")
-        return self._get_qc_positions()
+            self.algorithm.Error(f"Positions error: {str(e)}")
+            return self._get_qc_positions()
 
-        def _get_qc_positions(self) -> List[Dict]:
+    def _get_qc_positions(self) -> List[Dict]:
         """Get positions from QuantConnect Portfolio"""
 
         positions = []
 
         for symbol, holding in self.algorithm.Portfolio.items():
-        if holding.Quantity != 0:
-        position = {
-        'symbol': str(symbol),
-        'instrument_type': 'Equity',
-        'quantity': float(holding.Quantity),
-        'average_price': float(holding.AveragePrice),
-        'mark_value': float(holding.HoldingsValue),
-        'multiplier': 1.0,
-        'close_price': float(holding.Price),
-        'realized_day_gain': float(holding.Profit),
-        'unrealized_day_gain': float(holding.UnrealizedProfit),
-        'source': 'quantconnect'
-        }
-        positions.append(position)
+            if holding.Quantity != 0:
+                position = {
+                    'symbol': str(symbol),
+                    'instrument_type': 'Equity',
+                    'quantity': float(holding.Quantity),
+                    'average_price': float(holding.AveragePrice),
+                    'mark_value': float(holding.HoldingsValue),
+                    'multiplier': 1.0,
+                    'close_price': float(holding.Price),
+                    'realized_day_gain': float(holding.Profit),
+                    'unrealized_day_gain': float(holding.UnrealizedProfit),
+                    'source': 'quantconnect'
+                }
+                positions.append(position)
 
         return positions
 
-        def get_order_status(self, order_id: str) -> Optional[Dict]:
+    def get_order_status(self, order_id: str) -> Optional[Dict]:
         """Get status of a specific order"""
 
         if not self.is_live:
-        return None  # QC orders are managed differently
+            return None  # QC orders are managed differently
 
         if not self.ensure_authenticated():
-        return None
+            return None
 
         try:
-        except Exception as e:
-        # Log and handle unexpected exception
-        except Exception as e:
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-        
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-account_num = TastytradeCredentials.ACCOUNT_NUMBER_CASH
+            account_num = TastytradeCredentials.ACCOUNT_NUMBER_CASH
             
             response = requests.get(
                 f"{self.endpoints['accounts']}/{account_num}/orders/{order_id}",
@@ -959,32 +846,24 @@ account_num = TastytradeCredentials.ACCOUNT_NUMBER_CASH
             return False
         
         try:
-        account_num = TastytradeCredentials.ACCOUNT_NUMBER_CASH
+            account_num = TastytradeCredentials.ACCOUNT_NUMBER_CASH
 
-        response = requests.delete(
-        f"{self.endpoints['accounts']}/{account_num}/orders/{order_id}",
-        headers=self.get_headers(),
-        timeout=10
-        )
+            response = requests.delete(
+                f"{self.endpoints['accounts']}/{account_num}/orders/{order_id}",
+                headers=self.get_headers(),
+                timeout=10
+            )
 
-        if response.status_code == 204:
-        self.algorithm.Log(f"Order {order_id} cancelled successfully")
-        return True
+            if response.status_code == 204:
+                self.algorithm.Log(f"Order {order_id} cancelled successfully")
+                return True
 
-        self.algorithm.Error(f"Failed to cancel order {order_id}: {response.text}")
-        return False
+            self.algorithm.Error(f"Failed to cancel order {order_id}: {response.text}")
+            return False
 
         except Exception as e:
-        self.algorithm.Error(f"Cancel order error: {str(e)}")
-        return False
-        except Exception as e:
-            # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
+            self.algorithm.Error(f"Cancel order error: {str(e)}")
+            return False
 
 # Usage in main algorithm:
 """

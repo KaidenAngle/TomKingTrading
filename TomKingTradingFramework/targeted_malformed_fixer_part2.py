@@ -110,8 +110,8 @@ class TargetedMalformedFixerPart2:
                 # Skip blank lines and check for except
                 while j < len(lines) and (lines[j].strip() == '' or 
                                         lines[j].strip().startswith('except') == False):
-                                            if lines[j].strip() != '' and not lines[j].strip().startswith('except'):
-                                                break  # Found content, not the pattern we're looking for
+                    if lines[j].strip() != '' and not lines[j].strip().startswith('except'):
+                        break  # Found content, not the pattern we're looking for
                     j += 1
                 
                 # If we found except clause directly after try (with possible blank lines)

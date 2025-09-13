@@ -22,11 +22,9 @@ class SimpleOrderHelpers:
             aggressive: If True, cross spread more for fill
         """
         try:
-            bid = contract.BidPrice if hasattr(contract, 'BidPrice') else 0
-        ask = contract.AskPrice if hasattr(contract, 'AskPrice') else 0
-        except Exception as e:
-
             # Get bid/ask
+            bid = contract.BidPrice if hasattr(contract, 'BidPrice') else 0
+            ask = contract.AskPrice if hasattr(contract, 'AskPrice') else 0
             
             # Sanity check
             if bid <= 0 or ask <= 0:
@@ -51,7 +49,6 @@ class SimpleOrderHelpers:
             
             # Place order
             return self.algo.LimitOrder(contract.Symbol, quantity, limit_price)
-            
         except Exception as e:
             self.algo.Error(f"Limit order failed: {str(e)}, using market order")
             return self.algo.MarketOrder(contract.Symbol, quantity)
@@ -84,9 +81,6 @@ class SimpleOrderHelpers:
         for order in orders:
             if order is not None:
                 try:
-                    pass
-                except Exception as e:
-
                     if order.Status == OrderStatus.Submitted:
                         order.Cancel()
                     elif order.Status == OrderStatus.Filled:

@@ -10,8 +10,7 @@
 ## Architecture Documentation
 
 ### Core Systems
-- [State Machine Architecture](Architecture/STATE_MACHINE_ARCHITECTURE.md) - Why each strategy needs states
-- [Enhanced State Machine Patterns](Architecture/ENHANCED_STATE_MACHINE_PATTERNS.md) - Production-ready state management with error recovery
+- [State Machine Architecture](Architecture/STATE_MACHINE_ARCHITECTURE.md) - Complete state management with enhanced patterns and error recovery
 - [Multi-Strategy Coordination](Architecture/MULTI_STRATEGY_COORDINATION.md) - How strategies work together
 - [VIX Management Design](Architecture/VIX_MANAGEMENT_DESIGN.md) - Central data, strategy-specific filters
 - [SPY Concentration Management](Architecture/SPY_CONCENTRATION_MANAGEMENT.md) - Preventing over-exposure
@@ -32,17 +31,17 @@
 - [Timing Windows and Scheduling](Architecture/TIMING_WINDOWS_AND_SCHEDULING.md) - Why specific times matter
 - [Fail-Fast Error Philosophy](Architecture/FAIL_FAST_ERROR_PHILOSOPHY.md) - Why we don't use try/catch everywhere
 - [ObjectStore State Persistence](Architecture/OBJECTSTORE_STATE_PERSISTENCE.md) - Crash recovery and state management
-- [Circuit Breaker Thresholds](Architecture/CIRCUIT_BREAKER_THRESHOLDS.md) - Why these specific numbers
+- [Circuit Breaker Implementation](Architecture/CIRCUIT_BREAKER_THRESHOLDS.md) - Technical implementation details
 - [Dynamic Position Scaling Patterns](Architecture/DYNAMIC_POSITION_SCALING_PATTERNS.md) - Intelligent scaling that preserves risk tolerance
 - [Systematic Failure Pattern Resolution](Architecture/SYSTEMATIC_FAILURE_PATTERN_RESOLUTION.md) - Production methodology for diagnosing and resolving position opening failures through pattern classification
 
 ## Methodology Documentation
 
 ### Trading Rules & Risk Management
-- [Kelly Criterion Position Sizing](Methodology/KELLY_CRITERION_POSITION_SIZING.md) - Why 0.25 factor
+- [Master Risk Parameters](Methodology/MASTER_RISK_PARAMETERS.md) - All risk thresholds and parameters
+- [Phase-Based Progression](Methodology/PHASE_BASED_PROGRESSION.md) - Portfolio phases and Kelly Criterion position sizing
 - [21 DTE Defensive Exit Rule](Methodology/21_DTE_DEFENSIVE_EXIT_RULE.md) - Critical gamma risk management
 - [Greeks Management System](Methodology/GREEKS_MANAGEMENT_SYSTEM.md) - Phase-based Greeks limits
-- [Phase-Based Progression](Methodology/PHASE_BASED_PROGRESSION.md) - How to advance through portfolio phases
 - [August 5, 2024 Correlation Disaster](Methodology/AUGUST_5_2024_CORRELATION_DISASTER.md) - £308k lesson in correlation risk
 - [Micro vs Full Futures Contracts](Methodology/MICRO_VS_FULL_FUTURES_CONTRACTS.md) - Why we use both sizes
 

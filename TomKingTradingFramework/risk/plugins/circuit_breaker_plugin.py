@@ -26,17 +26,10 @@ class CircuitBreakerPlugin(BaseRiskPlugin):
     def _plugin_initialize(self) -> bool:
         """Initialize circuit breaker with August 5 disaster parameters"""
         try:
-        self.daily_loss_limit = TradingConstants.DAILY_LOSS_LIMIT
-        self.weekly_loss_limit = TradingConstants.WEEKLY_LOSS_LIMIT
-        self.monthly_loss_limit = TradingConstants.MONTHLY_LOSS_LIMIT
-        except Exception as e:
-
-            # Log and handle unexpected exception
-
-            print(f'Unexpected exception: {e}')
-
-            raise
-# Loss limits (percentages of account - NEVER CHANGE)
+            # Loss limits (percentages of account - NEVER CHANGE)
+            self.daily_loss_limit = TradingConstants.DAILY_LOSS_LIMIT
+            self.weekly_loss_limit = TradingConstants.WEEKLY_LOSS_LIMIT
+            self.monthly_loss_limit = TradingConstants.MONTHLY_LOSS_LIMIT
             
             # Intraday drawdown limit (flash crash protection)
             self.intraday_drawdown_limit = TradingConstants.INTRADAY_DRAWDOWN_LIMIT
@@ -51,7 +44,8 @@ class CircuitBreakerPlugin(BaseRiskPlugin):
             self.trigger_reason = ""
             self.trigger_time = None
             
-            # Portfolio tracking
+            # Portfolio tracking initialization
+            self.portfolio_start_value = None
             self.daily_start_value = self._algorithm.Portfolio.TotalPortfolioValue
             self.weekly_start_value = self._algorithm.Portfolio.TotalPortfolioValue
             self.monthly_start_value = self._algorithm.Portfolio.TotalPortfolioValue
@@ -71,16 +65,16 @@ class CircuitBreakerPlugin(BaseRiskPlugin):
             self.emergency_triggers = 0
             self.false_alarms = 0
             
-            # Cache for performance
+            # Cache for performance initialization
+            self._last_check_time = None
             self.last_portfolio_value = self._algorithm.Portfolio.TotalPortfolioValue
             self.last_value_update = self._algorithm.Time
             
             self._algorithm.Log("[Circuit Breaker Plugin] Initialized with August 5 protection parameters")
-            
             return True
-            
         except Exception as e:
-            self._algorithm.Error(f"[Circuit Breaker Plugin] Initialization error: {e}")
+            # Log and handle unexpected exception
+            self.algo.Error(f"Failed to initialize circuit breaker plugin: {e}")
             return False
     
     def can_open_position(self, symbol: str, quantity: int, 
@@ -414,7 +408,7 @@ class CircuitBreakerPlugin(BaseRiskPlugin):
         if not self.trigger_time:
             return 0.0
         
-        return (self._algorithm.Time - self.trigger_time).total_seconds() / TradingConstants.SECONDS_PER_HOUR.0
+        return (self._algorithm.Time - self.trigger_time).total_seconds() / TradingConstants.SECONDS_PER_HOUR
     
     def shutdown(self):
         """Clean shutdown of circuit breaker plugin"""

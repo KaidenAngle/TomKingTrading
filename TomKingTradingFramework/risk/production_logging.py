@@ -119,9 +119,9 @@ class ProductionLogger:
         """Write trade record to file"""
         try:
             existing_trades = []
-        if self.algo.ObjectStore.ContainsKey(self.trade_log_file):
-            json_data = self.algo.ObjectStore.Read(self.trade_log_file)
-        existing_trades = json.loads(json_data)
+            if self.algo.ObjectStore.ContainsKey(self.trade_log_file):
+                json_data = self.algo.ObjectStore.Read(self.trade_log_file)
+                existing_trades = json.loads(json_data)
         except Exception as e:
 
             # In QuantConnect, use ObjectStore for persistence
@@ -140,13 +140,12 @@ class ProductionLogger:
     def write_error_log(self, record: Dict):
         """Write error record to file"""
         try:
-            existing_errors = []
-        if self.algo.ObjectStore.ContainsKey(self.error_log_file):
-            json_data = self.algo.ObjectStore.Read(self.error_log_file)
-        existing_errors = json.loads(json_data)
-        except Exception as e:
-
             # In QuantConnect, use ObjectStore
+            existing_errors = []
+            if self.algo.ObjectStore.ContainsKey(self.error_log_file):
+                json_data = self.algo.ObjectStore.Read(self.error_log_file)
+                existing_errors = json.loads(json_data)
+        except Exception as e:
             
             existing_errors.append(record)
             
@@ -277,12 +276,11 @@ class NetworkMonitor:
     def test_connection(self) -> bool:
         """Test connection to broker and data feeds"""
         try:
-            value = self.algo.Portfolio.TotalPortfolioValue
-        if value <= 0:
-            return False
-        except Exception as e:
-
             # Test 1: Portfolio access
+            value = self.algo.Portfolio.TotalPortfolioValue
+            if value <= 0:
+                return False
+        except Exception as e:
             
             # Test 2: Market data access
             if "SPY" in self.algo.Securities:

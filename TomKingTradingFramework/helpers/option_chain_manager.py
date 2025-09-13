@@ -66,10 +66,8 @@ class OptionChainManager:
     def get_option_chain(self, symbol_str, min_dte=0, max_dte=730):
         """Get filtered option chain with production-grade caching"""
         try:
-            self._run_cache_maintenance()
-        except Exception as e:
-
             # Run periodic cache maintenance
+            self._run_cache_maintenance()
             
             # Create cache key for this specific request
             cache_key = f'chain_{symbol_str}_{min_dte}_{max_dte}'
@@ -133,10 +131,8 @@ class OptionChainManager:
     def get_contracts_by_delta(self, symbol_str, target_delta, option_right, dte):
         """Find option contracts closest to target delta"""
         try:
-            chain = self.get_option_chain(symbol_str, dte - 1, dte + 1)
-        except Exception as e:
-
             # Get filtered chain
+            chain = self.get_option_chain(symbol_str, dte - 1, dte + 1)
             
             if not chain:
                 self.algo.Debug(f"No option chain found for {symbol_str} with {dte} DTE")
@@ -180,10 +176,8 @@ class OptionChainManager:
     def calculate_greeks(self, contract, underlying_price, current_time):
         """FIXED: Delegate to centralized GreeksMonitor instead of duplicating Black-Scholes"""
         try:
-            dte = (contract.Expiry - current_time).total_seconds() / (24 * TradingConstants.SECONDS_PER_HOUR)
-        except Exception as e:
-
             # Time to expiration in days
+            dte = (contract.Expiry - current_time).total_seconds() / (24 * 3600)  # 3600 seconds per hour
             
             # Get implied volatility (use contract IV if available, else estimate)
             if hasattr(contract, 'ImpliedVolatility') and contract.ImpliedVolatility > 0:
@@ -249,9 +243,6 @@ class OptionChainManager:
     def _log_cache_statistics(self):
         """Log unified cache performance statistics"""
         try:
-            pass
-        except Exception as e:
-
             unified_stats = self.chain_cache.get_statistics()
             
             if not self.algo.LiveMode:  # Only detailed logging in backtest
@@ -273,9 +264,6 @@ class OptionChainManager:
     def get_cache_statistics(self) -> dict:
         """Get comprehensive unified cache statistics"""
         try:
-            pass
-        except Exception as e:
-
             unified_stats = self.chain_cache.get_statistics()
             return {
                 'unified_cache': unified_stats,
@@ -292,9 +280,6 @@ class OptionChainManager:
     def invalidate_chain_cache(self, symbol_str: str = None, reason: str = "manual"):
         """Invalidate option chain cache"""
         try:
-            pass
-        except Exception as e:
-
             if symbol_str:
                 # Invalidate specific symbol patterns in MARKET_DATA cache type
                 count = self.chain_cache.invalidate_pattern(f'chain_{symbol_str}')
@@ -372,15 +357,10 @@ class OptionChainManager:
         try:
             if hasattr(self.algo, 'dependency_container'):
                 self.external_chain_cache = self.algo.dependency_container.get_lazy_proxy('option_cache_manager')
-        else:
-        # Fallback for systems without dependency container
-        self.external_chain_cache = None
-        except Exception as e:
-
-            # FIXED: Use dependency container instead of direct instantiation
-            
+            else:
+                # Fallback for systems without dependency container
+                self.external_chain_cache = None
             self.algo.Debug("[Option Chain Manager] Successfully integrated with existing OptionChainCache system")
-            
         except ImportError as e:
             self.algo.Error(f"[Option Chain Manager] Could not integrate with existing cache system: {e}")
             # Fallback to current caching system
@@ -396,17 +376,15 @@ class OptionChainManager:
         - Integration with existing cache performance metrics
         """
         try:
+            # Get chain using existing cache system if available
             if hasattr(self, 'external_chain_cache'):
                 chain = self.external_chain_cache.get_option_chain(
-        symbol_str,
-        min_expiry=0,
-        max_expiry=60
-        )
-        else:
-        chain = self.get_option_chain(symbol_str)
-        except Exception as e:
-
-            # Get chain using existing cache system if available
+                    symbol_str,
+                    min_expiry=0,
+                    max_expiry=60
+                )
+            else:
+                chain = self.get_option_chain(symbol_str)
             
             validation_result = {
                 'symbol': symbol_str,
