@@ -59,31 +59,37 @@ class TastytradeIntegrationAdapter:
     def _extend_atomic_executor(self):
         """Extend the atomic executor with TastyTrade live execution"""
         
-        # Store original methods
-        original_place_order = getattr(self.atomic_executor, '_place_smart_order', None)
+        # Store original method from AtomicOrderGroup class
+        original_place_order = None
         
-        if not original_place_order:
-            self.algo.Error("[TT-Integration] Could not find _place_smart_order method")
+        # Check if AtomicOrderGroup exists and has _place_smart_order method
+        from helpers.atomic_order_executor import AtomicOrderGroup
+        if hasattr(AtomicOrderGroup, '_place_smart_order'):
+            original_place_order = AtomicOrderGroup._place_smart_order
+        else:
+            self.algo.Error("[TT-Integration] Could not find AtomicOrderGroup._place_smart_order method")
             return
+        
+        # Create closure that captures the integration adapter instance
+        integration_adapter = self
         
         def enhanced_place_order(group_instance, symbol, quantity):
             """Enhanced order placement that uses TastyTrade in live mode"""
             
             # Use TastyTrade for live trading
-            if self.is_live and self.integration_active:
+            if integration_adapter.is_live and integration_adapter.integration_active:
                 try:
-                    return self._place_tastytrade_order(symbol, quantity)
+                    return integration_adapter._place_tastytrade_order(symbol, quantity)
                 except Exception as e:
-                    self.algo.Error(f"[TT-Integration] TastyTrade order failed: {e}")
+                    integration_adapter.algo.Error(f"[TT-Integration] TastyTrade order failed: {e}")
                     # Fall back to original method
             
             # Use original QuantConnect method
-            return original_place_order(symbol, quantity)
+            return original_place_order(group_instance, symbol, quantity)
         
-        # Monkey patch the atomic executor (safe integration)
-        import types
-        self.atomic_executor._place_smart_order_original = original_place_order
-        self.atomic_executor._place_smart_order = types.MethodType(enhanced_place_order, self.atomic_executor)
+        # Monkey patch the AtomicOrderGroup class method (safe integration)
+        AtomicOrderGroup._place_smart_order_original = original_place_order
+        AtomicOrderGroup._place_smart_order = enhanced_place_order
     
     def _place_tastytrade_order(self, symbol, quantity: int):
         """Place single order via TastyTrade API"""
@@ -318,9 +324,10 @@ class TastytradeIntegrationAdapter:
         
         if self.integration_active:
             # Restore original methods if modified
-            if hasattr(self.atomic_executor, '_place_smart_order_original'):
-                self.atomic_executor._place_smart_order = self.atomic_executor._place_smart_order_original
-                delattr(self.atomic_executor, '_place_smart_order_original')
+            from helpers.atomic_order_executor import AtomicOrderGroup
+            if hasattr(AtomicOrderGroup, '_place_smart_order_original'):
+                AtomicOrderGroup._place_smart_order = AtomicOrderGroup._place_smart_order_original
+                delattr(AtomicOrderGroup, '_place_smart_order_original')
             
             self.integration_active = False
             self.algo.Log("[TT-Integration] Integration shut down successfully")

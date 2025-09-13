@@ -222,9 +222,6 @@ class AtomicOrderGroup:
         for symbol, quantity, order in self.pending_legs:
             if order.Status in [OrderStatus.Submitted, OrderStatus.PartiallyFilled]:
                 try:
-                    pass
-                except Exception as e:
-
                     self.algo.Transactions.CancelOrder(order.OrderId)
                     self.algo.Debug(f"[Atomic-{self.group_id}] Cancelled pending order for {symbol}")
                 except Exception as e:
@@ -236,7 +233,6 @@ class AtomicOrderGroup:
                 # Place opposite order to flatten position
                 reverse_quantity = -quantity
                 reverse_order = self.algo.MarketOrder(symbol, reverse_quantity)
-            except Exception as e:
                 
                 if reverse_order:
                     self.rollback_orders.append(reverse_order)
