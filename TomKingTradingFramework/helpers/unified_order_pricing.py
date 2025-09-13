@@ -47,32 +47,31 @@ class UnifiedOrderPricing:
                 if symbol not in self.algo.Securities:
                     self.algo.Error(f"[UnifiedPricing] Symbol {symbol} not in securities")
                     return (0, False)
-                
+
                 security = self.algo.Securities[symbol]
                 bid_price = security.BidPrice if hasattr(security, 'BidPrice') else security.Price
                 ask_price = security.AskPrice if hasattr(security, 'AskPrice') else security.Price
-            
+
             # Validate bid/ask
             if bid_price <= 0 or ask_price <= 0:
                 self.algo.Debug(f"[UnifiedPricing] Invalid bid/ask: {bid_price}/{ask_price}")
                 return (0, False)
-            
+
             # Calculate spread
             spread = ask_price - bid_price
             mid_price = (bid_price + ask_price) / 2
-        except Exception as e:
-            
+
             # Check if spread is reasonable
             if spread < self.min_spread_for_limit:
                 # Spread too tight, use market order
                 self.algo.Debug(f"[UnifiedPricing] Spread too tight ({spread:.2f}), use market")
                 return (mid_price, False)
-            
+
             if spread / mid_price > self.max_spread_percentage:
                 # Spread too wide, use market order for safety
                 self.algo.Debug(f"[UnifiedPricing] Spread too wide ({spread/mid_price:.1%}), use market")
                 return (mid_price, False)
-            
+
             # Calculate limit price using Tom King's 40% rule
             if is_buy:
                 # Buy order: Start from bid, move 40% toward ask
@@ -80,15 +79,15 @@ class UnifiedOrderPricing:
             else:
                 # Sell order: Start from ask, move 40% toward bid
                 limit_price = ask_price - (spread * self.spread_penetration)
-            
+
             # Round to nearest penny
             limit_price = round(limit_price, 2)
-            
+
             self.algo.Debug(f"[UnifiedPricing] Calculated limit price: {limit_price:.2f} "
                           f"(bid: {bid_price:.2f}, ask: {ask_price:.2f}, spread: {spread:.2f})")
-            
+
             return (limit_price, True)
-            
+
         except Exception as e:
             self.algo.Error(f"[UnifiedPricing] Error calculating limit price: {e}")
             return (0, False)

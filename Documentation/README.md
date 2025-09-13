@@ -24,6 +24,7 @@
 - [Event-Driven Circular Dependency Resolution](Architecture/EVENT_DRIVEN_CIRCULAR_DEPENDENCY_RESOLUTION.md) - EventBus + LazyProxy patterns for eliminating circular dependencies
 - [Manager Initialization Patterns](Architecture/MANAGER_INITIALIZATION_PATTERNS.md) - 5-stage deterministic initialization with comprehensive validation
 - [Plugin Architecture Patterns](Architecture/PLUGIN_ARCHITECTURE_PATTERNS.md) - Protocol-based plugin systems with event-driven communication for extensible component architectures
+- [TastyTrade Integration Flow Chart](Architecture/TASTYTRADE_INTEGRATION_FLOW_CHART.md) - **PRODUCTION-READY** Protocol-based safe delegation patterns for external API integration with thread-safe monitoring and circuit breakers
 - [Safe Component Migration Patterns](Architecture/SAFE_COMPONENT_MIGRATION_PATTERNS.md) - Systematic methodology for safely replacing critical system components with git history preservation and rollback capability
 - [Performance Optimization Patterns](Architecture/PERFORMANCE_OPTIMIZATION_PATTERNS.md) - 80% API reduction, intelligent caching
 - [Unified Caching Architecture](Architecture/UNIFIED_CACHING_ARCHITECTURE.md) - Type-aware intelligent caching system consolidating multiple cache implementations

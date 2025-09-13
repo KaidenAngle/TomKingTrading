@@ -25,7 +25,10 @@ class TradingConstants:
     """
     
     # ==================== TIME CONSTANTS ====================
-    
+
+    # Time Conversion
+    SECONDS_PER_HOUR = 3600  # Standard conversion factor for time calculations
+
     # Trading Schedule
     MARKET_OPEN_HOUR = 9  # NYSE opens 9:30 AM ET
     MARKET_OPEN_MINUTE = 30

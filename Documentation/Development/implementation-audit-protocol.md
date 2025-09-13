@@ -48,10 +48,13 @@ STRATEGY IMPLEMENTATIONS:
 └── strategies/leap_put_ladders_with_state.py - LEAP ladders
 
 RISK MANAGEMENT:
-├── risk/circuit_breakers.py         - 4-tier protection
+├── risk/unified_risk_manager.py     - Central risk coordination
 ├── risk/dynamic_margin_manager.py   - Margin management  
-├── risk/correlation_manager.py      - Correlation limits
-└── risk/august_2024_correlation_limiter.py - Specific event
+├── risk/correlation_group_limiter.py - Correlation limits
+├── risk/drawdown_manager.py         - Drawdown protection
+├── risk/position_safety_validator.py - Position validation
+├── risk/pre_trade_validators.py     - Pre-trade checks
+└── risk/vix_regime.py               - VIX-based risk assessment
 ```
 
 ### 3. **PRE-CHANGE VERIFICATION CHECKLIST**

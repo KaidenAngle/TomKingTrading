@@ -115,67 +115,65 @@ class BaseStrategyWithState(ABC):
     
     def execute(self):
         """Main execution method called by algorithm"""
-        
-        try:
-            state = self.state_machine.current_state
-        except Exception as e:
 
+        try:
             # Get current state from individual state machine
-            
+            state = self.state_machine.current_state
+
             # Track state execution (only in backtest mode)
             if not self.algo.LiveMode:
                 self.algo.Debug(f"[{self.strategy_name}] State: {state.name if state else 'None'}")
-            
+
             if state == StrategyState.INITIALIZING:
                 self._check_initialization()
-            
+
             elif state == StrategyState.READY:
                 self._check_entry_window()
-            
+
             elif state == StrategyState.ANALYZING:
                 self._analyze_market()
-            
+
             elif state == StrategyState.PENDING_ENTRY:
                 self._prepare_entry()
-            
+
             elif state == StrategyState.ENTERING:
                 self._execute_entry()
-            
+
             elif state == StrategyState.POSITION_OPEN:
                 self.algo.Debug(f"[{self.strategy_name}] TRACE: Checking position status...")
                 self._check_position_status()
-            
+
             elif state == StrategyState.MANAGING:
                 self.algo.Debug(f"[{self.strategy_name}] TRACE: Managing position...")
                 self._manage_position()
-            
+
             elif state == StrategyState.ADJUSTING:
                 self.algo.Debug(f"[{self.strategy_name}] TRACE: Adjusting position...")
                 self._adjust_position()
-            
+
             elif state == StrategyState.PENDING_EXIT:
                 self.algo.Debug(f"[{self.strategy_name}] TRACE: Preparing exit...")
                 self._prepare_exit()
-            
+
             elif state == StrategyState.EXITING:
                 self.algo.Debug(f"[{self.strategy_name}] TRACE: Executing exit...")
                 self._execute_exit()
-            
+
             elif state == StrategyState.CLOSED:
                 self.algo.Debug(f"[{self.strategy_name}] TRACE: Cleaning up after close...")
                 self._cleanup_after_close()
-            
+
             elif state == StrategyState.ERROR:
                 self.algo.Debug(f"[{self.strategy_name}] TRACE: Handling error state...")
                 self._handle_error_state()
-            
+
             elif state == StrategyState.SUSPENDED:
                 self.algo.Debug(f"[{self.strategy_name}] TRACE: Checking suspension conditions...")
                 self._check_suspension_conditions()
-            
+
             else:
                 self.algo.Error(f"[{self.strategy_name}] UNKNOWN STATE: {state.name}")
-        
+
         except Exception as e:
             self.algo.Error(f"[{self.strategy_name}] Execution error: {e}")
             self.state_machine.trigger(TransitionTrigger.SYSTEM_ERROR, {'error': str(e)})

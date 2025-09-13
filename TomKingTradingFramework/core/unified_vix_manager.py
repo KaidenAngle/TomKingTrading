@@ -82,13 +82,13 @@ class UnifiedVIXManager(BaseComponent, IManager):
         
         # Get fresh VIX value
         try:
-        except Exception as e:
             if hasattr(self.algo, 'vix') and self.algo.vix is not None:
                 vix_symbol = self.algo.vix
             else:
                 # FIXED: Proper fallback for missing VIX symbol
                 self.algo.Error("[VIX] CRITICAL: VIX symbol not available - algorithm initialization error")
                 return 20.0  # Emergency fallback with warning
+
             if self.algo.Securities.ContainsKey(vix_symbol):
                 self._cached_vix = self.algo.Securities[vix_symbol].Price
                 self._cache_time = current_time
@@ -97,10 +97,10 @@ class UnifiedVIXManager(BaseComponent, IManager):
                 if not self.is_backtest:
                     self.algo.Error("[VIX] VIX symbol not found in securities")
                 return 20.0  # Default to normal regime
+
         except Exception as e:
-            if not self.is_backtest:
-                self.algo.Error(f"[VIX] Error getting VIX: {e}")
-            return 20.0  # Default to normal regime
+            self.algo.Error(f"[VIX] Error retrieving VIX value: {str(e)}")
+            return 20.0  # Emergency fallback on error
     
     def get_vix_regime(self) -> str:
         """Get current VIX regime classification"""

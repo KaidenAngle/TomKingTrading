@@ -164,8 +164,43 @@ def validate_constant_usage():
 
 #### **Step 1: Comprehensive System Mapping**
 ```bash
-# Example: Map all files related to specific requirement (21 DTE rule)
+# MANDATORY: Map all existing implementations before any changes
+# Example: Before implementing Kelly Criterion protection
+grep -r "kelly\|Kelly" . --include="*.py"
+grep -r "win_rate.*avg_win.*avg_loss" . --include="*.py" 
+grep -r "division.*zero\|divide.*zero" . --include="*.py"
+
+# Example: Map all files related to specific requirement (21 DTE rule)  
 grep -r "21.*DTE\|dte.*21\|DEFENSIVE_EXIT_DTE" --include="*.py" . | grep -v test
+```
+
+**System Architecture Map (Essential Reference):**
+```
+CORE SYSTEMS:
+├── risk/kelly_criterion.py          - Kelly calculations (COMPLETE)
+├── core/unified_position_sizer.py   - Position sizing (uses Kelly)
+├── core/unified_vix_manager.py      - VIX management (multiple sources)
+├── core/unified_state_manager.py    - State persistence
+├── helpers/data_validation.py       - Data quality checking
+├── greeks/greeks_monitor.py         - Greeks calculations
+└── helpers/quantconnect_event_calendar.py - Real event data
+
+STRATEGY IMPLEMENTATIONS:
+├── strategies/base_strategy_with_state.py - Base class
+├── strategies/friday_0dte_with_state.py   - 0DTE strategy  
+├── strategies/lt112_with_state.py         - LT112 strategy
+├── strategies/ipmcc_with_state.py         - PMCC strategy
+├── strategies/futures_strangle_with_state.py - Futures
+└── strategies/leap_put_ladders_with_state.py - LEAP ladders
+
+RISK MANAGEMENT:
+├── risk/unified_risk_manager.py     - Central risk coordination
+├── risk/dynamic_margin_manager.py   - Margin management  
+├── risk/correlation_group_limiter.py - Correlation limits
+├── risk/drawdown_manager.py         - Drawdown protection
+├── risk/position_safety_validator.py - Position validation
+├── risk/pre_trade_validators.py     - Pre-trade checks
+└── risk/vix_regime.py               - VIX-based risk assessment
 ```
 
 **Mapping Requirements:**

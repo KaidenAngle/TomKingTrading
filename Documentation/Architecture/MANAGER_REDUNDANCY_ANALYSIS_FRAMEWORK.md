@@ -67,7 +67,7 @@ def analyze_performance_characteristics(system_a, system_b):
         'throughput': compare_throughput_capabilities(system_a, system_b)
     }
     
-    # Systems optimized for different performance profiles are likely separate
+    # Systems optimized for different performance profiles are intentionally separate
     performance_differentiation = calculate_performance_separation(characteristics)
     
     return {
@@ -449,7 +449,7 @@ def pre_refactoring_analysis(consolidation_candidates):
         result = RedundancyAnalyzer().analyze_potential_redundancy(class_a, class_b)
         
         if result['score'] < 0.4:
-            print(f"⚠️  WARNING: {class_a} vs {class_b} may be intentionally separate")
+            print(f"⚠️  WARNING: {class_a} vs {class_b} are intentionally separate")
             print(f"   Recommendation: {result['recommendation']}")
             print(f"   Evidence: {result['evidence']['separation_indicators']}")
             

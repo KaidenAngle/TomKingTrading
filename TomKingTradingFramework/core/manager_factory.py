@@ -544,18 +544,20 @@ class ManagerFactory:
         """Initialize event bus as foundation component"""
         
         try:
-        except Exception as e:
             self.event_bus = EventBus(self.algo)
             setattr(self.algo, 'event_bus', self.event_bus)
             self.managers['event_bus'] = self.event_bus
+
             # Verify event bus methods
             required_methods = ['subscribe', 'publish', 'get_statistics', 'publish_with_loop_detection']
             for method_name in required_methods:
                 if not hasattr(self.event_bus, method_name) or not callable(getattr(self.event_bus, method_name)):
                     self.algo.Error(f"[ManagerFactory] Event bus missing method: {method_name}")
                     return False
+
             self.algo.Debug("[ManagerFactory] PHASE 6: Event bus initialized successfully")
             return True
+
         except Exception as e:
             self.algo.Error(f"[ManagerFactory] PHASE 6: Event bus initialization failed: {e}")
             return False

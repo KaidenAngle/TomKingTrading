@@ -444,16 +444,15 @@ class TomKingTradingIntegrated(QCAlgorithm):
             if not hasattr(self, 'unified_risk_manager'):
                 self.Error("[MAIN]  UnifiedRiskManager not found in factory initialization")
                 return False
-        except Exception as e:
 
             # Import and register risk plugins
             from risk.plugins.correlation_plugin import CorrelationPlugin
             from risk.plugins.circuit_breaker_plugin import CircuitBreakerPlugin
             from risk.plugins.concentration_plugin import ConcentrationPlugin
-            
+
             # Register plugins in order of importance
             plugins_registered = 0
-            
+
             # 1. Circuit Breaker Plugin (CRITICAL - emergency stops)
             circuit_breaker_plugin = CircuitBreakerPlugin()
             if self.unified_risk_manager.register_plugin(circuit_breaker_plugin):
@@ -461,7 +460,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
                 self.Log("[MAIN]  SUCCESS - CircuitBreakerPlugin registered (preserves August 5 protections)")
             else:
                 self.Error("[MAIN]  ❌ Failed to register CircuitBreakerPlugin")
-            
+
             # 2. Correlation Plugin (HIGH - prevents correlation disasters)
             correlation_plugin = CorrelationPlugin()
             if self.unified_risk_manager.register_plugin(correlation_plugin):
@@ -469,7 +468,7 @@ class TomKingTradingIntegrated(QCAlgorithm):
                 self.Log("[MAIN]  SUCCESS - CorrelationPlugin registered (August 5 correlation limits)")
             else:
                 self.Error("[MAIN]  ❌ Failed to register CorrelationPlugin")
-            
+
             # 3. Concentration Plugin (HIGH - prevents over-exposure)
             concentration_plugin = ConcentrationPlugin()
             if self.unified_risk_manager.register_plugin(concentration_plugin):
@@ -477,21 +476,21 @@ class TomKingTradingIntegrated(QCAlgorithm):
                 self.Log("[MAIN]  SUCCESS - ConcentrationPlugin registered (SPY/ES concentration limits)")
             else:
                 self.Error("[MAIN]  ❌ Failed to register ConcentrationPlugin")
-            
+
             # Verify all plugins registered successfully
             if plugins_registered == 3:
                 self.Log(f"[MAIN]  SUCCESS - UnifiedRiskManager initialized with {plugins_registered}/3 plugins")
-                
+
                 # Create backward compatibility aliases for existing code
                 self.correlation_limiter = self.unified_risk_manager  # For strategy access
                 self.spy_concentration_manager = self.unified_risk_manager  # For strategy access
                 self.circuit_breaker = self.unified_risk_manager  # For strategy access
-                
+
                 return True
             else:
                 self.Error(f"[MAIN]  ❌ Only {plugins_registered}/3 plugins registered successfully")
                 return False
-                
+
         except Exception as e:
             self.Error(f"[MAIN]  UnifiedRiskManager initialization failed: {e}")
             import traceback
@@ -894,20 +893,19 @@ class TomKingTradingIntegrated(QCAlgorithm):
 
         def check_circuit_breakers(self):
             """Check all circuit breaker conditions"""
+            # Rapid drawdown check
+            if self.performance_tracker.get_current_drawdown() < self.circuit_breakers['rapid_drawdown']['threshold']:
+                self.state_manager.halt_all_trading("Rapid drawdown detected")
 
-        # Rapid drawdown check
-        if self.performance_tracker.get_current_drawdown() < self.circuit_breakers['rapid_drawdown']['threshold']:
-            self.state_manager.halt_all_trading("Rapid drawdown detected")
+            # Margin spike check
+            margin_usage = self.margin_manager.get_margin_usage()
+            if margin_usage > self.circuit_breakers['margin_spike']['threshold']:
+                self.state_manager.halt_all_trading("Margin usage too high")
 
-        # Margin spike check
-        margin_usage = self.margin_manager.get_margin_usage()
-        if margin_usage > self.circuit_breakers['margin_spike']['threshold']:
-            self.state_manager.halt_all_trading("Margin usage too high")
-
-        # Correlation spike check
-        max_correlation = self.correlation_limiter.get_max_correlation()
-        if max_correlation > self.circuit_breakers['correlation_spike']['threshold']:
-            self.state_manager.halt_all_trading("Correlation spike detected")
+            # Correlation spike check
+            max_correlation = self.correlation_limiter.get_max_correlation()
+            if max_correlation > self.circuit_breakers['correlation_spike']['threshold']:
+                self.state_manager.halt_all_trading("Correlation spike detected")
 
         def SafetyCheck(self):
             """Regular safety check routine with conditional logging"""
@@ -1050,23 +1048,23 @@ class TomKingTradingIntegrated(QCAlgorithm):
 
         def monitor_option_chain_quality(self):
             """
-        DATA QUALITY FIX #3: Monitor option chain data completeness and quality
+            DATA QUALITY FIX #3: Monitor option chain data completeness and quality
 
-        This scheduled method runs every 15 minutes to validate option chain data
-        quality and alert on issues that could prevent position opening.
-        """
-        try:
-            if hasattr(self, 'option_chain_manager') and self.option_chain_manager:
-                health_report = self.option_chain_manager.get_chain_data_health_report()
-                # Alert on critical data quality issues
-                overall_score = health_report.get('overall_health_score', 0)
-                if overall_score < 0.6:
-                    self.Log(f"[MAIN]  Option chain data quality degraded: {overall_score:.1%}")
-                # Log recommendations for improvement
-                recommendations = health_report.get('recommendations', [])
-                for rec in recommendations[:2]:  # Log top 2 recommendations
-                    self.Debug(f"[MAIN]  {rec}")
-                # Store health report for strategy access
-                self.option_chain_health = health_report
-        except Exception as e:
-            self.Error(f"[MAIN]  Failed to monitor chain quality: {e}")
+            This scheduled method runs every 15 minutes to validate option chain data
+            quality and alert on issues that could prevent position opening.
+            """
+            try:
+                if hasattr(self, 'option_chain_manager') and self.option_chain_manager:
+                    health_report = self.option_chain_manager.get_chain_data_health_report()
+                    # Alert on critical data quality issues
+                    overall_score = health_report.get('overall_health_score', 0)
+                    if overall_score < 0.6:
+                        self.Log(f"[MAIN]  Option chain data quality degraded: {overall_score:.1%}")
+                    # Log recommendations for improvement
+                    recommendations = health_report.get('recommendations', [])
+                    for rec in recommendations[:2]:  # Log top 2 recommendations
+                        self.Debug(f"[MAIN]  {rec}")
+                    # Store health report for strategy access
+                    self.option_chain_health = health_report
+            except Exception as e:
+                self.Error(f"[MAIN]  Failed to monitor chain quality: {e}")

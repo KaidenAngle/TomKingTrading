@@ -1,7 +1,7 @@
 # CRITICAL: Things That Must NEVER Be Changed
 
 ## Overview
-This document lists critical components that might look like they need "optimization" or "simplification" but are intentionally designed this way. Changing these will break the system or create dangerous trading conditions.
+This document lists critical components that are intentionally designed this way and must not be modified. Changing these will break the system or create dangerous trading conditions.
 
 ## 1. QuantConnect API Usage - NO FALLBACKS
 
