@@ -172,6 +172,13 @@ class TomKingTradingIntegrated(QCAlgorithm):
                     self, self.atomic_executor, self.tastytrade_client
                 )
                 
+                # CRITICAL: Register TastyTrade integration as live executor
+                if hasattr(self.atomic_executor, 'set_live_executor'):
+                    self.atomic_executor.set_live_executor(self.tastytrade_integration)
+                    self.Log("[MAIN] CRITICAL - TastyTrade registered as live executor")
+                else:
+                    self.Error("[MAIN] CRITICAL - Atomic executor missing live executor support")
+                
                 status = self.tastytrade_integration.get_integration_status()
                 self.Log(f"[MAIN] SUCCESS - TastyTrade Integration: {status}")
                 
