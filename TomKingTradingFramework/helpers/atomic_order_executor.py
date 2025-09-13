@@ -359,6 +359,75 @@ class EnhancedAtomicOrderExecutor:
         del self.active_groups[group.group_id]
         
         return success
+    
+    def execute_lt112_atomic(self, long_put, short_put, naked_puts, quantity: int = 1) -> bool:
+        """Execute LT112 (1-1-2 Put Ratio) atomically - Complex income strategy
+        
+        CRITICAL: Prevents dangerous naked put exposure without debit spread
+        Risk: Naked puts (2x) without protective debit spread = unlimited downside
+        
+        LT112 Structure:
+        - Buy 1 PUT (long protection)
+        - Sell 1 PUT (short income - creates debit spread with long)  
+        - Sell 2 PUTS (naked income - higher strike, more premium)
+        
+        Args:
+            long_put: Long put option contract (protection)
+            short_put: Short put option contract (debit spread partner)
+            naked_puts: Naked put option contract (income generation, 2x quantity)
+            quantity: Base quantity (naked puts will be 2x this)
+            
+        Returns:
+            bool: True if all 4 legs filled atomically, False if rolled back
+        """
+        
+        # Comprehensive pre-execution validation
+        if not self._validate_lt112_configuration(long_put, short_put, naked_puts, quantity):
+            return False
+            
+        group = self.create_atomic_group("LT112")
+        
+        # Add all legs with proper quantities and directions
+        group.add_leg(long_put, quantity)         # Buy 1 put (protection)
+        group.add_leg(short_put, -quantity)      # Sell 1 put (debit spread)
+        group.add_leg(naked_puts, -quantity * 2) # Sell 2 puts (naked income)
+        
+        # Persist order group BEFORE execution for crash recovery
+        if hasattr(self.algo, 'order_recovery'):
+            legs = [
+                (long_put, quantity),
+                (short_put, -quantity), 
+                (naked_puts, -quantity * 2)
+            ]
+            self.algo.order_recovery.persist_order_group_start(
+                group.group_id, legs, "LT112"
+            )
+        
+        # Execute atomically
+        success = group.execute()
+        
+        # Move to completed and clean up
+        self.completed_groups[group.group_id] = group
+        del self.active_groups[group.group_id]
+        
+        # Update recovery system
+        if hasattr(self.algo, 'order_recovery'):
+            if success:
+                self.algo.order_recovery.mark_order_group_complete(group.group_id)
+            else:
+                self.algo.order_recovery.mark_order_group_failed(
+                    group.group_id,
+                    f"LT112 execution failed: {group.get_status()}"
+                )
+        
+        if success:
+            self.algo.Debug(f"LT112 executed successfully: {group.group_id}")
+            self.algo.Debug(f"Long: {long_put} x{quantity}, Short: {short_put} x{-quantity}, Naked: {naked_puts} x{-quantity*2}")
+        else:
+            self.algo.Error(f"LT112 execution failed: {group.get_status()}")
+            self.algo.Error("LT112 rollback completed - no dangerous naked positions created")
+            
+        return success
 
     def execute_ipmcc_atomic(self, leap_call, weekly_call, quantity: int = 1) -> bool:
         """Execute IPMCC atomically - LEAP Call + Weekly Call coordination
@@ -476,6 +545,71 @@ class EnhancedAtomicOrderExecutor:
             self.algo.Error("LEAP ladder rollback completed - no partial protection")
 
         return success
+    
+    def _validate_lt112_configuration(self, long_put, short_put, naked_puts, quantity: int) -> bool:
+        """Validate LT112 configuration to prevent dangerous naked put exposure
+        
+        CRITICAL VALIDATION: Strike relationships must create safe put ratio spread
+        Validation ensures: long_strike > short_strike > naked_strike
+        """
+        
+        try:
+            # Basic parameter validation
+            if not long_put or not short_put or not naked_puts:
+                self.algo.Error("[LT112-Validation] Missing option contracts")
+                return False
+                
+            if quantity <= 0 or quantity > 50:  # Sanity check
+                self.algo.Error(f"[LT112-Validation] Invalid quantity: {quantity}")
+                return False
+            
+            # Extract strike prices for validation
+            long_strike = self._extract_strike_price(long_put)
+            short_strike = self._extract_strike_price(short_put)
+            naked_strike = self._extract_strike_price(naked_puts)
+            
+            if not long_strike or not short_strike or not naked_strike:
+                self.algo.Error("[LT112-Validation] Could not extract strike prices")
+                return False
+            
+            # CRITICAL SAFETY CHECK: Strike relationship for put ratio
+            # Long put (protection) should be highest strike
+            # Short put (debit spread) should be middle strike  
+            # Naked puts (income) should be lowest strike
+            if not (long_strike > short_strike > naked_strike):
+                self.algo.Error(f"[LT112-Validation] DANGEROUS STRIKE CONFIGURATION!")
+                self.algo.Error(f"Expected: Long({long_strike}) > Short({short_strike}) > Naked({naked_strike})")
+                self.algo.Error("Strike relationship must be descending for safe put ratio")
+                return False
+            
+            # Validate strike spacing (reasonable spreads)
+            debit_spread_width = long_strike - short_strike
+            ratio_spread_width = short_strike - naked_strike
+            
+            if debit_spread_width < 1 or debit_spread_width > 20:
+                self.algo.Warning(f"[LT112-Validation] Unusual debit spread width: ${debit_spread_width}")
+                
+            if ratio_spread_width < 1 or ratio_spread_width > 30:
+                self.algo.Warning(f"[LT112-Validation] Unusual ratio spread width: ${ratio_spread_width}")
+            
+            # Check maximum naked put exposure (2x quantity is significant risk)
+            naked_exposure = naked_strike * 100 * quantity * 2  # 2x naked puts
+            if hasattr(self.algo, 'Portfolio'):
+                portfolio_value = self.algo.Portfolio.TotalPortfolioValue
+                if naked_exposure > portfolio_value * 0.25:  # 25% max exposure
+                    self.algo.Error(f"[LT112-Validation] Naked put exposure too high: ${naked_exposure:.0f}")
+                    self.algo.Error(f"This exceeds 25% of portfolio (${portfolio_value * 0.25:.0f})")
+                    return False
+            
+            self.algo.Debug(f"[LT112-Validation] Configuration validated successfully")
+            self.algo.Debug(f"Strikes - Long: {long_strike}, Short: {short_strike}, Naked: {naked_strike}")
+            self.algo.Debug(f"Naked exposure: ${naked_exposure:.0f} (2x quantity)")
+            
+            return True
+            
+        except Exception as e:
+            self.algo.Error(f"[LT112-Validation] Validation error: {e}")
+            return False
 
     def _validate_ipmcc_configuration(self, leap_call, weekly_call, quantity: int) -> bool:
         """Validate IPMCC configuration to prevent dangerous setups

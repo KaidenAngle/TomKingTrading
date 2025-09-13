@@ -351,26 +351,25 @@ class UnifiedStateManager(IManager):
         """Save all state machines to persistent storage"""
         
         try:
+            }
+                }
             import json
+            )
+        except Exception as e:
             state_data = {
                 'timestamp': str(self.algo.Time),
                 'system_state': self.system_state.name,
                 'emergency_mode': self.emergency_mode,
                 'strategies': {}
-            }
-
             for name, machine in self.strategy_machines.items():
                 state_data['strategies'][name] = {
                     'current_state': machine.current_state.name,
                     'error_count': machine.error_count,
                     'statistics': machine.get_statistics()
-                }
-
             # Save to ObjectStore
             self.algo.ObjectStore.Save(
                 self.state_file,
                 json.dumps(state_data)
-            )
             self.last_save = self.algo.Time
         except Exception as e:
             self.algo.Error(f"[StateManager] Failed to save states: {e}")
@@ -380,17 +379,15 @@ class UnifiedStateManager(IManager):
         
         try:
             import json
+            )
+        except Exception as e:
             if not self.algo.ObjectStore.ContainsKey(self.state_file):
                 return
-
             state_data = json.loads(
                 self.algo.ObjectStore.Read(self.state_file)
-            )
-
             # Restore system state
             self.system_state = SystemState[state_data['system_state']]
             self.emergency_mode = state_data['emergency_mode']
-
             # Restore strategy states
             for name, data in state_data['strategies'].items():
                 if name in self.strategy_machines:
@@ -428,10 +425,10 @@ class UnifiedStateManager(IManager):
     def _check_vix_spike_internal(self) -> bool:
         """Internal VIX spike check (cached)"""
         try:
+        except Exception as e:
             vix = self.algo.vix
             if vix in self.algo.Securities:
                 return self.algo.Securities[vix].Price > 35
-            return False
         except Exception as e:
             self.algo.Debug(f"[StateManager] High volatility check error: {e}")
         

@@ -102,28 +102,39 @@ class UnifiedOrderPricing:
         """
         
         try:
-            if bid <= 0 or ask <= 0:
-            mid = (bid + ask) / 2
+        
+            pass
         except Exception as e:
+
             if symbol not in self.algo.Securities:
                 return False
+            
             security = self.algo.Securities[symbol]
+            
             # Check if option
             if security.Type != SecurityType.Option:
                 # For non-options, generally use market orders
                 return False
+            
             # Check liquidity
             volume = security.Volume if hasattr(security, 'Volume') else 0
             if volume < 100:  # Low volume, use limit for safety
                 return True
+            
             # Check spread
             bid = security.BidPrice if hasattr(security, 'BidPrice') else 0
             ask = security.AskPrice if hasattr(security, 'AskPrice') else 0
+            
+            if bid <= 0 or ask <= 0:
                 return False
+            
             spread = ask - bid
+            mid = (bid + ask) / 2
+            
             # Use limit if spread is reasonable
             return (spread >= self.min_spread_for_limit and 
                    spread / mid <= self.max_spread_percentage)
+            
         except Exception as e:
             self.algo.Debug(f"[UnifiedPricing] Error checking limit order suitability: {e}")
             return False

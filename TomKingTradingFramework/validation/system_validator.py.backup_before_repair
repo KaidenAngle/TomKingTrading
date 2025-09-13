@@ -242,10 +242,10 @@ class SystemValidator:
         else:
             self.warnings.append("[WARNING] Option order executor not initialized")
             
-        if hasattr(self.algo, 'atomic_executor'):
-            self.info.append("[INFO] Atomic order executor available (production system)")
+        if hasattr(self.algo, 'strategy_order_executor'):
+            self.info.append("[WARNING] Strategy order executor available")
         else:
-            self.critical_issues.append("[CRITICAL] Atomic order executor not initialized - required for safe multi-leg execution")
+            self.warnings.append("[WARNING] Strategy order executor not initialized")
     
     def _validate_phase_progression(self):
         """Validate account phase logic"""

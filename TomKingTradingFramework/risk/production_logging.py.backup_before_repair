@@ -161,17 +161,22 @@ class ProductionLogger:
     def get_trade_history(self, days: int = 7) -> list:
         """Get recent trade history"""
         try:
-                ]
+            pass
         except Exception as e:
+
             if self.algo.ObjectStore.ContainsKey(self.trade_log_file):
                 json_data = self.algo.ObjectStore.Read(self.trade_log_file)
                 all_trades = json.loads(json_data)
+                
                 # Filter by date
                 cutoff_date = self.algo.Time - timedelta(days=days)
                 recent_trades = [
                     t for t in all_trades 
                     if datetime.strptime(t['timestamp'][:19], '%Y-%m-%d %H:%M:%S') > cutoff_date
+                ]
+                
                 return recent_trades
+            
         except Exception as e:
             self.algo.Error(f"Failed to read trade history: {str(e)}")
         

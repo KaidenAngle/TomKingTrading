@@ -57,21 +57,10 @@ class TastytradeWebSocket:
         try:
             self.setup_live_websocket()
         except Exception as e:
-
-        
             # Log and handle unexpected exception
-
-        
-            print(f'Unexpected exception: {e}')
-
-        
-            raise
-# In QuantConnect, we need to use their data feeds
-            # WebSocket would be additional real-time layer
-            
-        except Exception as e:
             self.algorithm.Error(f"[WebSocket] Connection failed: {str(e)}")
             self.handle_connection_failure()
+            raise
             
     def simulate_websocket_data(self):
         """Simulate WebSocket data in backtest mode"""

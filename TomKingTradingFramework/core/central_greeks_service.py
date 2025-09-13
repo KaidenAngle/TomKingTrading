@@ -323,10 +323,6 @@ class CentralGreeksService(BaseComponent):
         """Calculate Greeks for individual position with caching"""
         
         try:
-        
-            pass
-        except Exception as e:
-
             option = holding.Symbol
             underlying = option.Underlying
             
@@ -348,10 +344,6 @@ class CentralGreeksService(BaseComponent):
         """Internal position Greeks calculation"""
         
         try:
-        
-            pass
-        except Exception as e:
-
             option = holding.Symbol
             underlying = option.Underlying
             

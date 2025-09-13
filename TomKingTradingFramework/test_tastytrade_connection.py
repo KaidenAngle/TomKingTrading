@@ -63,15 +63,15 @@ def test_tastytrade_connection():
     # Test account information
     print("\n--- Testing Account Access ---")
     try:
-        accounts = client.get_accounts()
-        if accounts:
-            print(f"[OK] Found {len(accounts)} account(s)")
-            for account in accounts:
-                acc_num = account.get('account-number', 'Unknown')
-                acc_type = account.get('account-type-name', 'Unknown')
-                print(f"   Account: {acc_num} ({acc_type})")
+        account_info = client.get_account_info()
+        if account_info:
+            print(f"[OK] Account info retrieved")
+            acc_num = account_info.get('account_number', 'Unknown')
+            net_liq = account_info.get('net_liquidation', 0)
+            print(f"   Account: {acc_num}")
+            print(f"   Net Liquidation: ${net_liq:,.2f}")
         else:
-            print("[WARN] No accounts found")
+            print("[WARN] No account info found")
     except Exception as e:
         print(f"[FAIL] Account access error: {e}")
     

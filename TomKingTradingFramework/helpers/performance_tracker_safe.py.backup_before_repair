@@ -274,12 +274,14 @@ class SafePerformanceTracker:
         """
         
         try:
-                }
-                # Maintain rolling window
+        
+            pass
         except Exception as e:
+
             if hasattr(order_event, 'FillPrice') and hasattr(order_event, 'FillQuantity'):
                 # QuantConnect provides fill details for complete trade tracking
                 fill_value = float(order_event.FillPrice * order_event.FillQuantity)
+                
                 # Record the trade (basic implementation)
                 trade_record = {
                     'timestamp': self.algo.Time,
@@ -287,8 +289,13 @@ class SafePerformanceTracker:
                     'quantity': order_event.FillQuantity,
                     'price': order_event.FillPrice,
                     'value': fill_value
+                }
+                
                 self.trade_history.append(trade_record)
+                
+                # Maintain rolling window
                 if len(self.trade_history) > self.MAX_HISTORY:
                     self.trade_history.pop(0)
+                    
         except Exception as e:
             self.algo.Error(f"[Performance] Error recording trade: {e}")

@@ -117,47 +117,59 @@ class FixedIPMCCExecution:
     def _create_new_ipmcc_position(self, symbol: str, account_value: float, vix_level: float) -> Tuple[bool, str]:
         """Create brand new IPMCC position (LEAP + weekly call)"""
         try:
-                    position_id=position_id,
-                    quantity=quantity,
-                )
-                    symbol=symbol,
-                    quantity=quantity,
-                )
+            pass
         except Exception as e:
+
             current_price = float(self.algo.Securities[symbol].Price)
+            
             # Find suitable LEAP (365 DTE, ~80 delta)
             leap_contract, leap_analysis = self._find_suitable_leap(symbol, current_price)
             if not leap_contract:
                 return False, "No suitable LEAP found"
+                
             # Find suitable weekly call
             weekly_call, weekly_analysis = self._find_suitable_weekly_call(symbol, current_price, leap_contract.ID.StrikePrice)
             if not weekly_call:
                 return False, "No suitable weekly call found"
+                
             # Calculate position size
             quantity = self._calculate_position_size(account_value, current_price, leap_contract.ID.StrikePrice)
+            
             # Register contracts
             self.algo.AddOptionContract(leap_contract)
             self.algo.AddOptionContract(weekly_call)
+            
             # Execute orders
             leap_order = self.algo.MarketOrder(leap_contract, quantity)  # Buy LEAP
             weekly_order = self.algo.MarketOrder(weekly_call, -quantity)  # Sell weekly
+            
             if leap_order and weekly_order:
                 # Create position in state manager
                 position_id = self.psm.create_ipmcc_position(symbol)
+                
                 # Add LEAP component
                 self.psm.add_ipmcc_leap(
+                    position_id=position_id,
                     leap_contract=str(leap_contract),
+                    quantity=quantity,
                     strike=leap_contract.ID.StrikePrice,
                     expiry=leap_contract.ID.Date
+                )
+                
                 # Add weekly call component
                 self.psm.add_ipmcc_weekly_call(
+                    symbol=symbol,
                     weekly_contract=str(weekly_call),
+                    quantity=quantity,
                     strike=weekly_call.ID.StrikePrice,
                     expiry=weekly_call.ID.Date
+                )
+                
                 self.algo.Log(f"[WARNING] NEW IPMCC Created: {symbol} LEAP@{leap_contract.ID.StrikePrice} + Weekly@{weekly_call.ID.StrikePrice}")
                 return True, f"New IPMCC position created successfully"
             else:
                 return False, "Order execution failed"
+                
         except Exception as e:
             self.algo.Error(f"Error creating new IPMCC: {str(e)}")
             return False, f"New IPMCC error: {str(e)}"
@@ -165,26 +177,34 @@ class FixedIPMCCExecution:
     def _find_suitable_leap(self, symbol: str, current_price: float) -> Tuple[Optional[object], Optional[Dict]]:
         """Find suitable LEAP contract (365+ DTE, ~80 delta)"""
         try:
-                             if c.ID.OptionRight == OptionRight.Call and 
-            analysis = {
-            }
+            pass
         except Exception as e:
+
             option_chain = self.algo.OptionChainProvider.GetOptionContractList(symbol, self.algo.Time)
+            
             # Filter for LEAP calls (300+ DTE)
             target_expiry = self.algo.Time + timedelta(days=365)
             leap_candidates = [c for c in option_chain 
+                             if c.ID.OptionRight == OptionRight.Call and 
                              (c.ID.Date - self.algo.Time).days >= 300]
+            
             if not leap_candidates:
                 self.algo.Debug(f"No LEAP candidates found for {symbol} with 300+ DTE")
                 return None, None
+                
             # Find ~80 delta strike (roughly 15-20% OTM)
             target_leap_strike = current_price * 0.82  # Rough 80 delta approximation
             best_leap = min(leap_candidates, key=lambda c: abs(c.ID.StrikePrice - target_leap_strike))
+            
+            analysis = {
                 'strike': best_leap.ID.StrikePrice,
                 'dte': (best_leap.ID.Date - self.algo.Time).days,
                 'estimated_delta': 0.80,
                 'moneyness': best_leap.ID.StrikePrice / current_price
+            }
+            
             return best_leap, analysis
+            
         except Exception as e:
             self.algo.Error(f"Error finding LEAP: {str(e)}")
             return None, None
@@ -192,25 +212,33 @@ class FixedIPMCCExecution:
     def _find_suitable_weekly_call(self, symbol: str, current_price: float, leap_strike: float) -> Tuple[Optional[object], Optional[Dict]]:
         """Find suitable weekly call contract"""
         try:
-                               if c.ID.OptionRight == OptionRight.Call and 
-            analysis = {
-            }
+            pass
         except Exception as e:
+
             option_chain = self.algo.OptionChainProvider.GetOptionContractList(symbol, self.algo.Time)
+            
             # Find weekly expiry (7 DTE)
             weekly_expiry = self._get_next_weekly_expiry()
             weekly_candidates = [c for c in option_chain 
+                               if c.ID.OptionRight == OptionRight.Call and 
                                abs((c.ID.Date - weekly_expiry).days) <= 3]
+            
             if not weekly_candidates:
                 self.algo.Debug(f"No weekly call candidates found for {symbol} near {weekly_expiry}")
                 return None, None
+                
             # Calculate weekly strike (above current price, below LEAP strike for safety)
             weekly_strike = self._calculate_weekly_call_strike(current_price, leap_strike)
             best_weekly = min(weekly_candidates, key=lambda c: abs(c.ID.StrikePrice - weekly_strike))
+            
+            analysis = {
                 'strike': best_weekly.ID.StrikePrice,
                 'dte': (best_weekly.ID.Date - self.algo.Time).days,
                 'moneyness': best_weekly.ID.StrikePrice / current_price
+            }
+            
             return best_weekly, analysis
+            
         except Exception as e:
             self.algo.Error(f"Error finding weekly call: {str(e)}")
             return None, None

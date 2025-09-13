@@ -35,27 +35,35 @@ class CriticalValidations:
     def validate_broker_connection(self) -> bool:
         """Validate broker API connection before trading"""
         try:
-                    if not account:
-                        # Don't fail, just warn
+            pass
         except Exception as e:
+
             if self.algo.LiveMode:
                 # Check TastyTrade connection
                 if hasattr(self.algo, 'tastytrade') and self.algo.tastytrade:
                     account = self.algo.tastytrade.get_account_info()
+                    
+                    if not account:
                         self.algo.Error("[WARNING] TastyTrade API not connected")
                         self.connection_healthy = False
                         return False
+                    
                     # Verify account balance is reasonable
                     tt_balance = account.get('net_liquidation', 0)
                     qc_balance = self.algo.Portfolio.TotalPortfolioValue
+                    
                     # Allow 10% discrepancy for market movements
                     if abs(tt_balance - qc_balance) / qc_balance > 0.10:
                         self.algo.Error(f"[WARNING] Balance mismatch: TT=${tt_balance:.2f} vs QC=${qc_balance:.2f}")
+                        # Don't fail, just warn
+                    
                     self.connection_healthy = True
                     self.last_connection_check = self.algo.Time
                     return True
+                
             # In backtest mode, always return True
             return True
+            
         except Exception as e:
             self.algo.Error(f"[WARNING] Connection validation failed: {str(e)}")
             self.connection_healthy = False
@@ -163,29 +171,36 @@ class CriticalValidations:
     def calculate_required_margin(self, symbol, quantity, strategy_name="") -> float:
         """Calculate required margin for a position"""
         try:
-                # Rough margin calculation for options
-                if quantity < 0:  # Short option
-                if "ES" in str(symbol):
-                    margin = abs(quantity) * 13200
-                    margin = abs(quantity) * 1320
-                # Equity margin
+            pass
         except Exception as e:
+
             security = self.algo.Securities[symbol]
+            
             if security.Type == SecurityType.Option:
+                # Rough margin calculation for options
                 # Short option margin = 20% of underlying + option premium
+                if quantity < 0:  # Short option
                     underlying_price = security.Underlying.Price
                     margin = abs(quantity) * 100 * underlying_price * 0.20
                 else:  # Long option
                     margin = abs(quantity) * 100 * security.Price
+                    
             elif security.Type == SecurityType.Future:
                 # Futures margin (varies by contract)
                 # ES = $13,200, MES = $1,320 approximately
+                if "ES" in str(symbol):
+                    margin = abs(quantity) * 13200
                 elif "MES" in str(symbol):
+                    margin = abs(quantity) * 1320
                 else:
                     margin = abs(quantity) * security.Price * 100
+                    
             else:
+                # Equity margin
                 margin = abs(quantity) * security.Price
+            
             return margin
+            
         except Exception as e:
             self.algo.Error(f"Margin calculation error: {str(e)}")
             # Return conservative estimate

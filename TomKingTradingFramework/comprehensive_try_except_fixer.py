@@ -109,11 +109,7 @@ def fix_try_except_blocks(file_path):
 def main():
     """Fix multiple files with try-except issues"""
     files_to_fix = [
-        "core/market_data_cache.py",
-        "core/performance_cache.py", 
-        "helpers/option_chain_manager.py",
-        "helpers/option_order_executor.py",
-        "helpers/order_state_recovery.py"
+        "test_corruption_pattern.py"
     ]
     
     success_count = 0

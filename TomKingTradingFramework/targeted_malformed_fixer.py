@@ -23,28 +23,7 @@ class TargetedMalformedFixer:
         
         # Get list of files that were flagged in the previous run
         problem_files = [
-            "final_deep_verification_audit.py",
-            "position_state_manager.py", 
-            "run_position_opening_audit.py",
-            "sync_to_quantconnect.py",
-            "unified_framework_auditor.py",
-            "brokers/paper_trading_adapter.py",
-            "brokers/tastytrade_api_client.py",
-            "brokers/tastytrade_websocket.py",
-            "core/central_greeks_service.py",
-            "core/component_initializer.py",
-            "core/dependency_container.py",
-            "core/event_bus.py",
-            "core/event_driven_ondata.py",
-            "core/event_driven_optimizer.py",
-            "core/manager_factory.py",
-            "core/market_data_cache.py",
-            "core/performance_cache.py",
-            "core/state_machine.py",
-            "core/strategy_coordinator.py",
-            "core/unified_intelligent_cache.py",
-            "core/unified_state_manager.py",
-            "core/unified_vix_manager.py"
+            "test_corruption_pattern.py"
         ]
         
         total_fixes = 0

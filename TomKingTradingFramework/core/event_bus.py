@@ -221,10 +221,6 @@ class EventBus(IManager):
         """
         
         try:
-        
-            pass
-        except Exception as e:
-
             start_time = datetime.now()
             
             # FIXED: Validate event data to prevent corruption and handler failures
@@ -498,10 +494,6 @@ class EventBus(IManager):
         """Internal method to publish an Event object"""
         
         try:
-        
-            pass
-        except Exception as e:
-
             start_time = datetime.now()
             
             # Add to history
@@ -687,10 +679,6 @@ class EventBus(IManager):
         visited.add(data_id)
         
         try:
-        
-            pass
-        except Exception as e:
-
             for key, value in data.items():
                 if isinstance(value, dict):
                     if self._has_circular_references(value, visited.copy(), max_depth - 1):

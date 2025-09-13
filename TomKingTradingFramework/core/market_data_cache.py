@@ -584,8 +584,8 @@ class MarketDataCacheManager(IManager):
                     self._preload_symbol_data(symbol)
                 return True
         except Exception as e:
-
             # Handle market data related events
+            pass
             
             return False
         except Exception as e:

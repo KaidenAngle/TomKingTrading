@@ -40,8 +40,8 @@ class OptionChainManager:
             if symbol_str not in self.algo.Securities:
                 equity = self.algo.AddEquity(symbol_str, Resolution.Minute)
         except Exception as e:
-
             # Add the underlying equity if not already added
+            pass
             
             # Add option subscription
             option = self.algo.AddOption(symbol_str, Resolution.Minute)
