@@ -583,8 +583,8 @@ def _initialize_backtest_optimized(self) -> bool:
 ## RELATED DOCUMENTATION
 
 - [Event-Driven Circular Dependency Resolution](EVENT_DRIVEN_CIRCULAR_DEPENDENCY_RESOLUTION.md) - EventBus + LazyProxy patterns for breaking circular dependencies
-- [Integration Verification Patterns](INTEGRATION_VERIFICATION_PATTERNS.md) - System verification methodology for complex manager integrations  
-- [Systematic Interface Auditing](SYSTEMATIC_INTERFACE_AUDITING.md) - Ultra-rigorous audit methodology for validating initialization completeness
+- [Multi-Agent Verification Framework](../Development/MULTI_AGENT_VERIFICATION_FRAMEWORK.md) - System verification methodology for complex manager integrations
+- [Unified System Verification Methodology](UNIFIED_SYSTEM_VERIFICATION_METHODOLOGY.md) - Ultra-rigorous audit methodology for validating initialization completeness
 - [Performance Optimization Patterns](PERFORMANCE_OPTIMIZATION_PATTERNS.md) - Optimizing manager initialization for trading system performance
 
 ## SUMMARY

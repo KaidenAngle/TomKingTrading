@@ -75,7 +75,7 @@
 **Solution**:
 - STOP - Run systematic interface audit first
 - Use "audit before assume" methodology
-- See [Systematic Interface Auditing](Architecture/SYSTEMATIC_INTERFACE_AUDITING.md)
+- See [Unified System Verification Methodology](Architecture/UNIFIED_SYSTEM_VERIFICATION_METHODOLOGY.md)
 - Most "problems" are actually assumptions - verify before fixing
 
 ## Development Best Practices

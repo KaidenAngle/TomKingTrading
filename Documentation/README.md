@@ -5,6 +5,9 @@
 - 🚫 [CRITICAL: Do Not Change](CRITICAL_DO_NOT_CHANGE.md) - Things that must NEVER be modified (includes systematic methodology)
 - 🔧 [TROUBLESHOOTING GUIDE](TROUBLESHOOTING_GUIDE.md) - Common issues and development best practices
 - 🛠️ [Implementation Audit Protocol](Development/implementation-audit-protocol.md) - **MANDATORY** systematic development approach
+- 🔍 [Runtime Execution Path Tracing](Development/RUNTIME_EXECUTION_PATH_TRACING_METHODOLOGY.md) - **BREAKTHROUGH** verification methodology that discovers critical runtime failures
+- 🤖 [Multi-Agent Verification Framework](Development/MULTI_AGENT_VERIFICATION_FRAMEWORK.md) - Systematic approach for comprehensive complex system verification
+- 🚨 [Critical Runtime Stabilization Patterns](Development/CRITICAL_RUNTIME_STABILIZATION_PATTERNS.md) - Patterns for resolving production-blocking runtime issues
 - 📄 [Quick Reference](Development/quick-reference.md) - Instant consultation guide
 
 ## Architecture Documentation
@@ -15,6 +18,7 @@
 - [VIX Management Design](Architecture/VIX_MANAGEMENT_DESIGN.md) - Central data, strategy-specific filters
 - [SPY Concentration Management](Architecture/SPY_CONCENTRATION_MANAGEMENT.md) - Preventing over-exposure
 - [Atomic Order Execution](Architecture/ATOMIC_ORDER_EXECUTION.md) - All-or-nothing multi-leg orders
+- [Atomic Execution Flow Chart](Architecture/ATOMIC_EXECUTION_FLOW_CHART.md) - **UPDATED** Complete strategy coverage analysis with current implementation status
 
 ### Advanced Architecture Patterns
 - [Event-Driven Circular Dependency Resolution](Architecture/EVENT_DRIVEN_CIRCULAR_DEPENDENCY_RESOLUTION.md) - EventBus + LazyProxy patterns for eliminating circular dependencies
@@ -144,13 +148,13 @@
 ## Reference Documentation
 
 ### External Resources
-- **QuantConnect Documentation** - `/QuantConnect/` folder
+- **QuantConnect Documentation** - `/External_References/QuantConnect/` folder
   - Writing Algorithms guide (PDF and TXT)
   - Local Platform setup guide
-- **TastyTrade API** - `/TastyTrade/` folder
+- **TastyTrade API** - `/External_References/TastyTrade/` folder
   - API SDKs (Python and JavaScript)
   - OAuth documentation
-- **Tom King Methodology** - `/TomKingMethodology/` folder
+- **Tom King Methodology** - `/External_References/TomKingMethodology/` folder
   - Complete trading system documentation
   - Core framework and advanced strategies
 
@@ -164,12 +168,12 @@ Documentation/
 ├── Methodology/                    # Trading rules & risk
 ├── Strategies/                     # All 10 strategies detailed
 ├── Development/                    # Development process & change management
-├── Testing/                        # Test requirements
 ├── Backtesting/                    # Historical scenarios
 ├── Archive/                        # Historical documentation and analysis reports
-├── QuantConnect/                   # QC platform docs
-├── TastyTrade/                     # API documentation
-└── TomKingMethodology/             # Tom King's methodology
+└── External_References/            # External documentation and resources
+    ├── QuantConnect/               # QC platform docs
+    ├── TastyTrade/                # API documentation
+    └── TomKingMethodology/        # Tom King's methodology
 ```
 
 ## Quick Navigation

@@ -17,15 +17,14 @@ Protocol to ensure comprehensive documentation knowledge is loaded at the start 
 ### Architecture Knowledge Priorities:
 ```markdown
 High Priority (Always Load):
-- SYSTEMATIC_INTERFACE_AUDITING.md - "Audit before assume" methodology
-- AUTOMATED_INTERFACE_INTEGRITY_TESTING.md - Interface verification patterns
+- UNIFIED_SYSTEM_VERIFICATION_METHODOLOGY.md - "Audit before assume" methodology
 - FRAMEWORK_ORGANIZATION_PATTERNS.md - Directory structure and git patterns
-- ENHANCED_STATE_MACHINE_PATTERNS.md - Production state management
+- STATE_MACHINE_ARCHITECTURE.md - Production state management
 
 Context-Specific (Load as Needed):
 - PERFORMANCE_OPTIMIZATION_PATTERNS.md - When optimization work needed
-- INTEGRATION_VERIFICATION_PATTERNS.md - When adding new components
-- QUANTCONNECT_API_PATTERNS.md - When working with QC APIs
+- MULTI_AGENT_VERIFICATION_FRAMEWORK.md - When adding new components
+- CRITICAL_RUNTIME_STABILIZATION_PATTERNS.md - When working with runtime issues
 ```
 
 ## User Startup Command
@@ -52,11 +51,11 @@ After reading these, you'll have full context for safe, systematic development w
 ## Session Context Keywords
 
 ### Keywords That Should Trigger Documentation Reading:
-- "interface" → Read interface integrity and auditing docs
+- "interface" → Read unified system verification methodology
 - "organization" → Read framework organization patterns
 - "redundant" → Read implementation audit protocol
-- "state machine" → Read enhanced state machine patterns  
-- "assume" → Read systematic interface auditing
+- "state machine" → Read state machine architecture
+- "assume" → Read unified system verification methodology
 - "development" → Read critical rules and troubleshooting
 
 ## Knowledge Verification Checklist
@@ -83,7 +82,7 @@ After reading these, you'll have full context for safe, systematic development w
     "Read Documentation/Development/quick-reference.md"
   ],
   "contextKeywords": {
-    "interface": "Read Documentation/Architecture/SYSTEMATIC_INTERFACE_AUDITING.md",
+    "interface": "Read Documentation/Architecture/UNIFIED_SYSTEM_VERIFICATION_METHODOLOGY.md",
     "organization": "Read Documentation/Architecture/FRAMEWORK_ORGANIZATION_PATTERNS.md",
     "development": "Read Documentation/CRITICAL_DO_NOT_CHANGE.md"
   }

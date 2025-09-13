@@ -453,8 +453,8 @@ def test_event_driven_communication():
 ## RELATED DOCUMENTATION
 
 - [Manager Initialization Patterns](MANAGER_INITIALIZATION_PATTERNS.md) - 5-stage initialization system for event-driven managers
-- [Integration Verification Patterns](INTEGRATION_VERIFICATION_PATTERNS.md) - System verification methodology for complex integrations
-- [Systematic Interface Auditing](SYSTEMATIC_INTERFACE_AUDITING.md) - Ultra-rigorous audit methodology for verifying circular dependency resolution
+- [Multi-Agent Verification Framework](../Development/MULTI_AGENT_VERIFICATION_FRAMEWORK.md) - System verification methodology for complex integrations
+- [Unified System Verification Methodology](UNIFIED_SYSTEM_VERIFICATION_METHODOLOGY.md) - Ultra-rigorous audit methodology for verifying circular dependency resolution
 - [Performance Optimization Patterns](PERFORMANCE_OPTIMIZATION_PATTERNS.md) - Optimizing event-driven architectures for trading systems
 
 ## SUMMARY
