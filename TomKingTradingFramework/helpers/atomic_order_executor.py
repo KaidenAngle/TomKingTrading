@@ -119,10 +119,8 @@ class AtomicOrderGroup:
                 limit_price, use_limit = self.algo.unified_pricing.calculate_limit_price(
                     symbol, is_buy
                 )
-        except Exception as e:
-
-            # Use unified pricing if available
                 
+                # Use unified pricing if available
                 if use_limit and limit_price > 0:
                     # Place limit order with unified pricing
                     order = self.algo.LimitOrder(symbol, quantity, limit_price)
@@ -235,11 +233,10 @@ class AtomicOrderGroup:
         # Reverse any filled orders
         for symbol, quantity, order in self.filled_legs:
             try:
-                reverse_quantity = -quantity
-            reverse_order = self.algo.MarketOrder(symbol, reverse_quantity)
-            except Exception as e:
-
                 # Place opposite order to flatten position
+                reverse_quantity = -quantity
+                reverse_order = self.algo.MarketOrder(symbol, reverse_quantity)
+            except Exception as e:
                 
                 if reverse_order:
                     self.rollback_orders.append(reverse_order)

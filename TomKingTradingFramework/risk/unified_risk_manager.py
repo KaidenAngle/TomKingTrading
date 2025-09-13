@@ -264,15 +264,9 @@ class UnifiedRiskManager(IManager):
         start_time = datetime.now()
         
         try:
+            # Check each plugin
             for plugin in self.plugins:
                 try:
-                    pass
-        except Exception as e:
-
-            # Check each plugin
-                    
-                except Exception as e:
-
                     can_open, reason = plugin.can_open_position(symbol, quantity, context)
                     if not can_open:
                         self.algorithm.Debug(
@@ -625,14 +619,12 @@ class RiskEventBus:
     def handle_event(self, event) -> bool:
         """Handle incoming events from the event bus"""
         try:
+            # Risk manager processes position updates, market events, etc.
+            # Could trigger risk checks based on event type
             return True
         except Exception as e:
             self.algo.Error(f"[UnifiedRiskManager] Error handling event: {e}")
-        return False
-        except Exception as e:
-
-            # Risk manager processes position updates, market events, etc.
-            # Could trigger risk checks based on event type
+            return False
     
     def get_dependencies(self) -> List[str]:
         """Return list of manager names this manager depends on"""
